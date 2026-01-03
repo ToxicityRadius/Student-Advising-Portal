@@ -1,0 +1,113 @@
+const express = require('express');
+const router = express.Router();
+const { OAuth2Client } = require('google-auth-library');
+const User = require('../models/User');
+const { generateToken } = require('../utils/jwt');
+const { sendVerificationCode } = require('../utils/email');
+
+// Initialize Google OAuth client
+// Replace with your actual Google Client ID
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+// Google Sign-In route
+router.post('/google', async (req, res) => {
+  try {
+    const { token, email, name } = req.body;
+
+    // Verify the Google token
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const googleEmail = payload.email;
+
+    // Verify email domain
+    if (!googleEmail.toLowerCase().endsWith('@tip.edu.ph')) {
+      return res.status(403).json({ 
+        message: 'Only TIP email addresses (@tip.edu.ph) are allowed.' 
+      });
+    }
+
+    // Check if user exists
+    let user = await User.findByEmail(googleEmail);
+
+    if (!user) {
+      // Create new user if doesn't exist
+      user = await User.create({
+        firstName: payload.given_name || name.split(' ')[0],
+        lastName: payload.family_name || name.split(' ').slice(1).join(' '),
+        email: googleEmail,
+        role: 'student',
+        isActive: true,
+        password: Math.random().toString(36).slice(-10),
+        activationToken: null,
+        activationTokenExpires: null
+      });
+    } else if (!user.isActive) {
+      // Auto-activate user when they sign in with Google (verified identity)
+      user = await User.update(user.id, {
+        isActive: true,
+        activationToken: null,
+        activationTokenExpires: null
+      });
+      user = await User.findById(user.id);
+    }
+
+    // Check if 2FA is enabled
+    if (process.env.ENABLE_2FA === 'true') {
+      // Generate verification code for 2FA
+      const verificationCode = User.generateVerificationCode();
+      const verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+      // Update user with verification code
+      await User.update(user.id, {
+        verificationCode,
+        verificationCodeExpires,
+        isVerified: false
+      });
+
+      // Send verification code email
+      await sendVerificationCode(user.email, verificationCode, user.firstName);
+
+      // Return success without token - user needs to verify first
+      res.json({
+        success: true,
+        message: 'Verification code sent to your email. Please check your inbox.',
+        userId: user.id,
+        requiresVerification: true,
+        user: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+        },
+      });
+    } else {
+      // 2FA disabled - log in directly
+      await User.update(user.id, { lastLogin: true });
+      const updatedUser = await User.findById(user.id);
+      const jwtToken = generateToken(updatedUser.id, updatedUser.role);
+
+      res.json({
+        token: jwtToken,
+        user: {
+          id: updatedUser.id,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          email: updatedUser.email,
+          role: updatedUser.role,
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Google authentication error:', error);
+    res.status(500).json({ 
+      message: 'Authentication failed. Please try again.' 
+    });
+  }
+});
+
+module.exports = router;
