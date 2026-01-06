@@ -251,3 +251,88 @@ exports.sendPasswordResetEmail = async (email, token, firstName) => {
     throw new Error('Failed to send password reset email');
   }
 };
+
+// Send faculty invitation email
+exports.sendFacultyInvitation = async (email, token, role) => {
+  const transporter = createTransporter();
+  
+  const invitationUrl = `${process.env.CLIENT_URL}/faculty-register/${token}`;
+  const roleTitle = role === 'admin' ? 'Program Chair' : 'Adviser';
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: email,
+    subject: `Invitation to Join Student Advising System as ${roleTitle}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #FFC107; color: #000; padding: 20px; text-align: center; border: 3px solid #000; }
+          .content { padding: 20px; background-color: #f9f9f9; border-left: 3px solid #FFC107; }
+          .button { display: inline-block; padding: 15px 40px; background-color: #FFC107; color: #000; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; border: 2px solid #000; }
+          .button:hover { background-color: #FFD54F; }
+          .role-badge { display: inline-block; padding: 8px 15px; background-color: ${role === 'admin' ? '#dc3545' : '#ffc107'}; color: ${role === 'admin' ? '#fff' : '#000'}; border-radius: 5px; font-weight: bold; margin: 10px 0; }
+          .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+          .warning { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 15px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Faculty Invitation</h1>
+            <p style="margin: 0;">Student Advising System</p>
+          </div>
+          <div class="content">
+            <h2>You've Been Invited!</h2>
+            <p>You have been invited to join the Student Advising System as a <span class="role-badge">${roleTitle.toUpperCase()}</span></p>
+            
+            <p>As a ${roleTitle}, you will have access to:</p>
+            <ul>
+              ${role === 'admin' ? `
+                <li>Full system administration</li>
+                <li>User management capabilities</li>
+                <li>Course demand forecasting</li>
+                <li>Petition management</li>
+                <li>Curriculum mapping</li>
+              ` : `
+                <li>Advisee record access</li>
+                <li>Plan of study validation</li>
+                <li>Advising reports generation</li>
+                <li>Student progress tracking</li>
+              `}
+            </ul>
+
+            <div style="text-align: center;">
+              <a href="${invitationUrl}" class="button">Accept Invitation & Create Account</a>
+            </div>
+            
+            <p>Or copy and paste this link in your browser:</p>
+            <p style="word-break: break-all; background: #fff; padding: 10px; border: 1px solid #ddd;">${invitationUrl}</p>
+            
+            <div class="warning">
+              <strong>⏰ Important:</strong> This invitation link will expire in <strong>48 hours</strong>. Please complete your registration before then.
+            </div>
+
+            <p style="margin-top: 20px;">If you have any questions, please contact the system administrator.</p>
+          </div>
+          <div class="footer">
+            <p>If you didn't expect this invitation, please ignore this email or contact the system administrator.</p>
+            <p>&copy; 2026 Student Advising System - T.I.P. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Faculty invitation email sent to: ${email} (${roleTitle})`);
+  } catch (error) {
+    console.error('Error sending faculty invitation email:', error);
+    throw new Error('Failed to send faculty invitation email');
+  }
+};

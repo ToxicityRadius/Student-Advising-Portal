@@ -135,3 +135,51 @@ exports.toggleUserStatus = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Update current user's student ID
+// @route   PATCH /api/users/update-student-id
+// @access  Private
+exports.updateStudentId = async (req, res, next) => {
+  try {
+    const { studentId } = req.body;
+
+    // Validate studentId format (7 digits)
+    if (!studentId || !/^\d{7}$/.test(studentId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student Number must be exactly 7 digits'
+      });
+    }
+
+    // Check if studentId already exists
+    const existingUser = await User.findByStudentId(studentId);
+    if (existingUser && existingUser.id !== req.user.id) {
+      return res.status(400).json({
+        success: false,
+        message: 'This Student Number is already registered to another account'
+      });
+    }
+
+    // Only students can update their student ID
+    if (req.user.role !== 'student') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only student accounts can have a Student Number'
+      });
+    }
+
+    // Update user's studentId
+    const updatedUser = await User.update(req.user.id, { studentId });
+
+    res.status(200).json({
+      success: true,
+      message: 'Student Number updated successfully',
+      user: {
+        ...User.toJSON(updatedUser),
+        studentId
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -35,7 +35,10 @@ router.post('/google', async (req, res) => {
 
     if (!user) {
       // Create new user if doesn't exist
+      // Note: studentId will be null for Google OAuth users
+      // They will be prompted to enter it on first login
       user = await User.create({
+        studentId: null, // Will be filled later via popup
         firstName: payload.given_name || name.split(' ')[0],
         lastName: payload.family_name || name.split(' ').slice(1).join(' '),
         email: googleEmail,

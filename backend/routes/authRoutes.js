@@ -8,13 +8,17 @@ const {
   verifyCode,
   resendCode,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  registerFaculty,
+  validateInvitation
 } = require('../controllers/authController');
 const { protect } = require('../middleware/auth');
 
 const router = express.Router();
 
 router.post('/register', register);
+router.post('/register-faculty/:token', registerFaculty);
+router.get('/validate-invitation/:token', validateInvitation);
 router.post('/login', login);
 router.post('/verify-code', verifyCode);
 router.post('/resend-code', resendCode);

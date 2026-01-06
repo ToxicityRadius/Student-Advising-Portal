@@ -12,11 +12,17 @@ import ActivateAccount from './pages/ActivateAccount';
 import VerifyCode from './pages/VerifyCode';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import FacultyRegister from './pages/FacultyRegister';
 import './index.css';
 
 function AppContent() {
   const location = useLocation();
-  const hideNavbar = location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/verify-code' || location.pathname === '/forgot-password' || location.pathname.startsWith('/reset-password');
+  const hideNavbar = location.pathname === '/login' || 
+                     location.pathname === '/register' || 
+                     location.pathname === '/verify-code' || 
+                     location.pathname === '/forgot-password' || 
+                     location.pathname.startsWith('/reset-password') ||
+                     location.pathname.startsWith('/faculty-register');
 
   return (
     <>
@@ -25,6 +31,7 @@ function AppContent() {
         <Route path="/" element={<Navigate to="/dashboard" />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/faculty-register/:token" element={<FacultyRegister />} />
         <Route path="/verify-code" element={<VerifyCode />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />

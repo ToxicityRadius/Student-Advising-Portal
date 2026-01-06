@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
+import InviteFaculty from '../components/InviteFaculty';
 
 const ManageUsers = () => {
   const [users, setUsers] = useState([]);
@@ -73,6 +74,9 @@ const ManageUsers = () => {
         <h1>Manage Users</h1>
         {error && <div className="alert alert-error">{error}</div>}
         {success && <div className="alert alert-success">{success}</div>}
+
+        {/* Invite Faculty Component */}
+        <InviteFaculty />
 
         <div className="user-table-container">
           <table className="user-table">

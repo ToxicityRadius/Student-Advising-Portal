@@ -42,11 +42,25 @@ const createTables = async () => {
     )
   `;
 
+  const facultyInvitationsTable = `
+    CREATE TABLE IF NOT EXISTS faculty_invitations (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) NOT NULL UNIQUE,
+      role VARCHAR(50) NOT NULL CHECK(role IN ('adviser', 'admin')),
+      "invitationToken" VARCHAR(255) NOT NULL UNIQUE,
+      "invitationExpires" BIGINT NOT NULL,
+      "invitedBy" INTEGER REFERENCES users(id),
+      "isUsed" BOOLEAN DEFAULT false,
+      "createdAt" BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000
+    )
+  `;
+
   try {
     await pool.query(usersTable);
+    await pool.query(facultyInvitationsTable);
     console.log('Database tables created successfully');
   } catch (err) {
-    console.error('Error creating users table:', err);
+    console.error('Error creating tables:', err);
   }
 };
 

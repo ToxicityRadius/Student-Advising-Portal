@@ -1,6 +1,14 @@
 # Student Advising System
 
-A comprehensive student advising system with user authentication, role-based access control, and admin user management.
+A comprehensive student advising system with user authentication, role-based access control, secure faculty invitation system, and admin user management.
+
+## 📚 Documentation
+
+- **[README.md](README.md)** - Main documentation (you are here)
+- **[GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md)** - Google OAuth configuration guide
+- **[FACULTY_INVITATION_SYSTEM.md](FACULTY_INVITATION_SYSTEM.md)** - Complete faculty invitation system documentation
+- **[FACULTY_INVITATION_QUICKSTART.md](FACULTY_INVITATION_QUICKSTART.md)** - Quick start guide for admins and faculty
+- **[REQUIRED_EXTENSIONS.md](REQUIRED_EXTENSIONS.md)** - VS Code extensions and project dependencies
 
 ## Features
 
@@ -13,6 +21,7 @@ A comprehensive student advising system with user authentication, role-based acc
 - ✅ Two-Factor Authentication (2FA) via Email
 - ✅ Password Reset via Email
 - ✅ Email Verification System
+- ✅ Student ID mandatory popup for Google OAuth students
 
 ### 2. User Management Module (UC-1)
 - ✅ Admin "Manage Users" Dashboard
@@ -20,6 +29,7 @@ A comprehensive student advising system with user authentication, role-based acc
 - ✅ Role-based Access Control (Student, Adviser, Admin)
 - ✅ User Status Management (Active/Inactive)
 - ✅ Automatic Student role assignment on registration
+- ✅ Faculty Invitation System (secure role assignment)
 
 ## Tech Stack
 
@@ -164,7 +174,9 @@ For detailed Google OAuth setup instructions, see [GOOGLE_OAUTH_SETUP.md](GOOGLE
 ## API Endpoints
 
 ### Authentication
-- `POST /api/auth/register` - Register new user
+- `POST /api/auth/register` - Register new user (student)
+- `POST /api/auth/register-faculty/:token` - Register faculty via invitation
+- `GET /api/auth/validate-invitation/:token` - Validate faculty invitation token
 - `POST /api/auth/login` - Login user (supports 2FA)
 - `POST /api/auth/google` - Google OAuth sign-in
 - `POST /api/auth/logout` - Logout user
@@ -182,9 +194,26 @@ For detailed Google OAuth setup instructions, see [GOOGLE_OAUTH_SETUP.md](GOOGLE
 - `DELETE /api/users/:id` - Delete user
 - `PATCH /api/users/:id/toggle-status` - Toggle user status
 
+### Faculty Invitations (Admin Only)
+- `POST /api/admin/invite-faculty` - Send faculty invitation email
+- `GET /api/admin/invitations` - Get all invitations
+- `GET /api/admin/invitations/pending` - Get pending invitations
+- `DELETE /api/admin/invitations/:id` - Delete invitation
+- `POST /api/admin/invitations/:id/resend` - Resend invitation
+
 ## User Roles
 
-All new users (via registration or Google OAuth) are automatically assigned the **Student** role.
+### Student Registration
+Students register normally through the registration page with their 7-digit Student Number. All student registrations default to the **Student** role.
+
+### Faculty Registration (Secure Invitation System)
+Faculty (Advisers and Program Chairs) cannot self-register. They must be invited by an admin:
+1. **Admin sends invitation** via the "Invite Faculty" form in Manage Users page
+2. **Faculty receives email** with unique invitation link (valid for 48 hours)
+3. **Faculty clicks link** and completes registration with pre-assigned role
+4. **Account is automatically activated** with appropriate permissions (no manual role changes needed)
+
+This ensures only authorized personnel can access faculty features.
 
 ### 1. **Student** (Default Role)
 Automatically assigned to all new registrations. Key features:
@@ -206,8 +235,7 @@ Full system access with administrative capabilities. Key features:
 - **Curriculum Mapping**: Support equivalency between old and new curricula (e.g., 2018, 2023, 2025)
 - **Course Offering Planner**: Suggests which subjects to open based on demand and student progression data
 - **User Management**: Manage all users, roles, and account statuses
-
-**Note:** Only admins can change user roles through the admin panel or database.
+- **Faculty Invitation System**: Send secure invitations to faculty members with pre-assigned roles
 
 ## Security Features
 
@@ -221,14 +249,18 @@ Full system access with administrative capabilities. Key features:
 - Two-Factor Authentication (2FA) via email
 - Password reset functionality with secure tokens
 - Email verification system
+- Faculty invitation system with expiring tokens (48 hours)
+- Secure role assignment (faculty cannot self-assign roles)
 
 ## Default Admin Setup
 
-To create an admin user:
+To create the first admin user:
 1. Register a new user through the registration page
 2. Connect to the PostgreSQL database using a client (e.g., pgAdmin, DBeaver, or Supabase dashboard)
 3. Update the user's role to 'admin' and set "isActive" to true
-4. Alternatively, use SQL: `UPDATE users SET role = 'admin', "isActive" = true WHERE email = 'your@email.com'`
+4. Use SQL: `UPDATE users SET role = 'admin', "isActive" = true WHERE email = 'your@email.com'`
+
+Once you have an admin account, you can invite other faculty members securely through the "Invite Faculty" feature in the Manage Users dashboard.
 
 ## Development Notes
 

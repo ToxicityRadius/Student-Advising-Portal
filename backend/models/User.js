@@ -44,6 +44,11 @@ class User {
     return this.formatUser(result.rows[0]);
   }
 
+  static async findByStudentId(studentId) {
+    const result = await db.query('SELECT * FROM users WHERE "studentId" = $1', [studentId]);
+    return this.formatUser(result.rows[0]);
+  }
+
   static async findByActivationToken(token) {
     const now = Date.now();
     const sql = `
@@ -72,7 +77,7 @@ class User {
     const values = [];
     let paramCount = 1;
 
-    if (updateData.studentId) {
+    if (updateData.studentId !== undefined) {
       fields.push(`"studentId" = $${paramCount++}`);
       values.push(updateData.studentId);
     }

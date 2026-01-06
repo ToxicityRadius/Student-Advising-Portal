@@ -1,12 +1,56 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
+import StudentIdModal from '../components/StudentIdModal';
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
+  const [showStudentIdModal, setShowStudentIdModal] = useState(false);
+
+  useEffect(() => {
+    // Check if user is a student without a studentId
+    if (user && user.role === 'student' && !user.studentId) {
+      setShowStudentIdModal(true);
+    }
+  }, [user]);
+
+  const handleStudentIdSubmit = async (studentId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/users/update-student-id', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        credentials: 'include',
+        body: JSON.stringify({ studentId })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Update user in context and localStorage
+        const updatedUser = { ...user, studentId };
+        setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setShowStudentIdModal(false);
+      } else {
+        throw new Error(data.message || 'Failed to update Student Number');
+      }
+    } catch (error) {
+      throw error;
+    }
+  };
 
   return (
     <div className="container">
+      {showStudentIdModal && (
+        <StudentIdModal 
+          onSubmit={handleStudentIdSubmit}
+          userEmail={user?.email}
+        />
+      )}
       <div className="dashboard">
         <h1>Dashboard</h1>
         <div className="user-table-container">

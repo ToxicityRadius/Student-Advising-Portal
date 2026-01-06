@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Invitation = require('../models/Invitation');
 const crypto = require('crypto');
 const { sendTokenResponse } = require('../utils/jwt');
 const { sendActivationEmail, sendVerificationCode } = require('../utils/email');
@@ -388,6 +389,106 @@ exports.resetPassword = async (req, res, next) => {
 
     const updatedUser = await User.findById(result.id);
     sendTokenResponse(updatedUser, 200, res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Register faculty via invitation
+// @route   POST /api/auth/register-faculty/:token
+// @access  Public
+exports.registerFaculty = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { firstName, lastName, password } = req.body;
+
+    // Validate input
+    if (!firstName || !lastName || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide all required fields'
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters'
+      });
+    }
+
+    // Find and validate invitation
+    const invitation = await Invitation.findByToken(token);
+    
+    if (!invitation) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired invitation link'
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findByEmail(invitation.email);
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'An account with this email already exists'
+      });
+    }
+
+    // Create faculty user with pre-assigned role (no activation needed)
+    const user = await User.create({
+      studentId: null, // Faculty don't have student IDs
+      firstName,
+      lastName,
+      email: invitation.email,
+      password,
+      role: invitation.role, // Use role from invitation (adviser or admin)
+      activationToken: null,
+      activationTokenExpires: null
+    });
+
+    // Activate user immediately
+    await User.update(user.id, {
+      isActive: true
+    });
+
+    // Mark invitation as used
+    await Invitation.markAsUsed(invitation.id);
+
+    // Get updated user and send token
+    const activatedUser = await User.findById(user.id);
+    sendTokenResponse(activatedUser, 201, res);
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Validate invitation token
+// @route   GET /api/auth/validate-invitation/:token
+// @access  Public
+exports.validateInvitation = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const invitation = await Invitation.findByToken(token);
+
+    if (!invitation) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired invitation link'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      invitation: {
+        email: invitation.email,
+        role: invitation.role,
+        expiresAt: new Date(invitation.invitationExpires)
+      }
+    });
   } catch (error) {
     next(error);
   }
