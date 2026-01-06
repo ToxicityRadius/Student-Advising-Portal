@@ -1,6 +1,35 @@
-# Required VS Code Extensions for Team Members
+# Required VS Code Extensions & Project Libraries
 
-## Essential Extensions (Must Install)
+## Project Tech Stack
+
+### Backend Dependencies
+- **express:** ^4.18.2 - Web framework for Node.js
+- **pg:** ^8.16.3 - PostgreSQL client for Node.js
+- **bcryptjs:** ^2.4.3 - Password hashing library
+- **jsonwebtoken:** ^9.0.2 - JWT authentication
+- **cookie-parser:** ^1.4.6 - Parse HTTP cookies
+- **cors:** ^2.8.5 - Enable CORS middleware
+- **dotenv:** ^16.3.1 - Environment variable management
+- **google-auth-library:** ^10.5.0 - Google OAuth 2.0 authentication
+- **nodemailer:** ^7.0.12 - Email sending functionality
+- **nodemon:** ^3.0.2 (dev) - Auto-restart server on changes
+
+### Frontend Dependencies
+- **react:** ^18.2.0 - UI library
+- **react-dom:** ^18.2.0 - React DOM rendering
+- **react-router-dom:** ^6.20.1 - Client-side routing
+- **react-scripts:** ^5.0.1 - React development scripts
+- **axios:** ^1.6.2 - HTTP client for API calls
+- **@react-oauth/google:** ^0.13.4 - Google OAuth integration
+- **jwt-decode:** ^4.0.0 - Decode JWT tokens
+- **google-auth-library:** ^10.5.0 - Google authentication
+
+### Database
+- **PostgreSQL** via **Supabase** (cloud-hosted)
+
+---
+
+## Essential VS Code Extensions (Must Install)
 
 ### 1. **ESLint**
 - **ID:** `dbaeumer.vscode-eslint`
@@ -21,11 +50,11 @@
 - **ID:** `ckolkman.vscode-postgres`
 - **Purpose:** PostgreSQL database management and queries
 - **Install:** `ext install ckolkman.vscode-postgres`
-- **Note:** Project uses PostgreSQL with Supabase
+- **Note:** Connect to Supabase PostgreSQL database
 
 ### 5. **Thunder Client** (or REST Client)
 - **ID:** `rangav.vscode-thunder-client`
-- **Purpose:** API testing and debugging
+- **Purpose:** API testing and debugging (test auth endpoints, Google OAuth, etc.)
 - **Install:** `ext install rangav.vscode-thunder-client`
 - **Alternative:** REST Client (`humao.rest-client`)
 
@@ -60,22 +89,22 @@
 
 ### 11. **Dotenv Official**
 - **ID:** `dotenv.dotenv-vscode`
-- **Purpose:** Syntax highlighting for .env files
+- **Purpose:** Syntax highlighting for .env files (JWT secrets, database URLs, Google OAuth credentials)
 - **Install:** `ext install dotenv.dotenv-vscode`
 
 ---
 
 ## Optional (Nice to Have)
 
-### 12. **Material Icon Theme**
+### 12. **Console Ninja**
+- **ID:** `WallabyJs.console-ninja`
+- **Purpose:** Display console.log output directly in your editor
+- **Install:** `ext install WallabyJs.console-ninja`
+
+### 13. **Material Icon Theme**
 - **ID:** `PKief.material-icon-theme`
 - **Purpose:** Better file icons for easier navigation
 - **Install:** `ext install PKief.material-icon-theme`
-
-### 13. **Bracket Pair Colorizer 2**
-- **ID:** `CoenraadS.bracket-pair-colorizer-2`
-- **Purpose:** Color matching brackets (Note: VS Code has built-in bracket pair colorization now)
-- **Install:** `ext install CoenraadS.bracket-pair-colorizer-2`
 
 ### 14. **Live Share**
 - **ID:** `MS-vsliveshare.vsliveshare`
@@ -86,6 +115,11 @@
 - **ID:** `aaron-bond.better-comments`
 - **Purpose:** Improved comment highlighting
 - **Install:** `ext install aaron-bond.better-comments`
+
+### 16. **Error Lens**
+- **ID:** `usernamehw.errorlens`
+- **Purpose:** Highlight errors and warnings inline
+- **Install:** `ext install usernamehw.errorlens`
 
 ---
 
@@ -174,3 +208,8 @@ npm --version
 - [VS Code Node.js Development](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial)
 - [ESLint Configuration](https://eslint.org/docs/latest/use/getting-started)
 - [Prettier Configuration](https://prettier.io/docs/en/configuration.html)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [Supabase Documentation](https://supabase.com/docs)
+- [Google OAuth 2.0 Documentation](https://developers.google.com/identity/protocols/oauth2)
+- [React Router v6 Documentation](https://reactrouter.com/en/main)
+- [JWT.io](https://jwt.io/) - JWT debugger and documentation
