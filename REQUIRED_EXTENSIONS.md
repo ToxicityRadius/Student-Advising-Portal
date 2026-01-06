@@ -17,10 +17,11 @@
 - **Purpose:** React code snippets and shortcuts
 - **Install:** `ext install dsznajder.es7-react-js-snippets`
 
-### 4. **MongoDB for VS Code**
-- **ID:** `mongodb.mongodb-vscode`
-- **Purpose:** MongoDB database management and queries
-- **Install:** `ext install mongodb.mongodb-vscode`
+### 4. **PostgreSQL**
+- **ID:** `ckolkman.vscode-postgres`
+- **Purpose:** PostgreSQL database management and queries
+- **Install:** `ext install ckolkman.vscode-postgres`
+- **Note:** Project uses PostgreSQL with Supabase
 
 ### 5. **Thunder Client** (or REST Client)
 - **ID:** `rangav.vscode-thunder-client`
@@ -96,7 +97,7 @@ Run this command in VS Code terminal or Command Palette (`Ctrl+Shift+P` → "She
 code --install-extension dbaeumer.vscode-eslint
 code --install-extension esbenp.prettier-vscode
 code --install-extension dsznajder.es7-react-js-snippets
-code --install-extension mongodb.mongodb-vscode
+code --install-extension ckolkman.vscode-postgres
 code --install-extension rangav.vscode-thunder-client
 code --install-extension christian-kohler.npm-intellisense
 code --install-extension christian-kohler.path-intellisense
@@ -141,7 +142,7 @@ Add these settings to your `.vscode/settings.json` for consistent team configura
 Make sure team members have installed:
 - **Node.js:** v16 or higher
 - **npm:** v8 or higher
-- **MongoDB:** Local installation or connection to cloud MongoDB
+- **PostgreSQL:** Using Supabase (cloud-hosted) - connection details in `.env`
 
 Check versions:
 ```bash
@@ -155,12 +156,15 @@ npm --version
 
 1. Install VS Code: https://code.visualstudio.com/
 2. Install Node.js: https://nodejs.org/
-3. Install MongoDB: https://www.mongodb.com/try/download/community
-4. Clone the repository
-5. Install all essential extensions listed above
-6. Run `npm install` in both `frontend` and `backend` folders
-7. Configure `.env` files in the backend folder
-8. Start development!
+3. Clone the repository
+4. Install all essential extensions listed above
+5. Run `npm install` in both `frontend` and `backend` folders
+6. Configure `.env` files:
+   - Backend: Set JWT secret, email credentials, Google OAuth Client ID
+   - Frontend: Set Google Client ID (if needed)
+7. Database is hosted on Supabase (PostgreSQL) - connection string in `.env`
+8. Review [GOOGLE_OAUTH_SETUP.md](../GOOGLE_OAUTH_SETUP.md) for OAuth configuration
+9. Start development!
 
 ---
 

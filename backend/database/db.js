@@ -22,6 +22,7 @@ const createTables = async () => {
   const usersTable = `
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
+      "studentId" VARCHAR(7) UNIQUE,
       "firstName" VARCHAR(255) NOT NULL,
       "lastName" VARCHAR(255) NOT NULL,
       email VARCHAR(255) NOT NULL UNIQUE,

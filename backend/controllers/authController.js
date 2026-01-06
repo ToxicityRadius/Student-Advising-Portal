@@ -8,7 +8,15 @@ const { sendActivationEmail, sendVerificationCode } = require('../utils/email');
 // @access  Public
 exports.register = async (req, res, next) => {
   try {
-    const { firstName, lastName, email, password } = req.body;
+    const { studentId, firstName, lastName, email, password } = req.body;
+
+    // Validate Student ID format (7 digits only)
+    if (studentId && (!/^\d{7}$/.test(studentId))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student ID must be exactly 7 digits'
+      });
+    }
 
     // Check if email ends with @tip.edu.ph
     if (!email.toLowerCase().endsWith('@tip.edu.ph')) {
@@ -33,6 +41,7 @@ exports.register = async (req, res, next) => {
 
     // Create user - automatically assign Student role
     const user = await User.create({
+      studentId,
       firstName,
       lastName,
       email,

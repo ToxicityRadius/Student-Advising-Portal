@@ -8,6 +8,7 @@ import tipLogo from '../tip logo.png';
 
 const Register = () => {
   const [formData, setFormData] = useState({
+    studentId: '',
     firstName: '',
     lastName: '',
     email: '',
@@ -33,6 +34,11 @@ const Register = () => {
     setSuccess('');
 
     // Validation
+    if (!/^\d{7}$/.test(formData.studentId)) {
+      setError('Student Number must be exactly 7 digits');
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -47,6 +53,7 @@ const Register = () => {
 
     try {
       const response = await register({
+        studentId: formData.studentId,
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
@@ -144,6 +151,20 @@ const Register = () => {
         </div>
         <h2 className="login-title">Create an Account</h2>
         <form onSubmit={handleSubmit} className="login-form">
+          <div className="form-group">
+            <input
+              type="text"
+              name="studentId"
+              value={formData.studentId}
+              onChange={handleChange}
+              required
+              placeholder="Student Number (7 digits)"
+              pattern="\d{7}"
+              maxLength="7"
+              title="Student Number must be exactly 7 digits"
+              className="login-input"
+            />
+          </div>
           <div className="form-group">
             <input
               type="text"

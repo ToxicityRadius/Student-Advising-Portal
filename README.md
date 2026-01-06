@@ -9,6 +9,10 @@ A comprehensive student advising system with user authentication, role-based acc
 - ✅ JWT-based Authentication API
 - ✅ User Table with Hashed Passwords (bcrypt)
 - ✅ Session Management
+- ✅ Google OAuth 2.0 Integration (@tip.edu.ph domain restriction)
+- ✅ Two-Factor Authentication (2FA) via Email
+- ✅ Password Reset via Email
+- ✅ Email Verification System
 
 ### 2. User Management Module (UC-1)
 - ✅ Admin "Manage Users" Dashboard
@@ -25,12 +29,15 @@ A comprehensive student advising system with user authentication, role-based acc
 - JWT for authentication
 - bcrypt.js for password hashing
 - Nodemailer for email services
+- Google OAuth 2.0 (google-auth-library)
 
 ### Frontend
 - React 18
 - React Router v6
 - Axios for API calls
 - Context API for state management
+- Google OAuth 2.0 (@react-oauth/google)
+- jwt-decode for token parsing
 
 ## Project Structure
 
@@ -46,6 +53,7 @@ Student Advising/
 │   │   └── User.js
 │   ├── routes/
 │   │   ├── authRoutes.js
+│   │   ├── googleAuthRoutes.js
 │   │   └── userRoutes.js
 │   ├── utils/
 │   │   ├── email.js
@@ -141,12 +149,29 @@ For Gmail:
 2. Generate an App Password
 3. Use the App Password in the `.env` file
 
+## Google OAuth Configuration
+
+For detailed Google OAuth setup instructions, see [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md).
+
+**Quick Setup:**
+1. Create a Google OAuth Client ID at [Google Cloud Console](https://console.cloud.google.com/)
+2. Add `http://localhost:3000` to Authorized JavaScript origins
+3. Add your Client ID to:
+   - Backend: `.env` file (`GOOGLE_CLIENT_ID`)
+   - Frontend: `src/App.js` in GoogleOAuthProvider
+4. The system restricts access to `@tip.edu.ph` email addresses only
+
 ## API Endpoints
 
 ### Authentication
 - `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login user
+- `POST /api/auth/login` - Login user (supports 2FA)
+- `POST /api/auth/google` - Google OAuth sign-in
 - `POST /api/auth/logout` - Logout user
+- `POST /api/auth/verify-code` - Verify 2FA code
+- `POST /api/auth/resend-code` - Resend 2FA code
+- `POST /api/auth/forgot-password` - Request password reset
+- `POST /api/auth/reset-password` - Reset password with token
 - `GET /api/auth/activate/:token` - Activate account
 - `GET /api/auth/me` - Get current user
 
@@ -192,6 +217,10 @@ Full system access with administrative capabilities. Key features:
 - Role-based authorization
 - Account activation via email
 - Protected routes on frontend and backend
+- Google OAuth 2.0 with domain restriction (@tip.edu.ph)
+- Two-Factor Authentication (2FA) via email
+- Password reset functionality with secure tokens
+- Email verification system
 
 ## Default Admin Setup
 
@@ -211,12 +240,17 @@ To create an admin user:
 
 ## Future Enhancements
 
-- Password reset functionality
 - Profile management
 - Course management
+- Grade encoding system
+- Curriculum checklist and progress tracking
+- Plan of Study generation
 - Appointment scheduling
 - Messaging system
 - File uploads
+- Petition management system
+- Course demand forecasting
+- Curriculum mapping (2018, 2023, 2025)
 
 ## License
 

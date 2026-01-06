@@ -3,21 +3,21 @@ const bcrypt = require('bcryptjs');
 
 class User {
   static async create(userData) {
-    const { firstName, lastName, email, password, role, activationToken, activationTokenExpires } = userData;
+    const { studentId, firstName, lastName, email, password, role, activationToken, activationTokenExpires } = userData;
     
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
     const sql = `
-      INSERT INTO users ("firstName", "lastName", email, password, role, "activationToken", "activationTokenExpires")
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO users ("studentId", "firstName", "lastName", email, password, role, "activationToken", "activationTokenExpires")
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `;
     
     const result = await db.query(
       sql,
-      [firstName, lastName, email, hashedPassword, role || 'student', activationToken, activationTokenExpires]
+      [studentId, firstName, lastName, email, hashedPassword, role || 'student', activationToken, activationTokenExpires]
     );
     
     return this.formatUser(result.rows[0]);
@@ -72,6 +72,10 @@ class User {
     const values = [];
     let paramCount = 1;
 
+    if (updateData.studentId) {
+      fields.push(`"studentId" = $${paramCount++}`);
+      values.push(updateData.studentId);
+    }
     if (updateData.firstName) {
       fields.push(`"firstName" = $${paramCount++}`);
       values.push(updateData.firstName);
