@@ -41,9 +41,20 @@ exports.protect = async (req, res, next) => {
         });
       }
 
+      // Store user and token info in request
       req.user = user;
+      req.token = token;
       next();
     } catch (error) {
+      // Token expired or invalid
+      if (error.name === 'TokenExpiredError') {
+        return res.status(401).json({
+          success: false,
+          message: 'Token expired. Please refresh your token.',
+          code: 'TOKEN_EXPIRED'
+        });
+      }
+      
       return res.status(401).json({
         success: false,
         message: 'Not authorized to access this route'

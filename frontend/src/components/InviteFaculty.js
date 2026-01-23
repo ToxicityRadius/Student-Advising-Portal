@@ -24,7 +24,8 @@ const InviteFaculty = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/admin/invite-faculty', {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/admin/invite-faculty`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -38,6 +38,12 @@ class Invitation {
     return this.formatInvitation(result.rows[0]);
   }
 
+  static async findById(id) {
+    const sql = `SELECT * FROM faculty_invitations WHERE id = $1`;
+    const result = await db.query(sql, [id]);
+    return this.formatInvitation(result.rows[0]);
+  }
+
   static async findByEmail(email) {
     const sql = `
       SELECT * FROM faculty_invitations 

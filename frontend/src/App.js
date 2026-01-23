@@ -58,8 +58,10 @@ function AppContent() {
 }
 
 function App() {
+  const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || '131713767896-89rer50ssss6p9emd116afanmclchahv.apps.googleusercontent.com';
+  
   return (
-    <GoogleOAuthProvider clientId="131713767896-89rer50ssss6p9emd116afanmclchahv.apps.googleusercontent.com">
+    <GoogleOAuthProvider clientId={googleClientId}>
       <AuthProvider>
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <AppContent />

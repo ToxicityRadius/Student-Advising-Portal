@@ -95,7 +95,8 @@ const VerifyCode = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/verify-code', {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/auth/verify-code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -141,7 +142,8 @@ const VerifyCode = () => {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/resend-code', {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/auth/resend-code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

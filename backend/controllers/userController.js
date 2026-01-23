@@ -183,3 +183,63 @@ exports.updateStudentId = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Update user's student ID during Google OAuth registration
+// @route   PATCH /api/users/:userId/update-student-id
+// @access  Public (for Google OAuth users)
+exports.updateUserStudentId = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { studentId } = req.body;
+
+    // Validate studentId format (7 digits)
+    if (!studentId || !/^\d{7}$/.test(studentId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student Number must be exactly 7 digits'
+      });
+    }
+
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if studentId already exists (but different user)
+    const existingUser = await User.findByStudentId(studentId);
+    if (existingUser && existingUser.id !== user.id) {
+      return res.status(400).json({
+        success: false,
+        message: 'This Student Number is already registered to another account'
+      });
+    }
+
+    // Update user's studentId
+    const updatedUser = await User.update(userId, { studentId });
+    const finalUser = await User.findById(userId);
+
+    // Generate token
+    const { generateToken } = require('../utils/jwt');
+    const token = generateToken(finalUser.id, finalUser.role);
+
+    res.status(200).json({
+      success: true,
+      message: 'Student Number updated successfully',
+      token,
+      user: {
+        id: finalUser._id,
+        firstName: finalUser.firstName,
+        lastName: finalUser.lastName,
+        email: finalUser.email,
+        role: finalUser.role,
+        studentId: finalUser.studentId
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};

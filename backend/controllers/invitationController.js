@@ -142,18 +142,27 @@ exports.resendInvitation = async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    // Get the invitation to get email and role
+    const invitation = await Invitation.findById(id);
+    
+    if (!invitation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invitation not found'
+      });
+    }
+
+    const { email, role } = invitation;
+
     // Delete old invitation
     await Invitation.delete(id);
-
-    // Get invitation details from request body
-    const { email, role } = req.body;
 
     // Generate new token
     const invitationToken = crypto.randomBytes(32).toString('hex');
     const invitationExpires = Date.now() + 48 * 60 * 60 * 1000;
 
     // Create new invitation
-    const invitation = await Invitation.create({
+    const newInvitation = await Invitation.create({
       email,
       role,
       invitationToken,
@@ -167,7 +176,12 @@ exports.resendInvitation = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Invitation resent successfully',
-      invitation
+      invitation: {
+        id: newInvitation.id,
+        email: newInvitation.email,
+        role: newInvitation.role,
+        expiresAt: new Date(invitationExpires)
+      }
     });
   } catch (error) {
     next(error);

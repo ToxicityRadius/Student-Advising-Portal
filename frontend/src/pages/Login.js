@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
-import { useAuth } from '../context/AuthContext';
+import StudentIdModal from '../components/StudentIdModal';
 import backgroundImage from '../sys-bg-img1.d66192ea.jpg';
 import tipLogo from '../tip logo.png';
 
@@ -13,6 +13,8 @@ const Login = () => {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showStudentIdModal, setShowStudentIdModal] = useState(false);
+  const [pendingGoogleUser, setPendingGoogleUser] = useState(null);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -28,7 +30,8 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -78,7 +81,8 @@ const Login = () => {
       }
 
       // Send the Google token to your backend for verification and login
-      const response = await fetch('http://localhost:5000/api/auth/google', {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -93,6 +97,19 @@ const Login = () => {
       const data = await response.json();
 
       if (response.ok) {
+        if (data.requiresStudentId) {
+          // Show student ID modal
+          setPendingGoogleUser({
+            userId: data.userId,
+            email: data.email,
+            firstName: data.firstName,
+            lastName: data.lastName
+          });
+          setShowStudentIdModal(true);
+          setLoading(false);
+          return;
+        }
+        
         if (data.requiresVerification) {
           // Redirect to verification page
           navigate('/verify-code', { 
@@ -122,8 +139,43 @@ const Login = () => {
     setError('Google Sign-In failed. Please try again.');
   };
 
+  const handleStudentIdSubmit = async (studentId) => {
+    try {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/users/${pendingGoogleUser.userId}/update-student-id`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ studentId })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setShowStudentIdModal(false);
+        setPendingGoogleUser(null);
+        
+        // Redirect to dashboard with token and user data
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        window.location.href = '/dashboard';
+      } else {
+        throw new Error(data.message || 'Failed to update Student Number');
+      }
+    } catch (err) {
+      throw err;
+    }
+  };
+
   return (
     <div className="login-container" style={{ backgroundImage: `url(${backgroundImage})` }}>
+      {showStudentIdModal && pendingGoogleUser && (
+        <StudentIdModal
+          onSubmit={handleStudentIdSubmit}
+          userEmail={pendingGoogleUser.email}
+        />
+      )}
       {error && (
         <div className="error-popup-overlay">
           <div className="error-popup">

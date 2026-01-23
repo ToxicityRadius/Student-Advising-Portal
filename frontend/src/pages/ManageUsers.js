@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import InviteFaculty from '../components/InviteFaculty';
+import PendingInvitations from '../components/PendingInvitations';
 
 const ManageUsers = () => {
   const [users, setUsers] = useState([]);
@@ -77,6 +78,9 @@ const ManageUsers = () => {
 
         {/* Invite Faculty Component */}
         <InviteFaculty />
+
+        {/* Pending Invitations Component */}
+        <PendingInvitations />
 
         <div className="user-table-container">
           <table className="user-table">

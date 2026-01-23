@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"name": "PostgreSQL URI - c:\\Users\\Dexter Soriano\\Documents\\GitHub\\Student-Advising-Portal\\backend\\add-studentId-column.js", "match": "cb955a918d2e1ca9df50e4578c002dae8309774c17216a70e76ac6de18c5d487"}]}
+{"last_found_secrets": [{"match": "cb955a918d2e1ca9df50e4578c002dae8309774c17216a70e76ac6de18c5d487", "name": "PostgreSQL URI - c:\\Users\\Dexter Soriano\\Documents\\GitHub\\Student-Advising-Portal\\backend\\database\\db.js"}]}

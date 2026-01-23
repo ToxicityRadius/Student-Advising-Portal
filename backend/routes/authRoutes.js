@@ -10,7 +10,8 @@ const {
   forgotPassword,
   resetPassword,
   registerFaculty,
-  validateInvitation
+  validateInvitation,
+  refreshToken
 } = require('../controllers/authController');
 const { protect } = require('../middleware/auth');
 
@@ -23,6 +24,7 @@ router.post('/login', login);
 router.post('/verify-code', verifyCode);
 router.post('/resend-code', resendCode);
 router.post('/forgot-password', forgotPassword);
+router.post('/refresh-token', refreshToken);
 router.put('/reset-password/:token', resetPassword);
 router.post('/logout', logout);
 router.get('/activate/:token', activateAccount);

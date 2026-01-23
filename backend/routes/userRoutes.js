@@ -5,11 +5,15 @@ const {
   updateUser,
   deleteUser,
   toggleUserStatus,
-  updateStudentId
+  updateStudentId,
+  updateUserStudentId
 } = require('../controllers/userController');
 const { protect, authorize } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Public route for Google OAuth users to update student ID
+router.patch('/:userId/update-student-id', updateUserStudentId);
 
 // Route for users to update their own student ID (protected but not admin-only)
 router.patch('/update-student-id', protect, updateStudentId);
