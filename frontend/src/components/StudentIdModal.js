@@ -39,12 +39,13 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
     }}>
       <div style={{
         backgroundColor: '#fff',
-        padding: '40px',
+        padding: 'clamp(20px, 6vw, 40px)',
         borderRadius: '10px',
         border: '3px solid #FFC107',
         maxWidth: '500px',
         width: '90%',
-        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)'
+        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+        margin: '0 auto'
       }}>
         <div style={{
           textAlign: 'center',
