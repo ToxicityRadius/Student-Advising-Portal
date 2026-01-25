@@ -67,8 +67,9 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
           </h2>
           <p style={{
             color: '#666',
-            fontSize: '14px',
-            margin: 0
+            fontSize: 'clamp(12px, 3vw, 14px)',
+            margin: 0,
+            lineHeight: '1.4'
           }}>
             Please enter your 7-digit Student Number to continue
           </p>
