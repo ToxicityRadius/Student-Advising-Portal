@@ -52,7 +52,7 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
           marginBottom: '30px'
         }}>
           <div style={{
-            fontSize: '48px',
+            fontSize: 'clamp(32px, 8vw, 48px)',
             marginBottom: '15px'
           }}>
             🎓
@@ -60,7 +60,7 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
           <h2 style={{
             color: '#000',
             marginBottom: '10px',
-            fontSize: '24px',
+            fontSize: 'clamp(18px, 5vw, 24px)',
             fontWeight: '700'
           }}>
             Student Number Required
