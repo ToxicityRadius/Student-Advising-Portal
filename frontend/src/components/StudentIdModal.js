@@ -166,12 +166,12 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
             disabled={loading}
             style={{
               width: '100%',
-              padding: '15px',
+              padding: 'clamp(10px, 3vw, 15px)',
               backgroundColor: loading ? '#ccc' : '#FFC107',
               color: '#000',
               border: '2px solid #000',
               borderRadius: '5px',
-              fontSize: '16px',
+              fontSize: 'clamp(13px, 2.5vw, 16px)',
               fontWeight: '700',
               cursor: loading ? 'not-allowed' : 'pointer',
               transition: 'all 0.3s',
@@ -184,7 +184,7 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
           <p style={{
             marginTop: '20px',
             textAlign: 'center',
-            fontSize: '12px',
+            fontSize: 'clamp(11px, 2.5vw, 12px)',
             color: '#999'
           }}>
             🔒 This is a one-time setup required for student accounts
