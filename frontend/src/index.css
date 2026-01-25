@@ -60,7 +60,7 @@ code {
   position: relative;
   z-index: 1;
   background: white;
-  padding: 40px 50px;
+  padding: clamp(30px, 8vw, 50px) clamp(20px, 8vw, 50px);
   border-radius: 8px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   width: 100%;
@@ -73,7 +73,7 @@ code {
 }
 
 .login-logo img {
-  max-width: 280px;
+  max-width: clamp(200px, 60vw, 280px);
   height: auto;
 }
 
@@ -81,7 +81,7 @@ code {
   text-align: left;
   margin-bottom: 25px;
   color: #333;
-  font-size: 24px;
+  font-size: clamp(20px, 5vw, 24px);
   font-weight: 600;
 }
 
@@ -233,15 +233,16 @@ code {
 .code-input-container {
   display: flex;
   justify-content: center;
-  gap: 10px;
+  gap: clamp(5px, 2vw, 10px);
   margin: 30px 0;
+  flex-wrap: wrap;
 }
 
 .code-input {
-  width: 50px;
-  height: 60px;
+  width: clamp(40px, 12vw, 50px);
+  height: clamp(45px, 15vw, 60px);
   text-align: center;
-  font-size: 24px;
+  font-size: clamp(16px, 4vw, 24px);
   font-weight: bold;
   border: 2px solid #ddd;
   border-radius: 8px;
@@ -360,7 +361,7 @@ code {
 
 .auth-card {
   background: white;
-  padding: 40px;
+  padding: clamp(25px, 6vw, 40px);
   border-radius: 10px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
   width: 100%;
@@ -371,7 +372,7 @@ code {
   text-align: center;
   margin-bottom: 30px;
   color: #333;
-  font-size: 28px;
+  font-size: clamp(22px, 6vw, 28px);
 }
 
 .form-group {
@@ -665,9 +666,19 @@ code {
 }
 
 /* Responsive */
+@media (max-width: 992px) {
+  .navbar-menu {
+    gap: 15px;
+  }
+
+  .dashboard h1 {
+    font-size: clamp(20px, 5vw, 28px);
+  }
+}
+
 @media (max-width: 768px) {
   .auth-card {
-    padding: 30px 20px;
+    padding: 25px 20px;
   }
 
   .navbar-content {
@@ -675,11 +686,200 @@ code {
     gap: 15px;
   }
 
+  .navbar-menu {
+    flex-direction: column;
+    width: 100%;
+    gap: 10px;
+  }
+
+  .navbar-menu a,
+  .navbar-menu button {
+    width: 100%;
+    text-align: center;
+  }
+
   .user-table-container {
     overflow-x: auto;
+    padding: 20px;
   }
 
   .user-table {
     min-width: 800px;
+    font-size: clamp(12px, 2vw, 14px);
+  }
+
+  .user-table th,
+  .user-table td {
+    padding: 8px;
+  }
+
+  .login-card {
+    margin: 0 15px;
+  }
+
+  .code-input-container {
+    margin: 20px 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 20px 15px;
+  }
+
+  .login-card {
+    margin: 0 10px;
+    padding: 20px 15px;
+  }
+
+  .login-logo {
+    margin-bottom: 20px;
+  }
+
+  .login-logo img {
+    max-width: 200px;
+  }
+
+  .login-title {
+    font-size: 18px;
+    margin-bottom: 15px;
+  }
+
+  .auth-card h2 {
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+
+  .form-group {
+    margin-bottom: 15px;
+  }
+
+  .form-group label {
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+
+  .form-group input,
+  .form-group select {
+    padding: 10px;
+    font-size: 16px;
+  }
+
+  .btn-continue {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .code-input-container {
+    gap: 5px;
+    margin: 20px 0;
+  }
+
+  .code-input {
+    width: 40px;
+    height: 50px;
+    font-size: 18px;
+  }
+
+  .navbar {
+    padding: 10px 0;
+  }
+
+  .navbar-brand {
+    font-size: 18px;
+  }
+
+  .navbar-menu button {
+    padding: 6px 12px;
+    font-size: 14px;
+  }
+
+  .user-table th,
+  .user-table td {
+    padding: 6px;
+    font-size: 12px;
+  }
+
+  .badge {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .btn-small {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .error-popup {
+    padding: 15px 20px;
+    margin: 20px;
+  }
+
+  .error-popup-content {
+    gap: 10px;
+  }
+
+  .error-icon {
+    font-size: 24px;
+  }
+
+  .error-popup-content p {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 360px) {
+  .login-card {
+    padding: 15px 12px;
+  }
+
+  .login-logo img {
+    max-width: 160px;
+  }
+
+  .login-title {
+    font-size: 16px;
+  }
+
+  .code-input-container {
+    gap: 4px;
+  }
+
+  .code-input {
+    width: 36px;
+    height: 45px;
+    font-size: 16px;
+  }
+
+  .btn-continue {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .auth-card h2 {
+    font-size: 18px;
+  }
+
+  .navbar-brand {
+    font-size: 16px;
+  }
+
+  .container {
+    padding: 10px;
+  }
+
+  .user-table-container {
+    padding: 15px;
+  }
+
+  .user-table th,
+  .user-table td {
+    padding: 5px;
+    font-size: 11px;
   }
 }

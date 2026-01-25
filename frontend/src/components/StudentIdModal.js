@@ -39,19 +39,20 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
     }}>
       <div style={{
         backgroundColor: '#fff',
-        padding: '40px',
+        padding: 'clamp(20px, 6vw, 40px)',
         borderRadius: '10px',
         border: '3px solid #FFC107',
         maxWidth: '500px',
         width: '90%',
-        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)'
+        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+        margin: '0 auto'
       }}>
         <div style={{
           textAlign: 'center',
           marginBottom: '30px'
         }}>
           <div style={{
-            fontSize: '48px',
+            fontSize: 'clamp(32px, 8vw, 48px)',
             marginBottom: '15px'
           }}>
             🎓
@@ -59,15 +60,16 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
           <h2 style={{
             color: '#000',
             marginBottom: '10px',
-            fontSize: '24px',
+            fontSize: 'clamp(18px, 5vw, 24px)',
             fontWeight: '700'
           }}>
             Student Number Required
           </h2>
           <p style={{
             color: '#666',
-            fontSize: '14px',
-            margin: 0
+            fontSize: 'clamp(12px, 3vw, 14px)',
+            margin: 0,
+            lineHeight: '1.4'
           }}>
             Please enter your 7-digit Student Number to continue
           </p>
@@ -75,15 +77,16 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
 
         <div style={{
           backgroundColor: '#FFF3CD',
-          padding: '15px',
+          padding: 'clamp(10px, 3vw, 15px)',
           borderRadius: '8px',
           border: '2px solid #FFC107',
           marginBottom: '25px',
-          textAlign: 'center'
+          textAlign: 'center',
+          wordBreak: 'break-word'
         }}>
           <p style={{
             margin: '0 0 5px 0',
-            fontSize: '13px',
+            fontSize: 'clamp(11px, 2.5vw, 13px)',
             color: '#856404',
             fontWeight: '600'
           }}>
@@ -91,9 +94,10 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
           </p>
           <p style={{
             margin: 0,
-            fontSize: '14px',
+            fontSize: 'clamp(12px, 2.5vw, 14px)',
             color: '#000',
-            fontWeight: '500'
+            fontWeight: '500',
+            wordBreak: 'break-word'
           }}>
             {userEmail}
           </p>
@@ -103,11 +107,12 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
           <div style={{
             backgroundColor: '#f8d7da',
             color: '#721c24',
-            padding: '12px 15px',
+            padding: 'clamp(10px, 3vw, 15px)',
             borderRadius: '5px',
             marginBottom: '20px',
             border: '2px solid #f5c6cb',
-            fontSize: '14px'
+            fontSize: 'clamp(12px, 2.5vw, 14px)',
+            wordBreak: 'break-word'
           }}>
             ⚠️ {error}
           </div>
@@ -120,7 +125,7 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
               marginBottom: '8px',
               fontWeight: '600',
               color: '#000',
-              fontSize: '14px'
+              fontSize: 'clamp(12px, 3vw, 14px)'
             }}>
               Student Number *
             </label>
@@ -135,13 +140,13 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
               autoFocus
               style={{
                 width: '100%',
-                padding: '15px',
+                padding: 'clamp(10px, 3vw, 15px)',
                 border: '2px solid #000',
                 borderRadius: '5px',
-                fontSize: '18px',
+                fontSize: 'clamp(14px, 3vw, 18px)',
                 fontWeight: '600',
                 textAlign: 'center',
-                letterSpacing: '2px',
+                letterSpacing: '1px',
                 boxSizing: 'border-box'
               }}
             />
@@ -149,7 +154,7 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
               display: 'block',
               marginTop: '8px',
               color: '#666',
-              fontSize: '13px',
+              fontSize: 'clamp(11px, 2.5vw, 13px)',
               textAlign: 'center'
             }}>
               Your Student Number must be exactly 7 digits
@@ -161,12 +166,12 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
             disabled={loading}
             style={{
               width: '100%',
-              padding: '15px',
+              padding: 'clamp(10px, 3vw, 15px)',
               backgroundColor: loading ? '#ccc' : '#FFC107',
               color: '#000',
               border: '2px solid #000',
               borderRadius: '5px',
-              fontSize: '16px',
+              fontSize: 'clamp(13px, 2.5vw, 16px)',
               fontWeight: '700',
               cursor: loading ? 'not-allowed' : 'pointer',
               transition: 'all 0.3s',
@@ -179,7 +184,7 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
           <p style={{
             marginTop: '20px',
             textAlign: 'center',
-            fontSize: '12px',
+            fontSize: 'clamp(11px, 2.5vw, 12px)',
             color: '#999'
           }}>
             🔒 This is a one-time setup required for student accounts

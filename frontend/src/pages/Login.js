@@ -239,12 +239,17 @@ const Login = () => {
                     </Link>
                   </div>
                   
-                  <Button 
-                    type="submit" 
-                    variant="warning" 
-                    size="lg" 
-                    className="w-100 fw-bold text-dark mb-3"
+                  <Button
+                    type="submit"
+                    variant="warning"
+                    size="lg"
+                    className="w-100 fw-bold mb-3 login-button"
                     disabled={loading}
+                    style={{
+                      backgroundColor: '#FFC107',
+                      borderColor: '#FFC107',
+                      color: '#000'
+                    }}
                   >
                     {loading ? 'Logging in...' : 'Login'}
                   </Button>
