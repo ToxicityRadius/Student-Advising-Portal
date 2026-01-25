@@ -220,7 +220,7 @@ const Login = () => {
             <Card className="shadow-lg border-0" style={{ position: 'relative', zIndex: 3, borderRadius: '20px', overflow: 'hidden' }}>
               <Card.Body className="p-3 p-md-4">
                 <div className="text-center mb-3" style={{ marginTop: '70px', marginBottom: '70px' }}>
-                  <img src={tipLogo} alt="TIP Logo" style={{ maxWidth: '200px', height: 'auto' }} />
+                  <img src={tipLogo} alt="TIP Logo" style={{ maxWidth: '250px', height: 'auto' }} />
                 </div>
                 
                 <h2 className="mb-4 text-start">Sign in</h2>
