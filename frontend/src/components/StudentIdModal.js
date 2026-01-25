@@ -125,7 +125,7 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
               marginBottom: '8px',
               fontWeight: '600',
               color: '#000',
-              fontSize: '14px'
+              fontSize: 'clamp(12px, 3vw, 14px)'
             }}>
               Student Number *
             </label>
@@ -140,13 +140,13 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
               autoFocus
               style={{
                 width: '100%',
-                padding: '15px',
+                padding: 'clamp(10px, 3vw, 15px)',
                 border: '2px solid #000',
                 borderRadius: '5px',
-                fontSize: '18px',
+                fontSize: 'clamp(14px, 3vw, 18px)',
                 fontWeight: '600',
                 textAlign: 'center',
-                letterSpacing: '2px',
+                letterSpacing: '1px',
                 boxSizing: 'border-box'
               }}
             />
@@ -154,7 +154,7 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
               display: 'block',
               marginTop: '8px',
               color: '#666',
-              fontSize: '13px',
+              fontSize: 'clamp(11px, 2.5vw, 13px)',
               textAlign: 'center'
             }}>
               Your Student Number must be exactly 7 digits
