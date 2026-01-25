@@ -60,7 +60,7 @@ code {
   position: relative;
   z-index: 1;
   background: white;
-  padding: 40px 50px;
+  padding: clamp(30px, 8vw, 50px) clamp(20px, 8vw, 50px);
   border-radius: 8px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   width: 100%;
