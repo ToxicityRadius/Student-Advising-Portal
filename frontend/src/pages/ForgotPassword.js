@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap';
-import backgroundImage from '../sys-bg-img1.d66192ea.jpg';
+import backgroundImage from '../bg.png';
 import tipLogo from '../tip logo.png';
 
 const ForgotPassword = () => {
@@ -49,15 +49,39 @@ const ForgotPassword = () => {
         backgroundPosition: 'center'
       }}
     >
+      
+      {/* Yellow rectangle - left side, top overlap */}
       <div 
-        className="position-absolute top-0 start-0 w-100 h-100" 
-        style={{ backgroundColor: 'rgba(255, 255, 255, 0.7)' }}
+        className="position-absolute" 
+        style={{ 
+          left: 0,
+          top: '10.5%',
+          width: '750px',
+          height: '100px',
+          backgroundColor: '#FFC107',
+          zIndex: 2,
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+        }}
+      />
+      
+      {/* Yellow rectangle - right side, bottom overlap */}
+      <div 
+        className="position-absolute" 
+        style={{ 
+          right: 0,
+          bottom: '10.5%',
+          width: '1500px',
+          height: '100px',
+          backgroundColor: '#FFC107',
+          zIndex: 1,
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+        }}
       />
       
       <Container className="position-relative" style={{ zIndex: 1 }}>
-        <Row className="justify-content-center">
+        <Row className="justify-content-start">
           <Col xs={12} sm={10} md={8} lg={6} xl={5}>
-            <Card className="shadow-lg border-0">
+            <Card className="shadow-lg border-0" style={{ position: 'relative', zIndex: 3, borderRadius: '20px', overflow: 'hidden' }}>
               <Card.Body className="p-4 p-md-5">
                 <div className="text-center mb-4">
                   <img src={tipLogo} alt="TIP Logo" style={{ maxWidth: '280px', height: 'auto' }} />

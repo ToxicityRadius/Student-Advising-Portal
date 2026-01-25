@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
+import backgroundImage from '../bg.png';
 
 const ActivateAccount = () => {
   const { token } = useParams();
@@ -33,7 +34,43 @@ const ActivateAccount = () => {
   }, [token, navigate]);
 
   return (
-    <div className="auth-container">
+    <div 
+      className="min-vh-100 d-flex align-items-center justify-content-center position-relative" 
+      style={{ 
+        backgroundImage: `url(${backgroundImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      }}
+    >
+      
+      {/* Yellow rectangle - left side, top overlap */}
+      <div 
+        className="position-absolute" 
+        style={{ 
+          left: 0,
+          top: '10.5%',
+          width: '750px',
+          height: '100px',
+          backgroundColor: '#FFC107',
+          zIndex: 2,
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+        }}
+      />
+      
+      {/* Yellow rectangle - right side, bottom overlap */}
+      <div 
+        className="position-absolute" 
+        style={{ 
+          right: 0,
+          bottom: '10.5%',
+          width: '1500px',
+          height: '100px',
+          backgroundColor: '#FFC107',
+          zIndex: 1,
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+        }}
+      />
+    <div className="auth-container" style={{ position: 'relative', zIndex: 3 }}>
       <div className="auth-card">
         <h2>Account Activation</h2>
         {status === 'loading' && (
@@ -51,6 +88,7 @@ const ActivateAccount = () => {
           </>
         )}
       </div>
+    </div>
     </div>
   );
 };

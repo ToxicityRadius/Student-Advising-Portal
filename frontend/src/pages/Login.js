@@ -4,7 +4,7 @@ import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap'
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import StudentIdModal from '../components/StudentIdModal';
-import backgroundImage from '../sys-bg-img1.d66192ea.jpg';
+import backgroundImage from '../bg.png';
 import tipLogo from '../tip logo.png';
 
 const Login = () => {
@@ -178,10 +178,6 @@ const Login = () => {
         backgroundPosition: 'center'
       }}
     >
-      <div 
-        className="position-absolute top-0 start-0 w-100 h-100" 
-        style={{ backgroundColor: 'rgba(255, 255, 255, 0.7)' }}
-      />
       
       {showStudentIdModal && pendingGoogleUser && (
         <StudentIdModal
@@ -190,13 +186,41 @@ const Login = () => {
         />
       )}
       
+      {/* Yellow rectangle - left side, top overlap */}
+      <div 
+        className="position-absolute" 
+        style={{ 
+          left: 0,
+          top: '10%',
+          width: '750px',
+          height: '90px',
+          backgroundColor: '#FFC107',
+          zIndex: 2,
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+        }}
+      />
+      
+      {/* Yellow rectangle - right side, bottom overlap */}
+      <div 
+        className="position-absolute" 
+        style={{ 
+          right: 0,
+          bottom: '10%',
+          width: '1500px',
+          height: '100px',
+          backgroundColor: '#FFC107',
+          zIndex: 1,
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+        }}
+      />
+      
       <Container className="position-relative" style={{ zIndex: 1 }}>
-        <Row className="justify-content-center">
-          <Col xs={12} sm={10} md={8} lg={6} xl={5}>
-            <Card className="shadow-lg border-0">
-              <Card.Body className="p-4 p-md-5">
-                <div className="text-center mb-4">
-                  <img src={tipLogo} alt="TIP Logo" style={{ maxWidth: '280px', height: 'auto' }} />
+        <Row className="justify-content-start">
+          <Col xs={13} sm={10} md={8} lg={6} xl={5} style={{ maxWidth: '435px' }}>
+            <Card className="shadow-lg border-0" style={{ position: 'relative', zIndex: 3, borderRadius: '20px', overflow: 'hidden' }}>
+              <Card.Body className="p-3 p-md-4">
+                <div className="text-center mb-3" style={{ marginTop: '70px', marginBottom: '70px' }}>
+                  <img src={tipLogo} alt="TIP Logo" style={{ maxWidth: '200px', height: 'auto' }} />
                 </div>
                 
                 <h2 className="mb-4 text-start">Sign in</h2>
@@ -217,7 +241,6 @@ const Login = () => {
                       onChange={handleChange}
                       required
                       placeholder="Email Address"
-                      size="lg"
                     />
                   </Form.Group>
                   
@@ -229,7 +252,6 @@ const Login = () => {
                       onChange={handleChange}
                       required
                       placeholder="Password"
-                      size="lg"
                     />
                   </Form.Group>
                   

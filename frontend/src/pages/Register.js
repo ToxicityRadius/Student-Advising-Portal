@@ -4,7 +4,7 @@ import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap'
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../context/AuthContext';
-import backgroundImage from '../sys-bg-img1.d66192ea.jpg';
+import backgroundImage from '../bg.png';
 import tipLogo from '../tip logo.png';
 
 const Register = () => {
@@ -131,18 +131,42 @@ const Register = () => {
         backgroundPosition: 'center'
       }}
     >
+      
+      {/* Yellow rectangle - left side, top overlap */}
       <div 
-        className="position-absolute top-0 start-0 w-100 h-100" 
-        style={{ backgroundColor: 'rgba(255, 255, 255, 0.7)' }}
+        className="position-absolute" 
+        style={{ 
+          left: 0,
+          top: '10.5%',
+          width: '750px',
+          height: '100px',
+          backgroundColor: '#FFC107',
+          zIndex: 2,
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+        }}
+      />
+      
+      {/* Yellow rectangle - right side, bottom overlap */}
+      <div 
+        className="position-absolute" 
+        style={{ 
+          right: 0,
+          bottom: '10.5%',
+          width: '1500px',
+          height: '100px',
+          backgroundColor: '#FFC107',
+          zIndex: 1,
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+        }}
       />
       
       <Container className="position-relative" style={{ zIndex: 1 }}>
-        <Row className="justify-content-center">
-          <Col xs={12} sm={10} md={8} lg={6} xl={5}>
-            <Card className="shadow-lg border-0">
-              <Card.Body className="p-4 p-md-5">
-                <div className="text-center mb-4">
-                  <img src={tipLogo} alt="TIP Logo" style={{ maxWidth: '280px', height: 'auto' }} />
+        <Row className="justify-content-start">
+          <Col xs={12} sm={9} md={7} lg={5} xl={4}>
+            <Card className="shadow-lg border-0" style={{ position: 'relative', zIndex: 3, borderRadius: '20px', overflow: 'hidden' }}>
+              <Card.Body className="p-3 p-md-4">
+                <div className="text-center mb-3">
+                  <img src={tipLogo} alt="TIP Logo" style={{ maxWidth: '200px', height: 'auto' }} />
                 </div>
                 
                 <h2 className="mb-4 text-start">Create an Account</h2>
@@ -173,7 +197,6 @@ const Register = () => {
                       pattern="\d{7}"
                       maxLength="7"
                       title="Student Number must be exactly 7 digits"
-                      size="lg"
                     />
                   </Form.Group>
                   
@@ -187,7 +210,6 @@ const Register = () => {
                           onChange={handleChange}
                           required
                           placeholder="First Name"
-                          size="lg"
                         />
                       </Form.Group>
                     </Col>
@@ -200,7 +222,6 @@ const Register = () => {
                           onChange={handleChange}
                           required
                           placeholder="Last Name"
-                          size="lg"
                         />
                       </Form.Group>
                     </Col>
@@ -214,7 +235,6 @@ const Register = () => {
                       onChange={handleChange}
                       required
                       placeholder="Email Address"
-                      size="lg"
                     />
                   </Form.Group>
                   
@@ -226,7 +246,6 @@ const Register = () => {
                       onChange={handleChange}
                       required
                       placeholder="Password"
-                      size="lg"
                     />
                   </Form.Group>
                   
@@ -238,14 +257,12 @@ const Register = () => {
                       onChange={handleChange}
                       required
                       placeholder="Confirm Password"
-                      size="lg"
                     />
                   </Form.Group>
                   
                   <Button 
                     type="submit" 
                     variant="warning" 
-                    size="lg" 
                     className="w-100 fw-bold text-dark mb-3"
                     disabled={loading}
                   >

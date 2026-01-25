@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import backgroundImage from '../sys-bg-img1.d66192ea.jpg';
+import backgroundImage from '../bg.png';
 import tipLogo from '../tip logo.png';
 
 const FacultyRegister = () => {
@@ -100,19 +100,92 @@ const FacultyRegister = () => {
 
   if (loading) {
     return (
-      <div className="login-container" style={{ backgroundImage: `url(${backgroundImage})` }}>
+      <div 
+        className="min-vh-100 d-flex align-items-center justify-content-center position-relative" 
+        style={{ 
+          backgroundImage: `url(${backgroundImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      >
+        
+        {/* Yellow rectangle - left side, top overlap */}
+        <div 
+          className="position-absolute" 
+          style={{ 
+            left: 0,
+            top: '10.5%',
+            width: '750px',
+            height: '100px',
+            backgroundColor: '#FFC107',
+            zIndex: 2,
+            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+          }}
+        />
+        
+        {/* Yellow rectangle - right side, bottom overlap */}
+        <div 
+          className="position-absolute" 
+          style={{ 
+            right: 0,
+            bottom: '10.5%',
+            width: '1500px',
+            height: '100px',
+            backgroundColor: '#FFC107',
+            zIndex: 1,
+            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+          }}
+        />
+      <div className="login-container" style={{ position: 'relative', zIndex: 3 }}>
         <div className="login-card">
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <p style={{ fontSize: '18px', color: '#666' }}>Validating invitation...</p>
           </div>
         </div>
       </div>
+      </div>
     );
   }
 
   if (error && !invitation) {
     return (
-      <div className="login-container" style={{ backgroundImage: `url(${backgroundImage})` }}>
+      <div 
+        className="min-vh-100 d-flex align-items-center justify-content-center position-relative" 
+        style={{ 
+          backgroundImage: `url(${backgroundImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      >
+        
+        {/* Yellow rectangle - left side, top overlap */}
+        <div 
+          className="position-absolute" 
+          style={{ 
+            left: 0,
+            top: '10.5%',
+            width: '750px',
+            height: '100px',
+            backgroundColor: '#FFC107',
+            zIndex: 2,
+            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+          }}
+        />
+        
+        {/* Yellow rectangle - right side, bottom overlap */}
+        <div 
+          className="position-absolute" 
+          style={{ 
+            right: 0,
+            bottom: '10.5%',
+            width: '1500px',
+            height: '100px',
+            backgroundColor: '#FFC107',
+            zIndex: 1,
+            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+          }}
+        />
+      <div className="login-container" style={{ position: 'relative', zIndex: 3 }}>
         <div className="login-card">
           <div className="login-logo">
             <img src={tipLogo} alt="TIP Logo" />
@@ -141,6 +214,7 @@ const FacultyRegister = () => {
           </button>
         </div>
       </div>
+      </div>
     );
   }
 
@@ -153,7 +227,43 @@ const FacultyRegister = () => {
   };
 
   return (
-    <div className="login-container" style={{ backgroundImage: `url(${backgroundImage})` }}>
+    <div 
+      className="min-vh-100 d-flex align-items-center justify-content-center position-relative" 
+      style={{ 
+        backgroundImage: `url(${backgroundImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      }}
+    >
+      
+      {/* Yellow rectangle - left side, top overlap */}
+      <div 
+        className="position-absolute" 
+        style={{ 
+          left: 0,
+          top: '10.5%',
+          width: '750px',
+          height: '100px',
+          backgroundColor: '#FFC107',
+          zIndex: 2,
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+        }}
+      />
+      
+      {/* Yellow rectangle - right side, bottom overlap */}
+      <div 
+        className="position-absolute" 
+        style={{ 
+          right: 0,
+          bottom: '10.5%',
+          width: '1500px',
+          height: '100px',
+          backgroundColor: '#FFC107',
+          zIndex: 1,
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+        }}
+      />
+    <div className="login-container" style={{ position: 'relative', zIndex: 3 }}>
       {error && invitation && (
         <div className="error-popup-overlay">
           <div className="error-popup">
@@ -269,6 +379,7 @@ const FacultyRegister = () => {
           </div>
         </form>
       </div>
+    </div>
     </div>
   );
 };
