@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Card, Form, Button, Alert } from 'react-bootstrap';
 
 const InviteFaculty = () => {
   const [formData, setFormData] = useState({
@@ -52,143 +53,66 @@ const InviteFaculty = () => {
   };
 
   return (
-    <div style={{ 
-      backgroundColor: '#fff', 
-      padding: '25px', 
-      borderRadius: '8px',
-      border: '3px solid #000',
-      marginBottom: '30px'
-    }}>
-      <h3 style={{ 
-        color: '#000', 
-        marginBottom: '20px', 
-        borderBottom: '3px solid #FFC107',
-        paddingBottom: '10px'
-      }}>
-        📧 Invite Faculty Member
-      </h3>
+    <Card className="mb-4 shadow-sm border-3 border-dark">
+      <Card.Header className="bg-white border-bottom border-warning border-3">
+        <h3 className="mb-0">📧 Invite Faculty Member</h3>
+      </Card.Header>
+      <Card.Body>
+        {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
+        {success && <Alert variant="success" dismissible onClose={() => setSuccess('')}>✅ {success}</Alert>}
 
-      {error && (
-        <div style={{
-          backgroundColor: '#f8d7da',
-          color: '#721c24',
-          padding: '12px 20px',
-          borderRadius: '5px',
-          marginBottom: '20px',
-          border: '2px solid #f5c6cb'
-        }}>
-          {error}
-        </div>
-      )}
+        <Form onSubmit={handleSubmit}>
+          <Form.Group className="mb-3">
+            <Form.Label className="fw-semibold">Email Address *</Form.Label>
+            <Form.Control
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              required
+              placeholder="faculty@tip.edu.ph"
+              size="lg"
+            />
+            <Form.Text className="text-muted">
+              Must be a valid @tip.edu.ph email address
+            </Form.Text>
+          </Form.Group>
 
-      {success && (
-        <div style={{
-          backgroundColor: '#d4edda',
-          color: '#155724',
-          padding: '12px 20px',
-          borderRadius: '5px',
-          marginBottom: '20px',
-          border: '2px solid #c3e6cb'
-        }}>
-          ✅ {success}
-        </div>
-      )}
+          <Form.Group className="mb-3">
+            <Form.Label className="fw-semibold">Role *</Form.Label>
+            <Form.Select
+              name="role"
+              value={formData.role}
+              onChange={handleChange}
+              required
+              size="lg"
+            >
+              <option value="adviser">Adviser (Student Adviser)</option>
+              <option value="admin">Admin (Program Chair)</option>
+            </Form.Select>
+            <Form.Text className="text-muted">
+              {formData.role === 'adviser' 
+                ? 'Can access advisee records and validate study plans' 
+                : 'Full system access including user management and analytics'}
+            </Form.Text>
+          </Form.Group>
 
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ 
-            display: 'block', 
-            marginBottom: '8px', 
-            fontWeight: '600',
-            color: '#000'
-          }}>
-            Email Address *
-          </label>
-          <input
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-            placeholder="faculty@tip.edu.ph"
-            style={{
-              width: '100%',
-              padding: '12px 15px',
-              border: '2px solid #000',
-              borderRadius: '5px',
-              fontSize: '16px',
-              boxSizing: 'border-box'
-            }}
-          />
-          <small style={{ color: '#666', fontSize: '13px' }}>
-            Must be a valid @tip.edu.ph email address
-          </small>
-        </div>
-
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ 
-            display: 'block', 
-            marginBottom: '8px', 
-            fontWeight: '600',
-            color: '#000'
-          }}>
-            Role *
-          </label>
-          <select
-            name="role"
-            value={formData.role}
-            onChange={handleChange}
-            required
-            style={{
-              width: '100%',
-              padding: '12px 15px',
-              border: '2px solid #000',
-              borderRadius: '5px',
-              fontSize: '16px',
-              cursor: 'pointer',
-              backgroundColor: '#fff',
-              boxSizing: 'border-box'
-            }}
+          <Button
+            type="submit"
+            variant="warning"
+            size="lg"
+            className="w-100 fw-bold text-dark border-2 border-dark"
+            disabled={loading}
           >
-            <option value="adviser">Adviser (Student Adviser)</option>
-            <option value="admin">Admin (Program Chair)</option>
-          </select>
-          <small style={{ color: '#666', fontSize: '13px' }}>
-            {formData.role === 'adviser' 
-              ? 'Can access advisee records and validate study plans' 
-              : 'Full system access including user management and analytics'}
-          </small>
-        </div>
+            {loading ? 'Sending Invitation...' : '✉️ Send Invitation'}
+          </Button>
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            width: '100%',
-            padding: '14px',
-            backgroundColor: loading ? '#ccc' : '#FFC107',
-            color: '#000',
-            border: '2px solid #000',
-            borderRadius: '5px',
-            fontSize: '16px',
-            fontWeight: '700',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            transition: 'all 0.3s'
-          }}
-        >
-          {loading ? 'Sending Invitation...' : '✉️ Send Invitation'}
-        </button>
-
-        <p style={{ 
-          marginTop: '15px', 
-          fontSize: '13px', 
-          color: '#666',
-          textAlign: 'center'
-        }}>
-          ⏰ Invitation links expire in 48 hours
-        </p>
-      </form>
-    </div>
+          <p className="text-center text-muted mt-3 mb-0 small">
+            ⏰ Invitation links expire in 48 hours
+          </p>
+        </Form>
+      </Card.Body>
+    </Card>
   );
 };
 

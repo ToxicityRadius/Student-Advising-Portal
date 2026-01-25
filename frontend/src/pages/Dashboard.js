@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Container, Card, Row, Col, Badge, ListGroup } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import StudentIdModal from '../components/StudentIdModal';
@@ -44,273 +45,173 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="container">
+    <Container className="py-4">
       {showStudentIdModal && (
         <StudentIdModal 
           onSubmit={handleStudentIdSubmit}
           userEmail={user?.email}
         />
       )}
-      <div className="dashboard">
-        <h1>Dashboard</h1>
-        <div className="user-table-container">
-          <div style={{ marginBottom: '30px', borderLeft: '4px solid #FFC107', paddingLeft: '20px' }}>
-            <h2 style={{ color: '#000000', marginBottom: '15px', fontSize: '28px' }}>Welcome, {user?.firstName} {user?.lastName}!</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginTop: '20px' }}>
-              <div>
-                <p style={{ color: '#666', marginBottom: '5px', fontSize: '14px', fontWeight: '600' }}>Email</p>
-                <p style={{ color: '#000', fontWeight: '500' }}>{user?.email}</p>
-              </div>
-              <div>
-                <p style={{ color: '#666', marginBottom: '5px', fontSize: '14px', fontWeight: '600' }}>Role</p>
-                <p><span className={`badge badge-${user?.role === 'admin' ? 'danger' : user?.role === 'adviser' ? 'warning' : 'primary'}`}>{user?.role?.toUpperCase()}</span></p>
-              </div>
-              <div>
-                <p style={{ color: '#666', marginBottom: '5px', fontSize: '14px', fontWeight: '600' }}>Account Status</p>
-                <p><span className={`badge ${user?.isActive ? 'badge-success' : 'badge-danger'}`}>{user?.isActive ? 'ACTIVE' : 'INACTIVE'}</span></p>
-              </div>
-            </div>
-          </div>
+      
+      <h1 className="mb-4">Dashboard</h1>
+      
+      <Card className="mb-4 border-start border-warning border-5 shadow-sm">
+        <Card.Body className="p-4">
+          <h2 className="mb-4" style={{ fontSize: '1.75rem' }}>
+            Welcome, {user?.firstName} {user?.lastName}!
+          </h2>
           
-          <div style={{ 
-            marginTop: '30px', 
-            padding: '25px', 
-            backgroundColor: '#FFC107', 
-            borderRadius: '8px',
-            border: '3px solid #000000'
-          }}>
-            <h3 style={{ color: '#000000', marginBottom: '20px', fontSize: '20px', fontWeight: '700' }}>Quick Links</h3>
-            <ul style={{ 
-              listStyle: 'none', 
-              padding: 0, 
-              display: 'grid', 
-              gap: '12px' 
-            }}>
-              {user?.role === 'admin' && (
-                <>
-                  <li>
-                    <Link to="/admin/users" style={{
-                      color: '#000000',
-                      textDecoration: 'none',
-                      fontSize: '16px',
-                      fontWeight: '700',
-                      padding: '12px 15px',
-                      display: 'block',
-                      backgroundColor: '#ffffff',
-                      borderRadius: '5px',
-                      border: '2px solid #000000',
-                      transition: 'all 0.3s'
-                    }}>
-                      👥 Manage Users
-                    </Link>
-                  </li>
-                  <li>
-                    <a href="#" style={{
-                      color: '#000000',
-                      textDecoration: 'none',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      padding: '12px 15px',
-                      display: 'block',
-                      backgroundColor: '#FFD54F',
-                      borderRadius: '5px',
-                      border: '2px solid #000000',
-                      transition: 'all 0.3s'
-                    }}>
-                      📊 Course Demand Forecasting
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#" style={{
-                      color: '#000000',
-                      textDecoration: 'none',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      padding: '12px 15px',
-                      display: 'block',
-                      backgroundColor: '#FFD54F',
-                      borderRadius: '5px',
-                      border: '2px solid #000000',
-                      transition: 'all 0.3s'
-                    }}>
-                      📋 Petition Management
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#" style={{
-                      color: '#000000',
-                      textDecoration: 'none',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      padding: '12px 15px',
-                      display: 'block',
-                      backgroundColor: '#FFD54F',
-                      borderRadius: '5px',
-                      border: '2px solid #000000',
-                      transition: 'all 0.3s'
-                    }}>
-                      🗺️ Curriculum Mapping
-                    </a>
-                  </li>
-                </>
-              )}
-              {user?.role === 'adviser' && (
-                <>
-                  <li>
-                    <a href="#" style={{
-                      color: '#000000',
-                      textDecoration: 'none',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      padding: '12px 15px',
-                      display: 'block',
-                      backgroundColor: '#ffffff',
-                      borderRadius: '5px',
-                      border: '2px solid #000000',
-                      transition: 'all 0.3s'
-                    }}>
-                      👨‍🎓 My Advisees
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#" style={{
-                      color: '#000000',
-                      textDecoration: 'none',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      padding: '12px 15px',
-                      display: 'block',
-                      backgroundColor: '#FFD54F',
-                      borderRadius: '5px',
-                      border: '2px solid #000000',
-                      transition: 'all 0.3s'
-                    }}>
-                      ✅ Validate Study Plans
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#" style={{
-                      color: '#000000',
-                      textDecoration: 'none',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      padding: '12px 15px',
-                      display: 'block',
-                      backgroundColor: '#FFD54F',
-                      borderRadius: '5px',
-                      border: '2px solid #000000',
-                      transition: 'all 0.3s'
-                    }}>
-                      📄 Generate Advising Reports
-                    </a>
-                  </li>
-                </>
-              )}
-              {user?.role === 'student' && (
-                <>
-                  <li>
-                    <a href="#" style={{
-                      color: '#000000',
-                      textDecoration: 'none',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      padding: '12px 15px',
-                      display: 'block',
-                      backgroundColor: '#ffffff',
-                      borderRadius: '5px',
-                      border: '2px solid #000000',
-                      transition: 'all 0.3s'
-                    }}>
-                      📝 Encode Grades
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#" style={{
-                      color: '#000000',
-                      textDecoration: 'none',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      padding: '12px 15px',
-                      display: 'block',
-                      backgroundColor: '#FFD54F',
-                      borderRadius: '5px',
-                      border: '2px solid #000000',
-                      transition: 'all 0.3s'
-                    }}>
-                      ✔️ View Checklist & Progress
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#" style={{
-                      color: '#000000',
-                      textDecoration: 'none',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      padding: '12px 15px',
-                      display: 'block',
-                      backgroundColor: '#FFD54F',
-                      borderRadius: '5px',
-                      border: '2px solid #000000',
-                      transition: 'all 0.3s'
-                    }}>
-                      📚 Generate Study Plan
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#" style={{
-                      color: '#000000',
-                      textDecoration: 'none',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      padding: '12px 15px',
-                      display: 'block',
-                      backgroundColor: '#FFD54F',
-                      borderRadius: '5px',
-                      border: '2px solid #000000',
-                      transition: 'all 0.3s'
-                    }}>
-                      🎯 Elective Guidance
-                    </a>
-                  </li>
-                </>
-              )}
-              <li>
-                <a href="#" style={{
-                  color: '#000000',
-                  textDecoration: 'none',
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  padding: '12px 15px',
-                  display: 'block',
-                  backgroundColor: '#FFD54F',
-                  borderRadius: '5px',
-                  border: '2px solid #000000',
-                  transition: 'all 0.3s'
-                }}>
-                  👤 My Profile
-                </a>
-              </li>
-              <li>
-                <a href="#" style={{
-                  color: '#000000',
-                  textDecoration: 'none',
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  padding: '12px 15px',
-                  display: 'block',
-                  backgroundColor: '#FFD54F',
-                  borderRadius: '5px',
-                  border: '2px solid #000000',
-                  transition: 'all 0.3s'
-                }}>
-                  ⚙️ Settings
-                </a>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
+          <Row className="g-4">
+            <Col md={6}>
+              <div className="mb-2">
+                <small className="text-muted fw-semibold">Email</small>
+                <p className="mb-0 fw-medium">{user?.email}</p>
+              </div>
+            </Col>
+            <Col md={3}>
+              <div className="mb-2">
+                <small className="text-muted fw-semibold">Role</small>
+                <div>
+                  <Badge 
+                    bg={user?.role === 'admin' ? 'danger' : user?.role === 'adviser' ? 'warning' : 'primary'}
+                    className="text-uppercase"
+                  >
+                    {user?.role}
+                  </Badge>
+                </div>
+              </div>
+            </Col>
+            <Col md={3}>
+              <div className="mb-2">
+                <small className="text-muted fw-semibold">Account Status</small>
+                <div>
+                  <Badge bg={user?.isActive ? 'success' : 'danger'}>
+                    {user?.isActive ? 'ACTIVE' : 'INACTIVE'}
+                  </Badge>
+                </div>
+              </div>
+            </Col>
+          </Row>
+        </Card.Body>
+      </Card>
+      
+      <Card className="shadow-sm border-3" style={{ borderColor: '#FFC107' }}>
+        <Card.Header className="bg-warning fw-bold text-dark" style={{ fontSize: '1.25rem' }}>
+          Quick Links
+        </Card.Header>
+        <Card.Body className="p-0">
+          <ListGroup variant="flush">
+            {user?.role === 'admin' && (
+              <>
+                <ListGroup.Item 
+                  as={Link} 
+                  to="/admin/users"
+                  className="py-3 px-4 text-decoration-none text-dark fw-semibold border-2"
+                  action
+                >
+                  <span className="me-2">👥</span> Manage Users
+                </ListGroup.Item>
+                <ListGroup.Item 
+                  href="#" 
+                  className="py-3 px-4 text-dark fw-semibold"
+                  action
+                >
+                  <span className="me-2">📊</span> Course Demand Forecasting
+                </ListGroup.Item>
+                <ListGroup.Item 
+                  href="#" 
+                  className="py-3 px-4 text-dark fw-semibold"
+                  action
+                >
+                  <span className="me-2">📋</span> Petition Management
+                </ListGroup.Item>
+                <ListGroup.Item 
+                  href="#" 
+                  className="py-3 px-4 text-dark fw-semibold"
+                  action
+                >
+                  <span className="me-2">🗺️</span> Curriculum Mapping
+                </ListGroup.Item>
+              </>
+            )}
+            
+            {user?.role === 'adviser' && (
+              <>
+                <ListGroup.Item 
+                  href="#" 
+                  className="py-3 px-4 text-dark fw-semibold"
+                  action
+                >
+                  <span className="me-2">👨‍🎓</span> My Advisees
+                </ListGroup.Item>
+                <ListGroup.Item 
+                  href="#" 
+                  className="py-3 px-4 text-dark fw-semibold"
+                  action
+                >
+                  <span className="me-2">✅</span> Validate Study Plans
+                </ListGroup.Item>
+                <ListGroup.Item 
+                  href="#" 
+                  className="py-3 px-4 text-dark fw-semibold"
+                  action
+                >
+                  <span className="me-2">📄</span> Generate Advising Reports
+                </ListGroup.Item>
+              </>
+            )}
+            
+            {user?.role === 'student' && (
+              <>
+                <ListGroup.Item 
+                  href="#" 
+                  className="py-3 px-4 text-dark fw-semibold"
+                  action
+                >
+                  <span className="me-2">📝</span> Encode Grades
+                </ListGroup.Item>
+                <ListGroup.Item 
+                  href="#" 
+                  className="py-3 px-4 text-dark fw-semibold"
+                  action
+                >
+                  <span className="me-2">✔️</span> View Checklist & Progress
+                </ListGroup.Item>
+                <ListGroup.Item 
+                  href="#" 
+                  className="py-3 px-4 text-dark fw-semibold"
+                  action
+                >
+                  <span className="me-2">📚</span> Generate Study Plan
+                </ListGroup.Item>
+                <ListGroup.Item 
+                  href="#" 
+                  className="py-3 px-4 text-dark fw-semibold"
+                  action
+                >
+                  <span className="me-2">🎯</span> Elective Guidance
+                </ListGroup.Item>
+              </>
+            )}
+            
+            <ListGroup.Item 
+              href="#" 
+              className="py-3 px-4 text-dark fw-semibold"
+              action
+            >
+              <span className="me-2">👤</span> My Profile
+            </ListGroup.Item>
+            <ListGroup.Item 
+              href="#" 
+              className="py-3 px-4 text-dark fw-semibold"
+              action
+            >
+              <span className="me-2">⚙️</span> Settings
+            </ListGroup.Item>
+          </ListGroup>
+        </Card.Body>
+      </Card>
+    </Container>
   );
 };
 

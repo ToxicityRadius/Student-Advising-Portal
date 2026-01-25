@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { Navbar as BootstrapNavbar, Nav, Container, Button } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
@@ -10,29 +11,47 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="navbar">
-      <div className="navbar-content">
-        <Link to="/" className="navbar-brand">
-          Student Advising
-        </Link>
-        <div className="navbar-menu">
-          {user ? (
-            <>
-              <span>Welcome, {user.firstName}!</span>
-              {isAdmin && (
-                <Link to="/admin/users">Manage Users</Link>
-              )}
-              <button onClick={handleLogout}>Logout</button>
-            </>
-          ) : (
-            <>
-              <Link to="/login">Login</Link>
-              <Link to="/register">Register</Link>
-            </>
-          )}
-        </div>
-      </div>
-    </nav>
+    <BootstrapNavbar bg="dark" variant="dark" expand="lg" sticky="top" className="shadow-sm">
+      <Container>
+        <BootstrapNavbar.Brand as={Link} to="/" className="fw-bold">
+          <span style={{ color: '#FFC107' }}>Student Advising</span>
+        </BootstrapNavbar.Brand>
+        <BootstrapNavbar.Toggle aria-controls="basic-navbar-nav" />
+        <BootstrapNavbar.Collapse id="basic-navbar-nav">
+          <Nav className="ms-auto align-items-center">
+            {user ? (
+              <>
+                <Nav.Item className="text-light me-3 d-none d-lg-block">
+                  Welcome, <strong>{user.firstName}</strong>!
+                </Nav.Item>
+                {isAdmin && (
+                  <Nav.Link as={Link} to="/admin/users" className="text-light">
+                    Manage Users
+                  </Nav.Link>
+                )}
+                <Button 
+                  variant="outline-warning" 
+                  size="sm" 
+                  onClick={handleLogout}
+                  className="ms-2"
+                >
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <>
+                <Nav.Link as={Link} to="/login" className="text-light">
+                  Login
+                </Nav.Link>
+                <Nav.Link as={Link} to="/register" className="text-light">
+                  Register
+                </Nav.Link>
+              </>
+            )}
+          </Nav>
+        </BootstrapNavbar.Collapse>
+      </Container>
+    </BootstrapNavbar>
   );
 };
 

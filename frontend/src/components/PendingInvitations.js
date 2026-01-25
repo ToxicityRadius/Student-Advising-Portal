@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Card, Table, Button, Alert, Badge, Spinner } from 'react-bootstrap';
 
 const PendingInvitations = () => {
   const [invitations, setInvitations] = useState([]);
@@ -103,26 +104,10 @@ const PendingInvitations = () => {
   };
 
   const getRoleBadge = (role) => {
-    const badgeStyle = {
-      display: 'inline-block',
-      padding: '6px 12px',
-      borderRadius: '20px',
-      fontSize: '12px',
-      fontWeight: '600'
-    };
-
     if (role === 'admin') {
-      return (
-        <span style={{ ...badgeStyle, backgroundColor: '#dc3545', color: '#fff' }}>
-          Program Chair
-        </span>
-      );
+      return <Badge bg="danger">Program Chair</Badge>;
     } else {
-      return (
-        <span style={{ ...badgeStyle, backgroundColor: '#FFC107', color: '#000' }}>
-          Adviser
-        </span>
-      );
+      return <Badge bg="warning" text="dark">Adviser</Badge>;
     }
   };
 
@@ -147,220 +132,78 @@ const PendingInvitations = () => {
   };
 
   if (loading) {
-    return <div className="loading">Loading invitations...</div>;
+    return (
+      <div className="text-center py-4">
+        <Spinner animation="border" variant="warning" />
+        <p className="mt-2">Loading invitations...</p>
+      </div>
+    );
   }
 
   return (
-    <div style={{
-      backgroundColor: '#fff',
-      padding: '25px',
-      borderRadius: '8px',
-      border: '3px solid #000',
-      marginBottom: '30px'
-    }}>
-      <h3 style={{
-        color: '#000',
-        marginBottom: '20px',
-        borderBottom: '3px solid #FFC107',
-        paddingBottom: '10px'
-      }}>
-        📋 Pending Faculty Invitations
-      </h3>
+    <Card className="mb-4 shadow-sm border-3 border-dark">
+      <Card.Header className="bg-white border-bottom border-warning border-3">
+        <h3 className="mb-0">📋 Pending Faculty Invitations</h3>
+      </Card.Header>
+      <Card.Body>
+        {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
+        {success && <Alert variant="success" dismissible onClose={() => setSuccess('')}>✅ {success}</Alert>}
 
-      {error && (
-        <div style={{
-          backgroundColor: '#f8d7da',
-          color: '#721c24',
-          padding: '12px 20px',
-          borderRadius: '5px',
-          marginBottom: '20px',
-          border: '2px solid #f5c6cb'
-        }}>
-          {error}
-        </div>
-      )}
-
-      {success && (
-        <div style={{
-          backgroundColor: '#d4edda',
-          color: '#155724',
-          padding: '12px 20px',
-          borderRadius: '5px',
-          marginBottom: '20px',
-          border: '2px solid #c3e6cb'
-        }}>
-          ✅ {success}
-        </div>
-      )}
-
-      {invitations.length === 0 ? (
-        <div style={{
-          textAlign: 'center',
-          padding: '40px',
-          backgroundColor: '#f8f9fa',
-          borderRadius: '8px',
-          border: '2px dashed #ccc'
-        }}>
-          <p style={{ color: '#666', fontSize: '16px', margin: 0 }}>
-            ✓ No pending invitations. All faculty members have been invited!
-          </p>
-        </div>
-      ) : (
-        <div style={{
-          overflowX: 'auto'
-        }}>
-          <table style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            backgroundColor: '#fff'
-          }}>
-            <thead>
-              <tr style={{
-                backgroundColor: '#f8f9fa',
-                borderBottom: '2px solid #000'
-              }}>
-                <th style={{
-                  padding: '15px',
-                  textAlign: 'left',
-                  fontWeight: '600',
-                  color: '#000',
-                  borderRight: '1px solid #ddd'
-                }}>
-                  Email
-                </th>
-                <th style={{
-                  padding: '15px',
-                  textAlign: 'left',
-                  fontWeight: '600',
-                  color: '#000',
-                  borderRight: '1px solid #ddd'
-                }}>
-                  Role
-                </th>
-                <th style={{
-                  padding: '15px',
-                  textAlign: 'left',
-                  fontWeight: '600',
-                  color: '#000',
-                  borderRight: '1px solid #ddd'
-                }}>
-                  Sent By
-                </th>
-                <th style={{
-                  padding: '15px',
-                  textAlign: 'left',
-                  fontWeight: '600',
-                  color: '#000',
-                  borderRight: '1px solid #ddd'
-                }}>
-                  Time Remaining
-                </th>
-                <th style={{
-                  padding: '15px',
-                  textAlign: 'center',
-                  fontWeight: '600',
-                  color: '#000'
-                }}>
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {invitations.map((invitation) => (
-                <tr key={invitation.id} style={{
-                  borderBottom: '1px solid #ddd'
-                }}>
-                  <td style={{
-                    padding: '15px',
-                    borderRight: '1px solid #ddd'
-                  }}>
-                    <strong>{invitation.email}</strong>
-                  </td>
-                  <td style={{
-                    padding: '15px',
-                    borderRight: '1px solid #ddd'
-                  }}>
-                    {getRoleBadge(invitation.role)}
-                  </td>
-                  <td style={{
-                    padding: '15px',
-                    borderRight: '1px solid #ddd',
-                    color: '#666',
-                    fontSize: '14px'
-                  }}>
-                    {invitation.invitedByName || 'Unknown'}
-                  </td>
-                  <td style={{
-                    padding: '15px',
-                    borderRight: '1px solid #ddd',
-                    color: '#666',
-                    fontSize: '14px'
-                  }}>
-                    {getTimeRemaining(invitation.invitationExpires)}
-                  </td>
-                  <td style={{
-                    padding: '15px',
-                    textAlign: 'center'
-                  }}>
-                    <button
-                      onClick={() => handleResendInvitation(invitation.id)}
-                      style={{
-                        padding: '8px 12px',
-                        marginRight: '8px',
-                        backgroundColor: '#FFC107',
-                        color: '#000',
-                        border: '2px solid #000',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '12px',
-                        transition: 'all 0.3s'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.backgroundColor = '#FFD700';
-                        e.target.style.transform = 'scale(1.05)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.backgroundColor = '#FFC107';
-                        e.target.style.transform = 'scale(1)';
-                      }}
-                      title="Resend the invitation email"
-                    >
-                      🔄 Resend
-                    </button>
-                    <button
-                      onClick={() => handleDeleteInvitation(invitation.id)}
-                      style={{
-                        padding: '8px 12px',
-                        backgroundColor: '#dc3545',
-                        color: '#fff',
-                        border: '2px solid #000',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '12px',
-                        transition: 'all 0.3s'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.backgroundColor = '#c82333';
-                        e.target.style.transform = 'scale(1.05)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.backgroundColor = '#dc3545';
-                        e.target.style.transform = 'scale(1)';
-                      }}
-                      title="Delete the invitation"
-                    >
-                      🗑️ Delete
-                    </button>
-                  </td>
+        {invitations.length === 0 ? (
+          <div className="text-center py-5 bg-light rounded border-2 border-dashed">
+            <p className="text-muted mb-0">
+              ✓ No pending invitations. All faculty members have been invited!
+            </p>
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <Table striped bordered hover>
+              <thead className="table-light">
+                <tr>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Sent By</th>
+                  <th>Time Remaining</th>
+                  <th className="text-center">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+              </thead>
+              <tbody>
+                {invitations.map((invitation) => (
+                  <tr key={invitation.id}>
+                    <td><strong>{invitation.email}</strong></td>
+                    <td>{getRoleBadge(invitation.role)}</td>
+                    <td className="text-muted">{invitation.invitedByName || 'Unknown'}</td>
+                    <td className="text-muted">{getTimeRemaining(invitation.invitationExpires)}</td>
+                    <td className="text-center">
+                      <div className="d-flex gap-2 justify-content-center flex-wrap">
+                        <Button
+                          onClick={() => handleResendInvitation(invitation.id)}
+                          variant="warning"
+                          size="sm"
+                          className="text-dark fw-semibold"
+                          title="Resend the invitation email"
+                        >
+                          🔄 Resend
+                        </Button>
+                        <Button
+                          onClick={() => handleDeleteInvitation(invitation.id)}
+                          variant="danger"
+                          size="sm"
+                          className="fw-semibold"
+                          title="Delete the invitation"
+                        >
+                          🗑️ Delete
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        )}
+      </Card.Body>
+    </Card>
   );
 };
 

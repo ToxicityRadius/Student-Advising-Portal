@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import StudentIdModal from '../components/StudentIdModal';
@@ -169,76 +170,117 @@ const Login = () => {
   };
 
   return (
-    <div className="login-container" style={{ backgroundImage: `url(${backgroundImage})` }}>
+    <div 
+      className="min-vh-100 d-flex align-items-center justify-content-center position-relative" 
+      style={{ 
+        backgroundImage: `url(${backgroundImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      }}
+    >
+      <div 
+        className="position-absolute top-0 start-0 w-100 h-100" 
+        style={{ backgroundColor: 'rgba(255, 255, 255, 0.7)' }}
+      />
+      
       {showStudentIdModal && pendingGoogleUser && (
         <StudentIdModal
           onSubmit={handleStudentIdSubmit}
           userEmail={pendingGoogleUser.email}
         />
       )}
-      {error && (
-        <div className="error-popup-overlay">
-          <div className="error-popup">
-            <div className="error-popup-content">
-              <span className="error-icon">⚠️</span>
-              <p>{error}</p>
-            </div>
-            <button className="error-close-btn" onClick={() => setError('')}>×</button>
-          </div>
-        </div>
-      )}
-      <div className="login-card">
-        <div className="login-logo">
-          <img src={tipLogo} alt="TIP Logo" />
-        </div>
-        <h2 className="login-title">Sign in</h2>
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="form-group">
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              placeholder="Email Address"
-              className="login-input"
-            />
-          </div>
-          <div className="form-group">
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              placeholder="Password"
-              className="login-input"
-            />
-          </div>
-          <div className="forgot-password">
-            <Link to="/forgot-password">Forgot your password?</Link>
-          </div>
-          <button type="submit" className="btn btn-continue" disabled={loading}>
-            {loading ? 'Logging in...' : 'Login'}
-          </button>
-          <div className="or-divider">
-            <span>or</span>
-          </div>
-          <div className="google-signin-wrapper">
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={handleGoogleError}
-              text="signin_with"
-              theme="outline"
-              size="large"
-            />
-          </div>
-          <div className="create-account-link">
-            <span>New to Student Advising Portal? </span>
-            <Link to="/register">Create an Account</Link>
-          </div>
-        </form>
-      </div>
+      
+      <Container className="position-relative" style={{ zIndex: 1 }}>
+        <Row className="justify-content-center">
+          <Col xs={12} sm={10} md={8} lg={6} xl={5}>
+            <Card className="shadow-lg border-0">
+              <Card.Body className="p-4 p-md-5">
+                <div className="text-center mb-4">
+                  <img src={tipLogo} alt="TIP Logo" style={{ maxWidth: '280px', height: 'auto' }} />
+                </div>
+                
+                <h2 className="mb-4 text-start">Sign in</h2>
+                
+                {error && (
+                  <Alert variant="danger" dismissible onClose={() => setError('')}>
+                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                    {error}
+                  </Alert>
+                )}
+                
+                <Form onSubmit={handleSubmit}>
+                  <Form.Group className="mb-3">
+                    <Form.Control
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      required
+                      placeholder="Email Address"
+                      size="lg"
+                    />
+                  </Form.Group>
+                  
+                  <Form.Group className="mb-3">
+                    <Form.Control
+                      type="password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      required
+                      placeholder="Password"
+                      size="lg"
+                    />
+                  </Form.Group>
+                  
+                  <div className="text-end mb-3">
+                    <Link to="/forgot-password" className="text-decoration-none">
+                      Forgot your password?
+                    </Link>
+                  </div>
+                  
+                  <Button 
+                    type="submit" 
+                    variant="warning" 
+                    size="lg" 
+                    className="w-100 fw-bold text-dark mb-3"
+                    disabled={loading}
+                  >
+                    {loading ? 'Logging in...' : 'Login'}
+                  </Button>
+                  
+                  <div className="position-relative text-center mb-3">
+                    <hr />
+                    <span 
+                      className="position-absolute top-50 start-50 translate-middle bg-white px-3"
+                      style={{ color: '#666' }}
+                    >
+                      or
+                    </span>
+                  </div>
+                  
+                  <div className="d-flex justify-content-center">
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={handleGoogleError}
+                      text="signin_with"
+                      theme="outline"
+                      size="large"
+                    />
+                  </div>
+                  
+                  <div className="text-center mt-4">
+                    <span className="text-muted">New to Student Advising Portal? </span>
+                    <Link to="/register" className="text-decoration-none fw-bold">
+                      Create an Account
+                    </Link>
+                  </div>
+                </Form>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      </Container>
     </div>
   );
 };

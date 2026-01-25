@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Container, Table, Button, Alert, Badge, Spinner } from 'react-bootstrap';
 import api from '../utils/api';
 import InviteFaculty from '../components/InviteFaculty';
 import PendingInvitations from '../components/PendingInvitations';
@@ -66,84 +67,87 @@ const ManageUsers = () => {
   };
 
   if (loading) {
-    return <div className="loading">Loading users...</div>;
+    return (
+      <Container className="py-5 text-center">
+        <Spinner animation="border" variant="warning" />
+        <p className="mt-3">Loading users...</p>
+      </Container>
+    );
   }
 
   return (
-    <div className="container">
-      <div className="dashboard">
-        <h1>Manage Users</h1>
-        {error && <div className="alert alert-error">{error}</div>}
-        {success && <div className="alert alert-success">{success}</div>}
+    <Container className="py-4">
+      <h1 className="mb-4">Manage Users</h1>
+      
+      {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
+      {success && <Alert variant="success" dismissible onClose={() => setSuccess('')}>{success}</Alert>}
 
-        {/* Invite Faculty Component */}
-        <InviteFaculty />
+      <InviteFaculty />
+      <PendingInvitations />
 
-        {/* Pending Invitations Component */}
-        <PendingInvitations />
-
-        <div className="user-table-container">
-          <table className="user-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Created At</th>
-                <th>Last Login</th>
-                <th>Actions</th>
+      <div className="table-responsive">
+        <Table striped bordered hover className="shadow-sm">
+          <thead className="table-dark">
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Created At</th>
+              <th>Last Login</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr key={user._id}>
+                <td>{`${user.firstName} ${user.lastName}`}</td>
+                <td>{user.email}</td>
+                <td>
+                  <Badge bg={user.role === 'admin' ? 'danger' : user.role === 'adviser' ? 'warning' : 'primary'}>
+                    {user.role}
+                  </Badge>
+                </td>
+                <td>
+                  <Badge bg={user.isActive ? 'success' : 'danger'}>
+                    {user.isActive ? 'Active' : 'Inactive'}
+                  </Badge>
+                </td>
+                <td>{new Date(user.createdAt).toLocaleDateString()}</td>
+                <td>
+                  {user.lastLogin
+                    ? new Date(user.lastLogin).toLocaleDateString()
+                    : 'Never'}
+                </td>
+                <td>
+                  <div className="d-flex gap-2 flex-wrap">
+                    <Button
+                      onClick={() => handleToggleStatus(user._id)}
+                      variant={user.isActive ? 'warning' : 'success'}
+                      size="sm"
+                    >
+                      {user.isActive ? 'Deactivate' : 'Activate'}
+                    </Button>
+                    <Button
+                      onClick={() => handleDeleteUser(user._id)}
+                      variant="danger"
+                      size="sm"
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {users.map((user) => (
-                <tr key={user._id}>
-                  <td>{`${user.firstName} ${user.lastName}`}</td>
-                  <td>{user.email}</td>
-                  <td>
-                    <span className={`badge ${getRoleBadgeClass(user.role)}`}>
-                      {user.role}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`badge ${user.isActive ? 'badge-success' : 'badge-danger'}`}>
-                      {user.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td>{new Date(user.createdAt).toLocaleDateString()}</td>
-                  <td>
-                    {user.lastLogin
-                      ? new Date(user.lastLogin).toLocaleDateString()
-                      : 'Never'}
-                  </td>
-                  <td>
-                    <div className="action-buttons">
-                      <button
-                        onClick={() => handleToggleStatus(user._id)}
-                        className={`btn btn-small ${user.isActive ? 'btn-warning' : 'btn-success'}`}
-                      >
-                        {user.isActive ? 'Deactivate' : 'Activate'}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(user._id)}
-                        className="btn btn-small btn-danger"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {users.length === 0 && (
-            <p style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
-              No users found
-            </p>
-          )}
-        </div>
+            ))}
+          </tbody>
+        </Table>
+        {users.length === 0 && (
+          <p className="text-center text-muted py-4">
+            No users found
+          </p>
+        )}
       </div>
-    </div>
+    </Container>
   );
 };
 
