@@ -137,7 +137,7 @@ const Register = () => {
         className="position-absolute" 
         style={{ 
           left: 0,
-          top: '10.5%',
+          top: '6%',
           width: '750px',
           height: '100px',
           backgroundColor: '#FFC107',
@@ -162,7 +162,7 @@ const Register = () => {
       
       <Container className="position-relative" style={{ zIndex: 1 }}>
         <Row className="justify-content-start">
-          <Col xs={12} sm={9} md={7} lg={5} xl={4}>
+          <Col xs={12} sm={9} md={7} lg={6} xl={5} style={{ maxWidth: '450px' }}>
             <Card className="shadow-lg border-0" style={{ position: 'relative', zIndex: 3, borderRadius: '20px', overflow: 'hidden' }}>
               <Card.Body className="p-3 p-md-4">
                 <div className="text-center mb-3">
