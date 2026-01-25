@@ -81,7 +81,7 @@ code {
   text-align: left;
   margin-bottom: 25px;
   color: #333;
-  font-size: 24px;
+  font-size: clamp(20px, 5vw, 24px);
   font-weight: 600;
 }
 
