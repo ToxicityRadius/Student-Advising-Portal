@@ -666,9 +666,19 @@ code {
 }
 
 /* Responsive */
+@media (max-width: 992px) {
+  .navbar-menu {
+    gap: 15px;
+  }
+
+  .dashboard h1 {
+    font-size: clamp(20px, 5vw, 28px);
+  }
+}
+
 @media (max-width: 768px) {
   .auth-card {
-    padding: 30px 20px;
+    padding: 25px 20px;
   }
 
   .navbar-content {
@@ -676,11 +686,200 @@ code {
     gap: 15px;
   }
 
+  .navbar-menu {
+    flex-direction: column;
+    width: 100%;
+    gap: 10px;
+  }
+
+  .navbar-menu a,
+  .navbar-menu button {
+    width: 100%;
+    text-align: center;
+  }
+
   .user-table-container {
     overflow-x: auto;
+    padding: 20px;
   }
 
   .user-table {
     min-width: 800px;
+    font-size: clamp(12px, 2vw, 14px);
+  }
+
+  .user-table th,
+  .user-table td {
+    padding: 8px;
+  }
+
+  .login-card {
+    margin: 0 15px;
+  }
+
+  .code-input-container {
+    margin: 20px 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 20px 15px;
+  }
+
+  .login-card {
+    margin: 0 10px;
+    padding: 20px 15px;
+  }
+
+  .login-logo {
+    margin-bottom: 20px;
+  }
+
+  .login-logo img {
+    max-width: 200px;
+  }
+
+  .login-title {
+    font-size: 18px;
+    margin-bottom: 15px;
+  }
+
+  .auth-card h2 {
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+
+  .form-group {
+    margin-bottom: 15px;
+  }
+
+  .form-group label {
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+
+  .form-group input,
+  .form-group select {
+    padding: 10px;
+    font-size: 16px;
+  }
+
+  .btn-continue {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .code-input-container {
+    gap: 5px;
+    margin: 20px 0;
+  }
+
+  .code-input {
+    width: 40px;
+    height: 50px;
+    font-size: 18px;
+  }
+
+  .navbar {
+    padding: 10px 0;
+  }
+
+  .navbar-brand {
+    font-size: 18px;
+  }
+
+  .navbar-menu button {
+    padding: 6px 12px;
+    font-size: 14px;
+  }
+
+  .user-table th,
+  .user-table td {
+    padding: 6px;
+    font-size: 12px;
+  }
+
+  .badge {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .btn-small {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .error-popup {
+    padding: 15px 20px;
+    margin: 20px;
+  }
+
+  .error-popup-content {
+    gap: 10px;
+  }
+
+  .error-icon {
+    font-size: 24px;
+  }
+
+  .error-popup-content p {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 360px) {
+  .login-card {
+    padding: 15px 12px;
+  }
+
+  .login-logo img {
+    max-width: 160px;
+  }
+
+  .login-title {
+    font-size: 16px;
+  }
+
+  .code-input-container {
+    gap: 4px;
+  }
+
+  .code-input {
+    width: 36px;
+    height: 45px;
+    font-size: 16px;
+  }
+
+  .btn-continue {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .auth-card h2 {
+    font-size: 18px;
+  }
+
+  .navbar-brand {
+    font-size: 16px;
+  }
+
+  .container {
+    padding: 10px;
+  }
+
+  .user-table-container {
+    padding: 15px;
+  }
+
+  .user-table th,
+  .user-table td {
+    padding: 5px;
+    font-size: 11px;
   }
 }
