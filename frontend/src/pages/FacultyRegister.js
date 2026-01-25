@@ -19,6 +19,7 @@ const FacultyRegister = () => {
 
   useEffect(() => {
     validateInvitation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const validateInvitation = async () => {

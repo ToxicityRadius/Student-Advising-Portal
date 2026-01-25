@@ -72,16 +72,20 @@ const createTables = async () => {
       details TEXT,
       "ipAddress" VARCHAR(45),
       "userAgent" VARCHAR(500),
-      "createdAt" BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000,
-      INDEX idx_user_action ("userId", action),
-      INDEX idx_created ("createdAt")
+      "createdAt" BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000
     )
+  `;
+
+  const createIndexes = `
+    CREATE INDEX IF NOT EXISTS idx_user_action ON audit_logs ("userId", action);
+    CREATE INDEX IF NOT EXISTS idx_created ON audit_logs ("createdAt");
   `;
 
   try {
     await pool.query(usersTable);
     await pool.query(facultyInvitationsTable);
     await pool.query(auditLogTable);
+    await pool.query(createIndexes);
     console.log('Database tables created successfully');
   } catch (err) {
     console.error('Error creating tables:', err);
