@@ -107,11 +107,12 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
           <div style={{
             backgroundColor: '#f8d7da',
             color: '#721c24',
-            padding: '12px 15px',
+            padding: 'clamp(10px, 3vw, 15px)',
             borderRadius: '5px',
             marginBottom: '20px',
             border: '2px solid #f5c6cb',
-            fontSize: '14px'
+            fontSize: 'clamp(12px, 2.5vw, 14px)',
+            wordBreak: 'break-word'
           }}>
             ⚠️ {error}
           </div>
