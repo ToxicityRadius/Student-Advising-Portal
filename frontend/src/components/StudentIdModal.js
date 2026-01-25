@@ -77,15 +77,16 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
 
         <div style={{
           backgroundColor: '#FFF3CD',
-          padding: '15px',
+          padding: 'clamp(10px, 3vw, 15px)',
           borderRadius: '8px',
           border: '2px solid #FFC107',
           marginBottom: '25px',
-          textAlign: 'center'
+          textAlign: 'center',
+          wordBreak: 'break-word'
         }}>
           <p style={{
             margin: '0 0 5px 0',
-            fontSize: '13px',
+            fontSize: 'clamp(11px, 2.5vw, 13px)',
             color: '#856404',
             fontWeight: '600'
           }}>
@@ -93,9 +94,10 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
           </p>
           <p style={{
             margin: 0,
-            fontSize: '14px',
+            fontSize: 'clamp(12px, 2.5vw, 14px)',
             color: '#000',
-            fontWeight: '500'
+            fontWeight: '500',
+            wordBreak: 'break-word'
           }}>
             {userEmail}
           </p>
