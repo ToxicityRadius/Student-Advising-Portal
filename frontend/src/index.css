@@ -73,7 +73,7 @@ code {
 }
 
 .login-logo img {
-  max-width: 280px;
+  max-width: clamp(200px, 60vw, 280px);
   height: auto;
 }
 
