@@ -53,19 +53,6 @@ const ManageUsers = () => {
     }
   };
 
-  const getRoleBadgeClass = (role) => {
-    switch (role) {
-      case 'admin':
-        return 'badge-danger';
-      case 'adviser':
-        return 'badge-warning';
-      case 'student':
-        return 'badge-primary';
-      default:
-        return 'badge-primary';
-    }
-  };
-
   if (loading) {
     return (
       <Container className="py-5 text-center">
