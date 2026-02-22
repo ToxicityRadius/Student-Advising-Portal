@@ -1,0 +1,184 @@
+/* Landing Page Styles */
+.landing-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  /* Gradient overlay with casal.png background - fixed for sharp rendering */
+  background: url('../assets/images/casal.png') center/cover no-repeat fixed;
+  background-color: rgba(243, 185, 10, 0.7);
+  background-blend-mode: overlay;
+  color: white;
+  overflow: hidden;
+}
+
+.top-nav {
+  display: flex;
+  justify-content: center;
+  padding: 40px 80px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.nav-links {
+  display: flex;
+  gap: 60px;
+}
+
+.nav-link-btn {
+  color: white;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 1px;
+  transition: opacity 0.3s;
+  cursor: pointer;
+}
+
+.nav-link-btn:hover {
+  opacity: 0.8;
+}
+
+.hero-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10%;
+  flex-grow: 1; /* Takes up remaining space */
+}
+
+.landing-logo {
+  width: 450px;
+  height: auto;
+  filter: drop-shadow(0 10px 20px rgba(0,0,0,0.1));
+}
+
+.text-box {
+  text-align: right;
+  color: white;
+}
+
+.welcome-italic {
+  font-size: 4rem;
+  font-weight: 300;
+  font-style: italic;
+  display: block;
+  margin-bottom: -20px;
+}
+
+.main-title {
+  font-size: 6.5rem;
+  line-height: 0.85;
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  text-shadow: 2px 4px 10px rgba(0,0,0,0.2);
+  margin: 0;
+}
+
+/* Responsive for Landing Page */
+@media (max-width: 1200px) {
+  .main-title {
+    font-size: 5rem;
+  }
+  
+  .welcome-italic {
+    font-size: 3.5rem;
+  }
+  
+  .landing-logo {
+    width: 350px;
+  }
+}
+
+@media (max-width: 992px) {
+  .top-nav {
+    padding: 30px 40px;
+  }
+  
+  .nav-links {
+    gap: 45px;
+  }
+  
+  .hero-section {
+    padding: 0 5%;
+  }
+  
+  .main-title {
+    font-size: 4rem;
+  }
+  
+  .welcome-italic {
+    font-size: 3rem;
+  }
+  
+  .landing-logo {
+    width: 280px;
+  }
+}
+
+@media (max-width: 768px) {
+  .top-nav {
+    padding: 20px 25px;
+  }
+  
+  .nav-links {
+    gap: 30px;
+  }
+  
+  .nav-links a {
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+  
+  .hero-section {
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    gap: 30px;
+  }
+  
+  .text-box {
+    text-align: center;
+  }
+  
+  .main-title {
+    font-size: 3rem;
+  }
+  
+  .welcome-italic {
+    font-size: 2.5rem;
+    margin-bottom: 0;
+  }
+  
+  .landing-logo {
+    width: 220px;
+  }
+}
+
+@media (max-width: 480px) {
+  .top-nav {
+    padding: 15px 20px;
+  }
+  
+  .nav-links {
+    gap: 15px;
+  }
+  
+  .nav-links a {
+    font-size: 11px;
+  }
+  
+  .main-title {
+    font-size: 2.2rem;
+  }
+  
+  .welcome-italic {
+    font-size: 2rem;
+  }
+  
+  .landing-logo {
+    width: 180px;
+  }
+}

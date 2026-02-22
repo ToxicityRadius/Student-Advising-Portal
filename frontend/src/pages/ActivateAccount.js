@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import backgroundImage from '../bg.png';
+import backgroundImage from '../assets/images/bg.png';
 
 const ActivateAccount = () => {
   const { token } = useParams();

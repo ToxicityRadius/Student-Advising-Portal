@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import PrivateRoute from './components/PrivateRoute';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -17,7 +18,8 @@ import './index.css';
 
 function AppContent() {
   const location = useLocation();
-  const hideNavbar = location.pathname === '/login' || 
+  const hideNavbar = location.pathname === '/' || 
+                     location.pathname === '/login' || 
                      location.pathname === '/register' || 
                      location.pathname === '/verify-code' || 
                      location.pathname === '/forgot-password' || 
@@ -28,7 +30,7 @@ function AppContent() {
     <>
       {!hideNavbar && <Navbar />}
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" />} />
+        <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/faculty-register/:token" element={<FacultyRegister />} />

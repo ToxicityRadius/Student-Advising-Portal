@@ -4,8 +4,8 @@ import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap'
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../context/AuthContext';
-import backgroundImage from '../bg.png';
-import tipLogo from '../tip logo.png';
+import backgroundImage from '../assets/images/bg.png';
+import tipLogo from '../assets/images/tip logo.png';
 
 const Register = () => {
   const [formData, setFormData] = useState({

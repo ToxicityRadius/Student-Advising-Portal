@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import backgroundImage from '../bg.png';
-import tipLogo from '../tip logo.png';
+import backgroundImage from '../assets/images/bg.png';
+import tipLogo from '../assets/images/tip logo.png';
 
 const VerifyCode = () => {
   const [code, setCode] = useState(['', '', '', '', '', '']);

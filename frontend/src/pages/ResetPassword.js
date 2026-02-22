@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import backgroundImage from '../bg.png';
-import tipLogo from '../tip logo.png';
+import backgroundImage from '../assets/images/bg.png';
+import tipLogo from '../assets/images/tip logo.png';
 
 const ResetPassword = () => {
   const [password, setPassword] = useState('');
