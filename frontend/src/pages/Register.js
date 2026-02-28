@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -20,6 +20,9 @@ const Register = () => {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const role = location.state?.role || 'student';
+  const isFaculty = role === 'faculty';
   const { register } = useAuth();
 
   const handleChange = (e) => {
@@ -35,8 +38,14 @@ const Register = () => {
     setSuccess('');
 
     // Validation
-    if (!/^\d{7}$/.test(formData.studentId)) {
+    if (!isFaculty && !/^\d{7}$/.test(formData.studentId)) {
       setError('Student Number must be exactly 7 digits');
+      return;
+    }
+
+    // Faculty email validation
+    if (isFaculty && !formData.email.toLowerCase().endsWith('.cpe@tip.edu.ph')) {
+      setError('Faculty email must end with .cpe@tip.edu.ph');
       return;
     }
 
@@ -54,11 +63,12 @@ const Register = () => {
 
     try {
       const response = await register({
-        studentId: formData.studentId,
+        studentId: isFaculty ? null : formData.studentId,
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
-        password: formData.password
+        password: formData.password,
+        role: isFaculty ? 'adviser' : 'student'
       });
 
       setSuccess(response.message);
@@ -169,7 +179,7 @@ const Register = () => {
                   <img src={tipLogo} alt="TIP Logo" style={{ maxWidth: '200px', height: 'auto' }} />
                 </div>
                 
-                <h2 className="mb-4 text-start">Create an Account</h2>
+                <h2 className="mb-4 text-start">{isFaculty ? 'Faculty Registration' : 'Create an Account'}</h2>
                 
                 {error && (
                   <Alert variant="danger" dismissible onClose={() => setError('')}>
@@ -186,19 +196,21 @@ const Register = () => {
                 )}
                 
                 <Form onSubmit={handleSubmit}>
-                  <Form.Group className="mb-3">
-                    <Form.Control
-                      type="text"
-                      name="studentId"
-                      value={formData.studentId}
-                      onChange={handleChange}
-                      required
-                      placeholder="Student Number (7 digits)"
-                      pattern="\d{7}"
-                      maxLength="7"
-                      title="Student Number must be exactly 7 digits"
-                    />
-                  </Form.Group>
+                  {!isFaculty && (
+                    <Form.Group className="mb-3">
+                      <Form.Control
+                        type="text"
+                        name="studentId"
+                        value={formData.studentId}
+                        onChange={handleChange}
+                        required
+                        placeholder="Student Number (7 digits)"
+                        pattern="\d{7}"
+                        maxLength="7"
+                        title="Student Number must be exactly 7 digits"
+                      />
+                    </Form.Group>
+                  )}
                   
                   <Row>
                     <Col md={6}>

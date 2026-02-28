@@ -13,7 +13,8 @@ import ActivateAccount from './pages/ActivateAccount';
 import VerifyCode from './pages/VerifyCode';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import FacultyRegister from './pages/FacultyRegister';
+import AboutUs from './pages/AboutUs';
+import Purpose from './pages/Purpose';
 import './index.css';
 
 function AppContent() {
@@ -23,17 +24,19 @@ function AppContent() {
                      location.pathname === '/register' || 
                      location.pathname === '/verify-code' || 
                      location.pathname === '/forgot-password' || 
-                     location.pathname.startsWith('/reset-password') ||
-                     location.pathname.startsWith('/faculty-register');
+                     location.pathname === '/about' ||
+                     location.pathname === '/purpose' ||
+                     location.pathname.startsWith('/reset-password');
 
   return (
     <>
       {!hideNavbar && <Navbar />}
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/about" element={<AboutUs />} />
+        <Route path="/purpose" element={<Purpose />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/faculty-register/:token" element={<FacultyRegister />} />
         <Route path="/verify-code" element={<VerifyCode />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />

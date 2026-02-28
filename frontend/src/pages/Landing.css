@@ -1,14 +1,29 @@
-/* Landing Page Styles */
+/* ===== Hero Section ===== */
 .landing-page {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  /* Gradient overlay with casal.png background - fixed for sharp rendering */
-  background: url('../assets/images/casal.png') center/cover no-repeat fixed;
-  background-color: rgba(243, 185, 10, 0.7);
-  background-blend-mode: overlay;
+  position: relative;
+  background: url('../assets/images/casal.png') center/100% no-repeat;
+  background-color: #1a1a1a;
   color: white;
   overflow: hidden;
+}
+
+/* Semi-transparent yellow overlay — fades from left to right */
+.landing-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(243, 185, 10, 0.85), rgba(243, 185, 10, 0.15));
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Ensure all content sits above the overlay */
+.landing-page > * {
+  position: relative;
+  z-index: 1;
 }
 
 .top-nav {
@@ -19,6 +34,7 @@
   top: 0;
   left: 0;
   right: 0;
+  z-index: 2;
 }
 
 .nav-links {
@@ -30,8 +46,8 @@
   color: white;
   text-decoration: none;
   font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 1px;
+  font-size: 18px;
+  letter-spacing: 1.5px;
   transition: opacity 0.3s;
   cursor: pointer;
 }
