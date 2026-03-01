@@ -19,14 +19,13 @@ import './index.css';
 
 function AppContent() {
   const location = useLocation();
-  const hideNavbar = location.pathname === '/' || 
-                     location.pathname === '/login' || 
+  const hideNavbar = location.pathname === '/login' || 
                      location.pathname === '/register' || 
                      location.pathname === '/verify-code' || 
                      location.pathname === '/forgot-password' || 
-                     location.pathname === '/about' ||
-                     location.pathname === '/purpose' ||
-                     location.pathname.startsWith('/reset-password');
+                     location.pathname.startsWith('/reset-password') ||
+                     location.pathname.startsWith('/activate') ||
+                     location.pathname.startsWith('/faculty-register');
 
   return (
     <>

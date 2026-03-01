@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import './AboutUs.css';
 
 const developers = [
@@ -101,14 +100,6 @@ const AboutUs = () => {
 
   return (
     <div className="about-page">
-      <nav className="top-nav">
-        <div className="nav-links">
-          <Link to="/" className="nav-link-btn">HOME</Link>
-          <Link to="/login" className="nav-link-btn">SIGN IN</Link>
-          <Link to="/purpose" className="nav-link-btn">PURPOSE</Link>
-          <Link to="/about" className="nav-link-btn nav-link-active">ABOUT US</Link>
-        </div>
-      </nav>
 
       <h2 className="about-title">MEET THE DEVELOPERS</h2>
 

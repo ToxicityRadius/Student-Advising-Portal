@@ -1,18 +1,9 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import './Purpose.css';
 
 const Purpose = () => {
   return (
     <div className="purpose-page">
-      <nav className="top-nav">
-        <div className="nav-links">
-          <Link to="/" className="nav-link-btn">HOME</Link>
-          <Link to="/login" className="nav-link-btn">SIGN IN</Link>
-          <Link to="/purpose" className="nav-link-btn nav-link-active">PURPOSE</Link>
-          <Link to="/about" className="nav-link-btn">ABOUT US</Link>
-        </div>
-      </nav>
 
       <div className="purpose-content">
         <h2 className="purpose-title">OUR PURPOSE</h2>

@@ -5,7 +5,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../context/AuthContext';
 import backgroundImage from '../assets/images/bg.png';
-import tipLogo from '../assets/images/tip logo.png';
+import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -148,8 +148,8 @@ const Register = () => {
         style={{ 
           left: 0,
           top: '6%',
-          width: '750px',
-          height: '100px',
+          width: '550px',
+          height: '60px',
           backgroundColor: '#FFC107',
           zIndex: 2,
           boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
@@ -163,7 +163,7 @@ const Register = () => {
           right: 0,
           bottom: '10.5%',
           width: '1500px',
-          height: '100px',
+          height: '60px',
           backgroundColor: '#FFC107',
           zIndex: 1,
           boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
@@ -171,15 +171,15 @@ const Register = () => {
       />
       
       <Container className="position-relative" style={{ zIndex: 1 }}>
-        <Row className="justify-content-start">
-          <Col xs={12} sm={9} md={7} lg={6} xl={5} style={{ maxWidth: '450px' }}>
+        <Row className="justify-content-center">
+          <Col xs={12} sm={9} md={7} lg={6} xl={5} style={{ maxWidth: '380px' }}>
             <Card className="shadow-lg border-0" style={{ position: 'relative', zIndex: 3, borderRadius: '20px', overflow: 'hidden' }}>
               <Card.Body className="p-3 p-md-4">
                 <div className="text-center mb-3">
-                  <img src={tipLogo} alt="TIP Logo" style={{ maxWidth: '200px', height: 'auto' }} />
+                  <img src={studentAdvisingLogo} alt="Student Advising Logo" style={{ maxWidth: '220px', height: 'auto' }} />
                 </div>
                 
-                <h2 className="mb-4 text-start">{isFaculty ? 'Faculty Registration' : 'Create an Account'}</h2>
+                <h2 className="mb-3 text-start" style={{ fontSize: '1.3rem' }}>{isFaculty ? 'Faculty Registration' : 'Create an Account'}</h2>
                 
                 {error && (
                   <Alert variant="danger" dismissible onClose={() => setError('')}>
@@ -301,7 +301,7 @@ const Register = () => {
                     />
                   </div>
                   
-                  <div className="text-center mt-4">
+                  <div className="text-center mt-3" style={{ fontSize: '0.82rem' }}>
                     <span className="text-muted">Already have an account? </span>
                     <Link to="/login" className="text-decoration-none fw-bold">
                       Sign in

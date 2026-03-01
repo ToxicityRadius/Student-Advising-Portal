@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import backgroundImage from '../assets/images/bg.png';
-import tipLogo from '../assets/images/tip logo.png';
+import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 
 const ResetPassword = () => {
   const [password, setPassword] = useState('');
@@ -78,8 +78,8 @@ const ResetPassword = () => {
         style={{ 
           left: 0,
           top: '10.5%',
-          width: '750px',
-          height: '100px',
+          width: '550px',
+          height: '60px',
           backgroundColor: '#FFC107',
           zIndex: 2,
           boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
@@ -93,7 +93,7 @@ const ResetPassword = () => {
           right: 0,
           bottom: '10.5%',
           width: '1500px',
-          height: '100px',
+          height: '60px',
           backgroundColor: '#FFC107',
           zIndex: 1,
           boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
@@ -124,7 +124,7 @@ const ResetPassword = () => {
       )}
       <div className="login-card">
         <div className="login-logo">
-          <img src={tipLogo} alt="TIP Logo" />
+          <img src={studentAdvisingLogo} alt="Student Advising Logo" />
         </div>
         <h2 className="login-title">Reset Password</h2>
         <p style={{ textAlign: 'left', color: '#666', marginBottom: '20px', fontSize: '14px' }}>

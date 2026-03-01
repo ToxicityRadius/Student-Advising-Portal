@@ -1,17 +1,9 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import './Landing.css';
 
 const Landing = () => {
   return (
     <div className="landing-page">
-      <nav className="top-nav">
-        <div className="nav-links">
-          <Link to="/login" className="nav-link-btn">SIGN IN</Link>
-          <Link to="/purpose" className="nav-link-btn">PURPOSE</Link>
-          <Link to="/about" className="nav-link-btn">ABOUT US</Link>
-        </div>
-      </nav>
 
       <main className="hero-section">
         <div className="logo-box">

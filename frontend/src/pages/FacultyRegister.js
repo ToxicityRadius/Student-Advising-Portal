@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import backgroundImage from '../assets/images/bg.png';
-import tipLogo from '../assets/images/tip logo.png';
+import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 
 const FacultyRegister = () => {
   const { token } = useParams();
@@ -115,8 +115,8 @@ const FacultyRegister = () => {
           style={{ 
             left: 0,
             top: '10.5%',
-            width: '750px',
-            height: '100px',
+            width: '550px',
+            height: '60px',
             backgroundColor: '#FFC107',
             zIndex: 2,
             boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
@@ -130,7 +130,7 @@ const FacultyRegister = () => {
             right: 0,
             bottom: '10.5%',
             width: '1500px',
-            height: '100px',
+            height: '60px',
             backgroundColor: '#FFC107',
             zIndex: 1,
             boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
@@ -164,8 +164,8 @@ const FacultyRegister = () => {
           style={{ 
             left: 0,
             top: '10.5%',
-            width: '750px',
-            height: '100px',
+            width: '550px',
+            height: '60px',
             backgroundColor: '#FFC107',
             zIndex: 2,
             boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
@@ -179,7 +179,7 @@ const FacultyRegister = () => {
             right: 0,
             bottom: '10.5%',
             width: '1500px',
-            height: '100px',
+            height: '60px',
             backgroundColor: '#FFC107',
             zIndex: 1,
             boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
@@ -188,7 +188,7 @@ const FacultyRegister = () => {
       <div className="login-container" style={{ position: 'relative', zIndex: 3 }}>
         <div className="login-card">
           <div className="login-logo">
-            <img src={tipLogo} alt="TIP Logo" />
+            <img src={studentAdvisingLogo} alt="Student Advising Logo" />
           </div>
           <h2 className="login-title" style={{ color: '#dc3545' }}>Invalid Invitation</h2>
           <div style={{ 
@@ -242,8 +242,8 @@ const FacultyRegister = () => {
         style={{ 
           left: 0,
           top: '10.5%',
-          width: '750px',
-          height: '100px',
+          width: '550px',
+          height: '60px',
           backgroundColor: '#FFC107',
           zIndex: 2,
           boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
@@ -257,7 +257,7 @@ const FacultyRegister = () => {
           right: 0,
           bottom: '10.5%',
           width: '1500px',
-          height: '100px',
+          height: '60px',
           backgroundColor: '#FFC107',
           zIndex: 1,
           boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
@@ -278,10 +278,10 @@ const FacultyRegister = () => {
 
       <div className="login-card">
         <div className="login-logo">
-          <img src={tipLogo} alt="TIP Logo" />
-        </div>
-        
-        <h2 className="login-title">Faculty Registration</h2>
+            <img src={studentAdvisingLogo} alt="Student Advising Logo" />
+          </div>
+          
+          <h2 className="login-title">Faculty Registration</h2>
         
         <div style={{
           backgroundColor: '#FFC107',
