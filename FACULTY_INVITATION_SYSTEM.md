@@ -46,14 +46,14 @@ A secure faculty invitation system that prevents unauthorized users from self-as
 ### faculty_invitations Table
 ```sql
 CREATE TABLE faculty_invitations (
-  id SERIAL PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   email VARCHAR(255) NOT NULL UNIQUE,
   role VARCHAR(50) NOT NULL CHECK(role IN ('adviser', 'admin')),
   invitationToken VARCHAR(255) NOT NULL UNIQUE,
   invitationExpires BIGINT NOT NULL,
   invitedBy INTEGER REFERENCES users(id),
-  isUsed BOOLEAN DEFAULT false,
-  createdAt BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000
+  isUsed BOOLEAN DEFAULT 0,
+  createdAt BIGINT
 );
 ```
 
@@ -213,7 +213,7 @@ CLIENT_URL=http://localhost:3000
 ### "Invalid or expired invitation"
 - Token may have expired (48 hours)
 - Token may have been used already
-- Check database: `SELECT * FROM faculty_invitations WHERE email = 'faculty@tip.edu.ph'`
+- Check database: `SELECT * FROM faculty_invitations WHERE email = 'faculty@tip.edu.ph';`
 
 ### Email not received
 - Check spam folder
@@ -231,26 +231,26 @@ CLIENT_URL=http://localhost:3000
 
 ### Check pending invitations
 ```sql
-SELECT * FROM faculty_invitations 
-WHERE "isUsed" = false 
-  AND "invitationExpires" > EXTRACT(EPOCH FROM NOW()) * 1000;
+SELECT * FROM faculty_invitations
+WHERE isUsed = 0
+  AND invitationExpires > (strftime('%s','now') * 1000);
 ```
 
 ### Manually expire invitation
 ```sql
-UPDATE faculty_invitations 
-SET "invitationExpires" = 0 
+UPDATE faculty_invitations
+SET invitationExpires = 0
 WHERE email = 'faculty@tip.edu.ph';
 ```
 
 ### View invitation history
 ```sql
-SELECT 
+SELECT
   fi.*,
-  u."firstName" || ' ' || u."lastName" as invited_by_name
+  u.firstName || ' ' || u.lastName as invited_by_name
 FROM faculty_invitations fi
-LEFT JOIN users u ON fi."invitedBy" = u.id
-ORDER BY fi."createdAt" DESC;
+LEFT JOIN users u ON fi.invitedBy = u.id
+ORDER BY fi.createdAt DESC;
 ```
 
 ## Success Metrics
