@@ -28,6 +28,7 @@ const googleAuthRoutes = require('./routes/googleAuthRoutes');
 const invitationRoutes = require('./routes/invitationRoutes');
 const curriculumRoutes = require('./routes/curriculumRoutes');
 const importRoutes = require('./routes/importRoutes');
+const gradeRoutes = require('./routes/gradeRoutes');
 
 const app = express();
 
@@ -59,6 +60,10 @@ app.use('/api/users', userRoutes);
 app.use('/api/admin', invitationRoutes);
 app.use('/api/curriculum', curriculumRoutes);
 app.use('/api/import', importRoutes);
+app.use('/api/grades', gradeRoutes);
+
+// Serve uploaded files
+app.use('/uploads', express.static('uploads'));
 
 // Health check
 app.get('/api/health', (req, res) => {

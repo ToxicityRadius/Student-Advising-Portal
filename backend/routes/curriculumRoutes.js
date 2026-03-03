@@ -14,23 +14,23 @@ const {
   setEquivalency
 } = require('../controllers/curriculumController');
 
-// All routes require authentication + admin role
-router.use(protect, authorize('admin'));
+// All routes require authentication
+router.use(protect);
 
-// Curriculum CRUD
-router.post('/', createCurriculum);
+// Curriculum — read (any logged-in user), write (admin only)
 router.get('/', getCurriculums);
-router.put('/:id', updateCurriculum);
-router.delete('/:id', deleteCurriculum);
+router.post('/', authorize('admin'), createCurriculum);
+router.put('/:id', authorize('admin'), updateCurriculum);
+router.delete('/:id', authorize('admin'), deleteCurriculum);
 
-// Subject CRUD (nested under curriculum)
-router.post('/subjects', createSubject);
+// Subjects — read (any logged-in user), write (admin only)
 router.get('/:curriculumId/subjects', getSubjectsByCurriculum);
-router.put('/subjects/:id', updateSubject);
-router.delete('/subjects/:id', deleteSubject);
+router.post('/subjects', authorize('admin'), createSubject);
+router.put('/subjects/:id', authorize('admin'), updateSubject);
+router.delete('/subjects/:id', authorize('admin'), deleteSubject);
 
-// Prerequisites & Equivalencies
-router.post('/prerequisites', addPrerequisite);
-router.post('/equivalencies', setEquivalency);
+// Prerequisites & Equivalencies (admin only)
+router.post('/prerequisites', authorize('admin'), addPrerequisite);
+router.post('/equivalencies', authorize('admin'), setEquivalency);
 
 module.exports = router;

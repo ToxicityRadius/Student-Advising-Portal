@@ -15,6 +15,9 @@ import ResetPassword from './pages/ResetPassword';
 import FacultyRegister from './pages/FacultyRegister';
 import CurriculumManager from './pages/Admin/CurriculumManager';
 import BulkImport from './pages/Admin/BulkImport';
+import GradeEntry from './pages/GradeEntry';
+import CurrentSemester from './pages/CurrentSemester';
+import AdviserDashboard from './pages/AdviserDashboard';
 import './index.css';
 
 function AppContent() {
@@ -67,6 +70,30 @@ function AppContent() {
           element={
             <PrivateRoute adminOnly={true}>
               <BulkImport />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/grades/entry"
+          element={
+            <PrivateRoute roles={['student']}>
+              <GradeEntry />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/grades/current"
+          element={
+            <PrivateRoute roles={['student']}>
+              <CurrentSemester />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/adviser/dashboard"
+          element={
+            <PrivateRoute roles={['adviser', 'admin']}>
+              <AdviserDashboard />
             </PrivateRoute>
           }
         />

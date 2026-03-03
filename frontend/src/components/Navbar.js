@@ -35,7 +35,25 @@ const Navbar = () => {
                     <Nav.Link as={Link} to="/admin/import" className="text-light">
                       Bulk Import
                     </Nav.Link>
+                    <Nav.Link as={Link} to="/adviser/dashboard" className="text-light">
+                      Adviser Dashboard
+                    </Nav.Link>
                   </>
+                )}
+                {user.role === 'student' && (
+                  <>
+                    <Nav.Link as={Link} to="/grades/entry" className="text-light">
+                      Grade Entry
+                    </Nav.Link>
+                    <Nav.Link as={Link} to="/grades/current" className="text-light">
+                      Current Semester
+                    </Nav.Link>
+                  </>
+                )}
+                {user.role === 'adviser' && (
+                  <Nav.Link as={Link} to="/adviser/dashboard" className="text-light">
+                    Adviser Dashboard
+                  </Nav.Link>
                 )}
                 <Button 
                   variant="outline-warning" 
