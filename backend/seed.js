@@ -103,7 +103,7 @@ async function seedDatabase() {
   });
   console.log('Created default admin (admin@tip.edu.ph / admin123)');
 
-  // Create default Student
+  // Create default Student (assigned to the new/active curriculum)
   await User.create({
     studentId: '1234567',
     firstName: 'Test',
@@ -112,7 +112,8 @@ async function seedDatabase() {
     password: hashedPassword,
     role: 'student',
     isActive: true,
-    isVerified: true
+    isVerified: true,
+    CurriculumId: newCurriculum.id
   });
   console.log('Created default student (student@tip.edu.ph / admin123)');
 

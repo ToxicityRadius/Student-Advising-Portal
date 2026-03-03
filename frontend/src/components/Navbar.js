@@ -51,6 +51,9 @@ const Navbar = () => {
                     <Nav.Link as={Link} to="/grades/current" className="text-light">
                       Current Semester
                     </Nav.Link>
+                    <Nav.Link as={Link} to="/study-plan" className="text-light">
+                      My Study Plan
+                    </Nav.Link>
                   </>
                 )}
                 {user.role === 'adviser' && (

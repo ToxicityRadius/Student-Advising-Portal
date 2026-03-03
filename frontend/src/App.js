@@ -19,6 +19,7 @@ import GradeEntry from './pages/GradeEntry';
 import CurrentSemester from './pages/CurrentSemester';
 import AdviserDashboard from './pages/AdviserDashboard';
 import AcademicCalendar from './pages/AcademicCalendar';
+import StudyPlan from './pages/StudyPlan';
 import './index.css';
 
 function AppContent() {
@@ -95,6 +96,14 @@ function AppContent() {
           element={
             <PrivateRoute roles={['student']}>
               <CurrentSemester />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/study-plan"
+          element={
+            <PrivateRoute roles={['student']}>
+              <StudyPlan />
             </PrivateRoute>
           }
         />

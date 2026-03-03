@@ -15,6 +15,9 @@ const AcademicTerm = require('./AcademicTerm');
 Curriculum.hasMany(Subject);
 Subject.belongsTo(Curriculum);
 
+Curriculum.hasMany(User);
+User.belongsTo(Curriculum);
+
 User.hasMany(Grade);
 Grade.belongsTo(User);
 
