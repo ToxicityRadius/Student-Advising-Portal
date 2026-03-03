@@ -77,26 +77,27 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 // Define associations
-Curriculum.hasMany(Subject, { foreignKey: 'curr_id' });
-Subject.belongsTo(Curriculum, { foreignKey: 'curr_id' });
+// Define associations (Let Sequelize handle foreign keys)
+Curriculum.hasMany(Subject);
+Subject.belongsTo(Curriculum);
 
-User.hasMany(Grade, { foreignKey: 'user_id' });
-Grade.belongsTo(User, { foreignKey: 'user_id' });
+User.hasMany(Grade);
+Grade.belongsTo(User);
 
-Subject.hasMany(Grade, { foreignKey: 'subject_id' });
-Grade.belongsTo(Subject, { foreignKey: 'subject_id' });
+Subject.hasMany(Grade);
+Grade.belongsTo(Subject);
 
-Grade.hasOne(ProofDocument, { foreignKey: 'grade_id' });
-ProofDocument.belongsTo(Grade, { foreignKey: 'grade_id' });
+Grade.hasOne(ProofDocument);
+ProofDocument.belongsTo(Grade);
 
-User.hasMany(StudyPlan, { foreignKey: 'user_id' });
-StudyPlan.belongsTo(User, { foreignKey: 'user_id' });
+User.hasMany(StudyPlan);
+StudyPlan.belongsTo(User);
 
-StudyPlan.hasMany(PlanSubject, { foreignKey: 'plan_id' });
-PlanSubject.belongsTo(StudyPlan, { foreignKey: 'plan_id' });
+StudyPlan.hasMany(PlanSubject);
+PlanSubject.belongsTo(StudyPlan);
 
-Subject.hasMany(PlanSubject, { foreignKey: 'subject_id' });
-PlanSubject.belongsTo(Subject, { foreignKey: 'subject_id' });
+Subject.hasMany(PlanSubject);
+PlanSubject.belongsTo(Subject);
 
 // Sync database and start server
 sequelize.sync({ alter: true }).then(() => {

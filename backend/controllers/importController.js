@@ -168,8 +168,8 @@ exports.importGrades = async (req, res, next) => {
         }
 
         await Grade.create({
-          user_id: user.id,
-          subject_id: subject.subject_id,
+          UserId: user.id,
+          SubjectId: subject.id,
           grade_value: parseFloat(grade_value),
           term_taken: term_taken.trim(),
           status: 'verified'

@@ -30,7 +30,7 @@ const CurriculumManager = () => {
   // Subject form
   const [showSubjForm, setShowSubjForm] = useState(false);
   const [subjForm, setSubjForm] = useState({
-    curr_id: '',
+    curriculumId: '',
     course_code: '',
     title: '',
     units: 3,
@@ -95,7 +95,7 @@ const CurriculumManager = () => {
 
   const editCurriculum = (c) => {
     setCurrForm({ version_year: c.version_year, active_status: c.active_status });
-    setEditingCurrId(c.curr_id);
+    setEditingCurrId(c.id);
     setShowCurrForm(true);
   };
 
@@ -124,7 +124,7 @@ const CurriculumManager = () => {
         flash('Subject created');
       }
       setShowSubjForm(false);
-      setSubjForm({ curr_id: '', course_code: '', title: '', units: 3, seasonal_term: '' });
+      setSubjForm({ curriculumId: '', course_code: '', title: '', units: 3, seasonal_term: '' });
       setEditingSubjId(null);
       fetchCurriculums();
     } catch (err) {
@@ -134,13 +134,13 @@ const CurriculumManager = () => {
 
   const editSubject = (s) => {
     setSubjForm({
-      curr_id: s.curr_id,
+      curriculumId: s.CurriculumId,
       course_code: s.course_code,
       title: s.title,
       units: s.units,
       seasonal_term: s.seasonal_term || ''
     });
-    setEditingSubjId(s.subject_id);
+    setEditingSubjId(s.id);
     setShowSubjForm(true);
   };
 
@@ -157,7 +157,7 @@ const CurriculumManager = () => {
   };
 
   const openAddSubject = (currId) => {
-    setSubjForm({ curr_id: currId, course_code: '', title: '', units: 3, seasonal_term: '' });
+    setSubjForm({ curriculumId: currId, course_code: '', title: '', units: 3, seasonal_term: '' });
     setEditingSubjId(null);
     setShowSubjForm(true);
   };
@@ -237,7 +237,7 @@ const CurriculumManager = () => {
       ) : (
         <Accordion defaultActiveKey="0">
           {curriculums.map((c, idx) => (
-            <Accordion.Item eventKey={String(idx)} key={c.curr_id}>
+            <Accordion.Item eventKey={String(idx)} key={c.id}>
               <Accordion.Header>
                 <span className="me-2 fw-bold">{c.version_year}</span>
                 <Badge bg={c.active_status ? 'success' : 'secondary'} className="me-2">
@@ -250,10 +250,10 @@ const CurriculumManager = () => {
                   <Button size="sm" variant="outline-primary" className="me-2" onClick={() => editCurriculum(c)}>
                     Edit Curriculum
                   </Button>
-                  <Button size="sm" variant="outline-danger" className="me-2" onClick={() => deleteCurriculum(c.curr_id)}>
+                  <Button size="sm" variant="outline-danger" className="me-2" onClick={() => deleteCurriculum(c.id)}>
                     Delete Curriculum
                   </Button>
-                  <Button size="sm" variant="success" onClick={() => openAddSubject(c.curr_id)}>
+                  <Button size="sm" variant="success" onClick={() => openAddSubject(c.id)}>
                     + Add Subject
                   </Button>
                 </div>
@@ -273,7 +273,7 @@ const CurriculumManager = () => {
                     </thead>
                     <tbody>
                       {c.Subjects.map(s => (
-                        <tr key={s.subject_id}>
+                        <tr key={s.id}>
                           <td>{s.course_code}</td>
                           <td>{s.title}</td>
                           <td>{s.units}</td>
@@ -282,7 +282,7 @@ const CurriculumManager = () => {
                             <Button size="sm" variant="outline-primary" className="me-1" onClick={() => editSubject(s)}>
                               Edit
                             </Button>
-                            <Button size="sm" variant="outline-danger" onClick={() => deleteSubject(s.subject_id)}>
+                            <Button size="sm" variant="outline-danger" onClick={() => deleteSubject(s.id)}>
                               Del
                             </Button>
                           </td>
@@ -338,13 +338,13 @@ const CurriculumManager = () => {
             <Form.Group className="mb-3">
               <Form.Label>Curriculum</Form.Label>
               <Form.Select
-                value={subjForm.curr_id}
-                onChange={e => setSubjForm({ ...subjForm, curr_id: e.target.value })}
+                value={subjForm.curriculumId}
+                onChange={e => setSubjForm({ ...subjForm, curriculumId: e.target.value })}
                 required
               >
                 <option value="">Select curriculum...</option>
                 {curriculums.map(c => (
-                  <option key={c.curr_id} value={c.curr_id}>{c.version_year}</option>
+                  <option key={c.id} value={c.id}>{c.version_year}</option>
                 ))}
               </Form.Select>
             </Form.Group>
@@ -416,7 +416,7 @@ const CurriculumManager = () => {
               >
                 <option value="">Select subject...</option>
                 {allSubjects.map(s => (
-                  <option key={s.subject_id} value={s.subject_id}>
+                  <option key={s.id} value={s.id}>
                     {s.course_code} — {s.title} ({s.curriculum})
                   </option>
                 ))}
@@ -431,9 +431,9 @@ const CurriculumManager = () => {
               >
                 <option value="">Select prerequisite...</option>
                 {allSubjects
-                  .filter(s => String(s.subject_id) !== String(prereqForm.subject_id))
+                  .filter(s => String(s.id) !== String(prereqForm.subject_id))
                   .map(s => (
-                    <option key={s.subject_id} value={s.subject_id}>
+                    <option key={s.id} value={s.id}>
                       {s.course_code} — {s.title} ({s.curriculum})
                     </option>
                   ))}
@@ -463,7 +463,7 @@ const CurriculumManager = () => {
               >
                 <option value="">Select source subject...</option>
                 {allSubjects.map(s => (
-                  <option key={s.subject_id} value={s.subject_id}>
+                  <option key={s.id} value={s.id}>
                     {s.course_code} — {s.title} ({s.curriculum})
                   </option>
                 ))}
@@ -478,9 +478,9 @@ const CurriculumManager = () => {
               >
                 <option value="">Select target subject...</option>
                 {allSubjects
-                  .filter(s => String(s.subject_id) !== String(equivForm.source_subject_id))
+                  .filter(s => String(s.id) !== String(equivForm.source_subject_id))
                   .map(s => (
-                    <option key={s.subject_id} value={s.subject_id}>
+                    <option key={s.id} value={s.id}>
                       {s.course_code} — {s.title} ({s.curriculum})
                     </option>
                   ))}

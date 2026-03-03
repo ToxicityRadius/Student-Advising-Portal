@@ -28,7 +28,7 @@ exports.getCurriculums = async (req, res, next) => {
   try {
     const curriculums = await Curriculum.findAll({
       include: [{ model: Subject }],
-      order: [['curr_id', 'DESC']]
+      order: [['id', 'DESC']]
     });
 
     res.json({ success: true, data: curriculums });
@@ -49,7 +49,7 @@ exports.updateCurriculum = async (req, res, next) => {
 
     await Curriculum.update(
       { version_year, active_status },
-      { where: { curr_id: id } }
+      { where: { id } }
     );
 
     const updated = await Curriculum.findByPk(id);
@@ -68,7 +68,7 @@ exports.deleteCurriculum = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
     }
 
-    await Curriculum.destroy({ where: { curr_id: id } });
+    await Curriculum.destroy({ where: { id } });
     res.json({ success: true, message: 'Curriculum deleted' });
   } catch (error) {
     next(error);
@@ -79,23 +79,23 @@ exports.deleteCurriculum = async (req, res, next) => {
 
 exports.createSubject = async (req, res, next) => {
   try {
-    const { curr_id, course_code, title, units, seasonal_term } = req.body;
+    const { curriculumId, course_code, title, units, seasonal_term } = req.body;
 
-    if (!curr_id || !course_code || !title) {
+    if (!curriculumId || !course_code || !title) {
       return res.status(400).json({
         success: false,
-        message: 'curr_id, course_code, and title are required'
+        message: 'curriculumId, course_code, and title are required'
       });
     }
 
     // Verify curriculum exists
-    const curriculum = await Curriculum.findByPk(curr_id);
+    const curriculum = await Curriculum.findByPk(curriculumId);
     if (!curriculum) {
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
     }
 
     const subject = await Subject.create({
-      curr_id,
+      CurriculumId: curriculumId,
       course_code,
       title,
       units: units || 3,
@@ -113,7 +113,7 @@ exports.getSubjectsByCurriculum = async (req, res, next) => {
     const { curriculumId } = req.params;
 
     const subjects = await Subject.findAll({
-      where: { curr_id: curriculumId },
+      where: { CurriculumId: curriculumId },
       order: [['course_code', 'ASC']]
     });
 
@@ -126,17 +126,19 @@ exports.getSubjectsByCurriculum = async (req, res, next) => {
 exports.updateSubject = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { course_code, title, units, seasonal_term, curr_id } = req.body;
+    const { course_code, title, units, seasonal_term, curriculumId } = req.body;
 
     const subject = await Subject.findByPk(id);
     if (!subject) {
       return res.status(404).json({ success: false, message: 'Subject not found' });
     }
 
-    await Subject.update(
-      { course_code, title, units, seasonal_term, curr_id },
-      { where: { subject_id: id } }
-    );
+    const updateData = { course_code, title, units, seasonal_term };
+    if (curriculumId !== undefined) {
+      updateData.CurriculumId = curriculumId;
+    }
+
+    await Subject.update(updateData, { where: { id } });
 
     const updated = await Subject.findByPk(id);
     res.json({ success: true, data: updated });
@@ -154,7 +156,7 @@ exports.deleteSubject = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Subject not found' });
     }
 
-    await Subject.destroy({ where: { subject_id: id } });
+    await Subject.destroy({ where: { id } });
     res.json({ success: true, message: 'Subject deleted' });
   } catch (error) {
     next(error);

@@ -7,12 +7,6 @@ const PlanSubject = sequelize.define('PlanSubject', {
     primaryKey: true,
     autoIncrement: true
   },
-  plan_id: {
-    type: DataTypes.INTEGER
-  },
-  subject_id: {
-    type: DataTypes.INTEGER
-  },
   target_term: {
     type: DataTypes.STRING
   }

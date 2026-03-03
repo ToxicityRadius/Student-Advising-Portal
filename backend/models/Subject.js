@@ -2,7 +2,7 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../database/db');
 
 const Subject = sequelize.define('Subject', {
-  subject_id: {
+  id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true
@@ -18,10 +18,6 @@ const Subject = sequelize.define('Subject', {
   },
   seasonal_term: {
     type: DataTypes.STRING
-  },
-  curr_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false
   }
 }, {
   tableName: 'subjects',

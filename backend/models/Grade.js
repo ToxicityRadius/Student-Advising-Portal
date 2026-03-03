@@ -2,16 +2,10 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../database/db');
 
 const Grade = sequelize.define('Grade', {
-  grade_id: {
+  id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true
-  },
-  user_id: {
-    type: DataTypes.INTEGER
-  },
-  subject_id: {
-    type: DataTypes.INTEGER
   },
   grade_value: {
     type: DataTypes.DECIMAL
