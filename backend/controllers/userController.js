@@ -1,16 +1,32 @@
 const User = require('../models/User');
 
+// Helper: strip sensitive fields from a user plain object
+function sanitizeUser(user) {
+  if (!user) return null;
+  const plain = user.get ? user.get({ plain: true }) : { ...user };
+  delete plain.password;
+  delete plain.activationToken;
+  delete plain.activationTokenExpires;
+  delete plain.resetPasswordToken;
+  delete plain.resetPasswordExpires;
+  delete plain.verificationCode;
+  delete plain.verificationCodeExpires;
+  return plain;
+}
+
 // @desc    Get all users (Admin only)
 // @route   GET /api/users
 // @access  Private/Admin
 exports.getAllUsers = async (req, res, next) => {
   try {
-    const users = await User.findAll();
+    const users = await User.findAll({ order: [['createdAt', 'DESC']] });
+
+    const sanitized = users.map(u => sanitizeUser(u));
 
     res.status(200).json({
       success: true,
-      count: users.length,
-      users
+      count: sanitized.length,
+      users: sanitized
     });
   } catch (error) {
     next(error);
@@ -22,7 +38,7 @@ exports.getAllUsers = async (req, res, next) => {
 // @access  Private/Admin
 exports.getUserById = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({
@@ -33,7 +49,7 @@ exports.getUserById = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      user: User.toJSON(user)
+      user: sanitizeUser(user)
     });
   } catch (error) {
     next(error);
@@ -47,7 +63,7 @@ exports.updateUser = async (req, res, next) => {
   try {
     const { firstName, lastName, email, role, isActive } = req.body;
 
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({
@@ -57,18 +73,21 @@ exports.updateUser = async (req, res, next) => {
     }
 
     // Update user
-    const updatedUser = await User.update(req.params.id, {
+    await User.update({
       firstName,
       lastName,
       email,
       role,
-      isActive
-    });
+      isActive,
+      updatedAt: Date.now()
+    }, { where: { id: req.params.id } });
+
+    const updatedUser = await User.findByPk(req.params.id);
 
     res.status(200).json({
       success: true,
       message: 'User updated successfully',
-      user: User.toJSON(updatedUser)
+      user: sanitizeUser(updatedUser)
     });
   } catch (error) {
     next(error);
@@ -80,7 +99,7 @@ exports.updateUser = async (req, res, next) => {
 // @access  Private/Admin
 exports.deleteUser = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({
@@ -97,7 +116,7 @@ exports.deleteUser = async (req, res, next) => {
       });
     }
 
-    await User.delete(req.params.id);
+    await User.destroy({ where: { id: req.params.id } });
 
     res.status(200).json({
       success: true,
@@ -113,7 +132,7 @@ exports.deleteUser = async (req, res, next) => {
 // @access  Private/Admin
 exports.toggleUserStatus = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({
@@ -122,14 +141,17 @@ exports.toggleUserStatus = async (req, res, next) => {
       });
     }
 
-    const updatedUser = await User.update(req.params.id, {
-      isActive: !user.isActive
-    });
+    await User.update({
+      isActive: !user.isActive,
+      updatedAt: Date.now()
+    }, { where: { id: req.params.id } });
+
+    const updatedUser = await User.findByPk(req.params.id);
 
     res.status(200).json({
       success: true,
       message: `User ${updatedUser.isActive ? 'activated' : 'deactivated'} successfully`,
-      user: User.toJSON(updatedUser)
+      user: sanitizeUser(updatedUser)
     });
   } catch (error) {
     next(error);
@@ -152,7 +174,7 @@ exports.updateStudentId = async (req, res, next) => {
     }
 
     // Check if studentId already exists
-    const existingUser = await User.findByStudentId(studentId);
+    const existingUser = await User.findOne({ where: { studentId } });
     if (existingUser && existingUser.id !== req.user.id) {
       return res.status(400).json({
         success: false,
@@ -169,13 +191,14 @@ exports.updateStudentId = async (req, res, next) => {
     }
 
     // Update user's studentId
-    const updatedUser = await User.update(req.user.id, { studentId });
+    await User.update({ studentId, updatedAt: Date.now() }, { where: { id: req.user.id } });
+    const updatedUser = await User.findByPk(req.user.id);
 
     res.status(200).json({
       success: true,
       message: 'Student Number updated successfully',
       user: {
-        ...User.toJSON(updatedUser),
+        ...sanitizeUser(updatedUser),
         studentId
       }
     });
@@ -201,7 +224,7 @@ exports.updateUserStudentId = async (req, res, next) => {
     }
 
     // Find the user
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -210,7 +233,7 @@ exports.updateUserStudentId = async (req, res, next) => {
     }
 
     // Check if studentId already exists (but different user)
-    const existingUser = await User.findByStudentId(studentId);
+    const existingUser = await User.findOne({ where: { studentId } });
     if (existingUser && existingUser.id !== user.id) {
       return res.status(400).json({
         success: false,
@@ -219,8 +242,8 @@ exports.updateUserStudentId = async (req, res, next) => {
     }
 
     // Update user's studentId
-    const updatedUser = await User.update(userId, { studentId });
-    const finalUser = await User.findById(userId);
+    await User.update({ studentId, updatedAt: Date.now() }, { where: { id: userId } });
+    const finalUser = await User.findByPk(userId);
 
     // Generate token
     const { generateToken } = require('../utils/jwt');
@@ -231,7 +254,7 @@ exports.updateUserStudentId = async (req, res, next) => {
       message: 'Student Number updated successfully',
       token,
       user: {
-        id: finalUser._id,
+        id: finalUser.id,
         firstName: finalUser.firstName,
         lastName: finalUser.lastName,
         email: finalUser.email,

@@ -7,7 +7,19 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 // Initialize database
-require('./database/db');
+const sequelize = require('./database/db');
+
+// Import models
+const User = require('./models/User');
+const Invitation = require('./models/Invitation');
+const Curriculum = require('./models/Curriculum');
+const Subject = require('./models/Subject');
+const Prerequisite = require('./models/Prerequisite');
+const EquivalencyRule = require('./models/EquivalencyRule');
+const Grade = require('./models/Grade');
+const ProofDocument = require('./models/ProofDocument');
+const StudyPlan = require('./models/StudyPlan');
+const PlanSubject = require('./models/PlanSubject');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -59,6 +71,35 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+
+// Define associations
+Curriculum.hasMany(Subject, { foreignKey: 'curr_id' });
+Subject.belongsTo(Curriculum, { foreignKey: 'curr_id' });
+
+User.hasMany(Grade, { foreignKey: 'user_id' });
+Grade.belongsTo(User, { foreignKey: 'user_id' });
+
+Subject.hasMany(Grade, { foreignKey: 'subject_id' });
+Grade.belongsTo(Subject, { foreignKey: 'subject_id' });
+
+Grade.hasOne(ProofDocument, { foreignKey: 'grade_id' });
+ProofDocument.belongsTo(Grade, { foreignKey: 'grade_id' });
+
+User.hasMany(StudyPlan, { foreignKey: 'user_id' });
+StudyPlan.belongsTo(User, { foreignKey: 'user_id' });
+
+StudyPlan.hasMany(PlanSubject, { foreignKey: 'plan_id' });
+PlanSubject.belongsTo(StudyPlan, { foreignKey: 'plan_id' });
+
+Subject.hasMany(PlanSubject, { foreignKey: 'subject_id' });
+PlanSubject.belongsTo(Subject, { foreignKey: 'subject_id' });
+
+// Sync database and start server
+sequelize.sync({ alter: true }).then(() => {
+  console.log('Database synced successfully');
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}).catch((err) => {
+  console.error('Failed to sync database:', err);
 });
