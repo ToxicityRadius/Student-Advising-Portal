@@ -11,7 +11,9 @@ const {
   updateSubject,
   deleteSubject,
   addPrerequisite,
-  setEquivalency
+  setEquivalency,
+  deletePrerequisite,
+  deleteEquivalency
 } = require('../controllers/curriculumController');
 
 // All routes require authentication
@@ -31,6 +33,8 @@ router.delete('/subjects/:id', authorize('admin'), deleteSubject);
 
 // Prerequisites & Equivalencies (admin only)
 router.post('/prerequisites', authorize('admin'), addPrerequisite);
+router.delete('/prerequisites/:id', authorize('admin'), deletePrerequisite);
 router.post('/equivalencies', authorize('admin'), setEquivalency);
+router.delete('/equivalencies/:id', authorize('admin'), deleteEquivalency);
 
 module.exports = router;

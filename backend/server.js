@@ -17,6 +17,7 @@ const invitationRoutes = require('./routes/invitationRoutes');
 const curriculumRoutes = require('./routes/curriculumRoutes');
 const importRoutes = require('./routes/importRoutes');
 const gradeRoutes = require('./routes/gradeRoutes');
+const termRoutes = require('./routes/termRoutes');
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use('/api/admin', invitationRoutes);
 app.use('/api/curriculum', curriculumRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/grades', gradeRoutes);
+app.use('/api/terms', termRoutes);
 
 // Serve uploaded files
 app.use('/uploads', express.static('uploads'));

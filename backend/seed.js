@@ -1,10 +1,19 @@
-const { sequelize, User, Curriculum, Subject, Prerequisite, EquivalencyRule } = require('./models');
+const { sequelize, User, Curriculum, Subject, Prerequisite, EquivalencyRule, AcademicTerm } = require('./models');
 const bcrypt = require('bcryptjs');
 
 async function seedDatabase() {
   // Wipe tables clean and recreate so we start fresh each seed
   await sequelize.sync({ force: true });
   console.log('Database synced (force: true).');
+
+  // ─── 0. Create Default Academic Term ─────────────────────────────
+  await AcademicTerm.create({
+    term_name: '1st Semester 2025-2026',
+    start_date: '2025-08-01',
+    end_date: '2025-12-15',
+    is_active: true
+  });
+  console.log('Created default active AcademicTerm.');
 
   // ─── 1. Create Curriculums ───────────────────────────────────────
   const oldCurriculum = await Curriculum.create({

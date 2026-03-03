@@ -174,6 +174,7 @@ const CurriculumManager = () => {
       flash('Prerequisite added');
       setShowPrereqModal(false);
       setPrereqForm({ subject_id: '', required_subj_id: '' });
+      fetchCurriculums();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to add prerequisite');
     }
@@ -191,8 +192,33 @@ const CurriculumManager = () => {
       flash('Equivalency rule added');
       setShowEquivModal(false);
       setEquivForm({ source_subject_id: '', target_subject_id: '' });
+      fetchCurriculums();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to add equivalency');
+    }
+  };
+
+  // ── Delete Prerequisite ──
+  const removePrerequisite = async (id) => {
+    clearMessages();
+    try {
+      await api.delete(`/curriculum/prerequisites/${id}`);
+      flash('Prerequisite removed');
+      fetchCurriculums();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to remove prerequisite');
+    }
+  };
+
+  // ── Delete Equivalency ──
+  const removeEquivalency = async (id) => {
+    clearMessages();
+    try {
+      await api.delete(`/curriculum/equivalencies/${id}`);
+      flash('Equivalency removed');
+      fetchCurriculums();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to remove equivalency');
     }
   };
 
@@ -273,20 +299,83 @@ const CurriculumManager = () => {
                     </thead>
                     <tbody>
                       {c.Subjects.map(s => (
-                        <tr key={s.id}>
-                          <td>{s.course_code}</td>
-                          <td>{s.title}</td>
-                          <td>{s.units}</td>
-                          <td>{s.seasonal_term || '—'}</td>
-                          <td>
-                            <Button size="sm" variant="outline-primary" className="me-1" onClick={() => editSubject(s)}>
-                              Edit
-                            </Button>
-                            <Button size="sm" variant="outline-danger" onClick={() => deleteSubject(s.id)}>
-                              Del
-                            </Button>
-                          </td>
-                        </tr>
+                        <React.Fragment key={s.id}>
+                          <tr>
+                            <td>{s.course_code}</td>
+                            <td>{s.title}</td>
+                            <td>{s.units}</td>
+                            <td>{s.seasonal_term || '—'}</td>
+                            <td>
+                              <Button size="sm" variant="outline-primary" className="me-1" onClick={() => editSubject(s)}>
+                                Edit
+                              </Button>
+                              <Button size="sm" variant="outline-danger" onClick={() => deleteSubject(s.id)}>
+                                Del
+                              </Button>
+                            </td>
+                          </tr>
+                          {/* Prerequisites & Equivalencies nested row */}
+                          {((s.prerequisites && s.prerequisites.length > 0) ||
+                            (s.equivalencies && s.equivalencies.length > 0)) && (
+                            <tr>
+                              <td colSpan="5" className="ps-4 py-1" style={{ backgroundColor: '#f8f9fa' }}>
+                                {s.prerequisites && s.prerequisites.length > 0 && (
+                                  <div className="mb-1">
+                                    <small className="text-muted me-2">Prerequisites:</small>
+                                    {s.prerequisites.map(p => (
+                                      <Badge
+                                        key={p.id}
+                                        bg="info"
+                                        className="me-1"
+                                        style={{ fontSize: '0.8em' }}
+                                      >
+                                        {p.RequiredSubject
+                                          ? p.RequiredSubject.course_code
+                                          : `ID ${p.required_subj_id}`}
+                                        <span
+                                          role="button"
+                                          className="ms-1"
+                                          style={{ cursor: 'pointer' }}
+                                          onClick={() => removePrerequisite(p.id)}
+                                          title="Remove prerequisite"
+                                        >
+                                          &times;
+                                        </span>
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                                {s.equivalencies && s.equivalencies.length > 0 && (
+                                  <div>
+                                    <small className="text-muted me-2">Equivalencies:</small>
+                                    {s.equivalencies.map(e => (
+                                      <Badge
+                                        key={e.id}
+                                        bg="warning"
+                                        text="dark"
+                                        className="me-1"
+                                        style={{ fontSize: '0.8em' }}
+                                      >
+                                        &rarr; {e.TargetSubject
+                                          ? e.TargetSubject.course_code
+                                          : `ID ${e.target_subject_id}`}
+                                        <span
+                                          role="button"
+                                          className="ms-1"
+                                          style={{ cursor: 'pointer' }}
+                                          onClick={() => removeEquivalency(e.id)}
+                                          title="Remove equivalency"
+                                        >
+                                          &times;
+                                        </span>
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </Table>

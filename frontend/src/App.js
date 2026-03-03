@@ -18,6 +18,7 @@ import BulkImport from './pages/Admin/BulkImport';
 import GradeEntry from './pages/GradeEntry';
 import CurrentSemester from './pages/CurrentSemester';
 import AdviserDashboard from './pages/AdviserDashboard';
+import AcademicCalendar from './pages/AcademicCalendar';
 import './index.css';
 
 function AppContent() {
@@ -70,6 +71,14 @@ function AppContent() {
           element={
             <PrivateRoute adminOnly={true}>
               <BulkImport />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/calendar"
+          element={
+            <PrivateRoute adminOnly={true}>
+              <AcademicCalendar />
             </PrivateRoute>
           }
         />

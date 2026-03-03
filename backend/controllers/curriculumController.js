@@ -1,5 +1,33 @@
 const { Curriculum, Subject, Prerequisite, EquivalencyRule } = require('../models');
 
+// ──────────────── Helpers ────────────────
+
+/**
+ * Detect whether adding an edge (from → to) in a directed graph would create
+ * a cycle.  Works for both prerequisite and equivalency graphs.
+ *
+ * @param {Function} getNeighbours  async (nodeId) => [neighbourId, …]
+ * @param {number}   from           The node the new edge departs from
+ * @param {number}   to             The node the new edge arrives at
+ * @returns {Promise<boolean>}      true if a cycle would be created
+ */
+async function wouldCreateCycle(getNeighbours, from, to) {
+  // If adding edge from→to, a cycle exists when we can already reach "from"
+  // starting from "to" (i.e. there is a path to → … → from).
+  const visited = new Set();
+  const stack = [to];
+
+  while (stack.length) {
+    const current = stack.pop();
+    if (current === from) return true;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    const neighbours = await getNeighbours(current);
+    stack.push(...neighbours);
+  }
+  return false;
+}
+
 // ──────────────── Curriculum CRUD ────────────────
 
 exports.createCurriculum = async (req, res, next) => {
@@ -24,7 +52,21 @@ exports.createCurriculum = async (req, res, next) => {
 exports.getCurriculums = async (req, res, next) => {
   try {
     const curriculums = await Curriculum.findAll({
-      include: [{ model: Subject }],
+      include: [{
+        model: Subject,
+        include: [
+          {
+            model: Prerequisite,
+            as: 'prerequisites',
+            include: [{ model: Subject, as: 'RequiredSubject' }]
+          },
+          {
+            model: EquivalencyRule,
+            as: 'equivalencies',
+            include: [{ model: Subject, as: 'TargetSubject' }]
+          }
+        ]
+      }],
       order: [['id', 'DESC']]
     });
 
@@ -197,6 +239,35 @@ exports.addPrerequisite = async (req, res, next) => {
       return res.status(409).json({ success: false, message: 'Prerequisite already exists' });
     }
 
+    // Direct reverse-loop check: does the required subject already require this subject?
+    const reversePrereq = await Prerequisite.findOne({
+      where: { subject_id: required_subj_id, required_subj_id: subject_id }
+    });
+
+    if (reversePrereq) {
+      return res.status(400).json({
+        success: false,
+        message: 'Circular dependency detected: The required subject already requires this subject.'
+      });
+    }
+
+    // Deep circular dependency check (transitive loops)
+    const cycle = await wouldCreateCycle(
+      async (nodeId) => {
+        const rows = await Prerequisite.findAll({ where: { subject_id: nodeId } });
+        return rows.map(r => r.required_subj_id);
+      },
+      required_subj_id,
+      subject_id
+    );
+
+    if (cycle) {
+      return res.status(400).json({
+        success: false,
+        message: 'Circular dependency detected: The required subject already requires this subject.'
+      });
+    }
+
     const prerequisite = await Prerequisite.create({ subject_id, required_subj_id });
     res.status(201).json({ success: true, data: prerequisite });
   } catch (error) {
@@ -241,8 +312,73 @@ exports.setEquivalency = async (req, res, next) => {
       return res.status(409).json({ success: false, message: 'Equivalency rule already exists' });
     }
 
+    // Direct reverse-loop check: is target already mapped to source?
+    const reverseEquiv = await EquivalencyRule.findOne({
+      where: { source_subject_id: target_subject_id, target_subject_id: source_subject_id }
+    });
+
+    if (reverseEquiv) {
+      return res.status(400).json({
+        success: false,
+        message: 'Circular dependency detected: These subjects are already mapped in reverse.'
+      });
+    }
+
+    // Deep circular dependency check (transitive loops)
+    const cycle = await wouldCreateCycle(
+      async (nodeId) => {
+        const rows = await EquivalencyRule.findAll({ where: { source_subject_id: nodeId } });
+        return rows.map(r => r.target_subject_id);
+      },
+      target_subject_id,
+      source_subject_id
+    );
+
+    if (cycle) {
+      return res.status(400).json({
+        success: false,
+        message: 'Circular dependency detected: These subjects are already mapped in reverse.'
+      });
+    }
+
     const rule = await EquivalencyRule.create({ source_subject_id, target_subject_id });
     res.status(201).json({ success: true, data: rule });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ──────────────── Delete Prerequisite ────────────────
+
+exports.deletePrerequisite = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const prereq = await Prerequisite.findByPk(id);
+    if (!prereq) {
+      return res.status(404).json({ success: false, message: 'Prerequisite not found' });
+    }
+
+    await Prerequisite.destroy({ where: { id } });
+    res.json({ success: true, message: 'Prerequisite deleted' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ──────────────── Delete Equivalency ────────────────
+
+exports.deleteEquivalency = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const rule = await EquivalencyRule.findByPk(id);
+    if (!rule) {
+      return res.status(404).json({ success: false, message: 'Equivalency rule not found' });
+    }
+
+    await EquivalencyRule.destroy({ where: { id } });
+    res.json({ success: true, message: 'Equivalency rule deleted' });
   } catch (error) {
     next(error);
   }

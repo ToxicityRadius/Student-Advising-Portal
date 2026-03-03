@@ -32,6 +32,9 @@ const Navbar = () => {
                     <Nav.Link as={Link} to="/admin/curriculums" className="text-light">
                       Curriculums
                     </Nav.Link>
+                    <Nav.Link as={Link} to="/admin/calendar" className="text-light">
+                      Academic Calendar
+                    </Nav.Link>
                     <Nav.Link as={Link} to="/admin/import" className="text-light">
                       Bulk Import
                     </Nav.Link>
