@@ -26,6 +26,8 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const googleAuthRoutes = require('./routes/googleAuthRoutes');
 const invitationRoutes = require('./routes/invitationRoutes');
+const curriculumRoutes = require('./routes/curriculumRoutes');
+const importRoutes = require('./routes/importRoutes');
 
 const app = express();
 
@@ -55,6 +57,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/auth', googleAuthRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', invitationRoutes);
+app.use('/api/curriculum', curriculumRoutes);
+app.use('/api/import', importRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

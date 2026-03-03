@@ -13,6 +13,8 @@ import VerifyCode from './pages/VerifyCode';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import FacultyRegister from './pages/FacultyRegister';
+import CurriculumManager from './pages/Admin/CurriculumManager';
+import BulkImport from './pages/Admin/BulkImport';
 import './index.css';
 
 function AppContent() {
@@ -49,6 +51,22 @@ function AppContent() {
           element={
             <PrivateRoute adminOnly={true}>
               <ManageUsers />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/curriculums"
+          element={
+            <PrivateRoute adminOnly={true}>
+              <CurriculumManager />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/import"
+          element={
+            <PrivateRoute adminOnly={true}>
+              <BulkImport />
             </PrivateRoute>
           }
         />

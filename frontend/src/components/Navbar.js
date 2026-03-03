@@ -25,9 +25,17 @@ const Navbar = () => {
                   Welcome, <strong>{user.firstName}</strong>!
                 </Nav.Item>
                 {isAdmin && (
-                  <Nav.Link as={Link} to="/admin/users" className="text-light">
-                    Manage Users
-                  </Nav.Link>
+                  <>
+                    <Nav.Link as={Link} to="/admin/users" className="text-light">
+                      Manage Users
+                    </Nav.Link>
+                    <Nav.Link as={Link} to="/admin/curriculums" className="text-light">
+                      Curriculums
+                    </Nav.Link>
+                    <Nav.Link as={Link} to="/admin/import" className="text-light">
+                      Bulk Import
+                    </Nav.Link>
+                  </>
                 )}
                 <Button 
                   variant="outline-warning" 
