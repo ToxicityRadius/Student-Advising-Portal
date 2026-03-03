@@ -2,9 +2,7 @@ const multer = require('multer');
 const csv = require('csv-parser');
 const bcrypt = require('bcryptjs');
 const { Readable } = require('stream');
-const User = require('../models/User');
-const Grade = require('../models/Grade');
-const Subject = require('../models/Subject');
+const { User, Grade, Subject } = require('../models');
 
 // Configure multer to store files in memory
 const upload = multer({ storage: multer.memoryStorage() });

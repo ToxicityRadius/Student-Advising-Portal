@@ -6,20 +6,8 @@ const dotenv = require('dotenv');
 // Load environment variables
 dotenv.config();
 
-// Initialize database
-const sequelize = require('./database/db');
-
-// Import models
-const User = require('./models/User');
-const Invitation = require('./models/Invitation');
-const Curriculum = require('./models/Curriculum');
-const Subject = require('./models/Subject');
-const Prerequisite = require('./models/Prerequisite');
-const EquivalencyRule = require('./models/EquivalencyRule');
-const Grade = require('./models/Grade');
-const ProofDocument = require('./models/ProofDocument');
-const StudyPlan = require('./models/StudyPlan');
-const PlanSubject = require('./models/PlanSubject');
+// Import models (centralized associations)
+const { sequelize } = require('./models');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -81,31 +69,8 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-// Define associations
-// Define associations (Let Sequelize handle foreign keys)
-Curriculum.hasMany(Subject);
-Subject.belongsTo(Curriculum);
-
-User.hasMany(Grade);
-Grade.belongsTo(User);
-
-Subject.hasMany(Grade);
-Grade.belongsTo(Subject);
-
-Grade.hasOne(ProofDocument);
-ProofDocument.belongsTo(Grade);
-
-User.hasMany(StudyPlan);
-StudyPlan.belongsTo(User);
-
-StudyPlan.hasMany(PlanSubject);
-PlanSubject.belongsTo(StudyPlan);
-
-Subject.hasMany(PlanSubject);
-PlanSubject.belongsTo(Subject);
-
 // Sync database and start server
-sequelize.sync({ alter: true }).then(() => {
+sequelize.sync().then(() => {
   console.log('Database synced successfully');
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

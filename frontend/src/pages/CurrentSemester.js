@@ -96,11 +96,12 @@ const CurrentSemester = () => {
                       placeholder="New"
                       value={editing[g.id] ?? ''}
                       onChange={e => setEditing(prev => ({ ...prev, [g.id]: e.target.value }))}
+                      disabled={g.status === 'verified'}
                     />
                     <Button
                       size="sm"
                       variant="outline-warning"
-                      disabled={saving === g.id || !editing[g.id]}
+                      disabled={saving === g.id || !editing[g.id] || g.status === 'verified'}
                       onClick={() => handleUpdate(g.id)}
                     >
                       {saving === g.id ? <Spinner size="sm" animation="border" /> : 'Save'}

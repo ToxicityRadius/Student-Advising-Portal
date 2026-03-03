@@ -1,4 +1,4 @@
-const User = require('../models/User');
+const { User } = require('../models');
 
 // Helper: strip sensitive fields from a user plain object
 function sanitizeUser(user) {

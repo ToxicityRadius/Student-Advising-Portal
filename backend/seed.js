@@ -1,13 +1,10 @@
-const sequelize = require('./database/db');
-const Curriculum = require('./models/Curriculum');
-const Subject = require('./models/Subject');
-const Prerequisite = require('./models/Prerequisite');
-const EquivalencyRule = require('./models/EquivalencyRule');
+const { sequelize, User, Curriculum, Subject, Prerequisite, EquivalencyRule } = require('./models');
+const bcrypt = require('bcryptjs');
 
 async function seedDatabase() {
-  // Sync all tables (without dropping existing user/auth data)
-  await sequelize.sync();
-  console.log('Database synced.');
+  // Wipe tables clean and recreate so we start fresh each seed
+  await sequelize.sync({ force: true });
+  console.log('Database synced (force: true).');
 
   // ─── 1. Create Curriculums ───────────────────────────────────────
   const oldCurriculum = await Curriculum.create({
@@ -83,6 +80,44 @@ async function seedDatabase() {
     { source_subject_id: lookup['Math 100'], target_subject_id: lookup['MATH 101'] },
   ]);
   console.log('Equivalency rules created.');
+
+  // ─── 6. Create Default Admin User ─────────────────────────────
+  const hashedPassword = await bcrypt.hash('admin123', 10);
+  await User.create({
+    firstName: 'Admin',
+    lastName: 'User',
+    email: 'admin@tip.edu.ph',
+    password: hashedPassword,
+    role: 'admin',
+    isActive: true,
+    isVerified: true
+  });
+  console.log('Created default admin (admin@tip.edu.ph / admin123)');
+
+  // Create default Student
+  await User.create({
+    studentId: '1234567',
+    firstName: 'Test',
+    lastName: 'Student',
+    email: 'student@tip.edu.ph',
+    password: hashedPassword,
+    role: 'student',
+    isActive: true,
+    isVerified: true
+  });
+  console.log('Created default student (student@tip.edu.ph / admin123)');
+
+  // Create default Adviser
+  await User.create({
+    firstName: 'Test',
+    lastName: 'Adviser',
+    email: 'adviser@tip.edu.ph',
+    password: hashedPassword,
+    role: 'adviser',
+    isActive: true,
+    isVerified: true
+  });
+  console.log('Created default adviser (adviser@tip.edu.ph / admin123)');
 }
 
 // ─── Execute ────────────────────────────────────────────────────────

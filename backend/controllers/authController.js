@@ -1,5 +1,4 @@
-const User = require('../models/User');
-const Invitation = require('../models/Invitation');
+const { User, Invitation } = require('../models');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');

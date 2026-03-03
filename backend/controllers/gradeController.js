@@ -1,10 +1,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const Grade = require('../models/Grade');
-const ProofDocument = require('../models/ProofDocument');
-const Subject = require('../models/Subject');
-const User = require('../models/User');
+const { sequelize, Grade, ProofDocument, Subject, User } = require('../models');
 
 // ── Multer config ──
 const uploadsDir = path.join(__dirname, '..', 'uploads', 'proofs');
@@ -32,50 +29,79 @@ exports.upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 10
 
 // ── POST /api/grades/manual ──
 exports.submitHistoricalGrade = async (req, res, next) => {
+  const t = await sequelize.transaction();
   try {
-    const { SubjectId, grade_value, term_taken } = req.body;
-
-    if (!SubjectId || !grade_value || !term_taken) {
+    // Parse the grades array from the request body
+    let grades;
+    try {
+      grades = JSON.parse(req.body.grades);
+    } catch {
+      await t.rollback();
       return res.status(400).json({
         success: false,
-        message: 'SubjectId, grade_value, and term_taken are required'
+        message: 'grades must be a valid JSON array'
       });
     }
 
-    // Verify subject exists
-    const subject = await Subject.findByPk(SubjectId);
-    if (!subject) {
-      return res.status(404).json({ success: false, message: 'Subject not found' });
-    }
-
-    // Create grade with status pending
-    const grade = await Grade.create({
-      UserId: req.user.id,
-      SubjectId: Number(SubjectId),
-      grade_value: parseFloat(grade_value),
-      term_taken,
-      status: 'pending'
-    });
-
-    // Create proof document if file was uploaded
-    if (req.file) {
-      await ProofDocument.create({
-        GradeId: grade.id,
-        file_path: `uploads/proofs/${req.file.filename}`,
-        upload_date: new Date()
+    if (!Array.isArray(grades) || grades.length === 0) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'grades array is required and must not be empty'
       });
     }
 
-    // Re-fetch with associations
-    const result = await Grade.findByPk(grade.id, {
+    const filePath = req.file ? `uploads/proofs/${req.file.filename}` : null;
+    const created = [];
+
+    for (const entry of grades) {
+      const { subject_id, grade_value, term_taken } = entry;
+
+      if (!subject_id || !grade_value || !term_taken) continue; // skip invalid entries
+
+      // Verify subject exists
+      const subject = await Subject.findByPk(subject_id, { transaction: t });
+      if (!subject) continue;
+
+      // Create grade with status pending
+      const grade = await Grade.create({
+        UserId: req.user.id,
+        SubjectId: Number(subject_id),
+        grade_value: parseFloat(grade_value),
+        term_taken,
+        status: 'pending'
+      }, { transaction: t });
+
+      // Link the single proof document to every grade
+      if (filePath) {
+        await ProofDocument.create({
+          GradeId: grade.id,
+          file_path: filePath,
+          upload_date: new Date()
+        }, { transaction: t });
+      }
+
+      created.push(grade.id);
+    }
+
+    await t.commit();
+
+    // Re-fetch all created grades with associations
+    const results = await Grade.findAll({
+      where: { id: created },
       include: [
         { model: Subject, attributes: ['id', 'course_code', 'title'] },
         { model: ProofDocument }
       ]
     });
 
-    res.status(201).json({ success: true, data: result });
+    res.status(201).json({
+      success: true,
+      message: `${created.length} grade(s) submitted successfully`,
+      data: results
+    });
   } catch (error) {
+    await t.rollback();
     next(error);
   }
 };
@@ -149,6 +175,10 @@ exports.updateCurrentGrade = async (req, res, next) => {
     // Ensure the grade belongs to the logged-in student
     if (grade.UserId !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Not authorized to update this grade' });
+    }
+
+    if (grade.status === 'verified') {
+      return res.status(403).json({ success: false, message: 'Cannot edit a verified grade' });
     }
 
     await Grade.update({ grade_value: parseFloat(grade_value) }, { where: { id } });

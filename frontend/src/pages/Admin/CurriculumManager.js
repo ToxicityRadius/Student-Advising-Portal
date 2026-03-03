@@ -383,12 +383,16 @@ const CurriculumManager = () => {
               <Col>
                 <Form.Group className="mb-3">
                   <Form.Label>Seasonal Term</Form.Label>
-                  <Form.Control
-                    type="text"
-                    placeholder="e.g. 1st Semester"
+                  <Form.Select
                     value={subjForm.seasonal_term}
                     onChange={e => setSubjForm({ ...subjForm, seasonal_term: e.target.value })}
-                  />
+                  >
+                    <option value="" disabled>Select Term</option>
+                    <option value="1st Semester">1st Semester</option>
+                    <option value="2nd Semester">2nd Semester</option>
+                    <option value="Both Semesters">Both Semesters</option>
+                    <option value="Summer">Summer</option>
+                  </Form.Select>
                 </Form.Group>
               </Col>
             </Row>

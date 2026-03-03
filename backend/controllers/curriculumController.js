@@ -1,7 +1,4 @@
-const Curriculum = require('../models/Curriculum');
-const Subject = require('../models/Subject');
-const Prerequisite = require('../models/Prerequisite');
-const EquivalencyRule = require('../models/EquivalencyRule');
+const { Curriculum, Subject, Prerequisite, EquivalencyRule } = require('../models');
 
 // ──────────────── Curriculum CRUD ────────────────
 

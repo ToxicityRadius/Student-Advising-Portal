@@ -1,8 +1,6 @@
-const Invitation = require('../models/Invitation');
-const User = require('../models/User');
+const { Invitation, User, sequelize } = require('../models');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const sequelize = require('../database/db');
 const { sendFacultyInvitation } = require('../utils/email');
 
 // @desc    Invite faculty member

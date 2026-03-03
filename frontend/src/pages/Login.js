@@ -55,8 +55,10 @@ const Login = () => {
             } 
           });
         } else {
-          // This shouldn't happen with 2FA enabled
-          navigate('/dashboard');
+          // 2FA disabled — save token and redirect
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('user', JSON.stringify(data.user));
+          window.location.href = '/dashboard';
         }
       } else {
         setError(data.message || 'Invalid Credentials. Please try again.');
