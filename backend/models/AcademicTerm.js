@@ -19,6 +19,18 @@ const AcademicTerm = sequelize.define('AcademicTerm', {
     type: DataTypes.DATEONLY,
     allowNull: false
   },
+  prelim_exam_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: true
+  },
+  midterm_exam_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: true
+  },
+  final_exam_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: true
+  },
   is_active: {
     type: DataTypes.BOOLEAN,
     defaultValue: false

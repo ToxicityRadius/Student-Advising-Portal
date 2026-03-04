@@ -1,7 +1,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { sequelize, Grade, ProofDocument, Subject, User } = require('../models');
+const { sequelize, Grade, ProofDocument, Subject, User, AcademicTerm } = require('../models');
 
 // ── Multer config ──
 const uploadsDir = path.join(__dirname, '..', 'uploads', 'proofs');
@@ -234,6 +234,67 @@ exports.getMyGrades = async (req, res, next) => {
     });
 
     res.json({ success: true, data: grades });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── POST /api/grades/enroll ── (enroll in current-semester subjects)
+exports.enrollCurrentSubjects = async (req, res, next) => {
+  try {
+    // 1. Get active academic term
+    const activeTerm = await AcademicTerm.findOne({ where: { is_active: true } });
+    if (!activeTerm) {
+      return res.status(400).json({
+        success: false,
+        message: 'No active academic term is set. Please ask an admin to configure one.'
+      });
+    }
+
+    // 2. Validate incoming subject IDs
+    const { subjectIds } = req.body;
+    if (!Array.isArray(subjectIds) || subjectIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'subjectIds array is required and must not be empty'
+      });
+    }
+
+    const created = [];
+    for (const sid of subjectIds) {
+      // Verify subject exists
+      const subject = await Subject.findByPk(sid);
+      if (!subject) continue;
+
+      // Avoid duplicate enrollment for the same subject+term
+      const existing = await Grade.findOne({
+        where: { UserId: req.user.id, SubjectId: sid, term_taken: activeTerm.term_name }
+      });
+      if (existing) continue;
+
+      const grade = await Grade.create({
+        UserId: req.user.id,
+        SubjectId: Number(sid),
+        grade_value: null,
+        term_taken: activeTerm.term_name,
+        status: 'pending'
+      });
+      created.push(grade.id);
+    }
+
+    // Re-fetch created records with Subject info
+    const results = await Grade.findAll({
+      where: { id: created },
+      include: [
+        { model: Subject, attributes: ['id', 'course_code', 'title', 'units'] }
+      ]
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `${created.length} subject(s) enrolled for ${activeTerm.term_name}`,
+      data: results
+    });
   } catch (error) {
     next(error);
   }

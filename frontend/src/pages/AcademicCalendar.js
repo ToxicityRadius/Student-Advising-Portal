@@ -24,6 +24,9 @@ const AcademicCalendar = () => {
     term_name: '',
     start_date: '',
     end_date: '',
+    prelim_exam_date: '',
+    midterm_exam_date: '',
+    final_exam_date: '',
     is_active: false
   });
   const [editingId, setEditingId] = useState(null);
@@ -76,7 +79,7 @@ const AcademicCalendar = () => {
         flash('Term created');
       }
       setShowForm(false);
-      setFormData({ term_name: '', start_date: '', end_date: '', is_active: false });
+      setFormData({ term_name: '', start_date: '', end_date: '', prelim_exam_date: '', midterm_exam_date: '', final_exam_date: '', is_active: false });
       setSelectedTerm('1st Semester');
       setSelectedYear('2025-2026');
       setEditingId(null);
@@ -91,6 +94,9 @@ const AcademicCalendar = () => {
       term_name: t.term_name,
       start_date: t.start_date,
       end_date: t.end_date,
+      prelim_exam_date: t.prelim_exam_date || '',
+      midterm_exam_date: t.midterm_exam_date || '',
+      final_exam_date: t.final_exam_date || '',
       is_active: t.is_active
     });
     setEditingId(t.id);
@@ -144,7 +150,7 @@ const AcademicCalendar = () => {
         className="mb-3"
         onClick={() => {
           setEditingId(null);
-          setFormData({ term_name: '', start_date: '', end_date: '', is_active: false });
+          setFormData({ term_name: '', start_date: '', end_date: '', prelim_exam_date: '', midterm_exam_date: '', final_exam_date: '', is_active: false });
           setShowForm(true);
         }}
       >
@@ -162,6 +168,9 @@ const AcademicCalendar = () => {
               <th>Term Name</th>
               <th>Start Date</th>
               <th>End Date</th>
+              <th>Prelim Exam</th>
+              <th>Midterm Exam</th>
+              <th>Final Exam</th>
               <th>Status</th>
               <th style={{ width: '260px' }}>Actions</th>
             </tr>
@@ -172,6 +181,9 @@ const AcademicCalendar = () => {
                 <td>{t.term_name}</td>
                 <td>{t.start_date}</td>
                 <td>{t.end_date}</td>
+                <td>{t.prelim_exam_date || '—'}</td>
+                <td>{t.midterm_exam_date || '—'}</td>
+                <td>{t.final_exam_date || '—'}</td>
                 <td>
                   <Badge bg={t.is_active ? 'success' : 'secondary'}>
                     {t.is_active ? 'Active' : 'Inactive'}
@@ -277,6 +289,31 @@ const AcademicCalendar = () => {
               checked={formData.is_active}
               onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
             />
+            <hr />
+            <Form.Group className="mb-3">
+              <Form.Label>Prelim Exam Date</Form.Label>
+              <Form.Control
+                type="date"
+                value={formData.prelim_exam_date}
+                onChange={(e) => setFormData({ ...formData, prelim_exam_date: e.target.value })}
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Midterm Exam Date</Form.Label>
+              <Form.Control
+                type="date"
+                value={formData.midterm_exam_date}
+                onChange={(e) => setFormData({ ...formData, midterm_exam_date: e.target.value })}
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Final Exam Date</Form.Label>
+              <Form.Control
+                type="date"
+                value={formData.final_exam_date}
+                onChange={(e) => setFormData({ ...formData, final_exam_date: e.target.value })}
+              />
+            </Form.Group>
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={() => setShowForm(false)}>

@@ -1,33 +1,58 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Table, Form, Button, Alert, Spinner, Badge, Modal } from 'react-bootstrap';
 import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 const CurrentSemester = () => {
-  const [grades, setGrades] = useState([]);
+  const { user } = useAuth();
+
+  const [allGrades, setAllGrades] = useState([]);
+  const [activeTerm, setActiveTerm] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [editing, setEditing] = useState({}); // { gradeId: { prelim_grade, midterm_grade } }
-  const [saving, setSaving] = useState(null); // gradeId currently saving
+  const [saving, setSaving] = useState(null);
 
   // Plan B modal state
   const [showPlanB, setShowPlanB] = useState(false);
   const [planBData, setPlanBData] = useState(null);
   const [planBLoading, setPlanBLoading] = useState(false);
 
-  const fetchGrades = useCallback(async () => {
+  // Enrollment modal state
+  const [showEnroll, setShowEnroll] = useState(false);
+  const [curriculumSubjects, setCurriculumSubjects] = useState([]);
+  const [selectedSubjects, setSelectedSubjects] = useState([]);
+  const [enrolling, setEnrolling] = useState(false);
+
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get('/grades/my');
-      setGrades(res.data.data || []);
+      const [gradesRes, termRes] = await Promise.all([
+        api.get('/grades/my'),
+        api.get('/terms/active')
+      ]);
+      setAllGrades(gradesRes.data.data || []);
+      setActiveTerm(termRes.data.data || null);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load grades');
+      setError(err.response?.data?.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchGrades(); }, [fetchGrades]);
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Only show grades for the active term
+  const grades = activeTerm
+    ? allGrades.filter(g => g.term_taken === activeTerm.term_name)
+    : [];
+
+  // ── Exam date notifications ──
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const prelimPast = activeTerm?.prelim_exam_date && new Date(activeTerm.prelim_exam_date) < now;
+  const midtermPast = activeTerm?.midterm_exam_date && new Date(activeTerm.midterm_exam_date) < now;
 
   const handleEditChange = (gradeId, field, value) => {
     setEditing(prev => ({
@@ -56,7 +81,7 @@ const CurrentSemester = () => {
       await api.put(`/grades/current/${gradeId}`, payload);
       setSuccess('Grade updated successfully');
       setEditing(prev => { const copy = { ...prev }; delete copy[gradeId]; return copy; });
-      fetchGrades();
+      fetchData();
     } catch (err) {
       setError(err.response?.data?.message || 'Update failed');
     } finally {
@@ -77,6 +102,47 @@ const CurrentSemester = () => {
     }
   };
 
+  // ── Enrollment helpers ──
+  const openEnrollModal = async () => {
+    setShowEnroll(true);
+    setSelectedSubjects([]);
+    try {
+      // Fetch curriculum subjects for the student's curriculum
+      const res = await api.get('/curriculum');
+      const curriculums = res.data.data || [];
+      // Find the student's assigned curriculum, or fall back to all subjects
+      const assigned = curriculums.find(c => c.id === user?.CurriculumId);
+      const subjects = assigned ? (assigned.Subjects || []) : curriculums.flatMap(c => c.Subjects || []);
+      // Filter out subjects already enrolled in this term
+      const enrolledIds = new Set(grades.map(g => g.SubjectId));
+      setCurriculumSubjects(subjects.filter(s => !enrolledIds.has(s.id)));
+    } catch {
+      setCurriculumSubjects([]);
+    }
+  };
+
+  const toggleSubjectSelection = (id) => {
+    setSelectedSubjects(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleEnroll = async () => {
+    if (selectedSubjects.length === 0) return;
+    setEnrolling(true);
+    setError('');
+    try {
+      const res = await api.post('/grades/enroll', { subjectIds: selectedSubjects });
+      setSuccess(res.data.message || 'Enrolled successfully');
+      setShowEnroll(false);
+      fetchData();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Enrollment failed');
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
   const riskBadge = (status) => {
     if (status === 'on_track') return <Badge bg="success">On Track</Badge>;
     if (status === 'at_risk') return <Badge bg="danger">At Risk</Badge>;
@@ -89,13 +155,38 @@ const CurrentSemester = () => {
 
   return (
     <Container className="py-4">
-      <h2 className="mb-4">Current Semester Grades</h2>
+      <h2 className="mb-4">
+        Current Semester Grades
+        {activeTerm && <small className="text-muted ms-2">({activeTerm.term_name})</small>}
+      </h2>
+
+      {/* ── Exam date notifications ── */}
+      {prelimPast && (
+        <Alert variant="danger">
+          Prelim exams have concluded! Please input your grades immediately to update your risk status.
+        </Alert>
+      )}
+      {midtermPast && (
+        <Alert variant="danger">
+          Midterm exams have concluded! Please input your grades immediately to update your risk status.
+        </Alert>
+      )}
 
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
       {success && <Alert variant="success" dismissible onClose={() => setSuccess('')}>{success}</Alert>}
 
+      {!activeTerm && (
+        <Alert variant="warning">No active academic term is set. Please ask an admin to configure one.</Alert>
+      )}
+
+      {activeTerm && (
+        <Button variant="warning" className="mb-3" onClick={openEnrollModal}>
+          Enroll in Current Subjects
+        </Button>
+      )}
+
       {grades.length === 0 ? (
-        <p className="text-muted">No grades found. Submit grades from the Grade Entry page first.</p>
+        <p className="text-muted">No grades found for the active term. Enroll in subjects to get started.</p>
       ) : (
         <Table striped bordered hover responsive>
           <thead>
@@ -109,9 +200,15 @@ const CurrentSemester = () => {
             </tr>
           </thead>
           <tbody>
-            {grades.map(g => (
+            {grades.map(g => {
+              const isPending = g.status === 'pending';
+              const isVerified = g.status === 'verified';
+              return (
               <tr key={g.id}>
-                <td>{g.Subject?.course_code}</td>
+                <td>
+                  {g.Subject?.course_code}
+                  {isPending && <Badge bg="warning" text="dark" className="ms-2">Awaiting Adviser Approval</Badge>}
+                </td>
                 <td>{g.Subject?.title}</td>
                 <td>
                   <Form.Control
@@ -124,7 +221,7 @@ const CurrentSemester = () => {
                     placeholder={g.prelim_grade ?? '—'}
                     value={editing[g.id]?.prelim_grade ?? ''}
                     onChange={e => handleEditChange(g.id, 'prelim_grade', e.target.value)}
-                    disabled={g.status === 'verified'}
+                    disabled={!isVerified}
                   />
                 </td>
                 <td>
@@ -138,7 +235,7 @@ const CurrentSemester = () => {
                     placeholder={g.midterm_grade ?? '—'}
                     value={editing[g.id]?.midterm_grade ?? ''}
                     onChange={e => handleEditChange(g.id, 'midterm_grade', e.target.value)}
-                    disabled={g.status === 'verified'}
+                    disabled={!isVerified}
                   />
                 </td>
                 <td>{riskBadge(g.risk_status)}</td>
@@ -147,7 +244,7 @@ const CurrentSemester = () => {
                     <Button
                       size="sm"
                       variant="outline-warning"
-                      disabled={saving === g.id || !editing[g.id] || g.status === 'verified'}
+                      disabled={saving === g.id || !editing[g.id] || !isVerified}
                       onClick={() => handleUpdate(g.id)}
                     >
                       {saving === g.id ? <Spinner size="sm" animation="border" /> : 'Save'}
@@ -160,7 +257,8 @@ const CurrentSemester = () => {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </Table>
       )}
@@ -207,6 +305,55 @@ const CurrentSemester = () => {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowPlanB(false)}>Close</Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* ── Enrollment Modal ── */}
+      <Modal show={showEnroll} onHide={() => setShowEnroll(false)} size="lg" centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Enroll in Current Subjects</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          {curriculumSubjects.length === 0 ? (
+            <p className="text-muted">No available subjects to enroll in, or all curriculum subjects are already enrolled.</p>
+          ) : (
+            <Table striped bordered size="sm">
+              <thead>
+                <tr>
+                  <th style={{ width: '40px' }}></th>
+                  <th>Course Code</th>
+                  <th>Title</th>
+                  <th>Units</th>
+                </tr>
+              </thead>
+              <tbody>
+                {curriculumSubjects.map(s => (
+                  <tr key={s.id}>
+                    <td>
+                      <Form.Check
+                        type="checkbox"
+                        checked={selectedSubjects.includes(s.id)}
+                        onChange={() => toggleSubjectSelection(s.id)}
+                      />
+                    </td>
+                    <td>{s.course_code}</td>
+                    <td>{s.title}</td>
+                    <td>{s.units}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowEnroll(false)}>Cancel</Button>
+          <Button
+            variant="warning"
+            disabled={enrolling || selectedSubjects.length === 0}
+            onClick={handleEnroll}
+          >
+            {enrolling ? <Spinner size="sm" animation="border" /> : `Enroll (${selectedSubjects.length})`}
+          </Button>
         </Modal.Footer>
       </Modal>
     </Container>

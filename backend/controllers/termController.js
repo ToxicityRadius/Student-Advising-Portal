@@ -23,7 +23,7 @@ exports.getActiveTerm = async (req, res, next) => {
 // Create a new term
 exports.createTerm = async (req, res, next) => {
   try {
-    const { term_name, start_date, end_date, is_active } = req.body;
+    const { term_name, start_date, end_date, is_active, prelim_exam_date, midterm_exam_date, final_exam_date } = req.body;
 
     if (!term_name || !start_date || !end_date) {
       return res.status(400).json({
@@ -41,6 +41,9 @@ exports.createTerm = async (req, res, next) => {
       term_name,
       start_date,
       end_date,
+      prelim_exam_date: prelim_exam_date || null,
+      midterm_exam_date: midterm_exam_date || null,
+      final_exam_date: final_exam_date || null,
       is_active: is_active || false
     });
 
@@ -54,7 +57,7 @@ exports.createTerm = async (req, res, next) => {
 exports.updateTerm = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { term_name, start_date, end_date, is_active } = req.body;
+    const { term_name, start_date, end_date, is_active, prelim_exam_date, midterm_exam_date, final_exam_date } = req.body;
 
     const term = await AcademicTerm.findByPk(id);
     if (!term) {
@@ -67,7 +70,12 @@ exports.updateTerm = async (req, res, next) => {
     }
 
     await AcademicTerm.update(
-      { term_name, start_date, end_date, is_active },
+      {
+        term_name, start_date, end_date, is_active,
+        prelim_exam_date: prelim_exam_date || null,
+        midterm_exam_date: midterm_exam_date || null,
+        final_exam_date: final_exam_date || null
+      },
       { where: { id } }
     );
 

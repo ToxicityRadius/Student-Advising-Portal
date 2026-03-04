@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Container, Table, Button, Alert, Spinner, Badge, Row, Col, Card, Image
+  Container, Table, Button, Alert, Spinner, Badge, Row, Col, Card, Image, Tabs, Tab
 } from 'react-bootstrap';
 import api from '../utils/api';
 
@@ -38,12 +38,19 @@ const AdviserDashboard = () => {
 
   const [selectedStudent, setSelectedStudent] = useState(null);
 
-  // ── Fetch pending grades ──
+  // Active term + enrollment requests
+  const [activeTerm, setActiveTerm] = useState(null);
+
+  // ── Fetch pending grades + active term ──
   const fetchPending = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get('/grades/pending');
-      setGrades(res.data.data || []);
+      const [gradesRes, termRes] = await Promise.all([
+        api.get('/grades/pending'),
+        api.get('/terms/active')
+      ]);
+      setGrades(gradesRes.data.data || []);
+      setActiveTerm(termRes.data.data || null);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load pending grades');
     } finally {
@@ -53,7 +60,14 @@ const AdviserDashboard = () => {
 
   useEffect(() => { fetchPending(); }, [fetchPending]);
 
-  const grouped = groupByStudent(grades);
+  // Separate historical grades (have grade_value) from enrollment requests (grade_value is null + active term)
+  const enrollmentRequests = activeTerm
+    ? grades.filter(g => g.grade_value === null && g.term_taken === activeTerm.term_name)
+    : [];
+  const historicalGrades = grades.filter(g => g.grade_value !== null);
+
+  const grouped = groupByStudent(historicalGrades);
+  const enrollmentGrouped = groupByStudent(enrollmentRequests);
 
   // ── Bulk verify all grades for the selected student ──
   const handleBulkVerify = async (status) => {
@@ -233,45 +247,154 @@ const AdviserDashboard = () => {
   // ── MASTER LIST VIEW ──
   return (
     <Container className="py-4">
-      <h2 className="mb-4">Adviser Dashboard — Pending Verifications</h2>
+      <h2 className="mb-4">Adviser Dashboard</h2>
 
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
       {success && <Alert variant="success" dismissible onClose={() => setSuccess('')}>{success}</Alert>}
 
-      {grouped.length === 0 ? (
-        <Alert variant="info">No pending grades to review.</Alert>
-      ) : (
-        <Table striped bordered hover responsive>
-          <thead className="table-dark">
-            <tr>
-              <th>Student ID</th>
-              <th>Student Name</th>
-              <th>Pending Grades</th>
-              <th style={{ width: '180px' }}>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {grouped.map(s => (
-              <tr key={s.userId}>
-                <td>{s.studentId}</td>
-                <td>{s.name}</td>
-                <td>
-                  <Badge bg="warning" text="dark">{s.grades.length}</Badge>
-                </td>
-                <td>
-                  <Button
-                    variant="outline-primary"
-                    size="sm"
-                    onClick={() => setSelectedStudent(s)}
-                  >
-                    Review Submission
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
+      <Tabs defaultActiveKey="enrollments" className="mb-4">
+        {/* ── Current Enrollment Requests Tab ── */}
+        <Tab eventKey="enrollments" title={<>Current Enrollment Requests <Badge bg="info">{enrollmentRequests.length}</Badge></>}>
+          {!activeTerm ? (
+            <Alert variant="warning">No active academic term is set.</Alert>
+          ) : enrollmentGrouped.length === 0 ? (
+            <Alert variant="info">No pending enrollment requests for {activeTerm.term_name}.</Alert>
+          ) : (
+            <Table striped bordered hover responsive>
+              <thead className="table-dark">
+                <tr>
+                  <th>Student ID</th>
+                  <th>Student Name</th>
+                  <th>Subjects Requested</th>
+                  <th style={{ width: '180px' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {enrollmentGrouped.map(s => (
+                  <tr key={s.userId}>
+                    <td>{s.studentId}</td>
+                    <td>{s.name}</td>
+                    <td>
+                      {s.grades.map(g => (
+                        <div key={g.id} className="d-flex align-items-center justify-content-between mb-1">
+                          <span>
+                            <Badge bg="secondary" className="me-1">{g.Subject?.course_code}</Badge>
+                            {g.Subject?.title}
+                          </span>
+                          <div className="d-flex gap-1 ms-2">
+                            <Button
+                              size="sm"
+                              variant="success"
+                              disabled={acting}
+                              onClick={async () => {
+                                setActing(true);
+                                setError('');
+                                try {
+                                  await api.patch(`/grades/${g.id}/verify`, { status: 'verified' });
+                                  setSuccess(`Enrollment approved: ${g.Subject?.course_code}`);
+                                  await fetchPending();
+                                } catch (err) {
+                                  setError(err.response?.data?.message || 'Approve failed');
+                                } finally {
+                                  setActing(false);
+                                }
+                              }}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline-danger"
+                              disabled={acting}
+                              onClick={async () => {
+                                setActing(true);
+                                setError('');
+                                try {
+                                  await api.patch(`/grades/${g.id}/verify`, { status: 'rejected' });
+                                  setSuccess(`Enrollment rejected: ${g.Subject?.course_code}`);
+                                  await fetchPending();
+                                } catch (err) {
+                                  setError(err.response?.data?.message || 'Reject failed');
+                                } finally {
+                                  setActing(false);
+                                }
+                              }}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </td>
+                    <td>
+                      <Button
+                        size="sm"
+                        variant="success"
+                        disabled={acting}
+                        onClick={async () => {
+                          setActing(true);
+                          setError('');
+                          try {
+                            await Promise.all(
+                              s.grades.map(g => api.patch(`/grades/${g.id}/verify`, { status: 'verified' }))
+                            );
+                            setSuccess(`All enrollments approved for ${s.name}`);
+                            await fetchPending();
+                          } catch (err) {
+                            setError(err.response?.data?.message || 'Bulk approve failed');
+                          } finally {
+                            setActing(false);
+                          }
+                        }}
+                      >
+                        {acting ? <Spinner size="sm" animation="border" /> : `Approve All (${s.grades.length})`}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Tab>
+
+        {/* ── Historical Grade Verifications Tab ── */}
+        <Tab eventKey="historical" title={<>Historical Grade Verifications <Badge bg="warning" text="dark">{historicalGrades.length}</Badge></>}>
+          {grouped.length === 0 ? (
+            <Alert variant="info">No pending historical grades to review.</Alert>
+          ) : (
+            <Table striped bordered hover responsive>
+              <thead className="table-dark">
+                <tr>
+                  <th>Student ID</th>
+                  <th>Student Name</th>
+                  <th>Pending Grades</th>
+                  <th style={{ width: '180px' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {grouped.map(s => (
+                  <tr key={s.userId}>
+                    <td>{s.studentId}</td>
+                    <td>{s.name}</td>
+                    <td>
+                      <Badge bg="warning" text="dark">{s.grades.length}</Badge>
+                    </td>
+                    <td>
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
+                        onClick={() => setSelectedStudent(s)}
+                      >
+                        Review Submission
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Tab>
+      </Tabs>
     </Container>
   );
 };

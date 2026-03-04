@@ -7,11 +7,13 @@ const {
   getPendingGrades,
   verifyGrade,
   updateCurrentGrade,
-  getMyGrades
+  getMyGrades,
+  enrollCurrentSubjects
 } = require('../controllers/gradeController');
 
 // Student routes
 router.post('/manual', protect, authorize('student'), upload.single('proof'), submitHistoricalGrade);
+router.post('/enroll', protect, authorize('student'), enrollCurrentSubjects);
 router.get('/my', protect, authorize('student'), getMyGrades);
 router.put('/current/:id', protect, authorize('student'), updateCurrentGrade);
 
