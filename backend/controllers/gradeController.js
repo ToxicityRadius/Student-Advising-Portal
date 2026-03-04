@@ -1,7 +1,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { sequelize, Grade, ProofDocument, Subject, User, AcademicTerm } = require('../models');
+const { sequelize, Grade, ProofDocument, Subject, User, AcademicTerm, StudyPlan } = require('../models');
 
 // ── Multer config ──
 const uploadsDir = path.join(__dirname, '..', 'uploads', 'proofs');
@@ -144,6 +144,19 @@ exports.verifyGrade = async (req, res, next) => {
     }
 
     await Grade.update({ status }, { where: { id } });
+
+    // ── Lifecycle Invalidation: void approved plan on failing grade ──
+    if (status === 'verified') {
+      const gv = parseFloat(grade.grade_value);
+      if (gv > 3.0) {
+        // A failing grade breaks prerequisite chains — void the approved plan
+        await StudyPlan.update(
+          { status: 'voided' },
+          { where: { UserId: grade.UserId, status: 'approved' } }
+        );
+      }
+    }
+
     const updated = await Grade.findByPk(id, {
       include: [
         { model: User, attributes: ['id', 'studentId', 'firstName', 'lastName'] },

@@ -15,9 +15,11 @@ exports.generateStudyPlan = async (req, res, next) => {
   try {
     const userId = req.user.id;
 
-    // ── 1. Get Active Term ──────────────────────────────────────────
-    const activeTerm = await AcademicTerm.findOne({ where: { is_active: true } });
+    // ── 1. Cleanup — destroy any existing drafts ────────────────────
+    await StudyPlan.destroy({ where: { UserId: userId, status: 'draft' } });
 
+    // ── 2. Setup — active term, passed grades, curriculum subjects ──
+    const activeTerm = await AcademicTerm.findOne({ where: { is_active: true } });
     if (!activeTerm) {
       return res.status(400).json({
         success: false,
@@ -25,34 +27,6 @@ exports.generateStudyPlan = async (req, res, next) => {
       });
     }
 
-    // Parse the semester type from the term_name (e.g. "1st Semester 2025-2026")
-    let currentSemester;
-    const termName = activeTerm.term_name.toLowerCase();
-    if (termName.includes('1st semester')) {
-      currentSemester = '1st Semester';
-    } else if (termName.includes('2nd semester')) {
-      currentSemester = '2nd Semester';
-    } else if (termName.includes('summer')) {
-      currentSemester = 'Summer';
-    } else {
-      currentSemester = null; // couldn't determine — skip seasonality filter
-    }
-
-    // ── 2. Get Student History ──────────────────────────────────────
-    const verifiedGrades = await Grade.findAll({
-      where: { UserId: userId, status: 'verified' }
-    });
-
-    // A subject is "passed" when grade_value > 0 AND grade_value <= 3.0
-    const passedSubjectIds = verifiedGrades
-      .filter(g => {
-        const gv = parseFloat(g.grade_value);
-        return gv > 0 && gv <= 3.0;
-      })
-      .map(g => g.SubjectId);
-
-    // ── 3. Get Curriculum Subjects ──────────────────────────────────
-    // Determine which curriculum the student is assigned to
     const student = await User.findByPk(userId);
     if (!student.CurriculumId) {
       return res.status(400).json({
@@ -61,67 +35,124 @@ exports.generateStudyPlan = async (req, res, next) => {
       });
     }
 
+    const verifiedGrades = await Grade.findAll({
+      where: { UserId: userId, status: 'verified' }
+    });
+
+    const passedGrades = verifiedGrades.filter(g => {
+      const gv = parseFloat(g.grade_value);
+      return gv > 0 && gv <= 3.0;
+    });
+
     const subjects = await Subject.findAll({
       where: { CurriculumId: student.CurriculumId },
-      include: [
-        {
-          model: Prerequisite,
-          as: 'prerequisites'
-        }
-      ]
+      include: [{ model: Prerequisite, as: 'prerequisites' }]
     });
 
-    // ── 4. Filter 1 — Un-taken ──────────────────────────────────────
-    const passedSet = new Set(passedSubjectIds);
-    let eligible = subjects.filter(s => !passedSet.has(s.id));
+    // ── 3. Map Historical Data ──────────────────────────────────────
+    const projectedSubjects = [];
+    const simulatedPassed = [];
 
-    // ── 5. Filter 2 — Prerequisites met ─────────────────────────────
-    eligible = eligible.filter(s => {
-      const prereqs = s.prerequisites || [];
-      return prereqs.every(p => passedSet.has(p.required_subj_id));
-    });
-
-    // ── 6. Filter 3 — Seasonality ──────────────────────────────────
-    if (currentSemester) {
-      eligible = eligible.filter(s => {
-        const st = (s.seasonal_term || '').toLowerCase();
-        const cs = currentSemester.toLowerCase();
-        return (
-          st === cs ||
-          st === 'both' ||
-          st === 'both semesters'
-        );
+    for (const grade of passedGrades) {
+      projectedSubjects.push({
+        SubjectId: grade.SubjectId,
+        projected_term: grade.term_taken || 'Previous Terms',
+        is_historical: true
       });
+      simulatedPassed.push(grade.SubjectId);
     }
 
-    // ── 7. Limit Units (cap: 21) ───────────────────────────────────
-    const MAX_UNITS = 21;
-    const recommended = [];
-    let totalUnits = 0;
-
-    for (const subj of eligible) {
-      if (totalUnits + subj.units > MAX_UNITS) continue;
-      recommended.push(subj);
-      totalUnits += subj.units;
+    // ── 4. The Future Pathfinding Loop ──────────────────────────────
+    // Parse current semester from active term name
+    let currentTerm;
+    const termNameLower = activeTerm.term_name.toLowerCase();
+    if (termNameLower.includes('1st semester')) {
+      currentTerm = '1st Semester';
+    } else if (termNameLower.includes('2nd semester')) {
+      currentTerm = '2nd Semester';
+    } else {
+      currentTerm = '1st Semester';
     }
 
-    // ── 8. Save Study Plan ──────────────────────────────────────────
+    // Extract starting academic year from term_name (e.g. "1st Semester 2025-2026" → 2025)
+    const yearMatch = activeTerm.term_name.match(/(\d{4})/);
+    let currentYear = yearMatch ? parseInt(yearMatch[1], 10) : new Date().getFullYear();
+
+    // Build remaining subjects list (those not yet passed)
+    const passedSet = new Set(simulatedPassed);
+    let remaining = subjects.filter(s => !passedSet.has(s.id));
+
+    let iterations = 0;
+    while (remaining.length > 0) {
+      iterations++;
+      if (iterations > 20) break; // safety breakout
+
+      const simulatedSet = new Set(simulatedPassed);
+
+      // Find subjects whose prerequisites are ALL met and seasonal_term matches
+      const eligible = remaining.filter(s => {
+        const prereqs = s.prerequisites || [];
+        const prereqsMet = prereqs.every(p => simulatedSet.has(p.required_subj_id));
+        if (!prereqsMet) return false;
+
+        const st = (s.seasonal_term || '').toLowerCase();
+        const ct = currentTerm.toLowerCase();
+        return st === ct || st === 'both' || st === 'both semesters';
+      });
+
+      // Take up to 21 units from eligible subjects
+      const MAX_UNITS = 21;
+      const termSubjects = [];
+      let termUnits = 0;
+
+      for (const subj of eligible) {
+        if (termUnits + subj.units > MAX_UNITS) continue;
+        termSubjects.push(subj);
+        termUnits += subj.units;
+      }
+
+      const termLabel = `${currentTerm} ${currentYear}-${currentYear + 1}`;
+
+      for (const subj of termSubjects) {
+        projectedSubjects.push({
+          SubjectId: subj.id,
+          projected_term: termLabel,
+          is_historical: false
+        });
+        simulatedPassed.push(subj.id);
+      }
+
+      // Remove placed subjects from remaining
+      const placedIds = new Set(termSubjects.map(s => s.id));
+      remaining = remaining.filter(s => !placedIds.has(s.id));
+
+      // Increment term
+      if (currentTerm === '1st Semester') {
+        currentTerm = '2nd Semester';
+      } else {
+        currentTerm = '1st Semester';
+        currentYear += 1;
+      }
+    }
+
+    // ── 5. Save ─────────────────────────────────────────────────────
     const studyPlan = await StudyPlan.create({
       UserId: userId,
       status: 'draft'
     });
 
-    if (recommended.length > 0) {
-      const planSubjects = recommended.map(subj => ({
+    if (projectedSubjects.length > 0) {
+      const planSubjectRows = projectedSubjects.map(ps => ({
         StudyPlanId: studyPlan.id,
-        SubjectId: subj.id,
-        target_term: activeTerm.term_name
+        SubjectId: ps.SubjectId,
+        target_term: ps.projected_term,
+        projected_term: ps.projected_term,
+        is_historical: ps.is_historical
       }));
-
-      await PlanSubject.bulkCreate(planSubjects);
+      await PlanSubject.bulkCreate(planSubjectRows);
     }
 
-    // Re-fetch plan with its subjects for the response
+    // Re-fetch plan with subjects for the response
     const fullPlan = await StudyPlan.findByPk(studyPlan.id, {
       include: [{
         model: PlanSubject,
@@ -129,13 +160,18 @@ exports.generateStudyPlan = async (req, res, next) => {
       }]
     });
 
+    const totalUnits = projectedSubjects.reduce((sum, ps) => {
+      const subj = subjects.find(s => s.id === ps.SubjectId);
+      return sum + (subj ? subj.units : 0);
+    }, 0);
+
     res.status(201).json({
       success: true,
       data: {
         plan: fullPlan,
         summary: {
           term: activeTerm.term_name,
-          totalSubjects: recommended.length,
+          totalSubjects: projectedSubjects.length,
           totalUnits
         }
       }

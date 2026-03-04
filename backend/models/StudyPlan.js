@@ -8,7 +8,7 @@ const StudyPlan = sequelize.define('StudyPlan', {
     autoIncrement: true
   },
   status: {
-    type: DataTypes.ENUM('draft', 'approved')
+    type: DataTypes.ENUM('draft', 'approved', 'voided')
   }
 }, {
   tableName: 'study_plans',

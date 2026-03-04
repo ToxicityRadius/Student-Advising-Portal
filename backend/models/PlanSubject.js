@@ -9,6 +9,14 @@ const PlanSubject = sequelize.define('PlanSubject', {
   },
   target_term: {
     type: DataTypes.STRING
+  },
+  projected_term: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  is_historical: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
   tableName: 'plan_subjects',
