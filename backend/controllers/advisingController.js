@@ -78,6 +78,9 @@ exports.generateStudyPlan = async (req, res, next) => {
     const yearMatch = activeTerm.term_name.match(/(\d{4})/);
     let currentYear = yearMatch ? parseInt(yearMatch[1], 10) : new Date().getFullYear();
 
+    // Dynamic year-level tracking based on the student's onboarding data
+    let projectedYearLevel = student.current_year_level || 1;
+
     // Build remaining subjects list (those not yet passed)
     const passedSet = new Set(simulatedPassed);
     let remaining = subjects.filter(s => !passedSet.has(s.id));
@@ -100,6 +103,9 @@ exports.generateStudyPlan = async (req, res, next) => {
         return st === ct || st === 'both' || st === 'both semesters';
       });
 
+      // Priority sort: lower year_level subjects first (retakes/missed before advanced)
+      eligible.sort((a, b) => a.year_level - b.year_level);
+
       // Take up to 21 units from eligible subjects
       const MAX_UNITS = 21;
       const termSubjects = [];
@@ -111,7 +117,7 @@ exports.generateStudyPlan = async (req, res, next) => {
         termUnits += subj.units;
       }
 
-      const termLabel = `${currentTerm} ${currentYear}-${currentYear + 1}`;
+      const termLabel = `Year ${projectedYearLevel} - ${currentTerm} (${currentYear}-${currentYear + 1})`;
 
       for (const subj of termSubjects) {
         projectedSubjects.push({
@@ -132,6 +138,7 @@ exports.generateStudyPlan = async (req, res, next) => {
       } else {
         currentTerm = '1st Semester';
         currentYear += 1;
+        projectedYearLevel++;
       }
     }
 

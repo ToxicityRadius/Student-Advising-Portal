@@ -3,6 +3,7 @@ import {
   Container, Card, Form, Button, Alert, Spinner, Table, Badge, Row, Col
 } from 'react-bootstrap';
 import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 const API_BASE = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
@@ -15,7 +16,19 @@ const yearOptions = Array.from({ length: 12 }, (_, i) => {
   return `${start}-${start + 1}`;
 });
 
+// Helper: strict sort by year_level ASC then seasonal_term (1st before 2nd)
+const termOrder = { '1st semester': 0, '2nd semester': 1, 'summer': 2 };
+const sortSubjects = (arr) =>
+  [...arr].sort((a, b) => {
+    const yDiff = (a.year_level || 0) - (b.year_level || 0);
+    if (yDiff !== 0) return yDiff;
+    return (termOrder[(a.seasonal_term || '').toLowerCase()] ?? 99)
+         - (termOrder[(b.seasonal_term || '').toLowerCase()] ?? 99);
+  });
+
 const GradeEntry = () => {
+  const { user } = useAuth();
+
   // Data lists
   const [curriculums, setCurriculums] = useState([]);
   const [allSubjects, setAllSubjects] = useState([]);     // flat list across all curriculums
@@ -44,10 +57,14 @@ const GradeEntry = () => {
       setCurriculums(currs);
 
       // Build flat subject list for the manual / irregular dropdown
+      // Filter by student year level so higher-year subjects are hidden
+      const studentYL = user?.current_year_level || 4;
       const flat = currs.flatMap(c =>
-        (c.Subjects || []).map(s => ({ ...s, curriculum: c.version_year }))
+        (c.Subjects || [])
+          .filter(s => (s.year_level || 1) < studentYL)
+          .map(s => ({ ...s, curriculum: c.version_year }))
       );
-      setAllSubjects(flat);
+      setAllSubjects(sortSubjects(flat));
 
       setMyGrades(gradesRes.data.data || []);
     } catch (err) {
@@ -65,10 +82,12 @@ const GradeEntry = () => {
     setGradesData({});
     if (!currId) { setSubjects([]); return; }
     const curr = curriculums.find(c => c.id === Number(currId));
-    const subs = (curr?.Subjects || []).map(s => ({
-      ...s,
-      isManual: false        // comes from the curriculum
-    }));
+    const studentYL = user?.current_year_level || 4;
+    const subs = sortSubjects(
+      (curr?.Subjects || [])
+        .filter(s => (s.year_level || 1) < studentYL)
+        .map(s => ({ ...s, isManual: false }))
+    );
     setSubjects(subs);
   };
 
@@ -225,70 +244,169 @@ const GradeEntry = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {subjects.map((s, idx) => (
-                    <tr key={idx}>
-                      {/* Subject code — dropdown for manual rows */}
-                      <td>
-                        {s.isManual && !s.id ? (
-                          <Form.Select
-                            size="sm"
-                            value=""
-                            onChange={e => handleManualSubjectSelect(idx, e.target.value)}
-                          >
-                            <option value="">Select subject…</option>
-                            {allSubjects.map(as => (
-                              <option key={as.id} value={as.id}>
-                                {as.course_code} ({as.curriculum})
-                              </option>
-                            ))}
-                          </Form.Select>
-                        ) : (
-                          <span className={s.isManual ? 'text-info fw-bold' : ''}>
-                            {s.course_code}
-                          </span>
-                        )}
-                      </td>
-                      <td>{s.title}</td>
-                      <td className="text-center">{s.units}</td>
-                      <td>{s.seasonal_term}</td>
-                      <td>
-                        <Form.Control
-                          size="sm"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max="5"
-                          placeholder="e.g. 1.25"
-                          value={gradesData[idx]?.grade_value || ''}
-                          onChange={e => updateRow(idx, 'grade_value', e.target.value)}
-                        />
-                      </td>
-                      <td>
-                        <div className="d-flex gap-1">
-                          <Form.Select
-                            size="sm"
-                            value={gradesData[idx]?.term || ''}
-                            onChange={e => updateRow(idx, 'term', e.target.value)}
-                          >
-                            <option value="" disabled>Term</option>
-                            {termOptions.map(t => (
-                              <option key={t} value={t}>{t}</option>
-                            ))}
-                          </Form.Select>
-                          <Form.Select
-                            size="sm"
-                            value={gradesData[idx]?.year || ''}
-                            onChange={e => updateRow(idx, 'year', e.target.value)}
-                          >
-                            <option value="" disabled>Year</option>
-                            {yearOptions.map(y => (
-                              <option key={y} value={y}>{y}</option>
-                            ))}
-                          </Form.Select>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {[1, 2, 3, 4].map(yearLvl => {
+                    const yearSubs = subjects
+                      .map((s, idx) => ({ ...s, _idx: idx }))
+                      .filter(s => (s.year_level || 0) === yearLvl);
+                    if (yearSubs.length === 0) return null;
+                    return (
+                      <React.Fragment key={yearLvl}>
+                        <tr className="table-warning">
+                          <td colSpan="6" className="fw-bold">Year {yearLvl}</td>
+                        </tr>
+                        {yearSubs.map(s => {
+                          const idx = s._idx;
+                          return (
+                            <tr key={idx}>
+                              <td>
+                                {s.isManual && !s.id ? (
+                                  <Form.Select
+                                    size="sm"
+                                    value=""
+                                    onChange={e => handleManualSubjectSelect(idx, e.target.value)}
+                                  >
+                                    <option value="">Select subject…</option>
+                                    {[1, 2, 3, 4].map(yl =>
+                                      ['1st Semester', '2nd Semester'].map(st => {
+                                        const group = allSubjects.filter(as => as.year_level === yl && as.seasonal_term === st);
+                                        if (group.length === 0) return null;
+                                        return (
+                                          <optgroup key={`${yl}-${st}`} label={`Year ${yl} — ${st}`}>
+                                            {group.map(as => (
+                                              <option key={as.id} value={as.id}>
+                                                {as.course_code} ({as.curriculum})
+                                              </option>
+                                            ))}
+                                          </optgroup>
+                                        );
+                                      })
+                                    )}
+                                  </Form.Select>
+                                ) : (
+                                  <span className={s.isManual ? 'text-info fw-bold' : ''}>
+                                    {s.course_code}
+                                  </span>
+                                )}
+                              </td>
+                              <td>{s.title}</td>
+                              <td className="text-center">{s.units}</td>
+                              <td>{s.seasonal_term}</td>
+                              <td>
+                                <Form.Control
+                                  size="sm"
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  max="5"
+                                  placeholder="e.g. 1.25"
+                                  value={gradesData[idx]?.grade_value || ''}
+                                  onChange={e => updateRow(idx, 'grade_value', e.target.value)}
+                                />
+                              </td>
+                              <td>
+                                <div className="d-flex gap-1">
+                                  <Form.Select
+                                    size="sm"
+                                    value={gradesData[idx]?.term || ''}
+                                    onChange={e => updateRow(idx, 'term', e.target.value)}
+                                  >
+                                    <option value="" disabled>Term</option>
+                                    {termOptions.map(t => (
+                                      <option key={t} value={t}>{t}</option>
+                                    ))}
+                                  </Form.Select>
+                                  <Form.Select
+                                    size="sm"
+                                    value={gradesData[idx]?.year || ''}
+                                    onChange={e => updateRow(idx, 'year', e.target.value)}
+                                  >
+                                    <option value="" disabled>Year</option>
+                                    {yearOptions.map(y => (
+                                      <option key={y} value={y}>{y}</option>
+                                    ))}
+                                  </Form.Select>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })}
+                  {/* Manual rows without a year_level (not yet assigned) */}
+                  {subjects
+                    .map((s, idx) => ({ ...s, _idx: idx }))
+                    .filter(s => !s.year_level && s.isManual)
+                    .map(s => {
+                      const idx = s._idx;
+                      return (
+                        <tr key={`manual-${idx}`}>
+                          <td>
+                            <Form.Select
+                              size="sm"
+                              value=""
+                              onChange={e => handleManualSubjectSelect(idx, e.target.value)}
+                            >
+                              <option value="">Select subject…</option>
+                              {[1, 2, 3, 4].map(yl =>
+                                ['1st Semester', '2nd Semester'].map(st => {
+                                  const group = allSubjects.filter(as => as.year_level === yl && as.seasonal_term === st);
+                                  if (group.length === 0) return null;
+                                  return (
+                                    <optgroup key={`${yl}-${st}`} label={`Year ${yl} — ${st}`}>
+                                      {group.map(as => (
+                                        <option key={as.id} value={as.id}>
+                                          {as.course_code} ({as.curriculum})
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                  );
+                                })
+                              )}
+                            </Form.Select>
+                          </td>
+                          <td>{s.title}</td>
+                          <td className="text-center">{s.units}</td>
+                          <td>{s.seasonal_term}</td>
+                          <td>
+                            <Form.Control
+                              size="sm"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max="5"
+                              placeholder="e.g. 1.25"
+                              value={gradesData[idx]?.grade_value || ''}
+                              onChange={e => updateRow(idx, 'grade_value', e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <div className="d-flex gap-1">
+                              <Form.Select
+                                size="sm"
+                                value={gradesData[idx]?.term || ''}
+                                onChange={e => updateRow(idx, 'term', e.target.value)}
+                              >
+                                <option value="" disabled>Term</option>
+                                {termOptions.map(t => (
+                                  <option key={t} value={t}>{t}</option>
+                                ))}
+                              </Form.Select>
+                              <Form.Select
+                                size="sm"
+                                value={gradesData[idx]?.year || ''}
+                                onChange={e => updateRow(idx, 'year', e.target.value)}
+                              >
+                                <option value="" disabled>Year</option>
+                                {yearOptions.map(y => (
+                                  <option key={y} value={y}>{y}</option>
+                                ))}
+                              </Form.Select>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </Table>
             )}

@@ -14,6 +14,37 @@ function sanitizeUser(user) {
   return plain;
 }
 
+// @desc    Complete student onboarding (set year level)
+// @route   POST /api/users/onboard
+// @access  Private
+exports.completeOnboarding = async (req, res, next) => {
+  try {
+    const { current_year_level } = req.body;
+
+    if (!current_year_level || ![1, 2, 3, 4].includes(Number(current_year_level))) {
+      return res.status(400).json({
+        success: false,
+        message: 'current_year_level must be 1, 2, 3, or 4'
+      });
+    }
+
+    await User.update(
+      { current_year_level: Number(current_year_level), is_onboarded: true, updatedAt: Date.now() },
+      { where: { id: req.user.id } }
+    );
+
+    const updatedUser = await User.findByPk(req.user.id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Onboarding completed successfully',
+      user: sanitizeUser(updatedUser)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get all users (Admin only)
 // @route   GET /api/users
 // @access  Private/Admin

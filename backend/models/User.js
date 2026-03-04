@@ -77,6 +77,14 @@ const User = sequelize.define('User', {
   updatedAt: {
     type: DataTypes.BIGINT,
     defaultValue: () => Date.now()
+  },
+  current_year_level: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  is_onboarded: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
   tableName: 'users',

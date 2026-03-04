@@ -34,7 +34,8 @@ const CurriculumManager = () => {
     course_code: '',
     title: '',
     units: 3,
-    seasonal_term: ''
+    seasonal_term: '',
+    year_level: 1
   });
   const [editingSubjId, setEditingSubjId] = useState(null);
 
@@ -47,8 +48,20 @@ const CurriculumManager = () => {
   const [equivForm, setEquivForm] = useState({ source_subject_id: '', target_subject_id: '' });
 
   // All subjects flat list for prerequisite/equivalency dropdowns
-  const allSubjects = curriculums.flatMap(c =>
-    (c.Subjects || []).map(s => ({ ...s, curriculum: c.version_year }))
+  // Helper: strict sort by year_level ASC then seasonal_term (1st before 2nd)
+  const termOrder = { '1st semester': 0, '2nd semester': 1, 'summer': 2 };
+  const sortSubs = (arr) =>
+    [...arr].sort((a, b) => {
+      const yDiff = (a.year_level || 0) - (b.year_level || 0);
+      if (yDiff !== 0) return yDiff;
+      return (termOrder[(a.seasonal_term || '').toLowerCase()] ?? 99)
+           - (termOrder[(b.seasonal_term || '').toLowerCase()] ?? 99);
+    });
+
+  const allSubjects = sortSubs(
+    curriculums.flatMap(c =>
+      (c.Subjects || []).map(s => ({ ...s, curriculum: c.version_year }))
+    )
   );
 
   // ── Data Fetching ──
@@ -124,7 +137,7 @@ const CurriculumManager = () => {
         flash('Subject created');
       }
       setShowSubjForm(false);
-      setSubjForm({ curriculumId: '', course_code: '', title: '', units: 3, seasonal_term: '' });
+      setSubjForm({ curriculumId: '', course_code: '', title: '', units: 3, seasonal_term: '', year_level: 1 });
       setEditingSubjId(null);
       fetchCurriculums();
     } catch (err) {
@@ -138,7 +151,8 @@ const CurriculumManager = () => {
       course_code: s.course_code,
       title: s.title,
       units: s.units,
-      seasonal_term: s.seasonal_term || ''
+      seasonal_term: s.seasonal_term || '',
+      year_level: s.year_level || 1
     });
     setEditingSubjId(s.id);
     setShowSubjForm(true);
@@ -157,7 +171,7 @@ const CurriculumManager = () => {
   };
 
   const openAddSubject = (currId) => {
-    setSubjForm({ curriculumId: currId, course_code: '', title: '', units: 3, seasonal_term: '' });
+    setSubjForm({ curriculumId: currId, course_code: '', title: '', units: 3, seasonal_term: '', year_level: 1 });
     setEditingSubjId(null);
     setShowSubjForm(true);
   };
@@ -287,98 +301,126 @@ const CurriculumManager = () => {
                 {(c.Subjects || []).length === 0 ? (
                   <p className="text-muted mt-3">No subjects in this curriculum.</p>
                 ) : (
-                  <Table striped bordered hover responsive size="sm" className="mt-3">
-                    <thead>
-                      <tr>
-                        <th>Code</th>
-                        <th>Title</th>
-                        <th>Units</th>
-                        <th>Term</th>
-                        <th style={{ width: '140px' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {c.Subjects.map(s => (
-                        <React.Fragment key={s.id}>
-                          <tr>
-                            <td>{s.course_code}</td>
-                            <td>{s.title}</td>
-                            <td>{s.units}</td>
-                            <td>{s.seasonal_term || '—'}</td>
-                            <td>
-                              <Button size="sm" variant="outline-primary" className="me-1" onClick={() => editSubject(s)}>
-                                Edit
-                              </Button>
-                              <Button size="sm" variant="outline-danger" onClick={() => deleteSubject(s.id)}>
-                                Del
-                              </Button>
-                            </td>
-                          </tr>
-                          {/* Prerequisites & Equivalencies nested row */}
-                          {((s.prerequisites && s.prerequisites.length > 0) ||
-                            (s.equivalencies && s.equivalencies.length > 0)) && (
-                            <tr>
-                              <td colSpan="5" className="ps-4 py-1" style={{ backgroundColor: '#f8f9fa' }}>
-                                {s.prerequisites && s.prerequisites.length > 0 && (
-                                  <div className="mb-1">
-                                    <small className="text-muted me-2">Prerequisites:</small>
-                                    {s.prerequisites.map(p => (
-                                      <Badge
-                                        key={p.id}
-                                        bg="info"
-                                        className="me-1"
-                                        style={{ fontSize: '0.8em' }}
-                                      >
-                                        {p.RequiredSubject
-                                          ? p.RequiredSubject.course_code
-                                          : `ID ${p.required_subj_id}`}
-                                        <span
-                                          role="button"
-                                          className="ms-1"
-                                          style={{ cursor: 'pointer' }}
-                                          onClick={() => removePrerequisite(p.id)}
-                                          title="Remove prerequisite"
-                                        >
-                                          &times;
-                                        </span>
-                                      </Badge>
+                  [1, 2, 3, 4].map(yearLvl => {
+                    const yearSubjects = sortSubs((c.Subjects || []).filter(s => s.year_level === yearLvl));
+                    if (yearSubjects.length === 0) return null;
+                    return (
+                      <div key={yearLvl} className="mb-4">
+                        <h5 className="mt-3 mb-2 text-warning fw-bold">Year {yearLvl}</h5>
+                        {['1st Semester', '2nd Semester'].map(semTerm => {
+                          const semSubjects = yearSubjects.filter(s => {
+                            const st = (s.seasonal_term || '').toLowerCase();
+                            return st === semTerm.toLowerCase() || st === 'both' || st === 'both semesters';
+                          });
+                          if (semSubjects.length === 0) return null;
+                          return (
+                            <Card key={`${yearLvl}-${semTerm}`} className="mb-3 border">
+                              <Card.Header className="py-2 bg-light">
+                                <strong>Year {yearLvl} &mdash; {semTerm}</strong>
+                                <small className="text-muted ms-2">({semSubjects.length} subjects)</small>
+                              </Card.Header>
+                              <Card.Body className="p-0">
+                                <Table striped bordered hover responsive size="sm" className="mb-0">
+                                  <thead>
+                                    <tr>
+                                      <th>Code</th>
+                                      <th>Title</th>
+                                      <th>Units</th>
+                                      <th>Year</th>
+                                      <th>Term</th>
+                                      <th style={{ width: '140px' }}>Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {semSubjects.map(s => (
+                                      <React.Fragment key={s.id}>
+                                        <tr>
+                                          <td>{s.course_code}</td>
+                                          <td>{s.title}</td>
+                                          <td>{s.units}</td>
+                                          <td><Badge bg="info">{s.year_level ? `Year ${s.year_level}` : '—'}</Badge></td>
+                                          <td>{s.seasonal_term || '—'}</td>
+                                          <td>
+                                            <Button size="sm" variant="outline-primary" className="me-1" onClick={() => editSubject(s)}>
+                                              Edit
+                                            </Button>
+                                            <Button size="sm" variant="outline-danger" onClick={() => deleteSubject(s.id)}>
+                                              Del
+                                            </Button>
+                                          </td>
+                                        </tr>
+                                        {/* Prerequisites & Equivalencies nested row */}
+                                        {((s.prerequisites && s.prerequisites.length > 0) ||
+                                          (s.equivalencies && s.equivalencies.length > 0)) && (
+                                          <tr>
+                                            <td colSpan="6" className="ps-4 py-1" style={{ backgroundColor: '#f8f9fa' }}>
+                                              {s.prerequisites && s.prerequisites.length > 0 && (
+                                                <div className="mb-1">
+                                                  <small className="text-muted me-2">Prerequisites:</small>
+                                                  {s.prerequisites.map(p => (
+                                                    <Badge
+                                                      key={p.id}
+                                                      bg="info"
+                                                      className="me-1"
+                                                      style={{ fontSize: '0.8em' }}
+                                                    >
+                                                      {p.RequiredSubject
+                                                        ? p.RequiredSubject.course_code
+                                                        : `ID ${p.required_subj_id}`}
+                                                      <span
+                                                        role="button"
+                                                        className="ms-1"
+                                                        style={{ cursor: 'pointer' }}
+                                                        onClick={() => removePrerequisite(p.id)}
+                                                        title="Remove prerequisite"
+                                                      >
+                                                        &times;
+                                                      </span>
+                                                    </Badge>
+                                                  ))}
+                                                </div>
+                                              )}
+                                              {s.equivalencies && s.equivalencies.length > 0 && (
+                                                <div>
+                                                  <small className="text-muted me-2">Equivalencies:</small>
+                                                  {s.equivalencies.map(e => (
+                                                    <Badge
+                                                      key={e.id}
+                                                      bg="warning"
+                                                      text="dark"
+                                                      className="me-1"
+                                                      style={{ fontSize: '0.8em' }}
+                                                    >
+                                                      &rarr; {e.TargetSubject
+                                                        ? e.TargetSubject.course_code
+                                                        : `ID ${e.target_subject_id}`}
+                                                      <span
+                                                        role="button"
+                                                        className="ms-1"
+                                                        style={{ cursor: 'pointer' }}
+                                                        onClick={() => removeEquivalency(e.id)}
+                                                        title="Remove equivalency"
+                                                      >
+                                                        &times;
+                                                      </span>
+                                                    </Badge>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        )}
+                                      </React.Fragment>
                                     ))}
-                                  </div>
-                                )}
-                                {s.equivalencies && s.equivalencies.length > 0 && (
-                                  <div>
-                                    <small className="text-muted me-2">Equivalencies:</small>
-                                    {s.equivalencies.map(e => (
-                                      <Badge
-                                        key={e.id}
-                                        bg="warning"
-                                        text="dark"
-                                        className="me-1"
-                                        style={{ fontSize: '0.8em' }}
-                                      >
-                                        &rarr; {e.TargetSubject
-                                          ? e.TargetSubject.course_code
-                                          : `ID ${e.target_subject_id}`}
-                                        <span
-                                          role="button"
-                                          className="ms-1"
-                                          style={{ cursor: 'pointer' }}
-                                          onClick={() => removeEquivalency(e.id)}
-                                          title="Remove equivalency"
-                                        >
-                                          &times;
-                                        </span>
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      ))}
-                    </tbody>
-                  </Table>
+                                  </tbody>
+                                </Table>
+                              </Card.Body>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    );
+                  })
                 )}
               </Accordion.Body>
             </Accordion.Item>
@@ -485,6 +527,18 @@ const CurriculumManager = () => {
                 </Form.Group>
               </Col>
             </Row>
+            <Form.Group className="mb-3">
+              <Form.Label>Year Level</Form.Label>
+              <Form.Select
+                value={subjForm.year_level}
+                onChange={e => setSubjForm({ ...subjForm, year_level: Number(e.target.value) })}
+              >
+                <option value={1}>1st Year</option>
+                <option value={2}>2nd Year</option>
+                <option value={3}>3rd Year</option>
+                <option value={4}>4th Year</option>
+              </Form.Select>
+            </Form.Group>
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={() => setShowSubjForm(false)}>Cancel</Button>

@@ -118,7 +118,7 @@ exports.deleteCurriculum = async (req, res, next) => {
 
 exports.createSubject = async (req, res, next) => {
   try {
-    const { curriculumId, course_code, title, units, seasonal_term } = req.body;
+    const { curriculumId, course_code, title, units, seasonal_term, year_level } = req.body;
 
     if (!curriculumId || !course_code || !title) {
       return res.status(400).json({
@@ -138,7 +138,8 @@ exports.createSubject = async (req, res, next) => {
       course_code,
       title,
       units: units || 3,
-      seasonal_term: seasonal_term || null
+      seasonal_term: seasonal_term || null,
+      year_level: year_level || 1
     });
 
     res.status(201).json({ success: true, data: subject });
@@ -165,7 +166,7 @@ exports.getSubjectsByCurriculum = async (req, res, next) => {
 exports.updateSubject = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { course_code, title, units, seasonal_term, curriculumId } = req.body;
+    const { course_code, title, units, seasonal_term, curriculumId, year_level } = req.body;
 
     const subject = await Subject.findByPk(id);
     if (!subject) {
@@ -175,6 +176,9 @@ exports.updateSubject = async (req, res, next) => {
     const updateData = { course_code, title, units, seasonal_term };
     if (curriculumId !== undefined) {
       updateData.CurriculumId = curriculumId;
+    }
+    if (year_level !== undefined) {
+      updateData.year_level = year_level;
     }
 
     await Subject.update(updateData, { where: { id } });

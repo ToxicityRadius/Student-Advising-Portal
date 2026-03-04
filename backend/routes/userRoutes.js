@@ -6,7 +6,8 @@ const {
   deleteUser,
   toggleUserStatus,
   updateStudentId,
-  updateUserStudentId
+  updateUserStudentId,
+  completeOnboarding
 } = require('../controllers/userController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -17,6 +18,9 @@ router.patch('/:userId/update-student-id', updateUserStudentId);
 
 // Route for users to update their own student ID (protected but not admin-only)
 router.patch('/update-student-id', protect, updateStudentId);
+
+// Student onboarding route (protected, any authenticated user)
+router.post('/onboard', protect, completeOnboarding);
 
 // All other routes require authentication and admin role
 router.use(protect);

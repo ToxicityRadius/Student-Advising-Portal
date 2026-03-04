@@ -18,6 +18,11 @@ const Subject = sequelize.define('Subject', {
   },
   seasonal_term: {
     type: DataTypes.STRING
+  },
+  year_level: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 1
   }
 }, {
   tableName: 'subjects',

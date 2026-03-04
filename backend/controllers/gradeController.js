@@ -53,6 +53,7 @@ exports.submitHistoricalGrade = async (req, res, next) => {
 
     const filePath = req.file ? `uploads/proofs/${req.file.filename}` : null;
     const created = [];
+    const skipped = [];
 
     for (const entry of grades) {
       const { subject_id, grade_value, term_taken } = entry;
@@ -62,6 +63,29 @@ exports.submitHistoricalGrade = async (req, res, next) => {
       // Verify subject exists
       const subject = await Subject.findByPk(subject_id, { transaction: t });
       if (!subject) continue;
+
+      // ── Duplicate prevention: check if already passed or currently enrolled ──
+      const existingGrade = await Grade.findOne({
+        where: {
+          UserId: req.user.id,
+          SubjectId: Number(subject_id),
+          [require('sequelize').Op.or]: [
+            { status: 'pending' },
+            {
+              status: 'verified',
+              [require('sequelize').Op.or]: [
+                { grade_value: null },
+                { grade_value: { [require('sequelize').Op.lte]: 3.0 } }
+              ]
+            }
+          ]
+        },
+        transaction: t
+      });
+      if (existingGrade) {
+        skipped.push(subject_id);
+        continue;
+      }
 
       // Create grade with status pending
       const grade = await Grade.create({
@@ -97,7 +121,7 @@ exports.submitHistoricalGrade = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: `${created.length} grade(s) submitted successfully`,
+      message: `${created.length} grade(s) submitted successfully` + (skipped.length > 0 ? `. ${skipped.length} subject(s) skipped — already passed or currently enrolled.` : ''),
       data: results
     });
   } catch (error) {
@@ -274,10 +298,34 @@ exports.enrollCurrentSubjects = async (req, res, next) => {
     }
 
     const created = [];
+    const skipped = [];
     for (const sid of subjectIds) {
       // Verify subject exists
       const subject = await Subject.findByPk(sid);
       if (!subject) continue;
+
+      // ── Duplicate prevention: check if already passed or currently enrolled ──
+      const { Op } = require('sequelize');
+      const existingGrade = await Grade.findOne({
+        where: {
+          UserId: req.user.id,
+          SubjectId: Number(sid),
+          [Op.or]: [
+            { status: 'pending' },
+            {
+              status: 'verified',
+              [Op.or]: [
+                { grade_value: null },
+                { grade_value: { [Op.lte]: 3.0 } }
+              ]
+            }
+          ]
+        }
+      });
+      if (existingGrade) {
+        skipped.push(sid);
+        continue;
+      }
 
       // Avoid duplicate enrollment for the same subject+term
       const existing = await Grade.findOne({
@@ -305,7 +353,7 @@ exports.enrollCurrentSubjects = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: `${created.length} subject(s) enrolled for ${activeTerm.term_name}`,
+      message: `${created.length} subject(s) enrolled for ${activeTerm.term_name}` + (skipped.length > 0 ? `. ${skipped.length} subject(s) skipped — already passed or currently enrolled.` : ''),
       data: results
     });
   } catch (error) {

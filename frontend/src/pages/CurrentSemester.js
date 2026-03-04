@@ -25,6 +25,10 @@ const CurrentSemester = () => {
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [enrolling, setEnrolling] = useState(false);
 
+  // Study plan state for enrollment lock
+  const [studyPlan, setStudyPlan] = useState(null);
+  const [planLoading, setPlanLoading] = useState(true);
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -41,7 +45,19 @@ const CurrentSemester = () => {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchPlan = useCallback(async () => {
+    try {
+      setPlanLoading(true);
+      const res = await api.get('/advising/my-plan');
+      setStudyPlan(res.data.data || null);
+    } catch {
+      setStudyPlan(null);
+    } finally {
+      setPlanLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); fetchPlan(); }, [fetchData, fetchPlan]);
 
   // Only show grades for the active term
   const grades = activeTerm
@@ -103,19 +119,28 @@ const CurrentSemester = () => {
   };
 
   // ── Enrollment helpers ──
+  const planApproved = studyPlan && studyPlan.status === 'approved';
+
   const openEnrollModal = async () => {
     setShowEnroll(true);
     setSelectedSubjects([]);
     try {
-      // Fetch curriculum subjects for the student's curriculum
-      const res = await api.get('/curriculum');
-      const curriculums = res.data.data || [];
-      // Find the student's assigned curriculum, or fall back to all subjects
-      const assigned = curriculums.find(c => c.id === user?.CurriculumId);
-      const subjects = assigned ? (assigned.Subjects || []) : curriculums.flatMap(c => c.Subjects || []);
-      // Filter out subjects already enrolled in this term
+      // Filter subjects from the approved study plan for the current term only
+      const planSubjects = studyPlan?.PlanSubjects || [];
       const enrolledIds = new Set(grades.map(g => g.SubjectId));
-      setCurriculumSubjects(subjects.filter(s => !enrolledIds.has(s.id)));
+      const termName = activeTerm?.term_name || '';
+
+      // Only show subjects whose projected_term contains the active term name
+      const filtered = planSubjects
+        .filter(ps => {
+          const pt = ps.projected_term || ps.target_term || '';
+          return pt.includes(termName) || termName.includes(pt);
+        })
+        .filter(ps => !enrolledIds.has(ps.SubjectId))
+        .map(ps => ps.Subject)
+        .filter(Boolean);
+
+      setCurriculumSubjects(filtered);
     } catch {
       setCurriculumSubjects([]);
     }
@@ -179,7 +204,13 @@ const CurrentSemester = () => {
         <Alert variant="warning">No active academic term is set. Please ask an admin to configure one.</Alert>
       )}
 
-      {activeTerm && (
+      {activeTerm && !planApproved && (
+        <Alert variant="warning" className="fw-semibold">
+          Strict Flow: You must generate a Study Plan and have it Approved by your Adviser before you can enroll in current subjects.
+        </Alert>
+      )}
+
+      {activeTerm && planApproved && (
         <Button variant="warning" className="mb-3" onClick={openEnrollModal}>
           Enroll in Current Subjects
         </Button>
@@ -317,32 +348,41 @@ const CurrentSemester = () => {
           {curriculumSubjects.length === 0 ? (
             <p className="text-muted">No available subjects to enroll in, or all curriculum subjects are already enrolled.</p>
           ) : (
-            <Table striped bordered size="sm">
-              <thead>
-                <tr>
-                  <th style={{ width: '40px' }}></th>
-                  <th>Course Code</th>
-                  <th>Title</th>
-                  <th>Units</th>
-                </tr>
-              </thead>
-              <tbody>
-                {curriculumSubjects.map(s => (
-                  <tr key={s.id}>
-                    <td>
-                      <Form.Check
-                        type="checkbox"
-                        checked={selectedSubjects.includes(s.id)}
-                        onChange={() => toggleSubjectSelection(s.id)}
-                      />
-                    </td>
-                    <td>{s.course_code}</td>
-                    <td>{s.title}</td>
-                    <td>{s.units}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            [1, 2, 3, 4].map(yearLvl => {
+              const yearSubs = curriculumSubjects.filter(s => s.year_level === yearLvl);
+              if (yearSubs.length === 0) return null;
+              return (
+                <div key={yearLvl} className="mb-3">
+                  <h6 className="fw-bold text-warning">Year {yearLvl}</h6>
+                  <Table striped bordered size="sm" className="mb-0">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '40px' }}></th>
+                        <th>Course Code</th>
+                        <th>Title</th>
+                        <th>Units</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {yearSubs.map(s => (
+                        <tr key={s.id}>
+                          <td>
+                            <Form.Check
+                              type="checkbox"
+                              checked={selectedSubjects.includes(s.id)}
+                              onChange={() => toggleSubjectSelection(s.id)}
+                            />
+                          </td>
+                          <td>{s.course_code}</td>
+                          <td>{s.title}</td>
+                          <td>{s.units}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+              );
+            })
           )}
         </Modal.Body>
         <Modal.Footer>
