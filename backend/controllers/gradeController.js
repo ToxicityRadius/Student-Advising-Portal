@@ -161,10 +161,10 @@ exports.verifyGrade = async (req, res, next) => {
 exports.updateCurrentGrade = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { grade_value } = req.body;
+    const { prelim_grade, midterm_grade } = req.body;
 
-    if (grade_value === undefined || grade_value === null) {
-      return res.status(400).json({ success: false, message: 'grade_value is required' });
+    if (prelim_grade === undefined && midterm_grade === undefined) {
+      return res.status(400).json({ success: false, message: 'At least one of prelim_grade or midterm_grade is required' });
     }
 
     const grade = await Grade.findByPk(id);
@@ -181,7 +181,36 @@ exports.updateCurrentGrade = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Cannot edit a verified grade' });
     }
 
-    await Grade.update({ grade_value: parseFloat(grade_value) }, { where: { id } });
+    // Build the update payload
+    const updateData = {};
+    if (prelim_grade !== undefined && prelim_grade !== null && prelim_grade !== '') {
+      updateData.prelim_grade = parseFloat(prelim_grade);
+    }
+    if (midterm_grade !== undefined && midterm_grade !== null && midterm_grade !== '') {
+      updateData.midterm_grade = parseFloat(midterm_grade);
+    }
+
+    // ── Prediction Engine: compute risk_status ──
+    // Use incoming values if provided, otherwise fall back to existing DB values
+    const effectivePrelim = updateData.prelim_grade !== undefined
+      ? updateData.prelim_grade
+      : (grade.prelim_grade !== null ? parseFloat(grade.prelim_grade) : null);
+
+    const effectiveMidterm = updateData.midterm_grade !== undefined
+      ? updateData.midterm_grade
+      : (grade.midterm_grade !== null ? parseFloat(grade.midterm_grade) : null);
+
+    // A grade > 3.0 is considered failing
+    if ((effectivePrelim !== null && effectivePrelim > 3.0) ||
+        (effectiveMidterm !== null && effectiveMidterm > 3.0)) {
+      updateData.risk_status = 'at_risk';
+    } else if (effectivePrelim !== null && effectiveMidterm !== null &&
+               effectivePrelim <= 3.0 && effectiveMidterm <= 3.0) {
+      updateData.risk_status = 'on_track';
+    }
+    // Otherwise leave risk_status as its current value (e.g. 'pending')
+
+    await Grade.update(updateData, { where: { id } });
     const updated = await Grade.findByPk(id, {
       include: [{ model: Subject, attributes: ['id', 'course_code', 'title'] }]
     });

@@ -10,11 +10,23 @@ const Grade = sequelize.define('Grade', {
   grade_value: {
     type: DataTypes.DECIMAL
   },
+  prelim_grade: {
+    type: DataTypes.DECIMAL,
+    allowNull: true
+  },
+  midterm_grade: {
+    type: DataTypes.DECIMAL,
+    allowNull: true
+  },
   term_taken: {
     type: DataTypes.STRING
   },
   status: {
     type: DataTypes.ENUM('pending', 'verified', 'rejected')
+  },
+  risk_status: {
+    type: DataTypes.ENUM('pending', 'on_track', 'at_risk'),
+    defaultValue: 'pending'
   }
 }, {
   tableName: 'grades',

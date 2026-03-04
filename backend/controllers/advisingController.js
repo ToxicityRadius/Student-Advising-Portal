@@ -169,3 +169,41 @@ exports.getMyPlan = async (req, res, next) => {
     next(error);
   }
 };
+
+// ──────────────── Contingency "Plan B" Engine ────────────────
+
+exports.generateContingencyPlan = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    // Fetch all at-risk grades for this student, including the Subject details
+    const atRiskGrades = await Grade.findAll({
+      where: { UserId: userId, risk_status: 'at_risk' },
+      include: [{ model: Subject, attributes: ['id', 'course_code', 'title', 'units'] }]
+    });
+
+    const retakeSubjects = atRiskGrades.map(g => ({
+      grade_id: g.id,
+      subject_id: g.Subject?.id,
+      course_code: g.Subject?.course_code,
+      title: g.Subject?.title,
+      units: g.Subject?.units,
+      prelim_grade: g.prelim_grade,
+      midterm_grade: g.midterm_grade
+    }));
+
+    const warning = retakeSubjects.length > 0
+      ? 'Warning: Failing these subjects will require you to retake them next semester and will delay dependent courses.'
+      : 'No at-risk subjects found. You are on track!';
+
+    res.json({
+      success: true,
+      data: {
+        retake_subjects: retakeSubjects,
+        warning
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
