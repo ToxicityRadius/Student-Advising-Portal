@@ -54,6 +54,7 @@ const StudyPlan = () => {
 
   const subjects = plan?.PlanSubjects || [];
   const totalUnits = subjects.reduce((sum, ps) => sum + (ps.Subject?.units || 0), 0);
+  const isApproved = plan?.status === 'approved';
 
   if (loading) {
     return (
@@ -74,21 +75,30 @@ const StudyPlan = () => {
       )}
       {success && <Alert variant="success">{success}</Alert>}
 
-      <Button
-        variant="warning"
-        className="mb-3"
-        onClick={handleGenerate}
-        disabled={generating}
-      >
-        {generating ? (
-          <>
-            <Spinner as="span" animation="border" size="sm" className="me-2" />
-            Generating…
-          </>
-        ) : (
-          'Generate New Study Plan'
-        )}
-      </Button>
+      {isApproved && (
+        <Alert variant="success" className="fs-5">
+          <Alert.Heading>Plan Approved</Alert.Heading>
+          Your Study Plan has been Approved by your Adviser. It is now locked and submitted for demand forecasting.
+        </Alert>
+      )}
+
+      {!isApproved && (
+        <Button
+          variant="warning"
+          className="mb-3"
+          onClick={handleGenerate}
+          disabled={generating}
+        >
+          {generating ? (
+            <>
+              <Spinner as="span" animation="border" size="sm" className="me-2" />
+              Generating…
+            </>
+          ) : (
+            'Generate New Study Plan'
+          )}
+        </Button>
+      )}
 
       {!plan ? (
         <Card body className="text-center text-muted">

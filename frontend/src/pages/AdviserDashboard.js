@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Container, Table, Button, Alert, Spinner, Badge, Row, Col, Card, Image, Tabs, Tab
+  Container, Table, Button, Alert, Spinner, Badge, Row, Col, Card, Image, Tabs, Tab, Modal
 } from 'react-bootstrap';
 import api from '../utils/api';
 
@@ -41,16 +41,22 @@ const AdviserDashboard = () => {
   // Active term + enrollment requests
   const [activeTerm, setActiveTerm] = useState(null);
 
-  // ── Fetch pending grades + active term ──
+  // Pending study plans
+  const [pendingPlans, setPendingPlans] = useState([]);
+  const [reviewPlan, setReviewPlan] = useState(null); // plan currently being reviewed in modal
+
+  // ── Fetch pending grades + active term + pending plans ──
   const fetchPending = useCallback(async () => {
     try {
       setLoading(true);
-      const [gradesRes, termRes] = await Promise.all([
+      const [gradesRes, termRes, plansRes] = await Promise.all([
         api.get('/grades/pending'),
-        api.get('/terms/active')
+        api.get('/terms/active'),
+        api.get('/advising/pending')
       ]);
       setGrades(gradesRes.data.data || []);
       setActiveTerm(termRes.data.data || null);
+      setPendingPlans(plansRes.data.data || []);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load pending grades');
     } finally {
@@ -394,7 +400,105 @@ const AdviserDashboard = () => {
             </Table>
           )}
         </Tab>
+
+        {/* ── Pending Study Plans Tab ── */}
+        <Tab eventKey="studyplans" title={<>Pending Study Plans <Badge bg="primary">{pendingPlans.length}</Badge></>}>
+          {pendingPlans.length === 0 ? (
+            <Alert variant="info">No pending study plans to review.</Alert>
+          ) : (
+            <Table striped bordered hover responsive>
+              <thead className="table-dark">
+                <tr>
+                  <th>Plan ID</th>
+                  <th>Student ID</th>
+                  <th>Student Name</th>
+                  <th>Subjects</th>
+                  <th style={{ width: '180px' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingPlans.map(p => (
+                  <tr key={p.id}>
+                    <td>#{p.id}</td>
+                    <td>{p.User?.studentId || '—'}</td>
+                    <td>{p.User ? `${p.User.firstName} ${p.User.lastName}` : '—'}</td>
+                    <td><Badge bg="info">{(p.PlanSubjects || []).length}</Badge></td>
+                    <td>
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
+                        onClick={() => setReviewPlan(p)}
+                      >
+                        Review Plan
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Tab>
       </Tabs>
+
+      {/* ── Study Plan Review Modal ── */}
+      <Modal show={!!reviewPlan} onHide={() => setReviewPlan(null)} size="lg" centered>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            Review Study Plan #{reviewPlan?.id} — {reviewPlan?.User ? `${reviewPlan.User.firstName} ${reviewPlan.User.lastName}` : ''}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {reviewPlan && (reviewPlan.PlanSubjects || []).length === 0 ? (
+            <p className="text-muted">No subjects in this plan.</p>
+          ) : (
+            <Table striped bordered size="sm">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Course Code</th>
+                  <th>Title</th>
+                  <th>Units</th>
+                  <th>Target Term</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(reviewPlan?.PlanSubjects || []).map((ps, idx) => (
+                  <tr key={ps.id}>
+                    <td>{idx + 1}</td>
+                    <td>{ps.Subject?.course_code}</td>
+                    <td>{ps.Subject?.title}</td>
+                    <td>{ps.Subject?.units}</td>
+                    <td>{ps.target_term}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setReviewPlan(null)}>Close</Button>
+          <Button
+            variant="success"
+            disabled={acting}
+            onClick={async () => {
+              setActing(true);
+              setError('');
+              try {
+                await api.put(`/advising/plan/${reviewPlan.id}/approve`);
+                setSuccess(`Study Plan #${reviewPlan.id} approved successfully.`);
+                setReviewPlan(null);
+                await fetchPending();
+              } catch (err) {
+                setError(err.response?.data?.message || 'Approve failed');
+              } finally {
+                setActing(false);
+              }
+            }}
+          >
+            {acting ? <Spinner size="sm" animation="border" /> : 'Approve Plan'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Container>
   );
 };

@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 const {
   generateStudyPlan,
   getMyPlan,
-  generateContingencyPlan
+  generateContingencyPlan,
+  getPendingPlans,
+  approvePlan
 } = require('../controllers/advisingController');
 
 // All routes require authentication
@@ -18,5 +20,11 @@ router.get('/my-plan', getMyPlan);
 
 // Get contingency "Plan B" for at-risk subjects
 router.get('/contingency', generateContingencyPlan);
+
+// Adviser/Admin: get all draft study plans
+router.get('/pending', authorize('adviser', 'admin'), getPendingPlans);
+
+// Adviser/Admin: approve a study plan
+router.put('/plan/:id/approve', authorize('adviser', 'admin'), approvePlan);
 
 module.exports = router;

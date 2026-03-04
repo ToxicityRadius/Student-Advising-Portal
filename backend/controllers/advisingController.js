@@ -207,3 +207,58 @@ exports.generateContingencyPlan = async (req, res, next) => {
     next(error);
   }
 };
+
+// ──────────────── Get Pending Study Plans (Adviser) ────────────────
+
+exports.getPendingPlans = async (req, res, next) => {
+  try {
+    const plans = await StudyPlan.findAll({
+      where: { status: 'draft' },
+      include: [
+        { model: User, attributes: ['id', 'firstName', 'lastName', 'studentId'] },
+        {
+          model: PlanSubject,
+          include: [{ model: Subject }]
+        }
+      ],
+      order: [['id', 'DESC']]
+    });
+
+    res.json({ success: true, data: plans });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ──────────────── Approve Study Plan (Adviser) ────────────────
+
+exports.approvePlan = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const plan = await StudyPlan.findByPk(id);
+    if (!plan) {
+      return res.status(404).json({ success: false, message: 'Study plan not found' });
+    }
+
+    if (plan.status === 'approved') {
+      return res.status(400).json({ success: false, message: 'This plan is already approved' });
+    }
+
+    await StudyPlan.update({ status: 'approved' }, { where: { id } });
+
+    const updated = await StudyPlan.findByPk(id, {
+      include: [
+        { model: User, attributes: ['id', 'firstName', 'lastName', 'studentId'] },
+        {
+          model: PlanSubject,
+          include: [{ model: Subject }]
+        }
+      ]
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
