@@ -311,10 +311,10 @@ exports.approvePlan = async (req, res, next) => {
 exports.modifyPlan = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { subjectIds } = req.body;
+    const { subjects } = req.body;
 
-    if (!Array.isArray(subjectIds)) {
-      return res.status(400).json({ success: false, message: 'subjectIds must be an array.' });
+    if (!Array.isArray(subjects)) {
+      return res.status(400).json({ success: false, message: 'subjects must be an array of { SubjectId, target_term }.' });
     }
 
     const plan = await StudyPlan.findByPk(id);
@@ -326,21 +326,15 @@ exports.modifyPlan = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Cannot modify an already-approved plan.' });
     }
 
-    // Determine the target_term from the first existing PlanSubject (non-historical)
-    const existingPS = await PlanSubject.findOne({
-      where: { StudyPlanId: id, is_historical: false }
-    });
-    const targetTerm = existingPS?.target_term || 'TBD';
-
     // Remove all existing non-historical PlanSubjects and rebuild
     await PlanSubject.destroy({ where: { StudyPlanId: id, is_historical: false } });
 
-    if (subjectIds.length > 0) {
-      const rows = subjectIds.map(sid => ({
+    if (subjects.length > 0) {
+      const rows = subjects.map(item => ({
         StudyPlanId: parseInt(id, 10),
-        SubjectId: sid,
-        target_term: targetTerm,
-        projected_term: targetTerm,
+        SubjectId: item.SubjectId,
+        target_term: item.target_term || 'TBD',
+        projected_term: item.target_term || 'TBD',
         is_historical: false
       }));
       await PlanSubject.bulkCreate(rows);

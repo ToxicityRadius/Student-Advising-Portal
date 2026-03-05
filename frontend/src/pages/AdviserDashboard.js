@@ -47,10 +47,12 @@ const AdviserDashboard = () => {
 
   // Curriculum subjects for the modify-plan feature
   const [allSubjects, setAllSubjects] = useState([]);
-  // Draft local state: the editable list of non-historical subject IDs
-  const [draftSubjectIds, setDraftSubjectIds] = useState([]);
+  // Draft local state: array of { SubjectId, target_term, Subject } objects
+  const [draftSubjects, setDraftSubjects] = useState([]);
   // Currently selected subject in the "Add" dropdown
   const [addSubjectId, setAddSubjectId] = useState('');
+  // Currently selected term for newly added subjects
+  const [addTerm, setAddTerm] = useState('');
 
   // ── Fetch pending grades + active term + pending plans + subjects ──
   const fetchPending = useCallback(async () => {
@@ -439,8 +441,13 @@ const AdviserDashboard = () => {
                         onClick={() => {
                           setReviewPlan(p);
                           const nonHistorical = (p.PlanSubjects || []).filter(ps => !ps.is_historical);
-                          setDraftSubjectIds(nonHistorical.map(ps => ps.SubjectId));
+                          setDraftSubjects(nonHistorical.map(ps => ({
+                            SubjectId: ps.SubjectId,
+                            target_term: ps.target_term,
+                            Subject: ps.Subject
+                          })));
                           setAddSubjectId('');
+                          setAddTerm('');
                         }}
                       >
                         Review Plan
@@ -501,9 +508,9 @@ const AdviserDashboard = () => {
           })()}
 
           {/* Editable projected subjects */}
-          <h6 className="mb-2">Projected Subjects <Badge bg="info">{draftSubjectIds.length}</Badge></h6>
-          {draftSubjectIds.length === 0 ? (
-            <p className="text-muted">No projected subjects. Use the dropdown below to add some.</p>
+          <h6 className="mb-2">Projected Subjects <Badge bg="info">{draftSubjects.length}</Badge></h6>
+          {draftSubjects.length === 0 ? (
+            <p className="text-muted">No projected subjects. Use the dropdowns below to add some.</p>
           ) : (
             <Table striped bordered size="sm">
               <thead>
@@ -512,46 +519,45 @@ const AdviserDashboard = () => {
                   <th>Course Code</th>
                   <th>Title</th>
                   <th>Units</th>
+                  <th>Target Term</th>
                   <th style={{ width: '70px' }}>Remove</th>
                 </tr>
               </thead>
               <tbody>
-                {draftSubjectIds.map((sid, idx) => {
-                  const subj = allSubjects.find(s => s.id === sid);
-                  return (
-                    <tr key={sid}>
-                      <td>{idx + 1}</td>
-                      <td>{subj?.course_code || '—'}</td>
-                      <td>{subj?.title || '—'}</td>
-                      <td>{subj?.units || '—'}</td>
-                      <td className="text-center">
-                        <Button
-                          size="sm"
-                          variant="outline-danger"
-                          title="Remove subject"
-                          onClick={() => setDraftSubjectIds(prev => prev.filter((_, i) => i !== idx))}
-                        >
-                          ✕
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {draftSubjects.map((ds, idx) => (
+                  <tr key={`${ds.SubjectId}-${idx}`}>
+                    <td>{idx + 1}</td>
+                    <td>{ds.Subject?.course_code || '—'}</td>
+                    <td>{ds.Subject?.title || '—'}</td>
+                    <td>{ds.Subject?.units || '—'}</td>
+                    <td><small>{ds.target_term}</small></td>
+                    <td className="text-center">
+                      <Button
+                        size="sm"
+                        variant="outline-danger"
+                        title="Remove subject"
+                        onClick={() => setDraftSubjects(prev => prev.filter((_, i) => i !== idx))}
+                      >
+                        ✕
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </Table>
           )}
 
-          {/* Add subject dropdown */}
-          <div className="d-flex align-items-center gap-2 mt-3">
+          {/* Add subject + term dropdowns */}
+          <div className="d-flex align-items-center gap-2 mt-3 flex-wrap">
             <Form.Select
               size="sm"
               value={addSubjectId}
               onChange={e => setAddSubjectId(e.target.value)}
-              style={{ maxWidth: 400 }}
+              style={{ maxWidth: 350 }}
             >
-              <option value="">— Select a subject to add —</option>
+              <option value="">— Select a subject —</option>
               {allSubjects
-                .filter(s => !draftSubjectIds.includes(s.id))
+                .filter(s => !draftSubjects.some(ds => ds.SubjectId === s.id))
                 .sort((a, b) => (a.year_level || 1) - (b.year_level || 1) || a.course_code.localeCompare(b.course_code))
                 .map(s => (
                   <option key={s.id} value={s.id}>
@@ -559,12 +565,30 @@ const AdviserDashboard = () => {
                   </option>
                 ))}
             </Form.Select>
+            <Form.Select
+              size="sm"
+              value={addTerm}
+              onChange={e => setAddTerm(e.target.value)}
+              style={{ maxWidth: 300 }}
+            >
+              <option value="">— Select term —</option>
+              {[...new Set((reviewPlan?.PlanSubjects || []).map(ps => ps.target_term).filter(Boolean))]
+                .sort()
+                .map(term => (
+                  <option key={term} value={term}>{term}</option>
+                ))}
+            </Form.Select>
             <Button
               size="sm"
               variant="primary"
-              disabled={!addSubjectId}
+              disabled={!addSubjectId || !addTerm}
               onClick={() => {
-                setDraftSubjectIds(prev => [...prev, parseInt(addSubjectId, 10)]);
+                const subj = allSubjects.find(s => s.id === parseInt(addSubjectId, 10));
+                setDraftSubjects(prev => [...prev, {
+                  SubjectId: parseInt(addSubjectId, 10),
+                  target_term: addTerm,
+                  Subject: subj || null
+                }]);
                 setAddSubjectId('');
               }}
             >
@@ -582,15 +606,21 @@ const AdviserDashboard = () => {
               setError('');
               try {
                 const res = await api.put(`/advising/plan/${reviewPlan.id}/modify`, {
-                  subjectIds: draftSubjectIds
+                  subjects: draftSubjects.map(ds => ({
+                    SubjectId: ds.SubjectId,
+                    target_term: ds.target_term
+                  }))
                 });
                 setSuccess(`Study Plan #${reviewPlan.id} modified successfully.`);
                 // Update local reviewPlan and pendingPlans with the returned data
                 const updatedPlan = res.data.data;
                 setReviewPlan(updatedPlan);
-                setDraftSubjectIds(
-                  (updatedPlan.PlanSubjects || []).filter(ps => !ps.is_historical).map(ps => ps.SubjectId)
-                );
+                const nonHist = (updatedPlan.PlanSubjects || []).filter(ps => !ps.is_historical);
+                setDraftSubjects(nonHist.map(ps => ({
+                  SubjectId: ps.SubjectId,
+                  target_term: ps.target_term,
+                  Subject: ps.Subject
+                })));
                 setPendingPlans(prev => prev.map(p => p.id === updatedPlan.id ? updatedPlan : p));
               } catch (err) {
                 setError(err.response?.data?.message || 'Modify failed');
