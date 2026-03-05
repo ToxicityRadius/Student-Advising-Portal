@@ -305,3 +305,60 @@ exports.approvePlan = async (req, res, next) => {
     next(error);
   }
 };
+
+// ──────────────── Modify Study Plan (Adviser) ────────────────
+
+exports.modifyPlan = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { subjectIds } = req.body;
+
+    if (!Array.isArray(subjectIds)) {
+      return res.status(400).json({ success: false, message: 'subjectIds must be an array.' });
+    }
+
+    const plan = await StudyPlan.findByPk(id);
+    if (!plan) {
+      return res.status(404).json({ success: false, message: 'Study plan not found.' });
+    }
+
+    if (plan.status === 'approved') {
+      return res.status(400).json({ success: false, message: 'Cannot modify an already-approved plan.' });
+    }
+
+    // Determine the target_term from the first existing PlanSubject (non-historical)
+    const existingPS = await PlanSubject.findOne({
+      where: { StudyPlanId: id, is_historical: false }
+    });
+    const targetTerm = existingPS?.target_term || 'TBD';
+
+    // Remove all existing non-historical PlanSubjects and rebuild
+    await PlanSubject.destroy({ where: { StudyPlanId: id, is_historical: false } });
+
+    if (subjectIds.length > 0) {
+      const rows = subjectIds.map(sid => ({
+        StudyPlanId: parseInt(id, 10),
+        SubjectId: sid,
+        target_term: targetTerm,
+        projected_term: targetTerm,
+        is_historical: false
+      }));
+      await PlanSubject.bulkCreate(rows);
+    }
+
+    // Re-fetch full plan
+    const updated = await StudyPlan.findByPk(id, {
+      include: [
+        { model: User, attributes: ['id', 'firstName', 'lastName', 'studentId'] },
+        {
+          model: PlanSubject,
+          include: [{ model: Subject }]
+        }
+      ]
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+};

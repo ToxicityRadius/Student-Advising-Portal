@@ -6,7 +6,8 @@ const {
   getMyPlan,
   generateContingencyPlan,
   getPendingPlans,
-  approvePlan
+  approvePlan,
+  modifyPlan
 } = require('../controllers/advisingController');
 
 // All routes require authentication
@@ -26,5 +27,8 @@ router.get('/pending', authorize('adviser', 'admin'), getPendingPlans);
 
 // Adviser/Admin: approve a study plan
 router.put('/plan/:id/approve', authorize('adviser', 'admin'), approvePlan);
+
+// Adviser/Admin: modify a draft study plan
+router.put('/plan/:id/modify', authorize('adviser', 'admin'), modifyPlan);
 
 module.exports = router;

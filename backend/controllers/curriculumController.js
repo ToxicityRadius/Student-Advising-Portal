@@ -30,6 +30,22 @@ async function wouldCreateCycle(getNeighbours, from, to) {
 
 // ──────────────── Curriculum CRUD ────────────────
 
+// ──────────────── Get All Subjects (across all curricula) ────────────────
+
+exports.getAllSubjects = async (req, res, next) => {
+  try {
+    const subjects = await Subject.findAll({
+      include: [
+        { model: Prerequisite, as: 'prerequisites' }
+      ],
+      order: [['year_level', 'ASC'], ['course_code', 'ASC']]
+    });
+    res.json({ success: true, data: subjects });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.createCurriculum = async (req, res, next) => {
   try {
     const { version_year, active_status } = req.body;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Container, Table, Button, Alert, Spinner, Badge, Row, Col, Card, Image, Tabs, Tab, Modal
+  Container, Table, Button, Alert, Spinner, Badge, Row, Col, Card, Image, Tabs, Tab, Modal, Form
 } from 'react-bootstrap';
 import api from '../utils/api';
 
@@ -45,18 +45,27 @@ const AdviserDashboard = () => {
   const [pendingPlans, setPendingPlans] = useState([]);
   const [reviewPlan, setReviewPlan] = useState(null); // plan currently being reviewed in modal
 
-  // ── Fetch pending grades + active term + pending plans ──
+  // Curriculum subjects for the modify-plan feature
+  const [allSubjects, setAllSubjects] = useState([]);
+  // Draft local state: the editable list of non-historical subject IDs
+  const [draftSubjectIds, setDraftSubjectIds] = useState([]);
+  // Currently selected subject in the "Add" dropdown
+  const [addSubjectId, setAddSubjectId] = useState('');
+
+  // ── Fetch pending grades + active term + pending plans + subjects ──
   const fetchPending = useCallback(async () => {
     try {
       setLoading(true);
-      const [gradesRes, termRes, plansRes] = await Promise.all([
+      const [gradesRes, termRes, plansRes, subsRes] = await Promise.all([
         api.get('/grades/pending'),
         api.get('/terms/active'),
-        api.get('/advising/pending')
+        api.get('/advising/pending'),
+        api.get('/curriculum/subjects')
       ]);
       setGrades(gradesRes.data.data || []);
       setActiveTerm(termRes.data.data || null);
       setPendingPlans(plansRes.data.data || []);
+      setAllSubjects(subsRes.data.data || []);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load pending grades');
     } finally {
@@ -427,7 +436,12 @@ const AdviserDashboard = () => {
                       <Button
                         variant="outline-primary"
                         size="sm"
-                        onClick={() => setReviewPlan(p)}
+                        onClick={() => {
+                          setReviewPlan(p);
+                          const nonHistorical = (p.PlanSubjects || []).filter(ps => !ps.is_historical);
+                          setDraftSubjectIds(nonHistorical.map(ps => ps.SubjectId));
+                          setAddSubjectId('');
+                        }}
                       >
                         Review Plan
                       </Button>
@@ -441,15 +455,55 @@ const AdviserDashboard = () => {
       </Tabs>
 
       {/* ── Study Plan Review Modal ── */}
-      <Modal show={!!reviewPlan} onHide={() => setReviewPlan(null)} size="lg" centered>
+      <Modal
+        show={!!reviewPlan}
+        onHide={() => setReviewPlan(null)}
+        size="lg"
+        centered
+      >
         <Modal.Header closeButton>
           <Modal.Title>
             Review Study Plan #{reviewPlan?.id} — {reviewPlan?.User ? `${reviewPlan.User.firstName} ${reviewPlan.User.lastName}` : ''}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {reviewPlan && (reviewPlan.PlanSubjects || []).length === 0 ? (
-            <p className="text-muted">No subjects in this plan.</p>
+          {/* Historical subjects (read-only) */}
+          {(() => {
+            const historical = (reviewPlan?.PlanSubjects || []).filter(ps => ps.is_historical);
+            if (historical.length === 0) return null;
+            return (
+              <>
+                <h6 className="text-muted mb-2">Historical (Completed) Subjects</h6>
+                <Table striped bordered size="sm" className="mb-4">
+                  <thead className="table-secondary">
+                    <tr>
+                      <th>#</th>
+                      <th>Course Code</th>
+                      <th>Title</th>
+                      <th>Units</th>
+                      <th>Term</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historical.map((ps, idx) => (
+                      <tr key={ps.id}>
+                        <td>{idx + 1}</td>
+                        <td>{ps.Subject?.course_code}</td>
+                        <td>{ps.Subject?.title}</td>
+                        <td>{ps.Subject?.units}</td>
+                        <td>{ps.target_term}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </>
+            );
+          })()}
+
+          {/* Editable projected subjects */}
+          <h6 className="mb-2">Projected Subjects <Badge bg="info">{draftSubjectIds.length}</Badge></h6>
+          {draftSubjectIds.length === 0 ? (
+            <p className="text-muted">No projected subjects. Use the dropdown below to add some.</p>
           ) : (
             <Table striped bordered size="sm">
               <thead>
@@ -458,25 +512,95 @@ const AdviserDashboard = () => {
                   <th>Course Code</th>
                   <th>Title</th>
                   <th>Units</th>
-                  <th>Target Term</th>
+                  <th style={{ width: '70px' }}>Remove</th>
                 </tr>
               </thead>
               <tbody>
-                {(reviewPlan?.PlanSubjects || []).map((ps, idx) => (
-                  <tr key={ps.id}>
-                    <td>{idx + 1}</td>
-                    <td>{ps.Subject?.course_code}</td>
-                    <td>{ps.Subject?.title}</td>
-                    <td>{ps.Subject?.units}</td>
-                    <td>{ps.target_term}</td>
-                  </tr>
-                ))}
+                {draftSubjectIds.map((sid, idx) => {
+                  const subj = allSubjects.find(s => s.id === sid);
+                  return (
+                    <tr key={sid}>
+                      <td>{idx + 1}</td>
+                      <td>{subj?.course_code || '—'}</td>
+                      <td>{subj?.title || '—'}</td>
+                      <td>{subj?.units || '—'}</td>
+                      <td className="text-center">
+                        <Button
+                          size="sm"
+                          variant="outline-danger"
+                          title="Remove subject"
+                          onClick={() => setDraftSubjectIds(prev => prev.filter((_, i) => i !== idx))}
+                        >
+                          ✕
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </Table>
           )}
+
+          {/* Add subject dropdown */}
+          <div className="d-flex align-items-center gap-2 mt-3">
+            <Form.Select
+              size="sm"
+              value={addSubjectId}
+              onChange={e => setAddSubjectId(e.target.value)}
+              style={{ maxWidth: 400 }}
+            >
+              <option value="">— Select a subject to add —</option>
+              {allSubjects
+                .filter(s => !draftSubjectIds.includes(s.id))
+                .sort((a, b) => (a.year_level || 1) - (b.year_level || 1) || a.course_code.localeCompare(b.course_code))
+                .map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.course_code} — {s.title} ({s.units}u, Y{s.year_level || '?'})
+                  </option>
+                ))}
+            </Form.Select>
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={!addSubjectId}
+              onClick={() => {
+                setDraftSubjectIds(prev => [...prev, parseInt(addSubjectId, 10)]);
+                setAddSubjectId('');
+              }}
+            >
+              + Add
+            </Button>
+          </div>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setReviewPlan(null)}>Close</Button>
+          <Button
+            variant="warning"
+            disabled={acting}
+            onClick={async () => {
+              setActing(true);
+              setError('');
+              try {
+                const res = await api.put(`/advising/plan/${reviewPlan.id}/modify`, {
+                  subjectIds: draftSubjectIds
+                });
+                setSuccess(`Study Plan #${reviewPlan.id} modified successfully.`);
+                // Update local reviewPlan and pendingPlans with the returned data
+                const updatedPlan = res.data.data;
+                setReviewPlan(updatedPlan);
+                setDraftSubjectIds(
+                  (updatedPlan.PlanSubjects || []).filter(ps => !ps.is_historical).map(ps => ps.SubjectId)
+                );
+                setPendingPlans(prev => prev.map(p => p.id === updatedPlan.id ? updatedPlan : p));
+              } catch (err) {
+                setError(err.response?.data?.message || 'Modify failed');
+              } finally {
+                setActing(false);
+              }
+            }}
+          >
+            {acting ? <Spinner size="sm" animation="border" /> : 'Save Modifications'}
+          </Button>
           <Button
             variant="success"
             disabled={acting}

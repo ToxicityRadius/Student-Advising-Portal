@@ -7,6 +7,7 @@ const {
   updateCurriculum,
   deleteCurriculum,
   createSubject,
+  getAllSubjects,
   getSubjectsByCurriculum,
   updateSubject,
   deleteSubject,
@@ -26,6 +27,7 @@ router.put('/:id', authorize('admin'), updateCurriculum);
 router.delete('/:id', authorize('admin'), deleteCurriculum);
 
 // Subjects — read (any logged-in user), write (admin only)
+router.get('/subjects', getAllSubjects);
 router.get('/:curriculumId/subjects', getSubjectsByCurriculum);
 router.post('/subjects', authorize('admin'), createSubject);
 router.put('/subjects/:id', authorize('admin'), updateSubject);
