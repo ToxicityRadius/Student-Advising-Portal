@@ -20,6 +20,7 @@ import CurrentSemester from './pages/CurrentSemester';
 import AdviserDashboard from './pages/AdviserDashboard';
 import AcademicCalendar from './pages/AcademicCalendar';
 import StudyPlan from './pages/StudyPlan';
+import DemandForecasting from './pages/Admin/DemandForecasting';
 import './index.css';
 
 function AppContent() {
@@ -104,6 +105,14 @@ function AppContent() {
           element={
             <PrivateRoute roles={['student']}>
               <StudyPlan />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/forecasting"
+          element={
+            <PrivateRoute adminOnly={true}>
+              <DemandForecasting />
             </PrivateRoute>
           }
         />

@@ -1,4 +1,4 @@
-const { sequelize, User, Curriculum, Subject, Prerequisite, EquivalencyRule, AcademicTerm } = require('./models');
+const { sequelize, User, Curriculum, Subject, Prerequisite, EquivalencyRule, AcademicTerm, Grade, StudyPlan, PlanSubject } = require('./models');
 const bcrypt = require('bcryptjs');
 
 async function seedDatabase() {
@@ -307,6 +307,150 @@ async function seedDatabase() {
     isVerified: true
   });
   console.log('Created default adviser (adviser@tip.edu.ph / admin123)');
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 7. Generate 20 Mock Students for Demand Forecasting
+  // ═══════════════════════════════════════════════════════════════════
+  const studentUsers = [];
+  for (let i = 1; i <= 20; i++) {
+    const sid = String(2000000 + i);                       // e.g. "2000001"
+    const yearLevel = i <= 5 ? 2 : i <= 15 ? 3 : 4;      // mix of year levels
+    const student = await User.create({
+      studentId: sid,
+      firstName: `Student${i}`,
+      lastName: `Mock${i}`,
+      email: `student${i}@tip.edu.ph`,
+      password: hashedPassword,
+      role: 'student',
+      isActive: true,
+      isVerified: true,
+      current_year_level: yearLevel,
+      CurriculumId: activeCurriculum.id
+    });
+    studentUsers.push(student);
+  }
+  console.log(`Created ${studentUsers.length} mock students (student1@tip.edu.ph … student20@tip.edu.ph).`);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 8. Seed Grade Records (mix of pass / fail for realism)
+  //    - Students 1-14: passed all Year-1 & Year-2 prerequisite subjects (Regular)
+  //    - Students 15-18: failed CPE 201 (Data Structures) — Irregular
+  //    - Students 19-20: failed CPE 102 (OOP) — Irregular
+  // ═══════════════════════════════════════════════════════════════════
+  const passedY1Subjects = ['CPE 101', 'MATH 101', 'GEC 101', 'PHYS 100',
+                            'CPE 102', 'MATH 102', 'GEC 102', 'PHYS 102'];
+  const passedY2Subjects = ['CPE 201', 'MATH 201', 'CPE 203', 'CPE 205A',
+                            'CPE 202', 'CPE 204', 'GEC 201', 'CPE 205B'];
+
+  const gradeRows = [];
+
+  for (let i = 0; i < studentUsers.length; i++) {
+    const student = studentUsers[i];
+
+    // All 20 students passed Year-1 subjects (except students 19-20 fail CPE 102)
+    for (const code of passedY1Subjects) {
+      const isFail = (i >= 18 && code === 'CPE 102');       // students 19 & 20
+      gradeRows.push({
+        grade_value: isFail ? 5.0 : 1.5,
+        term_taken: '1st Semester 2024-2025',
+        status: 'verified',
+        risk_status: isFail ? 'at_risk' : 'on_track',
+        UserId: student.id,
+        SubjectId: lookup[code]
+      });
+    }
+
+    // Students 1-14 also passed all Year-2 subjects
+    // Students 15-18 failed CPE 201 (DSA prerequisite)
+    // Students 19-20 don't have Year-2 grades (they still need to retake CPE 102)
+    if (i < 18) {
+      for (const code of passedY2Subjects) {
+        const isFail = (i >= 14 && code === 'CPE 201');     // students 15-18
+        gradeRows.push({
+          grade_value: isFail ? 5.0 : (1.0 + Math.random() * 1.5).toFixed(1),
+          term_taken: '2nd Semester 2024-2025',
+          status: 'verified',
+          risk_status: isFail ? 'at_risk' : 'on_track',
+          UserId: student.id,
+          SubjectId: lookup[code]
+        });
+      }
+    }
+  }
+
+  await Grade.bulkCreate(gradeRows);
+  console.log(`Created ${gradeRows.length} Grade records for 20 students.`);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 9. Approved Study Plans + PlanSubjects
+  //
+  //    Bottleneck simulation:
+  //      • CPE 301 (Operating Systems) assigned to 16 students
+  //        under target_term = 'Year 3 - 1st Semester'
+  //      • CPE 303 (Software Engineering 1) assigned to 16 students
+  //        under the same term
+  //      • Some other subjects scattered for realistic diversity
+  // ═══════════════════════════════════════════════════════════════════
+  const planSubjectRows = [];
+
+  for (let i = 0; i < studentUsers.length; i++) {
+    const student = studentUsers[i];
+
+    const plan = await StudyPlan.create({
+      status: 'approved',
+      UserId: student.id
+    });
+
+    // --- Year 3, 1st Semester subjects (the bottleneck term) ---
+    if (i < 16) {
+      // 16 students all take CPE 301 & CPE 303 in the same term → bottleneck
+      planSubjectRows.push(
+        { target_term: 'Year 3 - 1st Semester', StudyPlanId: plan.id, SubjectId: lookup['CPE 301'] },
+        { target_term: 'Year 3 - 1st Semester', StudyPlanId: plan.id, SubjectId: lookup['CPE 303'] },
+        { target_term: 'Year 3 - 1st Semester', StudyPlanId: plan.id, SubjectId: lookup['CPE 305'] }
+      );
+    }
+
+    // --- Year 3, 2nd Semester subjects ---
+    if (i < 14) {
+      planSubjectRows.push(
+        { target_term: 'Year 3 - 2nd Semester', StudyPlanId: plan.id, SubjectId: lookup['CPE 302'] },
+        { target_term: 'Year 3 - 2nd Semester', StudyPlanId: plan.id, SubjectId: lookup['CPE 304'] },
+        { target_term: 'Year 3 - 2nd Semester', StudyPlanId: plan.id, SubjectId: lookup['CPE 306'] }
+      );
+    }
+
+    // --- Students 15-18: retake CPE 201 (failed DSA) ---
+    if (i >= 14 && i < 18) {
+      planSubjectRows.push(
+        { target_term: 'Year 3 - 1st Semester', StudyPlanId: plan.id, SubjectId: lookup['CPE 201'] }
+      );
+    }
+
+    // --- Students 19-20: retake CPE 102, plus some Year 2 subjects ---
+    if (i >= 18) {
+      planSubjectRows.push(
+        { target_term: 'Year 3 - 1st Semester', StudyPlanId: plan.id, SubjectId: lookup['CPE 102'] },
+        { target_term: 'Year 3 - 1st Semester', StudyPlanId: plan.id, SubjectId: lookup['CPE 201'] },
+        { target_term: 'Year 3 - 2nd Semester', StudyPlanId: plan.id, SubjectId: lookup['CPE 203'] }
+      );
+    }
+
+    // --- Year 4 subjects for students 1-5 (senior standing) ---
+    if (i < 5) {
+      planSubjectRows.push(
+        { target_term: 'Year 4 - 1st Semester', StudyPlanId: plan.id, SubjectId: lookup['CPE 401'] },
+        { target_term: 'Year 4 - 1st Semester', StudyPlanId: plan.id, SubjectId: lookup['CPE 403'] },
+        { target_term: 'Year 4 - 2nd Semester', StudyPlanId: plan.id, SubjectId: lookup['CPE 402'] },
+        { target_term: 'Year 4 - 2nd Semester', StudyPlanId: plan.id, SubjectId: lookup['CPE 404'] }
+      );
+    }
+  }
+
+  await PlanSubject.bulkCreate(planSubjectRows);
+  console.log(`Created 20 approved StudyPlans with ${planSubjectRows.length} PlanSubject rows.`);
+  console.log('  → CPE 301 bottleneck: 16 students in "Year 3 - 1st Semester"');
+  console.log('  → CPE 303 bottleneck: 16 students in "Year 3 - 1st Semester"');
 }
 
 // ─── Execute ────────────────────────────────────────────────────────

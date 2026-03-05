@@ -38,6 +38,9 @@ const Navbar = () => {
                     <Nav.Link as={Link} to="/admin/import" className="text-light">
                       Bulk Import
                     </Nav.Link>
+                    <Nav.Link as={Link} to="/admin/forecasting" className="text-light">
+                      Demand Forecasting
+                    </Nav.Link>
                     <Nav.Link as={Link} to="/adviser/dashboard" className="text-light">
                       Adviser Dashboard
                     </Nav.Link>

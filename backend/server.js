@@ -19,6 +19,7 @@ const importRoutes = require('./routes/importRoutes');
 const gradeRoutes = require('./routes/gradeRoutes');
 const termRoutes = require('./routes/termRoutes');
 const advisingRoutes = require('./routes/advisingRoutes');
+const forecastingRoutes = require('./routes/forecastingRoutes');
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use('/api/import', importRoutes);
 app.use('/api/grades', gradeRoutes);
 app.use('/api/terms', termRoutes);
 app.use('/api/advising', advisingRoutes);
+app.use('/api/forecasting', forecastingRoutes);
 
 // Serve uploaded files
 app.use('/uploads', express.static('uploads'));

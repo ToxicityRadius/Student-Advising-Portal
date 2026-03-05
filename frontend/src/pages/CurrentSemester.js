@@ -4,6 +4,7 @@ import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
 const CurrentSemester = () => {
+  // eslint-disable-next-line no-unused-vars
   const { user } = useAuth();
 
   const [allGrades, setAllGrades] = useState([]);
@@ -27,6 +28,7 @@ const CurrentSemester = () => {
 
   // Study plan state for enrollment lock
   const [studyPlan, setStudyPlan] = useState(null);
+  // eslint-disable-next-line no-unused-vars
   const [planLoading, setPlanLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
