@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Container, Table, Badge, Spinner, Alert, Form } from 'react-bootstrap';
+import { Container, Table, Badge, Spinner, Alert, Form, Button } from 'react-bootstrap';
 import api from '../../utils/api';
 
 const BOTTLENECK_THRESHOLD = 15;
@@ -10,19 +10,31 @@ const DemandForecasting = () => {
   const [error, setError] = useState('');
   const [termFilter, setTermFilter] = useState('');
 
+  const fetchForecast = async () => {
+    try {
+      setError('');
+      const res = await api.get('/forecasting/demand');
+      setData(res.data.data || []);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load demand forecast');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchForecast = async () => {
-      try {
-        const res = await api.get('/forecasting/demand');
-        setData(res.data.data || []);
-      } catch (err) {
-        setError(err.response?.data?.message || 'Failed to load demand forecast');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchForecast();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleOpenSection = async (SubjectId, target_term) => {
+    try {
+      await api.post('/forecasting/open', { SubjectId, target_term });
+      await fetchForecast();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to open section');
+    }
+  };
 
   // Derive unique terms for the filter dropdown
   const terms = [...new Set(data.map(d => d.target_term))].sort();
@@ -67,6 +79,7 @@ const DemandForecasting = () => {
               <th>Course Title</th>
               <th>Units</th>
               <th className="text-center">Student Demand</th>
+              <th className="text-center">Action / Status</th>
             </tr>
           </thead>
           <tbody>
@@ -85,6 +98,21 @@ const DemandForecasting = () => {
                       </Badge>
                     ) : (
                       row.student_count
+                    )}
+                  </td>
+                  <td className="text-center">
+                    {isBottleneck && row.is_opened === true ? (
+                      <Badge bg="success">Section Opened</Badge>
+                    ) : isBottleneck && !row.is_opened ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleOpenSection(row.subject_id, row.target_term)}
+                      >
+                        Open Section
+                      </Button>
+                    ) : (
+                      <Badge bg="secondary">Normal Demand</Badge>
                     )}
                   </td>
                 </tr>

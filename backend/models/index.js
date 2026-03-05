@@ -10,6 +10,7 @@ const ProofDocument = require('./ProofDocument');
 const StudyPlan = require('./StudyPlan');
 const PlanSubject = require('./PlanSubject');
 const AcademicTerm = require('./AcademicTerm');
+const OpenedSection = require('./OpenedSection');
 
 // Define ALL associations globally
 Curriculum.hasMany(Subject);
@@ -44,7 +45,12 @@ Prerequisite.belongsTo(Subject, { as: 'RequiredSubject', foreignKey: 'required_s
 Subject.hasMany(EquivalencyRule, { foreignKey: 'source_subject_id', as: 'equivalencies' });
 EquivalencyRule.belongsTo(Subject, { as: 'TargetSubject', foreignKey: 'target_subject_id' });
 
+// OpenedSection associations
+Subject.hasMany(OpenedSection);
+OpenedSection.belongsTo(Subject);
+
 module.exports = {
   sequelize, User, Invitation, Curriculum, Subject, Prerequisite,
-  EquivalencyRule, Grade, ProofDocument, StudyPlan, PlanSubject, AcademicTerm
+  EquivalencyRule, Grade, ProofDocument, StudyPlan, PlanSubject, AcademicTerm,
+  OpenedSection
 };
