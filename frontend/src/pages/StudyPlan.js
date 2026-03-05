@@ -9,8 +9,12 @@ import {
   Badge
 } from 'react-bootstrap';
 import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const StudyPlan = () => {
+  const { user } = useAuth();
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -73,6 +77,70 @@ const StudyPlan = () => {
 
   const termGroups = groupByTerm(subjects);
 
+  // ── PDF Generation ──
+  const generatePDF = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Header
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TECHNOLOGICAL INSTITUTE OF THE PHILIPPINES', pageWidth / 2, 15, { align: 'center' });
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text('COMPUTER ENGINEERING DEPARTMENT', pageWidth / 2, 22, { align: 'center' });
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('OFFICIAL APPROVED STUDY PLAN', pageWidth / 2, 30, { align: 'center' });
+
+    // Student info
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const studentName = user ? `${user.firstName} ${user.lastName}` : 'N/A';
+    const studentIdStr = user?.studentId || 'N/A';
+    doc.text(`Student Name: ${studentName}`, 14, 40);
+    doc.text(`Student ID: ${studentIdStr}`, 14, 46);
+
+    // Table data
+    const tableData = subjects.map(ps => [
+      ps.projected_term || ps.target_term || '',
+      ps.Subject?.course_code || '',
+      ps.Subject?.title || '',
+      ps.Subject?.units != null ? String(ps.Subject.units) : ''
+    ]);
+
+    const tableResult = autoTable(doc, {
+      startY: 52,
+      head: [['Term', 'Course Code', 'Course Title', 'Units']],
+      body: tableData,
+      theme: 'plain',
+      styles: { lineColor: [0, 0, 0], lineWidth: 0.1, fontSize: 9 },
+      headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+    });
+
+    // Signature blocks — use doc.lastAutoTable (v5), fall back to return value
+    const finalY = (doc.lastAutoTable?.finalY ?? tableResult?.finalY ?? 120) + 30;
+    const sigLine = '________________________';
+    doc.setFontSize(9);
+
+    // Left — Student
+    doc.text(sigLine, 14, finalY);
+    doc.text('Student Signature over', 14, finalY + 5);
+    doc.text('Printed Name', 14, finalY + 10);
+
+    // Center — Adviser
+    doc.text(sigLine, pageWidth / 2, finalY, { align: 'center' });
+    doc.text('Adviser Signature over', pageWidth / 2, finalY + 5, { align: 'center' });
+    doc.text('Printed Name', pageWidth / 2, finalY + 10, { align: 'center' });
+
+    // Right — Program Chair
+    doc.text(sigLine, pageWidth - 14, finalY, { align: 'right' });
+    doc.text('Program Chair Signature over', pageWidth - 14, finalY + 5, { align: 'right' });
+    doc.text('Printed Name', pageWidth - 14, finalY + 10, { align: 'right' });
+
+    doc.save('Approved_Study_Plan.pdf');
+  };
+
   if (loading) {
     return (
       <Container className="text-center mt-5">
@@ -104,6 +172,12 @@ const StudyPlan = () => {
           <Alert.Heading>Plan Approved</Alert.Heading>
           Your Study Plan has been Approved by your Adviser. It is now locked and submitted for demand forecasting.
         </Alert>
+      )}
+
+      {isApproved && (
+        <Button variant="dark" className="mb-3" onClick={generatePDF}>
+          Download Official PDF
+        </Button>
       )}
 
       {canGenerate && (
