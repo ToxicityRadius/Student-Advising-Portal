@@ -1,9 +1,22 @@
 const jwt = require('jsonwebtoken');
 
 // Generate access token
-exports.generateToken = (userId, role) => {
+// Supports both signatures:
+// 1) generateToken(userObject)
+// 2) generateToken(userId, role)
+exports.generateToken = (userOrId, roleArg) => {
+  const isObjectInput = userOrId && typeof userOrId === 'object';
+  const id = isObjectInput ? (userOrId.id || userOrId._id) : userOrId;
+  const role = isObjectInput ? userOrId.role : roleArg;
+  const isVerified = isObjectInput
+    ? (userOrId.is_verified ?? userOrId.isVerified ?? false)
+    : false;
+  const firstName = isObjectInput
+    ? (userOrId.first_name ?? userOrId.firstName ?? null)
+    : null;
+
   return jwt.sign(
-    { id: userId, role },
+    { id, role, is_verified: isVerified, first_name: firstName },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRE || '7d' }
   );
@@ -38,7 +51,7 @@ exports.verifyRefreshToken = (token) => {
 
 // Send token response with refresh token
 exports.sendTokenResponse = (user, statusCode, res) => {
-  const token = this.generateToken(user.id || user._id, user.role);
+  const token = this.generateToken(user);
   const refreshToken = this.generateRefreshToken(user.id || user._id);
 
   const tokenExpiry = process.env.JWT_EXPIRE || '7d';

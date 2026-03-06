@@ -15,6 +15,54 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const decodeToken = (token) => {
+    try {
+      const payload = token.split('.')[1];
+      if (!payload) return null;
+
+      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+      const decoded = JSON.parse(atob(padded));
+
+      return {
+        id: decoded.id,
+        role: decoded.role,
+        is_verified: decoded.is_verified,
+        first_name: decoded.first_name
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const applyToken = async (token, fallbackUser = null) => {
+    localStorage.setItem('token', token);
+
+    const decodedUser = decodeToken(token);
+    const initialUser = fallbackUser
+      ? { ...fallbackUser, ...decodedUser }
+      : (decodedUser || null);
+
+    if (initialUser) {
+      setUser(initialUser);
+      localStorage.setItem('user', JSON.stringify(initialUser));
+    }
+
+    try {
+      const response = await api.get('/auth/me');
+      const merged = {
+        ...(response.data.user || {}),
+        ...(decodedUser || {})
+      };
+      setUser(merged);
+      localStorage.setItem('user', JSON.stringify(merged));
+      return merged;
+    } catch {
+      if (initialUser) return initialUser;
+      throw new Error('Failed to hydrate user from token');
+    }
+  };
+
   useEffect(() => {
     checkAuth();
   }, []);
@@ -23,8 +71,7 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
-        const response = await api.get('/auth/me');
-        setUser(response.data.user);
+        await applyToken(token, JSON.parse(localStorage.getItem('user') || 'null'));
       } catch (error) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -33,12 +80,17 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   };
 
-  const login = async (email, password) => {
-    const response = await api.post('/auth/login', { email, password });
+  const login = async (emailOrToken, password) => {
+    // Token mode: login(token)
+    if (password === undefined && typeof emailOrToken === 'string' && emailOrToken.split('.').length === 3) {
+      const mergedUser = await applyToken(emailOrToken, JSON.parse(localStorage.getItem('user') || 'null'));
+      return { token: emailOrToken, user: mergedUser };
+    }
+
+    // Credential mode: login(email, password)
+    const response = await api.post('/auth/login', { email: emailOrToken, password });
     const { token, user } = response.data;
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    setUser(user);
+    await applyToken(token, user);
     return response.data;
   };
 

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
   const { user, logout, isAdmin } = useAuth();
+  const profileCompleted = !!user?.first_name;
 
   const handleLogout = async () => {
     await logout();
@@ -13,7 +14,7 @@ const Navbar = () => {
   return (
     <BootstrapNavbar bg="dark" variant="dark" expand="lg" sticky="top" className="shadow-sm">
       <Container>
-        <BootstrapNavbar.Brand as={Link} to="/" className="fw-bold">
+        <BootstrapNavbar.Brand as={profileCompleted ? Link : 'span'} to={profileCompleted ? '/' : undefined} className="fw-bold">
           <span style={{ color: '#FFC107' }}>Student Advising</span>
         </BootstrapNavbar.Brand>
         <BootstrapNavbar.Toggle aria-controls="basic-navbar-nav" />
@@ -22,9 +23,9 @@ const Navbar = () => {
             {user ? (
               <>
                 <Nav.Item className="text-light me-3 d-none d-lg-block">
-                  Welcome, <strong>{user.firstName}</strong>!
+                  Welcome, <strong>{user.first_name || user.firstName}</strong>!
                 </Nav.Item>
-                {isAdmin && (
+                {profileCompleted && isAdmin && (
                   <>
                     <Nav.Link as={Link} to="/admin/users" className="text-light">
                       Manage Users
@@ -46,7 +47,7 @@ const Navbar = () => {
                     </Nav.Link>
                   </>
                 )}
-                {user.role === 'student' && (
+                {profileCompleted && user.role === 'student' && (
                   <>
                     <Nav.Link as={Link} to="/grades/entry" className="text-light">
                       Grade Entry
@@ -59,9 +60,14 @@ const Navbar = () => {
                     </Nav.Link>
                   </>
                 )}
-                {user.role === 'adviser' && (
+                {profileCompleted && user.role === 'adviser' && (
                   <Nav.Link as={Link} to="/adviser/dashboard" className="text-light">
                     Adviser Dashboard
+                  </Nav.Link>
+                )}
+                {profileCompleted && (
+                  <Nav.Link as={Link} to="/profile" className="text-light">
+                    My Profile
                   </Nav.Link>
                 )}
                 <Button 

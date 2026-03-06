@@ -1,4 +1,5 @@
 const { User } = require('../models');
+const { generateToken } = require('../utils/jwt');
 
 // Helper: strip sensitive fields from a user plain object
 function sanitizeUser(user) {
@@ -66,9 +67,17 @@ exports.getAllUsers = async (req, res, next) => {
 
 // @desc    Get user by ID
 // @route   GET /api/users/:id
-// @access  Private/Admin
+// @access  Private (self or admin)
 exports.getUserById = async (req, res, next) => {
   try {
+    const requestingOwnProfile = req.user && req.user.id.toString() === req.params.id.toString();
+    if (!requestingOwnProfile && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to view this profile'
+      });
+    }
+
     const user = await User.findByPk(req.params.id);
 
     if (!user) {
@@ -277,8 +286,7 @@ exports.updateUserStudentId = async (req, res, next) => {
     const finalUser = await User.findByPk(userId);
 
     // Generate token
-    const { generateToken } = require('../utils/jwt');
-    const token = generateToken(finalUser.id, finalUser.role);
+    const token = generateToken(finalUser);
 
     res.status(200).json({
       success: true,
@@ -353,13 +361,15 @@ exports.updateProfile = async (req, res, next) => {
 
     updatePayload.updatedAt = Date.now();
 
-    await User.update(updatePayload, { where: { id } });
-    const updatedUser = await User.findByPk(id);
+    Object.assign(user, updatePayload);
+    await user.save();
+
+    const token = generateToken(user);
 
     res.status(200).json({
-      success: true,
       message: 'Profile updated successfully',
-      user: sanitizeUser(updatedUser)
+      user: sanitizeUser(user),
+      token
     });
   } catch (error) {
     next(error);

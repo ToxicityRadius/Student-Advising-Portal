@@ -45,6 +45,9 @@ router.post('/onboard', protect, completeOnboarding);
 // Profile update route (protected, user can update self; admin can update any)
 router.put('/:id/profile', protect, upload.single('profile_picture'), updateProfile);
 
+// Profile read route (protected, user can view self; admin can view any)
+router.get('/:id', protect, getUserById);
+
 // Admin: assign adviser to a student
 router.put('/:id/assign-adviser', protect, authorize('admin'), assignAdviser);
 
@@ -53,7 +56,6 @@ router.use(protect);
 router.use(authorize('admin'));
 
 router.get('/', getAllUsers);
-router.get('/:id', getUserById);
 router.put('/:id', updateUser);
 router.delete('/:id', deleteUser);
 router.patch('/:id/toggle-status', toggleUserStatus);

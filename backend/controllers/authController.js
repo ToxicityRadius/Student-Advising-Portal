@@ -610,7 +610,7 @@ exports.refreshToken = async (req, res, next) => {
       });
     }
 
-    const newToken = generateToken(user.id, user.role);
+    const newToken = generateToken(user);
 
     res.json({
       success: true,

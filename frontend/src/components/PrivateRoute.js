@@ -21,6 +21,10 @@ const PrivateRoute = ({ children, adminOnly = false, roles = [] }) => {
     return <Navigate to="/dashboard" />;
   }
 
+  if (!user.first_name && window.location.pathname !== '/complete-profile') {
+    return <Navigate to="/complete-profile" replace />;
+  }
+
   return children;
 };
 

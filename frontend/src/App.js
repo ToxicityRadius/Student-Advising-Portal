@@ -21,6 +21,8 @@ import AdviserDashboard from './pages/AdviserDashboard';
 import AcademicCalendar from './pages/AcademicCalendar';
 import StudyPlan from './pages/StudyPlan';
 import DemandForecasting from './pages/Admin/DemandForecasting';
+import CompleteProfile from './pages/CompleteProfile';
+import Profile from './pages/Profile';
 import './index.css';
 
 function AppContent() {
@@ -49,6 +51,22 @@ function AppContent() {
           element={
             <PrivateRoute>
               <Dashboard />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/complete-profile"
+          element={
+            <PrivateRoute>
+              <CompleteProfile />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <PrivateRoute>
+              <Profile />
             </PrivateRoute>
           }
         />

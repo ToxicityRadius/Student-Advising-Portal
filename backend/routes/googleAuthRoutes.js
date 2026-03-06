@@ -144,7 +144,7 @@ router.post('/google', async (req, res) => {
       // 2FA disabled - log in directly
       await User.update({ lastLogin: Date.now(), updatedAt: Date.now() }, { where: { id: user.id } });
       const updatedUser = await User.findByPk(user.id);
-      const jwtToken = generateToken(updatedUser.id, updatedUser.role);
+      const jwtToken = generateToken(updatedUser);
 
       res.json({
         token: jwtToken,
