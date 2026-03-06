@@ -301,7 +301,7 @@ async function seedDatabase() {
   });
   console.log('Created default student (student@tip.edu.ph / admin123) — Year 3');
 
-  await User.create({
+  const adviser = await User.create({
     firstName: 'Test',
     lastName: 'Adviser',
     first_name: 'Test',
@@ -330,6 +330,7 @@ async function seedDatabase() {
       email: `student${i}@tip.edu.ph`,
       password: hashedPassword,
       role: 'student',
+      adviserId: adviser.id,
       isActive: true,
       isVerified: true,
       current_year_level: yearLevel,
