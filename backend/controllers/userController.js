@@ -335,6 +335,7 @@ exports.updateProfile = async (req, res, next) => {
       'last_name',
       'program',
       'contact_number',
+      'year_level',
       'adviserId'
     ];
 
@@ -352,6 +353,26 @@ exports.updateProfile = async (req, res, next) => {
           success: false,
           message: 'adviserId must be a valid number or empty'
         });
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'year_level')) {
+      const normalized = updatePayload.year_level === '' || updatePayload.year_level === null
+        ? null
+        : Number(updatePayload.year_level);
+
+      if (normalized !== null && (Number.isNaN(normalized) || normalized < 1 || normalized > 5)) {
+        return res.status(400).json({
+          success: false,
+          message: 'year_level must be a number from 1 to 5'
+        });
+      }
+
+      updatePayload.current_year_level = normalized;
+      delete updatePayload.year_level;
+
+      if (user.role === 'student' && normalized !== null) {
+        updatePayload.is_onboarded = true;
       }
     }
 

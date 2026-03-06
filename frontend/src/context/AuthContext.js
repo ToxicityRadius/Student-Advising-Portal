@@ -28,7 +28,10 @@ export const AuthProvider = ({ children }) => {
         id: decoded.id,
         role: decoded.role,
         is_verified: decoded.is_verified,
-        first_name: decoded.first_name
+        first_name: decoded.first_name,
+        program: decoded.program,
+        contact_number: decoded.contact_number,
+        year_level: decoded.year_level
       };
     } catch {
       return null;

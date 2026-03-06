@@ -23,7 +23,9 @@ const Profile = () => {
     first_name: '',
     middle_name: '',
     last_name: '',
+    student_id: '',
     program: '',
+    year_level: '',
     contact_number: '',
     profile_picture: null
   });
@@ -40,7 +42,9 @@ const Profile = () => {
           first_name: profile.first_name || '',
           middle_name: profile.middle_name || '',
           last_name: profile.last_name || '',
+          student_id: profile.studentId || '',
           program: profile.program || '',
+          year_level: profile.current_year_level || profile.year_level || '',
           contact_number: profile.contact_number || ''
         }));
 
@@ -83,6 +87,7 @@ const Profile = () => {
       payload.append('middle_name', formData.middle_name);
       payload.append('last_name', formData.last_name);
       payload.append('program', formData.program);
+      payload.append('year_level', formData.year_level);
       payload.append('contact_number', formData.contact_number);
       if (formData.profile_picture) {
         payload.append('profile_picture', formData.profile_picture);
@@ -133,15 +138,34 @@ const Profile = () => {
               <Form.Control name="last_name" value={formData.last_name} onChange={handleChange} required />
             </Form.Group>
 
-            <Form.Group className="mb-3">
-              <Form.Label>Program</Form.Label>
-              <Form.Select name="program" value={formData.program} onChange={handleChange} required>
-                <option value="">Select Program</option>
-                {programOptions.map((program) => (
-                  <option key={program} value={program}>{program}</option>
-                ))}
-              </Form.Select>
-            </Form.Group>
+            {user.role === 'student' && (
+              <>
+                <Form.Group className="mb-3">
+                  <Form.Label>Student ID</Form.Label>
+                  <Form.Control name="student_id" value={formData.student_id} readOnly disabled />
+                </Form.Group>
+
+                <Form.Group className="mb-3">
+                  <Form.Label>Program</Form.Label>
+                  <Form.Select name="program" value={formData.program} onChange={handleChange} required>
+                    <option value="">Select Program</option>
+                    {programOptions.map((program) => (
+                      <option key={program} value={program}>{program}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+
+                <Form.Group className="mb-3">
+                  <Form.Label>Year Level</Form.Label>
+                  <Form.Select name="year_level" value={formData.year_level} onChange={handleChange} required>
+                    <option value="">Select Year Level</option>
+                    {[1, 2, 3, 4, 5].map((year) => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </>
+            )}
 
             <Form.Group className="mb-3">
               <Form.Label>Contact Number</Form.Label>

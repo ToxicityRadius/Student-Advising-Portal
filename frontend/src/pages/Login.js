@@ -3,7 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
-import StudentIdModal from '../components/StudentIdModal';
 import backgroundImage from '../bg.png';
 import tipLogo from '../tip logo.png';
 
@@ -14,8 +13,6 @@ const Login = () => {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showStudentIdModal, setShowStudentIdModal] = useState(false);
-  const [pendingGoogleUser, setPendingGoogleUser] = useState(null);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -100,19 +97,6 @@ const Login = () => {
       const data = await response.json();
 
       if (response.ok) {
-        if (data.requiresStudentId) {
-          // Show student ID modal
-          setPendingGoogleUser({
-            userId: data.userId,
-            email: data.email,
-            firstName: data.firstName,
-            lastName: data.lastName
-          });
-          setShowStudentIdModal(true);
-          setLoading(false);
-          return;
-        }
-        
         if (data.requiresVerification) {
           // Redirect to verification page
           navigate('/verify-code', { 
@@ -142,35 +126,6 @@ const Login = () => {
     setError('Google Sign-In failed. Please try again.');
   };
 
-  const handleStudentIdSubmit = async (studentId) => {
-    try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/users/${pendingGoogleUser.userId}/update-student-id`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ studentId })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setShowStudentIdModal(false);
-        setPendingGoogleUser(null);
-        
-        // Redirect to dashboard with token and user data
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        window.location.href = '/dashboard';
-      } else {
-        throw new Error(data.message || 'Failed to update Student Number');
-      }
-    } catch (err) {
-      throw err;
-    }
-  };
-
   return (
     <div 
       className="min-vh-100 d-flex align-items-center justify-content-center position-relative" 
@@ -180,13 +135,6 @@ const Login = () => {
         backgroundPosition: 'center'
       }}
     >
-      
-      {showStudentIdModal && pendingGoogleUser && (
-        <StudentIdModal
-          onSubmit={handleStudentIdSubmit}
-          userEmail={pendingGoogleUser.email}
-        />
-      )}
       
       {/* Yellow rectangle - left side, top overlap */}
       <div 

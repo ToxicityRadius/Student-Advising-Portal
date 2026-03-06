@@ -2,12 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Container, Card, Row, Col, Badge, ListGroup, Modal, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
-import StudentIdModal from '../components/StudentIdModal';
 import api from '../utils/api';
 
 const Dashboard = () => {
   const { user, setUser } = useAuth();
-  const [showStudentIdModal, setShowStudentIdModal] = useState(false);
 
   // Onboarding state
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -16,47 +14,11 @@ const Dashboard = () => {
   const [onboardingAlert, setOnboardingAlert] = useState('');
 
   useEffect(() => {
-    // Check if user is a student without a studentId
-    if (user && user.role === 'student' && !user.studentId) {
-      setShowStudentIdModal(true);
-    }
-  }, [user]);
-
-  useEffect(() => {
     // After studentId is set, check onboarding status
     if (user && user.role === 'student' && user.studentId && !user.is_onboarded) {
       setShowOnboarding(true);
     }
   }, [user]);
-
-  const handleStudentIdSubmit = async (studentId) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/users/update-student-id', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: 'include',
-        body: JSON.stringify({ studentId })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // Update user in context and localStorage
-        const updatedUser = { ...user, studentId };
-        setUser(updatedUser);
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        setShowStudentIdModal(false);
-      } else {
-        throw new Error(data.message || 'Failed to update Student Number');
-      }
-    } catch (error) {
-      throw error;
-    }
-  };
 
   const handleOnboardingSubmit = async () => {
     if (!yearLevel) return;
@@ -82,13 +44,6 @@ const Dashboard = () => {
 
   return (
     <Container className="py-4">
-      {showStudentIdModal && (
-        <StudentIdModal 
-          onSubmit={handleStudentIdSubmit}
-          userEmail={user?.email}
-        />
-      )}
-      
       <h1 className="mb-4">Dashboard</h1>
       
       <Card className="mb-4 border-start border-warning border-5 shadow-sm">

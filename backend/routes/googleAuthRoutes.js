@@ -75,18 +75,6 @@ router.post('/google', async (req, res) => {
         }
       }
       
-      // Check if student ID is missing - require student to provide it
-      if (!user.studentId) {
-        return res.json({
-          success: true,
-          message: 'Student Number is required to complete registration.',
-          userId: user.id,
-          requiresStudentId: true,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName
-        });
-      }
     } else if (!user.isActive) {
       // Auto-activate user when they sign in with Google (verified identity)
       await User.update({
@@ -96,17 +84,6 @@ router.post('/google', async (req, res) => {
         updatedAt: Date.now()
       }, { where: { id: user.id } });
       user = await User.findByPk(user.id);
-    } else if (!user.studentId) {
-      // Existing user without student ID - require them to provide it
-      return res.json({
-        success: true,
-        message: 'Student Number is required to continue.',
-        userId: user.id,
-        requiresStudentId: true,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName
-      });
     }
 
     // Check if 2FA is enabled

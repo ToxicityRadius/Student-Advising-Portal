@@ -5,7 +5,9 @@ import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
   const { user, logout, isAdmin } = useAuth();
-  const profileCompleted = !!user?.first_name;
+  const profileCompleted = user
+    ? (user.role === 'student' ? !!user.program : !!user.contact_number)
+    : false;
 
   const handleLogout = async () => {
     await logout();

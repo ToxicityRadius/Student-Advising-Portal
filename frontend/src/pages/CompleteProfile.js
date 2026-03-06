@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert } from 'react-bootstrap';
 import api from '../utils/api';
@@ -21,9 +21,37 @@ const CompleteProfile = () => {
     first_name: user?.first_name || '',
     middle_name: user?.middle_name || '',
     last_name: user?.last_name || '',
+    student_id: user?.studentId || '',
     program: user?.program || '',
-    contact_number: user?.contact_number || ''
+    contact_number: user?.contact_number || '',
+    year_level: user?.year_level || ''
   });
+    useEffect(() => {
+      const fetchProfile = async () => {
+        if (!user?.id) return;
+
+        try {
+          const response = await api.get(`/users/${user.id}`);
+          const profile = response.data.user || {};
+
+          setFormData((prev) => ({
+            ...prev,
+            first_name: profile.first_name || prev.first_name || '',
+            middle_name: profile.middle_name || prev.middle_name || '',
+            last_name: profile.last_name || prev.last_name || '',
+            student_id: profile.studentId || prev.student_id || user.studentId || '',
+            program: profile.program || prev.program || '',
+            contact_number: profile.contact_number || prev.contact_number || '',
+            year_level: profile.current_year_level || profile.year_level || prev.year_level || ''
+          }));
+        } catch (err) {
+          setError(err.response?.data?.message || 'Failed to load profile');
+        }
+      };
+
+      fetchProfile();
+    }, [user?.id, user?.studentId]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -38,7 +66,16 @@ const CompleteProfile = () => {
     setError('');
 
     try {
-      const response = await api.put(`/users/${user.id}/profile`, formData);
+      const payload = {
+        first_name: formData.first_name,
+        middle_name: formData.middle_name,
+        last_name: formData.last_name,
+        program: formData.program,
+        contact_number: formData.contact_number,
+        year_level: formData.year_level
+      };
+
+      const response = await api.put(`/users/${user.id}/profile`, payload);
       const freshToken = response.data.token;
 
       if (freshToken) {
@@ -93,20 +130,52 @@ const CompleteProfile = () => {
               />
             </Form.Group>
 
-            <Form.Group className="mb-3">
-              <Form.Label>Program</Form.Label>
-              <Form.Select
-                name="program"
-                value={formData.program}
-                onChange={handleChange}
-                required
-              >
-                <option value="">Select Program</option>
-                {programOptions.map((program) => (
-                  <option key={program} value={program}>{program}</option>
-                ))}
-              </Form.Select>
-            </Form.Group>
+            {user.role === 'student' && (
+              <>
+                <Form.Group className="mb-3">
+                  <Form.Label>Student ID</Form.Label>
+                  <Form.Control
+                    name="student_id"
+                    value={formData.student_id}
+                    readOnly
+                    disabled
+                  />
+                  <Form.Text className="text-muted">
+                    Student ID is set during registration and cannot be changed on this page.
+                  </Form.Text>
+                </Form.Group>
+
+                <Form.Group className="mb-3">
+                  <Form.Label>Program</Form.Label>
+                  <Form.Select
+                    name="program"
+                    value={formData.program}
+                    onChange={handleChange}
+                    required
+                  >
+                    <option value="">Select Program</option>
+                    {programOptions.map((program) => (
+                      <option key={program} value={program}>{program}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+
+                <Form.Group className="mb-3">
+                  <Form.Label>Year Level</Form.Label>
+                  <Form.Select
+                    name="year_level"
+                    value={formData.year_level}
+                    onChange={handleChange}
+                    required
+                  >
+                    <option value="">Select Year Level</option>
+                    {[1, 2, 3, 4, 5].map((year) => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </>
+            )}
 
             <Form.Group className="mb-4">
               <Form.Label>Contact Number</Form.Label>

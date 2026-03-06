@@ -14,9 +14,26 @@ exports.generateToken = (userOrId, roleArg) => {
   const firstName = isObjectInput
     ? (userOrId.first_name ?? userOrId.firstName ?? null)
     : null;
+  const program = isObjectInput
+    ? (userOrId.program ?? null)
+    : null;
+  const contactNumber = isObjectInput
+    ? (userOrId.contact_number ?? null)
+    : null;
+  const yearLevel = isObjectInput
+    ? (userOrId.year_level ?? userOrId.current_year_level ?? null)
+    : null;
 
   return jwt.sign(
-    { id, role, is_verified: isVerified, first_name: firstName },
+    {
+      id,
+      role,
+      is_verified: isVerified,
+      first_name: firstName,
+      program,
+      contact_number: contactNumber,
+      year_level: yearLevel
+    },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRE || '7d' }
   );
