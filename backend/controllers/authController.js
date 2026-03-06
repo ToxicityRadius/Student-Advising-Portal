@@ -1,9 +1,10 @@
-const { User, Invitation } = require('../models');
+const { User, Invitation, Curriculum } = require('../models');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const { sendTokenResponse } = require('../utils/jwt');
 const { sendActivationEmail, sendVerificationCode } = require('../utils/email');
+const { generateDraftStudyPlanForUser } = require('./advisingController');
 
 // Helper: generate a random 6-digit verification code
 function generateVerificationCode() {
@@ -64,19 +65,34 @@ exports.register = async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Assign new students to the active curriculum when available.
+    const activeCurriculum = await Curriculum.findOne({ where: { active_status: true } });
+
     // Create user - automatically assign Student role
     const user = await User.create({
       studentId,
       firstName,
       lastName,
+      first_name: firstName || null,
+      last_name: lastName || null,
       email,
       password: hashedPassword,
       role: 'student',
+      CurriculumId: activeCurriculum ? activeCurriculum.id : null,
       activationToken,
       activationTokenExpires,
       createdAt: Date.now(),
       updatedAt: Date.now()
     });
+
+    // Auto-generate initial draft study plan so first login has a ready plan.
+    if (activeCurriculum) {
+      try {
+        await generateDraftStudyPlanForUser(user.id);
+      } catch (planError) {
+        console.warn(`Draft plan generation failed for user ${user.id}:`, planError.message);
+      }
+    }
 
     // Send activation email
     await sendActivationEmail(user.email, activationToken);

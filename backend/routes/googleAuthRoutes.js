@@ -2,9 +2,11 @@ const express = require('express');
 const router = express.Router();
 const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
+const { Curriculum } = require('../models');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/jwt');
 const { sendVerificationCode } = require('../utils/email');
+const { generateDraftStudyPlanForUser } = require('../controllers/advisingController');
 
 // Initialize Google OAuth client
 // Replace with your actual Google Client ID
@@ -43,13 +45,20 @@ router.post('/google', async (req, res) => {
       // Create new user if doesn't exist
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(Math.random().toString(36).slice(-10), salt);
+      const activeCurriculum = await Curriculum.findOne({ where: { active_status: true } });
+
+      const parsedFirstName = payload.given_name || name.split(' ')[0];
+      const parsedLastName = payload.family_name || name.split(' ').slice(1).join(' ');
 
       user = await User.create({
         studentId: null,
-        firstName: payload.given_name || name.split(' ')[0],
-        lastName: payload.family_name || name.split(' ').slice(1).join(' '),
+        firstName: parsedFirstName,
+        lastName: parsedLastName,
+        first_name: parsedFirstName,
+        last_name: parsedLastName,
         email: googleEmail,
         role: 'student',
+        CurriculumId: activeCurriculum ? activeCurriculum.id : null,
         isActive: true,
         password: hashedPassword,
         activationToken: null,
@@ -57,6 +66,14 @@ router.post('/google', async (req, res) => {
         createdAt: Date.now(),
         updatedAt: Date.now()
       });
+
+      if (activeCurriculum) {
+        try {
+          await generateDraftStudyPlanForUser(user.id);
+        } catch (planError) {
+          console.warn(`Draft plan generation failed for Google user ${user.id}:`, planError.message);
+        }
+      }
       
       // Check if student ID is missing - require student to provide it
       if (!user.studentId) {
