@@ -22,7 +22,7 @@ const Grade = sequelize.define('Grade', {
     type: DataTypes.STRING
   },
   status: {
-    type: DataTypes.ENUM('pending', 'verified', 'rejected')
+    type: DataTypes.ENUM('pending', 'in_progress', 'verified', 'rejected')
   },
   risk_status: {
     type: DataTypes.ENUM('pending', 'on_track', 'at_risk'),

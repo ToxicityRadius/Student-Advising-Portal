@@ -1,7 +1,20 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { sequelize, Grade, ProofDocument, Subject, User, AcademicTerm, StudyPlan } = require('../models');
+const { sequelize, Grade, ProofDocument, Subject, User, AcademicTerm, StudyPlan, PlanSubject } = require('../models');
+
+function termSortKey(rawTerm) {
+  const term = String(rawTerm || '').toLowerCase();
+  const yearMatch = term.match(/year\s*(\d+)/i);
+  const year = yearMatch ? parseInt(yearMatch[1], 10) : Number.MAX_SAFE_INTEGER;
+
+  let semesterOrder = 99;
+  if (term.includes('1st semester')) semesterOrder = 1;
+  else if (term.includes('2nd semester')) semesterOrder = 2;
+  else if (term.includes('summer')) semesterOrder = 3;
+
+  return { year, semesterOrder, raw: term };
+}
 
 // ── Multer config ──
 const uploadsDir = path.join(__dirname, '..', 'uploads', 'proofs');
@@ -276,6 +289,67 @@ exports.getMyGrades = async (req, res, next) => {
   }
 };
 
+// ── GET /api/grades/enroll/eligible ── (subjects student can enroll now)
+exports.getEligibleSubjectsToEnroll = async (req, res, next) => {
+  try {
+    const approvedPlan = await StudyPlan.findOne({
+      where: { UserId: req.user.id, status: 'approved' },
+      include: [{
+        model: PlanSubject,
+        include: [{ model: Subject, attributes: ['id', 'course_code', 'title', 'units', 'year_level'] }]
+      }],
+      order: [['id', 'DESC']]
+    });
+
+    if (!approvedPlan) {
+      return res.json({ success: true, data: [] });
+    }
+
+    // No historical-grade prerequisite: first-year students with zero records are valid.
+    const grades = await Grade.findAll({ where: { UserId: req.user.id } });
+
+    const enrolledOrPassedSubjectIds = new Set(
+      grades
+        .filter(g => {
+          const status = String(g.status || '').toLowerCase();
+          if (status === 'in_progress') return true;
+          if (status === 'pending') return true;
+          if (status !== 'verified') return false;
+
+          const gv = g.grade_value === null || g.grade_value === undefined
+            ? NaN
+            : parseFloat(g.grade_value);
+          return !Number.isNaN(gv) && gv > 0 && gv <= 3.0;
+        })
+        .map(g => g.SubjectId)
+    );
+
+    const eligiblePlanSubjects = (approvedPlan.PlanSubjects || [])
+      .filter(ps => !ps.is_historical)
+      .filter(ps => !enrolledOrPassedSubjectIds.has(ps.SubjectId));
+
+    eligiblePlanSubjects.sort((a, b) => {
+      const aTerm = termSortKey(a.target_term || a.projected_term || '');
+      const bTerm = termSortKey(b.target_term || b.projected_term || '');
+      if (aTerm.year !== bTerm.year) return aTerm.year - bTerm.year;
+      if (aTerm.semesterOrder !== bTerm.semesterOrder) return aTerm.semesterOrder - bTerm.semesterOrder;
+      return aTerm.raw.localeCompare(bTerm.raw);
+    });
+
+    const subjects = eligiblePlanSubjects
+      .filter(ps => !!ps.Subject)
+      .map(ps => ({
+        ...ps.Subject.get({ plain: true }),
+        target_term: ps.target_term,
+        projected_term: ps.projected_term
+      }));
+
+    res.json({ success: true, data: subjects });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ── POST /api/grades/enroll ── (enroll in current-semester subjects)
 exports.enrollCurrentSubjects = async (req, res, next) => {
   try {
@@ -297,6 +371,8 @@ exports.enrollCurrentSubjects = async (req, res, next) => {
       });
     }
 
+    const enrollmentStatus = req.body?.status === 'in_progress' ? 'in_progress' : 'pending';
+
     const created = [];
     const skipped = [];
     for (const sid of subjectIds) {
@@ -312,6 +388,7 @@ exports.enrollCurrentSubjects = async (req, res, next) => {
           SubjectId: Number(sid),
           [Op.or]: [
             { status: 'pending' },
+            { status: 'in_progress' },
             {
               status: 'verified',
               [Op.or]: [
@@ -338,7 +415,7 @@ exports.enrollCurrentSubjects = async (req, res, next) => {
         SubjectId: Number(sid),
         grade_value: null,
         term_taken: activeTerm.term_name,
-        status: 'pending'
+        status: enrollmentStatus
       });
       created.push(grade.id);
     }

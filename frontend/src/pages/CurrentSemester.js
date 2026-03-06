@@ -127,22 +127,8 @@ const CurrentSemester = () => {
     setShowEnroll(true);
     setSelectedSubjects([]);
     try {
-      // Filter subjects from the approved study plan for the current term only
-      const planSubjects = studyPlan?.PlanSubjects || [];
-      const enrolledIds = new Set(grades.map(g => g.SubjectId));
-      const termName = activeTerm?.term_name || '';
-
-      // Only show subjects whose projected_term contains the active term name
-      const filtered = planSubjects
-        .filter(ps => {
-          const pt = ps.projected_term || ps.target_term || '';
-          return pt.includes(termName) || termName.includes(pt);
-        })
-        .filter(ps => !enrolledIds.has(ps.SubjectId))
-        .map(ps => ps.Subject)
-        .filter(Boolean);
-
-      setCurriculumSubjects(filtered);
+      const response = await api.get('/grades/enroll/eligible');
+      setCurriculumSubjects(response.data.data || []);
     } catch {
       setCurriculumSubjects([]);
     }
