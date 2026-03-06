@@ -159,20 +159,11 @@ const CurrentSemester = () => {
     }
   };
 
-  const riskBadge = (status) => {
-    if (status === 'on_track') return <Badge bg="success">On Track</Badge>;
-    if (status === 'at_risk') return <Badge bg="danger">At Risk</Badge>;
-    return <Badge bg="secondary">Pending</Badge>;
-  };
-
-  const finalStatusBadge = (status) => {
-    if (status === 'passed') return <Badge bg="success">Passed</Badge>;
-    if (status === 'failed') return <Badge bg="danger">Failed</Badge>;
-    if (status === 'verified') return <Badge bg="primary">Verified</Badge>;
-    if (status === 'in_progress') return <Badge bg="info">In Progress</Badge>;
-    if (status === 'pending') return <Badge bg="warning" text="dark">Pending</Badge>;
-    if (status === 'rejected') return <Badge bg="secondary">Rejected</Badge>;
-    return <Badge bg="secondary">{status || 'Unknown'}</Badge>;
+  const statusBadge = (grade) => {
+    if (grade.status === 'failed') return <Badge bg="danger">Failed</Badge>;
+    if (grade.status === 'passed') return <Badge bg="success">Passed</Badge>;
+    if (grade.risk_status === 'at_risk') return <Badge bg="warning" text="dark">At Risk</Badge>;
+    return <Badge bg="info">In Progress</Badge>;
   };
 
   if (loading) {
@@ -228,7 +219,6 @@ const CurrentSemester = () => {
               <th>Prelim Grade</th>
               <th>Midterm Grade</th>
               <th>Final</th>
-              <th>Risk Status</th>
               <th>Status</th>
               <th style={{ width: '320px' }}>Actions</th>
             </tr>
@@ -279,8 +269,7 @@ const CurrentSemester = () => {
                     onChange={e => handleEditChange(g.id, 'final_grade', e.target.value)}
                   />
                 </td>
-                <td>{riskBadge(g.risk_status)}</td>
-                <td>{finalStatusBadge(g.status)}</td>
+                <td>{statusBadge(g)}</td>
                 <td>
                   <div className="d-flex gap-2">
                     <Button

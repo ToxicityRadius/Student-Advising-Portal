@@ -2,6 +2,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { sequelize, Grade, ProofDocument, Subject, User, AcademicTerm, StudyPlan, PlanSubject } = require('../models');
+const { internalGeneratePlan } = require('./advisingController');
 
 function termSortKey(rawTerm) {
   const term = String(rawTerm || '').toLowerCase();
@@ -274,7 +275,26 @@ exports.updateCurrentGrade = async (req, res, next) => {
       }
     }
 
-    await Grade.update(updateData, { where: { id } });
+    // Apply updates to the instance and save (avoids Grade.update which skips hooks/returns)
+    Object.assign(grade, updateData);
+    await grade.save();
+
+    // ── Auto-void & re-draft on failure ──
+    if (grade.status === 'failed') {
+      const approvedPlan = await StudyPlan.findOne({
+        where: { UserId: grade.UserId, status: 'approved' },
+        order: [['id', 'DESC']]
+      });
+      if (approvedPlan) {
+        approvedPlan.status = 'voided_due_to_failure';
+        await approvedPlan.save();
+      }
+      // Generate a fresh contingency draft in the background
+      try {
+        await internalGeneratePlan(grade.UserId);
+      } catch (_) { /* non-blocking — student can still manually regenerate */ }
+    }
+
     const updated = await Grade.findByPk(id, {
       include: [{ model: Subject, attributes: ['id', 'course_code', 'title'] }]
     });

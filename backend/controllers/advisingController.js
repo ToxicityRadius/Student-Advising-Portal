@@ -188,6 +188,7 @@ async function generateDraftStudyPlanForUser(userId) {
 }
 
 exports.generateDraftStudyPlanForUser = generateDraftStudyPlanForUser;
+exports.internalGeneratePlan = generateDraftStudyPlanForUser;
 
 // ──────────────── Generate Study Plan ────────────────
 
