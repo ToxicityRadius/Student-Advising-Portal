@@ -95,8 +95,8 @@ const CurrentSemester = () => {
       if (edits.midterm_grade !== undefined && edits.midterm_grade !== '') {
         payload.midterm_grade = parseFloat(edits.midterm_grade);
       }
-      if (edits.final_grade !== undefined && edits.final_grade !== '') {
-        payload.final_grade = edits.final_grade;
+      if (Object.prototype.hasOwnProperty.call(edits, 'final_grade')) {
+        payload.final_grade = edits.final_grade === '' ? null : edits.final_grade;
       }
 
       await api.put(`/grades/current/${gradeId}`, payload);

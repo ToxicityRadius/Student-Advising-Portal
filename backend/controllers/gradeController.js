@@ -224,7 +224,8 @@ exports.updateCurrentGrade = async (req, res, next) => {
     }
 
     // Ensure the grade belongs to the logged-in student
-    if (grade.UserId !== req.user.id) {
+    const ownerId = grade.StudentId ?? grade.UserId;
+    if (ownerId !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Not authorized to update this grade' });
     }
 
@@ -262,16 +263,15 @@ exports.updateCurrentGrade = async (req, res, next) => {
     }
     // Otherwise leave risk_status as its current value (e.g. 'pending')
 
-    if (updateData.final_grade) {
-      const passingFinalGrades = new Set([
-        '1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50', '2.75', '3.00', 'P'
-      ]);
-      const failingFinalGrades = new Set(['5.00', 'F', 'INC', 'DRP']);
+    if (req.body.final_grade !== undefined && req.body.final_grade !== null && req.body.final_grade !== '') {
+      const finalStr = String(req.body.final_grade).trim().toLowerCase();
+      const failGrades = ['5', '5.0', '5.00', 'f', 'inc', 'drp', 'failed'];
+      const passGrades = ['1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50', '2.75', '3.00', 'p', 'passed', '1', '2', '3'];
 
-      if (passingFinalGrades.has(updateData.final_grade)) {
-        updateData.status = 'passed';
-      } else if (failingFinalGrades.has(updateData.final_grade)) {
-        updateData.status = 'failed';
+      if (failGrades.includes(finalStr) || parseFloat(finalStr) >= 5.0) {
+        grade.status = 'failed';
+      } else if (passGrades.includes(finalStr) || (parseFloat(finalStr) >= 1.0 && parseFloat(finalStr) <= 3.0)) {
+        grade.status = 'passed';
       }
     }
 
@@ -281,18 +281,23 @@ exports.updateCurrentGrade = async (req, res, next) => {
 
     // ── Auto-void & re-draft on failure ──
     if (grade.status === 'failed') {
-      const approvedPlan = await StudyPlan.findOne({
-        where: { UserId: grade.UserId, status: 'approved' },
-        order: [['id', 'DESC']]
-      });
-      if (approvedPlan) {
-        approvedPlan.status = 'voided_due_to_failure';
-        await approvedPlan.save();
-      }
-      // Generate a fresh contingency draft in the background
       try {
-        await internalGeneratePlan(grade.UserId);
-      } catch (_) { /* non-blocking — student can still manually regenerate */ }
+        const studentId = grade.StudentId ?? grade.UserId;
+        const planOwnerKey = StudyPlan.rawAttributes?.StudentId ? 'StudentId' : 'UserId';
+
+        const approvedPlan = await StudyPlan.findOne({
+          where: { [planOwnerKey]: studentId, status: 'approved' }
+        });
+
+        if (approvedPlan) {
+          approvedPlan.status = 'voided_due_to_failure';
+          await approvedPlan.save();
+          // CRITICAL: generation must target the owning student id
+          await internalGeneratePlan(studentId);
+        }
+      } catch (error) {
+        console.error('Auto-voiding generation failed:', error);
+      }
     }
 
     const updated = await Grade.findByPk(id, {
