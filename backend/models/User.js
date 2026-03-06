@@ -85,6 +85,34 @@ const User = sequelize.define('User', {
   is_onboarded: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
+  },
+  first_name: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  middle_name: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  last_name: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  program: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  contact_number: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  profile_picture: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  adviserId: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
 }, {
   tableName: 'users',

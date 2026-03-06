@@ -11,6 +11,7 @@ const StudyPlan = require('./StudyPlan');
 const PlanSubject = require('./PlanSubject');
 const AcademicTerm = require('./AcademicTerm');
 const OpenedSection = require('./OpenedSection');
+const CourseOffering = require('./CourseOffering');
 
 // Define ALL associations globally
 Curriculum.hasMany(Subject);
@@ -49,8 +50,16 @@ EquivalencyRule.belongsTo(Subject, { as: 'TargetSubject', foreignKey: 'target_su
 Subject.hasMany(OpenedSection);
 OpenedSection.belongsTo(Subject);
 
+// CourseOffering associations
+Subject.hasMany(CourseOffering);
+CourseOffering.belongsTo(Subject);
+
+// Adviser caseload associations (self-referential)
+User.hasMany(User, { as: 'Advisees', foreignKey: 'adviserId' });
+User.belongsTo(User, { as: 'Adviser', foreignKey: 'adviserId' });
+
 module.exports = {
   sequelize, User, Invitation, Curriculum, Subject, Prerequisite,
   EquivalencyRule, Grade, ProofDocument, StudyPlan, PlanSubject, AcademicTerm,
-  OpenedSection
+  OpenedSection, CourseOffering
 };

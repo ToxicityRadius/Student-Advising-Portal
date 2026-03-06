@@ -297,3 +297,71 @@ exports.updateUserStudentId = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Update user profile fields and profile picture
+// @route   PUT /api/users/:id/profile
+// @access  Private (self or admin)
+exports.updateProfile = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const requestingOwnProfile = req.user && req.user.id.toString() === id.toString();
+    if (!requestingOwnProfile && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to update this profile'
+      });
+    }
+
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const allowedFields = [
+      'first_name',
+      'middle_name',
+      'last_name',
+      'program',
+      'contact_number',
+      'adviserId'
+    ];
+
+    const updatePayload = {};
+    for (const field of allowedFields) {
+      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+        updatePayload[field] = req.body[field];
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'adviserId')) {
+      updatePayload.adviserId = updatePayload.adviserId === '' ? null : Number(updatePayload.adviserId);
+      if (updatePayload.adviserId !== null && Number.isNaN(updatePayload.adviserId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'adviserId must be a valid number or empty'
+        });
+      }
+    }
+
+    if (req.file) {
+      updatePayload.profile_picture = `/uploads/profiles/${req.file.filename}`;
+    }
+
+    updatePayload.updatedAt = Date.now();
+
+    await User.update(updatePayload, { where: { id } });
+    const updatedUser = await User.findByPk(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: sanitizeUser(updatedUser)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
