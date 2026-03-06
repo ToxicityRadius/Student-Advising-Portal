@@ -44,6 +44,9 @@ const Navbar = () => {
                     <Nav.Link as={Link} to="/admin/forecasting" className="text-light">
                       Demand Forecasting
                     </Nav.Link>
+                    <Nav.Link as={Link} to="/admin/course-offerings" className="text-light">
+                      Course Offerings
+                    </Nav.Link>
                     <Nav.Link as={Link} to="/adviser/dashboard" className="text-light">
                       Adviser Dashboard
                     </Nav.Link>

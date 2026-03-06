@@ -21,6 +21,7 @@ import AdviserDashboard from './pages/AdviserDashboard';
 import AcademicCalendar from './pages/AcademicCalendar';
 import StudyPlan from './pages/StudyPlan';
 import DemandForecasting from './pages/Admin/DemandForecasting';
+import CourseOfferingManager from './pages/Admin/CourseOfferingManager';
 import CompleteProfile from './pages/CompleteProfile';
 import Profile from './pages/Profile';
 import './index.css';
@@ -131,6 +132,14 @@ function AppContent() {
           element={
             <PrivateRoute adminOnly={true}>
               <DemandForecasting />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/course-offerings"
+          element={
+            <PrivateRoute adminOnly={true}>
+              <CourseOfferingManager />
             </PrivateRoute>
           }
         />
