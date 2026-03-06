@@ -1,7 +1,18 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { sequelize, Grade, ProofDocument, Subject, User, AcademicTerm, StudyPlan, PlanSubject } = require('../models');
+const {
+  sequelize,
+  Grade,
+  ProofDocument,
+  Subject,
+  User,
+  AcademicTerm,
+  CourseOffering,
+  Prerequisite,
+  StudyPlan,
+  PlanSubject
+} = require('../models');
 const { internalGeneratePlan } = require('./advisingController');
 
 function termSortKey(rawTerm) {
@@ -347,39 +358,56 @@ exports.getEligibleSubjectsToEnroll = async (req, res, next) => {
     // No historical-grade prerequisite: first-year students with zero records are valid.
     const grades = await Grade.findAll({ where: { UserId: req.user.id } });
 
-    const enrolledOrPassedSubjectIds = new Set(
-      grades
-        .filter(g => {
-          const status = String(g.status || '').toLowerCase();
-          if (status === 'in_progress') return true;
-          if (status === 'pending') return true;
-          if (status !== 'verified') return false;
+    const activeTerm = await AcademicTerm.findOne({ where: { is_active: true } });
+    let openSubjectIds = [];
+    if (activeTerm) {
+      const openOfferings = await CourseOffering.findAll({ where: { target_term: activeTerm.term_name } });
+      openSubjectIds = openOfferings.map(o => o.SubjectId);
+    }
+    const prereqs = await Prerequisite.findAll();
 
-          const gv = g.grade_value === null || g.grade_value === undefined
-            ? NaN
-            : parseFloat(g.grade_value);
-          return !Number.isNaN(gv) && gv > 0 && gv <= 3.0;
-        })
-        .map(g => g.SubjectId)
-    );
+    const passedSubjectIds = grades
+      .filter(g => String(g.status || '').toLowerCase() === 'passed')
+      .map(g => g.SubjectId);
+
+    const enrolledOrPassedSubjectIds = grades
+      .filter(g => {
+        const status = String(g.status || '').toLowerCase();
+        return ['passed', 'in_progress'].includes(status);
+      })
+      .map(g => g.SubjectId);
+
+    const passedSet = new Set(passedSubjectIds);
+    const enrolledOrPassedSet = new Set(enrolledOrPassedSubjectIds);
+    const openedSet = new Set(openSubjectIds);
 
     let unenrolledPlanSubjects = (approvedPlan.PlanSubjects || [])
       .filter(ps => !ps.is_historical)
-      .filter(ps => !enrolledOrPassedSubjectIds.has(ps.SubjectId));
+      .filter(ps => !enrolledOrPassedSet.has(ps.SubjectId));
 
-    unenrolledPlanSubjects.sort((a, b) => {
-      const aTerm = termSortKey(a.target_term || a.projected_term || '');
-      const bTerm = termSortKey(b.target_term || b.projected_term || '');
-      if (aTerm.year !== bTerm.year) return aTerm.year - bTerm.year;
-      if (aTerm.semesterOrder !== bTerm.semesterOrder) return aTerm.semesterOrder - bTerm.semesterOrder;
-      return aTerm.raw.localeCompare(bTerm.raw);
-    });
+    unenrolledPlanSubjects.sort((a, b) => (a.target_term || '').localeCompare(b.target_term || ''));
 
     if (unenrolledPlanSubjects.length > 0) {
-      const firstAvailableTerm = unenrolledPlanSubjects[0].target_term || unenrolledPlanSubjects[0].projected_term;
-      unenrolledPlanSubjects = unenrolledPlanSubjects.filter(
-        ps => (ps.target_term || ps.projected_term) === firstAvailableTerm
-      );
+      const firstAvailableTerm = unenrolledPlanSubjects[0].target_term;
+
+      unenrolledPlanSubjects = unenrolledPlanSubjects.filter(ps => {
+        // Rule 1: Always show subjects scheduled for their immediate next regular term
+        if (ps.target_term === firstAvailableTerm) return true;
+
+        // Rule 2: If subject is manually opened (CourseOffering), check prerequisites
+        if (openedSet.has(ps.SubjectId)) {
+          const subjectPrereqs = prereqs.filter(pr => (
+            pr.SubjectId === ps.SubjectId || pr.subject_id === ps.SubjectId
+          ));
+          const hasPassedAllPrereqs = subjectPrereqs.every(pr => {
+            const prereqId = pr.PrerequisiteId || pr.required_subj_id;
+            return passedSet.has(prereqId);
+          });
+          return hasPassedAllPrereqs; // Bypass lock if prereqs are met!
+        }
+
+        return false;
+      });
     }
 
     const subjects = unenrolledPlanSubjects
