@@ -301,18 +301,42 @@ async function seedDatabase() {
   });
   console.log('Created default student (student@tip.edu.ph / admin123) — Year 3');
 
-  const adviser = await User.create({
-    firstName: 'Test',
-    lastName: 'Adviser',
-    first_name: 'Test',
-    last_name: 'Adviser',
-    email: 'adviser@tip.edu.ph',
-    password: hashedPassword,
+  const adviserPasswordHash = await bcrypt.hash('password123', 10);
+  const adviser1 = await User.create({
+    firstName: 'Adviser',
+    lastName: 'One',
+    first_name: 'Adviser',
+    last_name: 'One',
+    email: 'adviser1@tip.edu.ph',
+    password: adviserPasswordHash,
     role: 'adviser',
     isActive: true,
     isVerified: true
   });
-  console.log('Created default adviser (adviser@tip.edu.ph / admin123)');
+  const adviser2 = await User.create({
+    firstName: 'Adviser',
+    lastName: 'Two',
+    first_name: 'Adviser',
+    last_name: 'Two',
+    email: 'adviser2@tip.edu.ph',
+    password: adviserPasswordHash,
+    role: 'adviser',
+    isActive: true,
+    isVerified: true
+  });
+  const adviser3 = await User.create({
+    firstName: 'Adviser',
+    lastName: 'Three',
+    first_name: 'Adviser',
+    last_name: 'Three',
+    email: 'adviser3@tip.edu.ph',
+    password: adviserPasswordHash,
+    role: 'adviser',
+    isActive: true,
+    isVerified: true
+  });
+  const seededAdvisers = [adviser1, adviser2, adviser3];
+  console.log('Created 3 default advisers (adviser1/2/3@tip.edu.ph / password123)');
 
   // ═══════════════════════════════════════════════════════════════════
   // 7. Generate 20 Mock Students for Demand Forecasting
@@ -330,7 +354,7 @@ async function seedDatabase() {
       email: `student${i}@tip.edu.ph`,
       password: hashedPassword,
       role: 'student',
-      adviserId: adviser.id,
+      adviserId: seededAdvisers[(i - 1) % 3].id,
       isActive: true,
       isVerified: true,
       current_year_level: yearLevel,

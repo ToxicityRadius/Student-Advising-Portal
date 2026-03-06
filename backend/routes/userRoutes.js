@@ -11,7 +11,8 @@ const {
   updateStudentId,
   updateUserStudentId,
   completeOnboarding,
-  updateProfile
+  updateProfile,
+  assignAdviser
 } = require('../controllers/userController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -43,6 +44,9 @@ router.post('/onboard', protect, completeOnboarding);
 
 // Profile update route (protected, user can update self; admin can update any)
 router.put('/:id/profile', protect, upload.single('profile_picture'), updateProfile);
+
+// Admin: assign adviser to a student
+router.put('/:id/assign-adviser', protect, authorize('admin'), assignAdviser);
 
 // All other routes require authentication and admin role
 router.use(protect);

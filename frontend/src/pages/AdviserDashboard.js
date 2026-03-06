@@ -431,8 +431,8 @@ const AdviserDashboard = () => {
                 {pendingPlans.map(p => (
                   <tr key={p.id}>
                     <td>#{p.id}</td>
-                    <td>{p.User?.studentId || '—'}</td>
-                    <td>{p.User ? `${p.User.firstName} ${p.User.lastName}` : '—'}</td>
+                    <td>{p.Student?.studentId || '—'}</td>
+                    <td>{p.Student ? `${p.Student.firstName} ${p.Student.lastName}` : '—'}</td>
                     <td><Badge bg="info">{(p.PlanSubjects || []).length}</Badge></td>
                     <td>
                       <Button
@@ -470,7 +470,7 @@ const AdviserDashboard = () => {
       >
         <Modal.Header closeButton>
           <Modal.Title>
-            Review Study Plan #{reviewPlan?.id} — {reviewPlan?.User ? `${reviewPlan.User.firstName} ${reviewPlan.User.lastName}` : ''}
+            Review Study Plan #{reviewPlan?.id} — {reviewPlan?.Student ? `${reviewPlan.Student.firstName} ${reviewPlan.Student.lastName}` : ''}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>

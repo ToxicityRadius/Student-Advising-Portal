@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Table, Button, Alert, Badge, Spinner } from 'react-bootstrap';
+import { Container, Table, Button, Alert, Badge, Spinner, Form } from 'react-bootstrap';
 import api from '../utils/api';
 import InviteFaculty from '../components/InviteFaculty';
 import PendingInvitations from '../components/PendingInvitations';
@@ -13,6 +13,8 @@ const ManageUsers = () => {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  const advisers = users.filter((u) => u.role === 'adviser');
 
   const fetchUsers = async () => {
     try {
@@ -53,6 +55,22 @@ const ManageUsers = () => {
     }
   };
 
+  const handleAssignAdviser = async (studentId, adviserId) => {
+    try {
+      const payload = {
+        adviserId: adviserId === '' ? null : Number(adviserId)
+      };
+
+      const response = await api.put(`/users/${studentId}/assign-adviser`, payload);
+      setSuccess(response.data.message || 'Adviser assignment updated');
+      fetchUsers();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to assign adviser');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   if (loading) {
     return (
       <Container className="py-5 text-center">
@@ -79,6 +97,7 @@ const ManageUsers = () => {
               <th>Name</th>
               <th>Email</th>
               <th>Role</th>
+              <th>Assigned Adviser</th>
               <th>Status</th>
               <th>Created At</th>
               <th>Last Login</th>
@@ -87,13 +106,31 @@ const ManageUsers = () => {
           </thead>
           <tbody>
             {users.map((user) => (
-              <tr key={user._id}>
+              <tr key={user.id}>
                 <td>{`${user.firstName} ${user.lastName}`}</td>
                 <td>{user.email}</td>
                 <td>
                   <Badge bg={user.role === 'admin' ? 'danger' : user.role === 'adviser' ? 'warning' : 'primary'}>
                     {user.role}
                   </Badge>
+                </td>
+                <td>
+                  {user.role === 'student' ? (
+                    <Form.Select
+                      size="sm"
+                      value={user.adviserId || ''}
+                      onChange={(e) => handleAssignAdviser(user.id, e.target.value)}
+                    >
+                      <option value="">Unassigned</option>
+                      {advisers.map((adviser) => (
+                        <option key={adviser.id} value={adviser.id}>
+                          {`${adviser.firstName} ${adviser.lastName} (${adviser.email})`}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  ) : (
+                    <span className="text-muted">N/A</span>
+                  )}
                 </td>
                 <td>
                   <Badge bg={user.isActive ? 'success' : 'danger'}>
@@ -109,14 +146,14 @@ const ManageUsers = () => {
                 <td>
                   <div className="d-flex gap-2 flex-wrap">
                     <Button
-                      onClick={() => handleToggleStatus(user._id)}
+                      onClick={() => handleToggleStatus(user.id)}
                       variant={user.isActive ? 'warning' : 'success'}
                       size="sm"
                     >
                       {user.isActive ? 'Deactivate' : 'Activate'}
                     </Button>
                     <Button
-                      onClick={() => handleDeleteUser(user._id)}
+                      onClick={() => handleDeleteUser(user.id)}
                       variant="danger"
                       size="sm"
                     >

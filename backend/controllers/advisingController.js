@@ -275,7 +275,11 @@ exports.generateContingencyPlan = async (req, res, next) => {
 
 exports.getPendingPlans = async (req, res, next) => {
   try {
-    const studentInclude = { model: User, attributes: ['id', 'firstName', 'lastName', 'studentId'] };
+    const studentInclude = {
+      model: User,
+      as: 'Student',
+      attributes: ['id', 'firstName', 'lastName', 'studentId', 'adviserId']
+    };
     if (req.user.role === 'adviser') {
       studentInclude.where = { adviserId: req.user.id };
       studentInclude.required = true;
@@ -318,7 +322,7 @@ exports.approvePlan = async (req, res, next) => {
 
     const updated = await StudyPlan.findByPk(id, {
       include: [
-        { model: User, attributes: ['id', 'firstName', 'lastName', 'studentId'] },
+        { model: User, as: 'Student', attributes: ['id', 'firstName', 'lastName', 'studentId', 'adviserId'] },
         {
           model: PlanSubject,
           include: [{ model: Subject }]
@@ -369,7 +373,7 @@ exports.modifyPlan = async (req, res, next) => {
     // Re-fetch full plan
     const updated = await StudyPlan.findByPk(id, {
       include: [
-        { model: User, attributes: ['id', 'firstName', 'lastName', 'studentId'] },
+        { model: User, as: 'Student', attributes: ['id', 'firstName', 'lastName', 'studentId', 'adviserId'] },
         {
           model: PlanSubject,
           include: [{ model: Subject }]

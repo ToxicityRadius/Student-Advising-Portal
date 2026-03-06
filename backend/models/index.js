@@ -29,8 +29,8 @@ Grade.belongsTo(Subject);
 Grade.hasOne(ProofDocument);
 ProofDocument.belongsTo(Grade);
 
-User.hasMany(StudyPlan);
-StudyPlan.belongsTo(User);
+User.hasMany(StudyPlan, { as: 'StudyPlans', foreignKey: 'UserId' });
+StudyPlan.belongsTo(User, { as: 'Student', foreignKey: 'UserId' });
 
 StudyPlan.hasMany(PlanSubject);
 PlanSubject.belongsTo(StudyPlan);

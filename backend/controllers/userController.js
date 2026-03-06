@@ -365,3 +365,46 @@ exports.updateProfile = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Assign adviser to a student
+// @route   PUT /api/users/:id/assign-adviser
+// @access  Private/Admin
+exports.assignAdviser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { adviserId } = req.body;
+
+    const student = await User.findByPk(id);
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    if (student.role !== 'student') {
+      return res.status(400).json({ success: false, message: 'Adviser can only be assigned to student users' });
+    }
+
+    let normalizedAdviserId = null;
+    if (adviserId !== null && adviserId !== undefined && adviserId !== '') {
+      normalizedAdviserId = Number(adviserId);
+      if (Number.isNaN(normalizedAdviserId)) {
+        return res.status(400).json({ success: false, message: 'adviserId must be a valid number' });
+      }
+
+      const adviser = await User.findByPk(normalizedAdviserId);
+      if (!adviser || adviser.role !== 'adviser') {
+        return res.status(400).json({ success: false, message: 'Selected adviser does not exist or is not an adviser' });
+      }
+    }
+
+    await User.update({ adviserId: normalizedAdviserId, updatedAt: Date.now() }, { where: { id } });
+    const updated = await User.findByPk(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Adviser assigned successfully',
+      user: sanitizeUser(updated)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
