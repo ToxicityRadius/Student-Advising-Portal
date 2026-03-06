@@ -1,5 +1,13 @@
 const { Sequelize } = require('sequelize');
-const { PlanSubject, StudyPlan, Subject, OpenedSection } = require('../models');
+const {
+  PlanSubject,
+  StudyPlan,
+  Subject,
+  OpenedSection,
+  Grade,
+  AcademicTerm,
+  CourseOffering
+} = require('../models');
 
 /**
  * GET /api/forecasting/demand
@@ -10,9 +18,9 @@ const { PlanSubject, StudyPlan, Subject, OpenedSection } = require('../models');
  */
 exports.getDemandForecast = async (req, res) => {
   try {
+    // 1) Projected demand from approved study plans (exclude historical placements)
     const rows = await PlanSubject.findAll({
       attributes: [
-        'target_term',
         'SubjectId',
         [Sequelize.fn('COUNT', Sequelize.col('PlanSubject.StudyPlanId')), 'student_count']
       ],
@@ -27,40 +35,94 @@ exports.getDemandForecast = async (req, res) => {
           attributes: ['id', 'course_code', 'title', 'units']
         }
       ],
+      where: { is_historical: false },
       group: [
-        'PlanSubject.target_term',
         'PlanSubject.SubjectId',
         'Subject.id',
         'Subject.course_code',
         'Subject.title',
         'Subject.units'
       ],
-      order: [
-        ['target_term', 'ASC'],
-        [Sequelize.literal('student_count'), 'DESC']
-      ],
+      order: [[Sequelize.literal('student_count'), 'DESC']],
       raw: true,
       nest: true
     });
 
-    // Fetch all opened sections to mark demand rows
-    const openedSections = await OpenedSection.findAll({ raw: true });
-    const openedSet = new Set(
-      openedSections.map(os => `${os.SubjectId}::${os.target_term}`)
-    );
-
-    // Flatten the nested Subject fields for easier frontend consumption
-    const data = rows.map(r => ({
-      target_term: r.target_term,
-      subject_id: r.Subject.id,
-      course_code: r.Subject.course_code,
+    const demandData = rows.map(r => ({
+      SubjectId: r.Subject.id,
+      subjectCode: r.Subject.course_code,
       title: r.Subject.title,
       units: r.Subject.units,
-      student_count: parseInt(r.student_count, 10),
-      is_opened: openedSet.has(`${r.Subject.id}::${r.target_term}`)
+      expectedCount: parseInt(r.student_count, 10)
     }));
 
-    return res.json({ success: true, data });
+    // 2) At-risk pipeline from active-term grades
+    const activeTerm = await AcademicTerm.findOne({ where: { is_active: true } });
+    let atRiskData = [];
+
+    if (activeTerm) {
+      const activeTermGrades = await Grade.findAll({
+        where: { term_taken: activeTerm.term_name },
+        include: [{ model: Subject, attributes: ['id', 'course_code'] }]
+      });
+
+      const atRiskMap = new Map();
+      for (const grade of activeTermGrades) {
+        const status = String(grade.status || '').toLowerCase();
+        const prelim = grade.prelim_grade === null || grade.prelim_grade === undefined
+          ? null
+          : parseFloat(grade.prelim_grade);
+        const midterm = grade.midterm_grade === null || grade.midterm_grade === undefined
+          ? null
+          : parseFloat(grade.midterm_grade);
+
+        const triggersWarning = (
+          status === 'failed' ||
+          status === 'at_risk' ||
+          grade.risk_status === 'at_risk' ||
+          (prelim !== null && prelim > 3.0) ||
+          (midterm !== null && midterm > 3.0)
+        );
+
+        if (!triggersWarning) continue;
+
+        const subjectId = grade.SubjectId;
+        const subjectCode = grade.Subject?.course_code || `SUBJ-${subjectId}`;
+        const current = atRiskMap.get(subjectId) || { SubjectId: subjectId, subjectCode, atRiskCount: 0 };
+        current.atRiskCount += 1;
+        atRiskMap.set(subjectId, current);
+      }
+
+      atRiskData = Array.from(atRiskMap.values())
+        .sort((a, b) => b.atRiskCount - a.atRiskCount);
+    }
+
+    // 3) Low-efficiency alerts: subjects manually/legal-opened in active term but expected < 5
+    let lowEfficiencyAlerts = [];
+    if (activeTerm) {
+      const openOfferings = await CourseOffering.findAll({
+        where: { target_term: activeTerm.term_name },
+        include: [{ model: Subject, attributes: ['id', 'course_code', 'title'] }]
+      });
+
+      const demandMap = new Map(demandData.map(d => [d.SubjectId, d.expectedCount]));
+
+      lowEfficiencyAlerts = openOfferings
+        .map(offering => {
+          const expectedCount = demandMap.get(offering.SubjectId) || 0;
+          return {
+            SubjectId: offering.SubjectId,
+            subjectCode: offering.Subject?.course_code || `SUBJ-${offering.SubjectId}`,
+            title: offering.Subject?.title || 'Unknown Subject',
+            expectedCount,
+            targetTerm: offering.target_term
+          };
+        })
+        .filter(item => item.expectedCount < 5)
+        .sort((a, b) => a.expectedCount - b.expectedCount);
+    }
+
+    return res.json({ demandData, atRiskData, lowEfficiencyAlerts });
   } catch (error) {
     console.error('Demand forecast error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch demand forecast' });
