@@ -211,10 +211,10 @@ exports.verifyGrade = async (req, res, next) => {
 exports.updateCurrentGrade = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { prelim_grade, midterm_grade } = req.body;
+    const { prelim_grade, midterm_grade, final_grade } = req.body;
 
-    if (prelim_grade === undefined && midterm_grade === undefined) {
-      return res.status(400).json({ success: false, message: 'At least one of prelim_grade or midterm_grade is required' });
+    if (prelim_grade === undefined && midterm_grade === undefined && final_grade === undefined) {
+      return res.status(400).json({ success: false, message: 'At least one of prelim_grade, midterm_grade, or final_grade is required' });
     }
 
     const grade = await Grade.findByPk(id);
@@ -227,10 +227,6 @@ exports.updateCurrentGrade = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Not authorized to update this grade' });
     }
 
-    if (grade.status === 'verified') {
-      return res.status(403).json({ success: false, message: 'Cannot edit a verified grade' });
-    }
-
     // Build the update payload
     const updateData = {};
     if (prelim_grade !== undefined && prelim_grade !== null && prelim_grade !== '') {
@@ -238,6 +234,11 @@ exports.updateCurrentGrade = async (req, res, next) => {
     }
     if (midterm_grade !== undefined && midterm_grade !== null && midterm_grade !== '') {
       updateData.midterm_grade = parseFloat(midterm_grade);
+    }
+    if (final_grade !== undefined) {
+      updateData.final_grade = final_grade === null || String(final_grade).trim() === ''
+        ? null
+        : String(final_grade).trim().toUpperCase();
     }
 
     // ── Prediction Engine: compute risk_status ──
@@ -259,6 +260,19 @@ exports.updateCurrentGrade = async (req, res, next) => {
       updateData.risk_status = 'on_track';
     }
     // Otherwise leave risk_status as its current value (e.g. 'pending')
+
+    if (updateData.final_grade) {
+      const passingFinalGrades = new Set([
+        '1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50', '2.75', '3.00', 'P'
+      ]);
+      const failingFinalGrades = new Set(['5.00', 'F', 'INC', 'DRP']);
+
+      if (passingFinalGrades.has(updateData.final_grade)) {
+        updateData.status = 'passed';
+      } else if (failingFinalGrades.has(updateData.final_grade)) {
+        updateData.status = 'failed';
+      }
+    }
 
     await Grade.update(updateData, { where: { id } });
     const updated = await Grade.findByPk(id, {
@@ -324,11 +338,11 @@ exports.getEligibleSubjectsToEnroll = async (req, res, next) => {
         .map(g => g.SubjectId)
     );
 
-    const eligiblePlanSubjects = (approvedPlan.PlanSubjects || [])
+    let unenrolledPlanSubjects = (approvedPlan.PlanSubjects || [])
       .filter(ps => !ps.is_historical)
       .filter(ps => !enrolledOrPassedSubjectIds.has(ps.SubjectId));
 
-    eligiblePlanSubjects.sort((a, b) => {
+    unenrolledPlanSubjects.sort((a, b) => {
       const aTerm = termSortKey(a.target_term || a.projected_term || '');
       const bTerm = termSortKey(b.target_term || b.projected_term || '');
       if (aTerm.year !== bTerm.year) return aTerm.year - bTerm.year;
@@ -336,7 +350,14 @@ exports.getEligibleSubjectsToEnroll = async (req, res, next) => {
       return aTerm.raw.localeCompare(bTerm.raw);
     });
 
-    const subjects = eligiblePlanSubjects
+    if (unenrolledPlanSubjects.length > 0) {
+      const firstAvailableTerm = unenrolledPlanSubjects[0].target_term || unenrolledPlanSubjects[0].projected_term;
+      unenrolledPlanSubjects = unenrolledPlanSubjects.filter(
+        ps => (ps.target_term || ps.projected_term) === firstAvailableTerm
+      );
+    }
+
+    const subjects = unenrolledPlanSubjects
       .filter(ps => !!ps.Subject)
       .map(ps => ({
         ...ps.Subject.get({ plain: true }),

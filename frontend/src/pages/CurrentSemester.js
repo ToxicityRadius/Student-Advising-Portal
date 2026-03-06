@@ -81,7 +81,7 @@ const CurrentSemester = () => {
 
   const handleUpdate = async (gradeId) => {
     const edits = editing[gradeId];
-    if (!edits || (edits.prelim_grade === undefined && edits.midterm_grade === undefined)) return;
+    if (!edits || (edits.prelim_grade === undefined && edits.midterm_grade === undefined && edits.final_grade === undefined)) return;
 
     setError('');
     setSuccess('');
@@ -94,6 +94,9 @@ const CurrentSemester = () => {
       }
       if (edits.midterm_grade !== undefined && edits.midterm_grade !== '') {
         payload.midterm_grade = parseFloat(edits.midterm_grade);
+      }
+      if (edits.final_grade !== undefined && edits.final_grade !== '') {
+        payload.final_grade = edits.final_grade;
       }
 
       await api.put(`/grades/current/${gradeId}`, payload);
@@ -162,6 +165,16 @@ const CurrentSemester = () => {
     return <Badge bg="secondary">Pending</Badge>;
   };
 
+  const finalStatusBadge = (status) => {
+    if (status === 'passed') return <Badge bg="success">Passed</Badge>;
+    if (status === 'failed') return <Badge bg="danger">Failed</Badge>;
+    if (status === 'verified') return <Badge bg="primary">Verified</Badge>;
+    if (status === 'in_progress') return <Badge bg="info">In Progress</Badge>;
+    if (status === 'pending') return <Badge bg="warning" text="dark">Pending</Badge>;
+    if (status === 'rejected') return <Badge bg="secondary">Rejected</Badge>;
+    return <Badge bg="secondary">{status || 'Unknown'}</Badge>;
+  };
+
   if (loading) {
     return <Container className="text-center mt-5"><Spinner animation="border" variant="warning" /></Container>;
   }
@@ -214,14 +227,15 @@ const CurrentSemester = () => {
               <th>Title</th>
               <th>Prelim Grade</th>
               <th>Midterm Grade</th>
+              <th>Final</th>
               <th>Risk Status</th>
+              <th>Status</th>
               <th style={{ width: '320px' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {grades.map(g => {
               const isPending = g.status === 'pending';
-              const isVerified = g.status === 'verified';
               return (
               <tr key={g.id}>
                 <td>
@@ -240,7 +254,6 @@ const CurrentSemester = () => {
                     placeholder={g.prelim_grade ?? '—'}
                     value={editing[g.id]?.prelim_grade ?? ''}
                     onChange={e => handleEditChange(g.id, 'prelim_grade', e.target.value)}
-                    disabled={!isVerified}
                   />
                 </td>
                 <td>
@@ -254,16 +267,26 @@ const CurrentSemester = () => {
                     placeholder={g.midterm_grade ?? '—'}
                     value={editing[g.id]?.midterm_grade ?? ''}
                     onChange={e => handleEditChange(g.id, 'midterm_grade', e.target.value)}
-                    disabled={!isVerified}
+                  />
+                </td>
+                <td>
+                  <Form.Control
+                    type="text"
+                    size="sm"
+                    style={{ width: '100px' }}
+                    placeholder={g.final_grade ?? '—'}
+                    value={editing[g.id]?.final_grade ?? ''}
+                    onChange={e => handleEditChange(g.id, 'final_grade', e.target.value)}
                   />
                 </td>
                 <td>{riskBadge(g.risk_status)}</td>
+                <td>{finalStatusBadge(g.status)}</td>
                 <td>
                   <div className="d-flex gap-2">
                     <Button
                       size="sm"
                       variant="outline-warning"
-                      disabled={saving === g.id || !editing[g.id] || !isVerified}
+                      disabled={saving === g.id || !editing[g.id]}
                       onClick={() => handleUpdate(g.id)}
                     >
                       {saving === g.id ? <Spinner size="sm" animation="border" /> : 'Save'}
