@@ -122,7 +122,7 @@ function AppContent() {
         <Route
           path="/study-plan"
           element={
-            <PrivateRoute roles={['student']}>
+            <PrivateRoute roles={['student', 'adviser']}>
               <StudyPlan />
             </PrivateRoute>
           }

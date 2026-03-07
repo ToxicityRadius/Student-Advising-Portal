@@ -194,8 +194,24 @@ exports.internalGeneratePlan = generateDraftStudyPlanForUser;
 
 exports.generateStudyPlan = async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    const draftResult = await generateDraftStudyPlanForUser(userId);
+    const requestedStudentId = req.body?.studentId || req.query?.studentId;
+    const canTargetOtherStudent = req.user.role === 'adviser' || req.user.role === 'admin';
+    const targetStudentId = canTargetOtherStudent && requestedStudentId
+      ? Number(requestedStudentId)
+      : req.user.id;
+
+    if (Number.isNaN(targetStudentId)) {
+      return res.status(400).json({ success: false, message: 'studentId must be a valid number' });
+    }
+
+    if (req.user.role === 'adviser' && targetStudentId !== req.user.id) {
+      const advisee = await User.findOne({ where: { id: targetStudentId, adviserId: req.user.id, role: 'student' } });
+      if (!advisee) {
+        return res.status(403).json({ success: false, message: 'You are not authorized to generate a plan for this student' });
+      }
+    }
+
+    const draftResult = await generateDraftStudyPlanForUser(targetStudentId);
 
     res.status(201).json({
       success: true,
@@ -213,10 +229,25 @@ exports.generateStudyPlan = async (req, res, next) => {
 
 exports.getMyPlan = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const requestedStudentId = req.query?.studentId;
+    const canTargetOtherStudent = req.user.role === 'adviser' || req.user.role === 'admin';
+    const targetStudentId = canTargetOtherStudent && requestedStudentId
+      ? Number(requestedStudentId)
+      : req.user.id;
+
+    if (Number.isNaN(targetStudentId)) {
+      return res.status(400).json({ success: false, message: 'studentId must be a valid number' });
+    }
+
+    if (req.user.role === 'adviser' && targetStudentId !== req.user.id) {
+      const advisee = await User.findOne({ where: { id: targetStudentId, adviserId: req.user.id, role: 'student' } });
+      if (!advisee) {
+        return res.status(403).json({ success: false, message: 'You are not authorized to view this student plan' });
+      }
+    }
 
     const plan = await StudyPlan.findOne({
-      where: { UserId: userId },
+      where: { UserId: targetStudentId },
       order: [['id', 'DESC']],
       include: [{
         model: PlanSubject,
@@ -283,7 +314,7 @@ exports.getPendingPlans = async (req, res, next) => {
       include: [
         {
           model: Grade,
-          attributes: ['id', 'grade_value', 'status', 'term_taken', 'risk_status'],
+          attributes: ['id', 'SubjectId', 'grade_value', 'status', 'term_taken', 'risk_status'],
           include: [{ model: Subject, attributes: ['id', 'course_code', 'title', 'units'] }]
         }
       ]

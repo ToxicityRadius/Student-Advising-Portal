@@ -16,6 +16,10 @@ router.use(protect);
 // Generate a new study plan for the logged-in student
 router.post('/generate', generateStudyPlan);
 
+// Alias endpoints used by study-plan builder UI
+router.get('/plan', getMyPlan);
+router.post('/plan', generateStudyPlan);
+
 // Get the latest study plan for the logged-in student
 router.get('/my-plan', getMyPlan);
 

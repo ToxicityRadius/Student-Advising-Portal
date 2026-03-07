@@ -15,6 +15,8 @@ import autoTable from 'jspdf-autotable';
 
 const StudyPlan = () => {
   const { user } = useAuth();
+  const searchParams = new URLSearchParams(window.location.search);
+  const queryStudentId = searchParams.get('studentId');
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -24,14 +26,15 @@ const StudyPlan = () => {
   const fetchPlan = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get('/advising/my-plan');
+      const endpoint = queryStudentId ? `/advising/plan?studentId=${queryStudentId}` : '/advising/plan';
+      const res = await api.get(endpoint);
       setPlan(res.data.data);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load study plan');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [queryStudentId]);
 
   useEffect(() => {
     fetchPlan();
@@ -42,7 +45,8 @@ const StudyPlan = () => {
     setSuccess('');
     setGenerating(true);
     try {
-      const res = await api.post('/advising/generate');
+      const payload = queryStudentId ? { studentId: queryStudentId } : {};
+      const res = await api.post('/advising/plan', payload);
       setPlan(res.data.data.plan);
       const { totalSubjects, totalUnits, term } = res.data.data.summary;
       setSuccess(

@@ -12,6 +12,7 @@ import {
   Tab,
   Tabs
 } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 
 function getStudentName(student) {
@@ -44,6 +45,7 @@ function formatStatus(status) {
 }
 
 const AdviserDashboard = () => {
+  const navigate = useNavigate();
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -95,6 +97,23 @@ const AdviserDashboard = () => {
       .sort((a, b) => a.localeCompare(b))
       .map(term => ({ term, subjects: grouped[term] }));
   }, [selectedPlan]);
+
+  const handleApprove = async (planId) => {
+    try {
+      setError('');
+      const response = await api.put(`/advising/plan/${planId}/approve`);
+      const updatedPlan = response.data?.data;
+
+      if (updatedPlan) {
+        setPlans(prev => prev.map(plan => (plan.id === updatedPlan.id ? updatedPlan : plan)));
+        setSelectedPlan(updatedPlan);
+      } else {
+        await fetchPlans();
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to approve plan.');
+    }
+  };
 
   const renderPlanTable = (planList, emptyMessage) => {
     if (planList.length === 0) {
@@ -235,10 +254,16 @@ const AdviserDashboard = () => {
                 </Table>
               </Col>
               <Col md={8}>
-                {groupedSubjects.length === 0 ? (
-                  <Alert variant="secondary">No plan subjects available for this study plan.</Alert>
-                ) : (
-                  groupedSubjects.map(group => (
+                {(() => {
+                  const failedSubjectIds = selectedPlan.Student?.Grades
+                    ?.filter(g => g.status === 'failed')
+                    .map(g => g.SubjectId) || [];
+
+                  if (groupedSubjects.length === 0) {
+                    return <Alert variant="secondary">No plan subjects available for this study plan.</Alert>;
+                  }
+
+                  return groupedSubjects.map(group => (
                     <div key={group.term} className="mb-4">
                       <h6 className="mb-2">{group.term}</h6>
                       <Table bordered hover responsive size="sm">
@@ -250,23 +275,46 @@ const AdviserDashboard = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {group.subjects.map(planSubject => (
-                            <tr key={planSubject.id}>
-                              <td>{planSubject.Subject?.course_code || 'N/A'}</td>
-                              <td>{planSubject.Subject?.title || 'N/A'}</td>
-                              <td>{planSubject.Subject?.units ?? 'N/A'}</td>
-                            </tr>
-                          ))}
+                          {group.subjects.map(planSubject => {
+                            const subject = planSubject.Subject;
+                            return (
+                              <tr key={planSubject.id}>
+                                <td>{subject?.course_code || 'N/A'}</td>
+                                <td>
+                                  {subject?.title || 'N/A'}
+                                  {selectedPlan.status === 'voided_due_to_failure' && failedSubjectIds.includes(subject?.id) && (
+                                    <Badge bg="danger" className="ms-2">Failed - Caused Void</Badge>
+                                  )}
+                                </td>
+                                <td>{subject?.units ?? 'N/A'}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </Table>
                     </div>
-                  ))
-                )}
+                  ));
+                })()}
               </Col>
             </Row>
           )}
         </Modal.Body>
         <Modal.Footer>
+          {selectedPlan?.status !== 'voided_due_to_failure' && (
+            <>
+              <Button
+                variant="primary"
+                onClick={() => navigate(`/study-plan?studentId=${selectedPlan.Student?.id}`)}
+              >
+                Edit Plan
+              </Button>
+              {selectedPlan?.status !== 'approved' && (
+                <Button variant="success" onClick={() => handleApprove(selectedPlan.id)}>
+                  Approve Plan
+                </Button>
+              )}
+            </>
+          )}
           <Button variant="secondary" onClick={() => setSelectedPlan(null)}>
             Close
           </Button>
