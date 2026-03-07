@@ -4,7 +4,6 @@ const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const { sendTokenResponse } = require('../utils/jwt');
 const { sendActivationEmail, sendVerificationCode } = require('../utils/email');
-const { generateDraftStudyPlanForUser } = require('./advisingController');
 
 // Helper: generate a random 6-digit verification code
 function generateVerificationCode() {
@@ -84,15 +83,6 @@ exports.register = async (req, res, next) => {
       createdAt: Date.now(),
       updatedAt: Date.now()
     });
-
-    // Auto-generate initial draft study plan so first login has a ready plan.
-    if (activeCurriculum) {
-      try {
-        await generateDraftStudyPlanForUser(user.id);
-      } catch (planError) {
-        console.warn(`Draft plan generation failed for user ${user.id}:`, planError.message);
-      }
-    }
 
     // Send activation email
     await sendActivationEmail(user.email, activationToken);

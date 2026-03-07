@@ -279,7 +279,14 @@ exports.getPendingPlans = async (req, res, next) => {
     const studentInclude = {
       model: User,
       as: 'Student',
-      attributes: ['id', 'firstName', 'lastName', 'studentId', 'adviserId']
+      attributes: ['id', 'firstName', 'lastName', 'studentId', 'adviserId', 'program', ['current_year_level', 'year_level'], 'contact_number'],
+      include: [
+        {
+          model: Grade,
+          attributes: ['id', 'grade_value', 'status', 'term_taken', 'risk_status'],
+          include: [{ model: Subject, attributes: ['id', 'course_code', 'title', 'units'] }]
+        }
+      ]
     };
     if (req.user.role === 'adviser') {
       studentInclude.where = { adviserId: req.user.id };
@@ -287,12 +294,11 @@ exports.getPendingPlans = async (req, res, next) => {
     }
 
     const plans = await StudyPlan.findAll({
-      where: { status: 'draft' },
       include: [
         studentInclude,
         {
           model: PlanSubject,
-          include: [{ model: Subject }]
+          include: [{ model: Subject, attributes: ['id', 'course_code', 'title', 'units', 'year_level'] }]
         }
       ],
       order: [['id', 'DESC']]

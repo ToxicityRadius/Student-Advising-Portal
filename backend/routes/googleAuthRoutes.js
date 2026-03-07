@@ -6,7 +6,6 @@ const { Curriculum } = require('../models');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/jwt');
 const { sendVerificationCode } = require('../utils/email');
-const { generateDraftStudyPlanForUser } = require('../controllers/advisingController');
 
 // Initialize Google OAuth client
 // Replace with your actual Google Client ID
@@ -67,14 +66,7 @@ router.post('/google', async (req, res) => {
         updatedAt: Date.now()
       });
 
-      if (activeCurriculum) {
-        try {
-          await generateDraftStudyPlanForUser(user.id);
-        } catch (planError) {
-          console.warn(`Draft plan generation failed for Google user ${user.id}:`, planError.message);
-        }
-      }
-      
+
     } else if (!user.isActive) {
       // Auto-activate user when they sign in with Google (verified identity)
       await User.update({

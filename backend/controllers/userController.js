@@ -1,5 +1,6 @@
-const { User } = require('../models');
+const { User, StudyPlan } = require('../models');
 const { generateToken } = require('../utils/jwt');
+const { generateDraftStudyPlanForUser } = require('./advisingController');
 
 // Helper: strip sensitive fields from a user plain object
 function sanitizeUser(user) {
@@ -384,6 +385,18 @@ exports.updateProfile = async (req, res, next) => {
 
     Object.assign(user, updatePayload);
     await user.save();
+
+    if (user.role === 'student' && user.program) {
+      try {
+        const existingPlans = await StudyPlan.count({ where: { UserId: user.id } });
+        if (existingPlans === 0) {
+          // Generate the first draft only after profile completion provides program data.
+          await generateDraftStudyPlanForUser(user.id);
+        }
+      } catch (planError) {
+        console.error('Auto-generation after profile completion failed:', planError);
+      }
+    }
 
     const token = generateToken(user);
 
