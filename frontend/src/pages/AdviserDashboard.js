@@ -5,6 +5,7 @@ import {
   Button,
   Col,
   Container,
+  Form,
   Modal,
   Row,
   Spinner,
@@ -12,7 +13,6 @@ import {
   Tab,
   Tabs
 } from 'react-bootstrap';
-import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 
 function getStudentName(student) {
@@ -45,20 +45,46 @@ function formatStatus(status) {
 }
 
 const AdviserDashboard = () => {
-  const navigate = useNavigate();
   const [plans, setPlans] = useState([]);
+  const [allSubjects, setAllSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const [newSubjectId, setNewSubjectId] = useState('');
+  const [newTargetTerm, setNewTargetTerm] = useState('');
+
+  const termOptions = useMemo(() => {
+    const terms = [];
+    for (let year = 1; year <= 5; year += 1) {
+      terms.push(`Year ${year} - 1st Semester`);
+      terms.push(`Year ${year} - 2nd Semester`);
+      terms.push(`Year ${year} - Summer`);
+    }
+    return terms;
+  }, []);
 
   const fetchPlans = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
-      const response = await api.get('/advising/pending');
-      setPlans(response.data?.data || []);
+      const [plansResponse, subjectsResponse] = await Promise.all([
+        api.get('/advising/pending'),
+        api.get('/curriculum/subjects')
+      ]);
+
+      const freshPlans = plansResponse.data?.data || [];
+      setPlans(freshPlans);
+      setAllSubjects(subjectsResponse.data?.data || []);
+
+      setSelectedPlan(prev => {
+        if (!prev) return prev;
+        return freshPlans.find(plan => plan.id === prev.id) || null;
+      });
+
+      return freshPlans;
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load adviser study plans.');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -112,6 +138,36 @@ const AdviserDashboard = () => {
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to approve plan.');
+    }
+  };
+
+  const handleAddSubject = async () => {
+    if (!selectedPlan || !newSubjectId || !newTargetTerm) return;
+
+    try {
+      setError('');
+      await api.post(`/advising/plan/${selectedPlan.id}/add-subject`, {
+        SubjectId: Number(newSubjectId),
+        target_term: newTargetTerm
+      });
+
+      await fetchPlans();
+      setNewSubjectId('');
+      setNewTargetTerm('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to add subject to plan.');
+    }
+  };
+
+  const handleRemoveSubject = async (subjectId) => {
+    if (!selectedPlan || !subjectId) return;
+
+    try {
+      setError('');
+      await api.delete(`/advising/plan/${selectedPlan.id}/remove-subject/${subjectId}`);
+      await fetchPlans();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to remove subject from plan.');
     }
   };
 
@@ -285,6 +341,16 @@ const AdviserDashboard = () => {
                                   {selectedPlan.status === 'voided_due_to_failure' && failedSubjectIds.includes(subject?.id) && (
                                     <Badge bg="danger" className="ms-2">Failed - Caused Void</Badge>
                                   )}
+                                  {selectedPlan.status !== 'voided_due_to_failure' && !planSubject.is_historical && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline-danger"
+                                      className="ms-2 py-0 px-2"
+                                      onClick={() => handleRemoveSubject(subject?.id)}
+                                    >
+                                      Remove
+                                    </Button>
+                                  )}
                                 </td>
                                 <td>{subject?.units ?? 'N/A'}</td>
                               </tr>
@@ -295,6 +361,48 @@ const AdviserDashboard = () => {
                     </div>
                   ));
                 })()}
+
+                {selectedPlan.status !== 'voided_due_to_failure' && (
+                  <div className="mt-3">
+                    <h6 className="mb-2">Add Subject</h6>
+                    <Row className="g-2 align-items-end">
+                      <Col md={5}>
+                        <Form.Select
+                          value={newSubjectId}
+                          onChange={(e) => setNewSubjectId(e.target.value)}
+                        >
+                          <option value="">Select subject</option>
+                          {allSubjects.map(sub => (
+                            <option key={sub.id} value={sub.id}>
+                              {sub.course_code} - {sub.title}
+                            </option>
+                          ))}
+                        </Form.Select>
+                      </Col>
+                      <Col md={4}>
+                        <Form.Select
+                          value={newTargetTerm}
+                          onChange={(e) => setNewTargetTerm(e.target.value)}
+                        >
+                          <option value="">Select target term</option>
+                          {termOptions.map(term => (
+                            <option key={term} value={term}>{term}</option>
+                          ))}
+                        </Form.Select>
+                      </Col>
+                      <Col md={3}>
+                        <Button
+                          variant="primary"
+                          className="w-100"
+                          disabled={!newSubjectId || !newTargetTerm}
+                          onClick={handleAddSubject}
+                        >
+                          Add to Plan
+                        </Button>
+                      </Col>
+                    </Row>
+                  </div>
+                )}
               </Col>
             </Row>
           )}
@@ -302,12 +410,6 @@ const AdviserDashboard = () => {
         <Modal.Footer>
           {selectedPlan?.status !== 'voided_due_to_failure' && (
             <>
-              <Button
-                variant="primary"
-                onClick={() => navigate(`/study-plan?studentId=${selectedPlan.Student?.id}`)}
-              >
-                Edit Plan
-              </Button>
               {selectedPlan?.status !== 'approved' && (
                 <Button variant="success" onClick={() => handleApprove(selectedPlan.id)}>
                   Approve Plan

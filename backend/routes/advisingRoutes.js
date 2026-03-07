@@ -7,7 +7,9 @@ const {
   generateContingencyPlan,
   getPendingPlans,
   approvePlan,
-  modifyPlan
+  modifyPlan,
+  addSubjectToPlan,
+  removeSubjectFromPlan
 } = require('../controllers/advisingController');
 
 // All routes require authentication
@@ -34,5 +36,9 @@ router.put('/plan/:id/approve', authorize('adviser', 'admin'), approvePlan);
 
 // Adviser/Admin: modify a draft study plan
 router.put('/plan/:id/modify', authorize('adviser', 'admin'), modifyPlan);
+
+// Adviser/Admin: inline subject operations inside adviser 360 modal
+router.post('/plan/:planId/add-subject', authorize('admin', 'adviser'), addSubjectToPlan);
+router.delete('/plan/:planId/remove-subject/:subjectId', authorize('admin', 'adviser'), removeSubjectFromPlan);
 
 module.exports = router;

@@ -424,3 +424,87 @@ exports.modifyPlan = async (req, res, next) => {
     next(error);
   }
 };
+
+// ──────────────── Inline Study Plan Subject Editing (Adviser/Admin) ────────────────
+
+exports.addSubjectToPlan = async (req, res) => {
+  try {
+    const { planId } = req.params;
+    const { SubjectId, target_term } = req.body;
+
+    if (!SubjectId || !target_term) {
+      return res.status(400).json({ message: 'SubjectId and target_term are required' });
+    }
+
+    const plan = await StudyPlan.findByPk(planId);
+    if (!plan) {
+      return res.status(404).json({ message: 'Plan not found' });
+    }
+
+    if (req.user.role === 'adviser') {
+      const advisee = await User.findOne({ where: { id: plan.UserId, adviserId: req.user.id, role: 'student' } });
+      if (!advisee) {
+        return res.status(403).json({ message: 'You are not authorized to edit this plan' });
+      }
+    }
+
+    if (plan.status === 'voided_due_to_failure') {
+      return res.status(403).json({ message: 'Cannot edit voided plans' });
+    }
+
+    const existing = await PlanSubject.findOne({
+      where: { StudyPlanId: planId, SubjectId: Number(SubjectId) }
+    });
+
+    if (existing) {
+      existing.target_term = target_term;
+      existing.projected_term = target_term;
+      await existing.save();
+    } else {
+      await PlanSubject.create({
+        StudyPlanId: Number(planId),
+        SubjectId: Number(SubjectId),
+        target_term,
+        projected_term: target_term,
+        is_historical: false
+      });
+    }
+
+    return res.json({ message: 'Subject added' });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+exports.removeSubjectFromPlan = async (req, res) => {
+  try {
+    const { planId, subjectId } = req.params;
+
+    const plan = await StudyPlan.findByPk(planId);
+    if (!plan) {
+      return res.status(404).json({ message: 'Plan not found' });
+    }
+
+    if (req.user.role === 'adviser') {
+      const advisee = await User.findOne({ where: { id: plan.UserId, adviserId: req.user.id, role: 'student' } });
+      if (!advisee) {
+        return res.status(403).json({ message: 'You are not authorized to edit this plan' });
+      }
+    }
+
+    if (plan.status === 'voided_due_to_failure') {
+      return res.status(403).json({ message: 'Cannot edit voided plans' });
+    }
+
+    await PlanSubject.destroy({
+      where: {
+        StudyPlanId: Number(planId),
+        SubjectId: Number(subjectId)
+      }
+    });
+
+    return res.json({ message: 'Removed' });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
