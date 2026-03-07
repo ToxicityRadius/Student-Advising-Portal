@@ -44,144 +44,156 @@ async function generateDraftStudyPlanForUser(userId) {
     throw error;
   }
 
-  const verifiedGrades = await Grade.findAll({
-    where: { UserId: userId, status: 'verified' }
-  });
-
-  const passedGrades = verifiedGrades.filter(g => {
-    const gv = parseFloat(g.grade_value);
-    return gv > 0 && gv <= 3.0;
-  });
-
-  const subjects = await Subject.findAll({
-    where: { CurriculumId: student.CurriculumId },
-    include: [{ model: Prerequisite, as: 'prerequisites' }]
-  });
-
-  const projectedSubjects = [];
-  const simulatedPassed = [];
-
-  for (const grade of passedGrades) {
-    projectedSubjects.push({
-      SubjectId: grade.SubjectId,
-      projected_term: grade.term_taken || 'Previous Terms',
-      is_historical: true
-    });
-    simulatedPassed.push(grade.SubjectId);
-  }
-
-  const { currentTerm: initialTerm, currentYear: initialYear } = parseAcademicTerm(activeTerm.term_name);
-  const immediateUpcoming = getImmediateUpcomingTerm(initialTerm, initialYear);
-
-  // Seasonality override data: offerings configured for the current active academic term
-  const offeringsForActiveTerm = await CourseOffering.findAll({
-    where: { target_term: activeTerm.term_name },
-    attributes: ['SubjectId']
-  });
-  const offeredSubjectIds = new Set(
-    offeringsForActiveTerm
-      .map(offering => offering.SubjectId)
-      .filter(subjectId => Number.isInteger(subjectId))
-  );
-
-  let currentTerm = initialTerm;
-  let currentYear = initialYear;
-  let projectedYearLevel = student.current_year_level || 1;
-
-  const passedSet = new Set(simulatedPassed);
-  let remaining = subjects.filter(s => !passedSet.has(s.id));
-
-  let iterations = 0;
-  while (remaining.length > 0) {
-    iterations++;
-    if (iterations > 20) break;
-
-    const simulatedSet = new Set(simulatedPassed);
-    const isImmediateUpcomingSemester = (
-      currentTerm === immediateUpcoming.term && currentYear === immediateUpcoming.year
-    );
-
-    const eligible = remaining.filter(s => {
-      const prereqs = s.prerequisites || [];
-      const prereqsMet = prereqs.every(p => simulatedSet.has(p.required_subj_id));
-      if (!prereqsMet) return false;
-
-      const st = (s.seasonal_term || '').toLowerCase();
-      const ct = currentTerm.toLowerCase();
-      const seasonalMatch = st === ct || st === 'both' || st === 'both semesters';
-      if (seasonalMatch) return true;
-
-      return isImmediateUpcomingSemester && offeredSubjectIds.has(s.id);
-    });
-
-    eligible.sort((a, b) => a.year_level - b.year_level);
-
-    const MAX_UNITS = 21;
-    const termSubjects = [];
-    let termUnits = 0;
-
-    for (const subj of eligible) {
-      if (termUnits + subj.units > MAX_UNITS) continue;
-      termSubjects.push(subj);
-      termUnits += subj.units;
-    }
-
-    const termLabel = `Year ${projectedYearLevel} - ${currentTerm} (${currentYear}-${currentYear + 1})`;
-
-    for (const subj of termSubjects) {
-      projectedSubjects.push({
-        SubjectId: subj.id,
-        projected_term: termLabel,
-        is_historical: false
-      });
-      simulatedPassed.push(subj.id);
-    }
-
-    const placedIds = new Set(termSubjects.map(s => s.id));
-    remaining = remaining.filter(s => !placedIds.has(s.id));
-
-    if (currentTerm === '1st Semester') {
-      currentTerm = '2nd Semester';
-    } else {
-      currentTerm = '1st Semester';
-      currentYear += 1;
-      projectedYearLevel++;
-    }
-  }
-
-  const studyPlan = await StudyPlan.create({
+  const newPlan = await StudyPlan.create({
     UserId: userId,
     status: 'draft'
   });
 
-  if (projectedSubjects.length > 0) {
-    const planSubjectRows = projectedSubjects.map(ps => ({
-      StudyPlanId: studyPlan.id,
-      SubjectId: ps.SubjectId,
-      target_term: ps.projected_term,
-      projected_term: ps.projected_term,
-      is_historical: ps.is_historical
-    }));
-    await PlanSubject.bulkCreate(planSubjectRows);
+  const chronologicalTerms = [
+    'Year 1 - 1st Semester', 'Year 1 - 2nd Semester', 'Year 1 - Summer',
+    'Year 2 - 1st Semester', 'Year 2 - 2nd Semester', 'Year 2 - Summer',
+    'Year 3 - 1st Semester', 'Year 3 - 2nd Semester', 'Year 3 - Summer',
+    'Year 4 - 1st Semester', 'Year 4 - 2nd Semester', 'Year 4 - Summer',
+    'Year 5 - 1st Semester', 'Year 5 - 2nd Semester'
+  ];
+
+  let pendingSubjects = await Subject.findAll({ where: { CurriculumId: student.CurriculumId } });
+
+  // Treat explicit passed/in_progress plus verified passing grades as completed.
+  const explicitPassed = await Grade.findAll({
+    where: {
+      UserId: userId,
+      status: ['passed', 'in_progress']
+    }
+  });
+  const verifiedPassing = await Grade.findAll({ where: { UserId: userId, status: 'verified' } });
+  const verifiedPassedIds = verifiedPassing
+    .filter(g => {
+      const gv = parseFloat(g.grade_value);
+      return gv > 0 && gv <= 3.0;
+    })
+    .map(g => g.SubjectId)
+    .filter(subjectId => Number.isInteger(subjectId));
+
+  const passedIds = [...new Set([
+    ...explicitPassed.map(g => g.SubjectId),
+    ...verifiedPassedIds
+  ])];
+
+  const failedGrades = await Grade.findAll({ where: { UserId: userId, status: 'failed' } });
+  const failedSubjectIds = failedGrades.map(g => g.SubjectId).filter(subjectId => Number.isInteger(subjectId));
+  const failedSubjectSet = new Set(failedSubjectIds);
+
+  pendingSubjects = pendingSubjects.filter(s => !passedIds.includes(s.id));
+
+  // Prioritize failed retakes first, then typical curriculum progression.
+  pendingSubjects.sort((a, b) => {
+    const aFailed = failedSubjectSet.has(a.id);
+    const bFailed = failedSubjectSet.has(b.id);
+    if (aFailed && !bFailed) return -1;
+    if (!aFailed && bFailed) return 1;
+    if ((a.year_level || 0) !== (b.year_level || 0)) {
+      return (a.year_level || 0) - (b.year_level || 0);
+    }
+    return (a.course_code || '').localeCompare(b.course_code || '');
+  });
+
+  const allPrereqs = await Prerequisite.findAll();
+  const openOfferings = activeTerm
+    ? await CourseOffering.findAll({ where: { target_term: activeTerm.term_name } })
+    : [];
+  const openSubjectIds = new Set(openOfferings.map(o => o.SubjectId).filter(subjectId => Number.isInteger(subjectId)));
+
+  const projectedPassedIds = new Set(passedIds);
+  const planSubjectsToCreate = [];
+
+  // Keep completed subjects visible for adviser/student context.
+  for (const passedId of passedIds) {
+    planSubjectsToCreate.push({
+      StudyPlanId: newPlan.id,
+      SubjectId: passedId,
+      target_term: 'Previous Terms',
+      projected_term: 'Previous Terms',
+      is_historical: true
+    });
   }
 
-  const fullPlan = await StudyPlan.findByPk(studyPlan.id, {
+  for (const term of chronologicalTerms) {
+    if (pendingSubjects.length === 0) break;
+
+    let termUnits = 0;
+    const isFirstSem = term.includes('1st Semester');
+    const isSecondSem = term.includes('2nd Semester');
+    const isSummer = term.includes('Summer');
+
+    for (let i = 0; i < pendingSubjects.length; i++) {
+      const subject = pendingSubjects[i];
+      const maxUnits = isSummer ? 9 : 24;
+      const subjectUnits = Number(subject.units) || 0;
+
+      if (termUnits + subjectUnits > maxUnits) continue;
+
+      const subjectPrereqs = allPrereqs.filter(pr => pr.subject_id === subject.id);
+      const prereqsMet = subjectPrereqs.every(pr => projectedPassedIds.has(pr.required_subj_id));
+
+      const seasonal = (subject.seasonal_term || '').toLowerCase();
+      const nativeFirstSem = seasonal.includes('1st semester');
+      const nativeSecondSem = seasonal.includes('2nd semester');
+      const nativeSummer = seasonal.includes('summer');
+      const nativeBoth = seasonal === 'both' || seasonal === 'both semesters';
+
+      let seasonalityMet = false;
+      if (nativeBoth ||
+          (isFirstSem && nativeFirstSem) ||
+          (isSecondSem && nativeSecondSem) ||
+          (isSummer && nativeSummer)) {
+        seasonalityMet = true;
+      }
+
+      // Critical bypass: open offering override OR failed retake override.
+      if (openSubjectIds.has(subject.id) || failedSubjectSet.has(subject.id)) {
+        seasonalityMet = true;
+      }
+
+      if (prereqsMet && seasonalityMet) {
+        planSubjectsToCreate.push({
+          StudyPlanId: newPlan.id,
+          SubjectId: subject.id,
+          target_term: term,
+          projected_term: term,
+          is_historical: false
+        });
+        termUnits += subjectUnits;
+        projectedPassedIds.add(subject.id); // Simulate passing to cascade unlocks.
+        pendingSubjects.splice(i, 1);
+        i--;
+      }
+    }
+  }
+
+  if (planSubjectsToCreate.length > 0) {
+    await PlanSubject.bulkCreate(planSubjectsToCreate);
+  }
+
+  const fullPlan = await StudyPlan.findByPk(newPlan.id, {
     include: [{
       model: PlanSubject,
       include: [{ model: Subject }]
     }]
   });
 
-  const totalUnits = projectedSubjects.reduce((sum, ps) => {
-    const subj = subjects.find(s => s.id === ps.SubjectId);
-    return sum + (subj ? subj.units : 0);
+  const subjectById = new Map((await Subject.findAll({ where: { CurriculumId: student.CurriculumId } }))
+    .map(s => [s.id, s]));
+  const totalUnits = planSubjectsToCreate.reduce((sum, ps) => {
+    const subj = subjectById.get(ps.SubjectId);
+    return sum + (subj ? (Number(subj.units) || 0) : 0);
   }, 0);
 
   return {
     plan: fullPlan,
     summary: {
       term: activeTerm.term_name,
-      totalSubjects: projectedSubjects.length,
+      totalSubjects: planSubjectsToCreate.length,
       totalUnits
     }
   };
