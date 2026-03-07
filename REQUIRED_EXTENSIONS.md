@@ -19,6 +19,8 @@
 - **react-dom:** ^18.2.0 - React DOM rendering
 - **react-router-dom:** ^6.20.1 - Client-side routing
 - **react-scripts:** ^5.0.1 - React development scripts
+- **react-bootstrap:** ^2.10.10 - Bootstrap React components
+- **bootstrap:** ^5.3.8 - CSS framework
 - **axios:** ^1.6.2 - HTTP client for API calls
 - **@react-oauth/google:** ^0.13.4 - Google OAuth integration
 - **jwt-decode:** ^4.0.0 - Decode JWT tokens
@@ -197,7 +199,7 @@ npm --version
    - Backend: Set JWT secret, email credentials, Google OAuth Client ID
    - Frontend: Set Google Client ID (if needed)
 7. Database is hosted on Supabase (PostgreSQL) - connection string in `.env`
-8. Review [GOOGLE_OAUTH_SETUP.md](../GOOGLE_OAUTH_SETUP.md) for OAuth configuration
+8. Review [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md) for OAuth configuration
 9. Start development!
 
 ---

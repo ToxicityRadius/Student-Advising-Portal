@@ -6,8 +6,6 @@ A comprehensive student advising system with user authentication, role-based acc
 
 - **[README.md](README.md)** - Main documentation (you are here)
 - **[GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md)** - Google OAuth configuration guide
-- **[FACULTY_INVITATION_SYSTEM.md](FACULTY_INVITATION_SYSTEM.md)** - Complete faculty invitation system documentation
-- **[FACULTY_INVITATION_QUICKSTART.md](FACULTY_INVITATION_QUICKSTART.md)** - Quick start guide for admins and faculty
 - **[REQUIRED_EXTENSIONS.md](REQUIRED_EXTENSIONS.md)** - VS Code extensions and project dependencies
 
 ## Features
@@ -30,6 +28,27 @@ A comprehensive student advising system with user authentication, role-based acc
 - ✅ User Status Management (Active/Inactive)
 - ✅ Automatic Student role assignment on registration
 - ✅ Faculty Invitation System (secure role assignment)
+
+## UI & Design
+
+### Public Pages (Landing, About Us, Purpose)
+- **Glassmorphism Navbar**: Fixed, semi-transparent frosted-glass bar (`rgba(255,255,255,0.6)` + `backdrop-filter: blur(20px)`) with rounded corners, floats 8px from the viewport top, max-width 1200px centered. Navigation links are black with a yellow (`#FFC107`) active underline.
+- **Authenticated Navbar**: Dark (`#111`) sticky bar with yellow accent border, used on Dashboard, Manage Users, and all app pages.
+
+### Login — Role Selector
+- Opening screen shows a white rounded card with the **Student Advising logo** (`STUDENT ADVISING LOGO 1.png`) at the top followed by a "Welcome Back!" heading.
+- Two selector cards side-by-side:
+  - **Student** — uses `student yellow.png` icon
+  - **Instructor** — uses `teacher yellow.png` icon
+- Cards scale up and highlight in yellow on hover.
+
+### About Us Page
+- Full-viewport carousel of developer cards with frosted background.
+- Title `MEET THE DEVELOPERS` has top padding to clear the fixed navbar.
+- Footer displays the Student Advising logo.
+
+### Purpose Page
+- Footer logo size is 120px.
 
 ## Tech Stack
 
@@ -56,42 +75,66 @@ Student Advising/
 ├── backend/
 │   ├── controllers/
 │   │   ├── authController.js
+│   │   ├── invitationController.js
 │   │   └── userController.js
+│   ├── database/
+│   │   └── db.js
 │   ├── middleware/
 │   │   └── auth.js
 │   ├── models/
+│   │   ├── Invitation.js
 │   │   └── User.js
 │   ├── routes/
 │   │   ├── authRoutes.js
 │   │   ├── googleAuthRoutes.js
+│   │   ├── invitationRoutes.js
 │   │   └── userRoutes.js
 │   ├── utils/
 │   │   ├── email.js
 │   │   └── jwt.js
-│   ├── .env.example
+│   ├── add-2fa-columns.js
+│   ├── add-studentId-column.js
 │   ├── package.json
 │   └── server.js
 └── frontend/
     ├── public/
-    │   └── index.html
+    │   ├── index.html
+    │   └── logo_sa.png
     ├── src/
+    │   ├── assets/
+    │   │   └── images/
+    │   │       ├── bg.png
+    │   │       ├── casal.png
+    │   │       ├── tip logo.png
+    │   │       ├── STUDENT ADVISING LOGO 1.png
+    │   │       ├── student yellow.png
+    │   │       └── teacher yellow.png
     │   ├── components/
+    │   │   ├── InviteFaculty.js
     │   │   ├── Navbar.js
-    │   │   └── PrivateRoute.js
+    │   │   ├── PendingInvitations.js
+    │   │   ├── PrivateRoute.js
+    │   │   └── StudentIdModal.js
     │   ├── context/
     │   │   └── AuthContext.js
     │   ├── pages/
+    │   │   ├── AboutUs.js / AboutUs.css
     │   │   ├── ActivateAccount.js
     │   │   ├── Dashboard.js
+    │   │   ├── FacultyRegister.js
+    │   │   ├── ForgotPassword.js
+    │   │   ├── Landing.js / Landing.css
     │   │   ├── Login.js
     │   │   ├── ManageUsers.js
-    │   │   └── Register.js
+    │   │   ├── Purpose.js / Purpose.css
+    │   │   ├── Register.js
+    │   │   ├── ResetPassword.js
+    │   │   └── VerifyCode.js
     │   ├── utils/
     │   │   └── api.js
     │   ├── App.js
     │   ├── index.css
     │   └── index.js
-    ├── .env.example
     └── package.json
 ```
 

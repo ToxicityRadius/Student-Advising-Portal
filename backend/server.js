@@ -13,7 +13,6 @@ require('./database/db');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const googleAuthRoutes = require('./routes/googleAuthRoutes');
-const invitationRoutes = require('./routes/invitationRoutes');
 
 const app = express();
 
@@ -42,7 +41,6 @@ app.use(cors({
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', googleAuthRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/admin', invitationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
