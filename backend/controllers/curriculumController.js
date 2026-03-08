@@ -134,7 +134,7 @@ exports.deleteCurriculum = async (req, res, next) => {
 
 exports.createSubject = async (req, res, next) => {
   try {
-    const { curriculumId, course_code, title, units, seasonal_term, year_level } = req.body;
+    const { curriculumId, course_code, title, units, lecture_hours, laboratory_hours, seasonal_term, year_level } = req.body;
 
     if (!curriculumId || !course_code || !title) {
       return res.status(400).json({
@@ -153,6 +153,8 @@ exports.createSubject = async (req, res, next) => {
       CurriculumId: curriculumId,
       course_code,
       title,
+      lecture_hours: lecture_hours != null ? lecture_hours : 0,
+      laboratory_hours: laboratory_hours != null ? laboratory_hours : 0,
       units: units || 3,
       seasonal_term: seasonal_term || null,
       year_level: year_level || 1
@@ -182,7 +184,7 @@ exports.getSubjectsByCurriculum = async (req, res, next) => {
 exports.updateSubject = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { course_code, title, units, seasonal_term, curriculumId, year_level } = req.body;
+    const { course_code, title, units, lecture_hours, laboratory_hours, seasonal_term, curriculumId, year_level } = req.body;
 
     const subject = await Subject.findByPk(id);
     if (!subject) {
@@ -190,6 +192,8 @@ exports.updateSubject = async (req, res, next) => {
     }
 
     const updateData = { course_code, title, units, seasonal_term };
+    if (lecture_hours !== undefined) updateData.lecture_hours = lecture_hours;
+    if (laboratory_hours !== undefined) updateData.laboratory_hours = laboratory_hours;
     if (curriculumId !== undefined) {
       updateData.CurriculumId = curriculumId;
     }

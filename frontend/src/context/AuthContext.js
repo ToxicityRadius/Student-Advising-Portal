@@ -34,7 +34,13 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   }, []);
 
+  const lastResetTime = useRef(0);
+  const THROTTLE_MS = 30000; // only reset timer every 30s at most
+
   const resetInactivityTimer = useCallback(() => {
+    const now = Date.now();
+    if (now - lastResetTime.current < THROTTLE_MS) return;
+    lastResetTime.current = now;
     clearInactivityTimer();
     inactivityTimer.current = setTimeout(() => {
       doLogout();
@@ -110,6 +116,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     checkAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkAuth = async () => {

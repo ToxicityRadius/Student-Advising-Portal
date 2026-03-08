@@ -13,6 +13,16 @@ const Subject = sequelize.define('Subject', {
   title: {
     type: DataTypes.STRING
   },
+  lecture_hours: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    defaultValue: 0
+  },
+  laboratory_hours: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    defaultValue: 0
+  },
   units: {
     type: DataTypes.INTEGER
   },

@@ -11,9 +11,11 @@ const { sendVerificationCode } = require('../utils/email');
 // Replace with your actual Google Client ID
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Helper: generate a random 6-digit verification code
+const crypto = require('crypto');
+
+// Helper: generate a cryptographically secure 6-digit verification code
 function generateVerificationCode() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 // Google Sign-In route
@@ -69,7 +71,7 @@ router.post('/google', async (req, res) => {
         lastName: parsedLastName,
         first_name: parsedFirstName,
         last_name: parsedLastName,
-        email: payload.email,
+        email: googleEmail,
         role: selectedRole === 'faculty' ? 'adviser' : 'student',
         CurriculumId: activeCurriculum ? activeCurriculum.id : null,
         isActive: true,

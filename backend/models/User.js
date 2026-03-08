@@ -116,7 +116,14 @@ const User = sequelize.define('User', {
   }
 }, {
   tableName: 'users',
-  timestamps: false
+  timestamps: false,
+  indexes: [
+    { fields: ['email'], unique: true },
+    { fields: ['CurriculumId'] },
+    { fields: ['adviserId'] },
+    { fields: ['role'] },
+    { fields: ['studentId'], unique: true }
+  ]
 });
 
 module.exports = User;

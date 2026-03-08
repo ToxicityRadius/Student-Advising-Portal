@@ -34,7 +34,14 @@ const Grade = sequelize.define('Grade', {
   }
 }, {
   tableName: 'grades',
-  timestamps: false
+  timestamps: false,
+  indexes: [
+    { fields: ['UserId'] },
+    { fields: ['SubjectId'] },
+    { fields: ['status'] },
+    { fields: ['UserId', 'status'] },
+    { fields: ['UserId', 'SubjectId'] }
+  ]
 });
 
 module.exports = Grade;

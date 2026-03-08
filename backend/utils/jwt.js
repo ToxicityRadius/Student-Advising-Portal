@@ -68,8 +68,8 @@ exports.verifyRefreshToken = (token) => {
 
 // Send token response with refresh token
 exports.sendTokenResponse = (user, statusCode, res) => {
-  const token = this.generateToken(user);
-  const refreshToken = this.generateRefreshToken(user.id || user._id);
+  const token = exports.generateToken(user);
+  const refreshToken = exports.generateRefreshToken(user.id || user._id);
 
   const tokenExpiry = process.env.JWT_EXPIRE || '7d';
   const expiryTime = tokenExpiry.endsWith('d')

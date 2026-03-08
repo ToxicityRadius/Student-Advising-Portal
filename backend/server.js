@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const helmet = require('helmet');
+const morgan = require('morgan');
 const dotenv = require('dotenv');
 
 // Load environment variables
@@ -24,8 +26,10 @@ const courseOfferingRoutes = require('./routes/courseOfferingRoutes');
 const app = express();
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(helmet());
+app.use(morgan('combined'));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
 // Support multiple allowed origins via comma-separated CLIENT_URL
 const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000')
@@ -56,8 +60,9 @@ app.use('/api/advising', advisingRoutes);
 app.use('/api/forecasting', forecastingRoutes);
 app.use('/api/course-offerings', courseOfferingRoutes);
 
-// Serve uploaded files
-app.use('/uploads', express.static('uploads'));
+// Serve uploaded files (authenticated)
+const { protect } = require('./middleware/auth');
+app.use('/uploads', protect, express.static('uploads'));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -76,11 +81,18 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 // Sync database and start server
-sequelize.sync({ alter: { drop: false } }).then(() => {
-  console.log('Database synced successfully');
+const syncOptions = process.env.NODE_ENV === 'production'
+  ? {} // production: authenticate only, use migrations
+  : { alter: { drop: false } }; // dev: auto-alter tables
+
+(process.env.NODE_ENV === 'production'
+  ? sequelize.authenticate()
+  : sequelize.sync(syncOptions)
+).then(() => {
+  console.log('Database connected successfully');
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
 }).catch((err) => {
-  console.error('Failed to sync database:', err);
+  console.error('Failed to connect to database:', err);
 });

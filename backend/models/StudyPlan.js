@@ -12,7 +12,12 @@ const StudyPlan = sequelize.define('StudyPlan', {
   }
 }, {
   tableName: 'study_plans',
-  timestamps: false
+  timestamps: false,
+  indexes: [
+    { fields: ['UserId'] },
+    { fields: ['status'] },
+    { fields: ['UserId', 'status'] }
+  ]
 });
 
 module.exports = StudyPlan;

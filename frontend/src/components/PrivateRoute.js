@@ -1,9 +1,10 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const PrivateRoute = ({ children, adminOnly = false, roles = [] }) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return <div className="loading">Loading...</div>;
@@ -28,7 +29,7 @@ const PrivateRoute = ({ children, adminOnly = false, roles = [] }) => {
     needsProfile = true;
   }
 
-  if (needsProfile && window.location.pathname !== '/complete-profile') {
+  if (needsProfile && location.pathname !== '/complete-profile') {
     return <Navigate to="/complete-profile" replace />;
   }
 

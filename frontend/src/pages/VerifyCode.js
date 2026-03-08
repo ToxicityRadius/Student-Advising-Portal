@@ -132,7 +132,7 @@ const VerifyCode = () => {
     setError('');
 
     try {
-      const { data } = await api.post('/auth/resend-code', { userId });
+      await api.post('/auth/resend-code', { userId });
       setCountdown(60); // 60 second cooldown
       setCode(['', '', '', '', '', '']);
       document.getElementById('code-input-0')?.focus();

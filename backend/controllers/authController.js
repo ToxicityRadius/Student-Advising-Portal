@@ -5,9 +5,9 @@ const { Op } = require('sequelize');
 const { sendTokenResponse } = require('../utils/jwt');
 const { sendActivationEmail, sendVerificationCode } = require('../utils/email');
 
-// Helper: generate a random 6-digit verification code
+// Helper: generate a cryptographically secure 6-digit verification code
 function generateVerificationCode() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 // Helper: strip sensitive fields from a user plain object
@@ -31,6 +31,29 @@ exports.register = async (req, res, next) => {
   try {
     const { studentId, firstName, lastName, email, password, role: requestedRole } = req.body;
     const isFaculty = requestedRole === 'adviser';
+
+    // Validate required fields
+    if (!firstName || !lastName || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide all required fields'
+      });
+    }
+
+    // Validate password strength
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters'
+      });
+    }
+
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
+      });
+    }
 
     // Validate Student ID format (7 digits only) - only for students
     if (!isFaculty && studentId && (!/^\d{7}$/.test(studentId))) {
@@ -56,8 +79,8 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    // Check if user exists
-    const existingUser = await User.findOne({ where: { email } });
+    // Check if user exists (case-insensitive)
+    const existingUser = await User.findOne({ where: { email: email.toLowerCase() } });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -83,7 +106,7 @@ exports.register = async (req, res, next) => {
       lastName,
       first_name: firstName || null,
       last_name: lastName || null,
-      email,
+      email: email.toLowerCase(),
       password: hashedPassword,
       role: isFaculty ? 'adviser' : 'student',
       CurriculumId: !isFaculty && activeCurriculum ? activeCurriculum.id : null,
@@ -173,8 +196,8 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Check for user
-    const user = await User.findOne({ where: { email } });
+    // Check for user (case-insensitive)
+    const user = await User.findOne({ where: { email: emailLower } });
 
     if (!user) {
       return res.status(401).json({
@@ -403,10 +426,9 @@ exports.forgotPassword = async (req, res, next) => {
     const user = await User.findOne({ where: { email } });
 
     if (!user) {
-      // Don't reveal if user exists or not for security
-      return res.status(200).json({
-        success: true,
-        message: 'If that email exists, a password reset link has been sent.'
+      return res.status(404).json({
+        success: false,
+        message: 'No account found with that email address.'
       });
     }
 

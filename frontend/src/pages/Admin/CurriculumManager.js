@@ -33,6 +33,8 @@ const CurriculumManager = () => {
     curriculumId: '',
     course_code: '',
     title: '',
+    lecture_hours: 0,
+    laboratory_hours: 0,
     units: 3,
     seasonal_term: '',
     year_level: 1
@@ -137,7 +139,7 @@ const CurriculumManager = () => {
         flash('Subject created');
       }
       setShowSubjForm(false);
-      setSubjForm({ curriculumId: '', course_code: '', title: '', units: 3, seasonal_term: '', year_level: 1 });
+      setSubjForm({ curriculumId: '', course_code: '', title: '', lecture_hours: 0, laboratory_hours: 0, units: 3, seasonal_term: '', year_level: 1 });
       setEditingSubjId(null);
       fetchCurriculums();
     } catch (err) {
@@ -150,6 +152,8 @@ const CurriculumManager = () => {
       curriculumId: s.CurriculumId,
       course_code: s.course_code,
       title: s.title,
+      lecture_hours: s.lecture_hours || 0,
+      laboratory_hours: s.laboratory_hours || 0,
       units: s.units,
       seasonal_term: s.seasonal_term || '',
       year_level: s.year_level || 1
@@ -171,7 +175,7 @@ const CurriculumManager = () => {
   };
 
   const openAddSubject = (currId) => {
-    setSubjForm({ curriculumId: currId, course_code: '', title: '', units: 3, seasonal_term: '', year_level: 1 });
+    setSubjForm({ curriculumId: currId, course_code: '', title: '', lecture_hours: 0, laboratory_hours: 0, units: 3, seasonal_term: '', year_level: 1 });
     setEditingSubjId(null);
     setShowSubjForm(true);
   };
@@ -213,6 +217,7 @@ const CurriculumManager = () => {
   };
 
   // ── Delete Prerequisite ──
+  // eslint-disable-next-line no-unused-vars
   const removePrerequisite = async (id) => {
     clearMessages();
     try {
@@ -324,10 +329,11 @@ const CurriculumManager = () => {
                                   <thead>
                                     <tr>
                                       <th>Code</th>
-                                      <th>Title</th>
+                                      <th>Descriptive Title</th>
+                                      <th>Lec Hrs</th>
+                                      <th>Lab Hrs</th>
                                       <th>Units</th>
-                                      <th>Year</th>
-                                      <th>Term</th>
+                                      <th>Prerequisite(s)</th>
                                       <th style={{ width: '140px' }}>Actions</th>
                                     </tr>
                                   </thead>
@@ -337,9 +343,17 @@ const CurriculumManager = () => {
                                         <tr>
                                           <td>{s.course_code}</td>
                                           <td>{s.title}</td>
+                                          <td>{s.lecture_hours || 0}</td>
+                                          <td>{s.laboratory_hours || 0}</td>
                                           <td>{s.units}</td>
-                                          <td><Badge bg="info">{s.year_level ? `Year ${s.year_level}` : '—'}</Badge></td>
-                                          <td>{s.seasonal_term || '—'}</td>
+                                          <td>
+                                            {s.prerequisites && s.prerequisites.length > 0
+                                              ? s.prerequisites.map(p =>
+                                                  p.RequiredSubject ? p.RequiredSubject.course_code : `ID ${p.required_subj_id}`
+                                                ).join(', ')
+                                              : <span className="text-muted">None</span>
+                                            }
+                                          </td>
                                           <td>
                                             <Button size="sm" variant="outline-primary" className="me-1" onClick={() => editSubject(s)}>
                                               Edit
@@ -349,37 +363,10 @@ const CurriculumManager = () => {
                                             </Button>
                                           </td>
                                         </tr>
-                                        {/* Prerequisites & Equivalencies nested row */}
-                                        {((s.prerequisites && s.prerequisites.length > 0) ||
-                                          (s.equivalencies && s.equivalencies.length > 0)) && (
+                                        {/* Equivalencies nested row */}
+                                        {(s.equivalencies && s.equivalencies.length > 0) && (
                                           <tr>
-                                            <td colSpan="6" className="ps-4 py-1" style={{ backgroundColor: '#f8f9fa' }}>
-                                              {s.prerequisites && s.prerequisites.length > 0 && (
-                                                <div className="mb-1">
-                                                  <small className="text-muted me-2">Prerequisites:</small>
-                                                  {s.prerequisites.map(p => (
-                                                    <Badge
-                                                      key={p.id}
-                                                      bg="info"
-                                                      className="me-1"
-                                                      style={{ fontSize: '0.8em' }}
-                                                    >
-                                                      {p.RequiredSubject
-                                                        ? p.RequiredSubject.course_code
-                                                        : `ID ${p.required_subj_id}`}
-                                                      <span
-                                                        role="button"
-                                                        className="ms-1"
-                                                        style={{ cursor: 'pointer' }}
-                                                        onClick={() => removePrerequisite(p.id)}
-                                                        title="Remove prerequisite"
-                                                      >
-                                                        &times;
-                                                      </span>
-                                                    </Badge>
-                                                  ))}
-                                                </div>
-                                              )}
+                                            <td colSpan="7" className="ps-4 py-1" style={{ backgroundColor: '#f8f9fa' }}>
                                               {s.equivalencies && s.equivalencies.length > 0 && (
                                                 <div>
                                                   <small className="text-muted me-2">Equivalencies:</small>
@@ -490,7 +477,7 @@ const CurriculumManager = () => {
               />
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Title</Form.Label>
+              <Form.Label>Descriptive Title</Form.Label>
               <Form.Control
                 type="text"
                 placeholder="e.g. Introduction to Programming"
@@ -502,7 +489,29 @@ const CurriculumManager = () => {
             <Row>
               <Col>
                 <Form.Group className="mb-3">
-                  <Form.Label>Units</Form.Label>
+                  <Form.Label>Lecture Hours</Form.Label>
+                  <Form.Control
+                    type="number"
+                    min="0"
+                    value={subjForm.lecture_hours}
+                    onChange={e => setSubjForm({ ...subjForm, lecture_hours: Number(e.target.value) })}
+                  />
+                </Form.Group>
+              </Col>
+              <Col>
+                <Form.Group className="mb-3">
+                  <Form.Label>Laboratory Hours</Form.Label>
+                  <Form.Control
+                    type="number"
+                    min="0"
+                    value={subjForm.laboratory_hours}
+                    onChange={e => setSubjForm({ ...subjForm, laboratory_hours: Number(e.target.value) })}
+                  />
+                </Form.Group>
+              </Col>
+              <Col>
+                <Form.Group className="mb-3">
+                  <Form.Label>Credit Units</Form.Label>
                   <Form.Control
                     type="number"
                     min="1"
@@ -511,6 +520,8 @@ const CurriculumManager = () => {
                   />
                 </Form.Group>
               </Col>
+            </Row>
+            <Row>
               <Col>
                 <Form.Group className="mb-3">
                   <Form.Label>Seasonal Term</Form.Label>

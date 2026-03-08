@@ -59,32 +59,39 @@ async function generateDraftStudyPlanForUser(userId) {
 
   let pendingSubjects = await Subject.findAll({ where: { CurriculumId: student.CurriculumId } });
 
-  // Treat explicit passed/in_progress plus verified passing grades as completed.
-  const explicitPassed = await Grade.findAll({
-    where: {
-      UserId: userId,
-      status: ['passed', 'in_progress']
-    }
-  });
-  const verifiedPassing = await Grade.findAll({ where: { UserId: userId, status: 'verified' } });
-  const verifiedPassedIds = verifiedPassing
-    .filter(g => {
+  // Build subject lookup map once (reused later for unit totals)
+  const subjectById = new Map(pendingSubjects.map(s => [s.id, s]));
+  const subjectIds = pendingSubjects.map(s => s.id);
+
+  // Fetch all grade-related data in parallel
+  const [allGrades, allPrereqs, openOfferings] = await Promise.all([
+    Grade.findAll({ where: { UserId: userId } }),
+    Prerequisite.findAll({ where: { subject_id: subjectIds } }),
+    activeTerm
+      ? CourseOffering.findAll({ where: { target_term: activeTerm.term_name } })
+      : Promise.resolve([])
+  ]);
+
+  // Partition grades by status
+  const passedIds = [];
+  const failedSubjectIds = [];
+  for (const g of allGrades) {
+    if (g.status === 'passed' || g.status === 'in_progress') {
+      passedIds.push(g.SubjectId);
+    } else if (g.status === 'verified') {
       const gv = parseFloat(g.grade_value);
-      return gv > 0 && gv <= 3.0;
-    })
-    .map(g => g.SubjectId)
-    .filter(subjectId => Number.isInteger(subjectId));
+      if (gv > 0 && gv <= 3.0 && Number.isInteger(g.SubjectId)) {
+        passedIds.push(g.SubjectId);
+      }
+    } else if (g.status === 'failed' && Number.isInteger(g.SubjectId)) {
+      failedSubjectIds.push(g.SubjectId);
+    }
+  }
 
-  const passedIds = [...new Set([
-    ...explicitPassed.map(g => g.SubjectId),
-    ...verifiedPassedIds
-  ])];
-
-  const failedGrades = await Grade.findAll({ where: { UserId: userId, status: 'failed' } });
-  const failedSubjectIds = failedGrades.map(g => g.SubjectId).filter(subjectId => Number.isInteger(subjectId));
+  const passedIdSet = new Set(passedIds);
   const failedSubjectSet = new Set(failedSubjectIds);
 
-  pendingSubjects = pendingSubjects.filter(s => !passedIds.includes(s.id));
+  pendingSubjects = pendingSubjects.filter(s => !passedIdSet.has(s.id));
 
   // Prioritize failed retakes first, then typical curriculum progression.
   pendingSubjects.sort((a, b) => {
@@ -98,17 +105,13 @@ async function generateDraftStudyPlanForUser(userId) {
     return (a.course_code || '').localeCompare(b.course_code || '');
   });
 
-  const allPrereqs = await Prerequisite.findAll();
-  const openOfferings = activeTerm
-    ? await CourseOffering.findAll({ where: { target_term: activeTerm.term_name } })
-    : [];
   const openSubjectIds = new Set(openOfferings.map(o => o.SubjectId).filter(subjectId => Number.isInteger(subjectId)));
 
-  const projectedPassedIds = new Set(passedIds);
+  const projectedPassedIds = new Set(passedIdSet);
   const planSubjectsToCreate = [];
 
   // Keep completed subjects visible for adviser/student context.
-  for (const passedId of passedIds) {
+  for (const passedId of passedIdSet) {
     planSubjectsToCreate.push({
       StudyPlanId: newPlan.id,
       SubjectId: passedId,
@@ -182,8 +185,6 @@ async function generateDraftStudyPlanForUser(userId) {
     }]
   });
 
-  const subjectById = new Map((await Subject.findAll({ where: { CurriculumId: student.CurriculumId } }))
-    .map(s => [s.id, s]));
   const totalUnits = planSubjectsToCreate.reduce((sum, ps) => {
     const subj = subjectById.get(ps.SubjectId);
     return sum + (subj ? (Number(subj.units) || 0) : 0);

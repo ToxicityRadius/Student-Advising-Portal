@@ -20,7 +20,11 @@ const PlanSubject = sequelize.define('PlanSubject', {
   }
 }, {
   tableName: 'plan_subjects',
-  timestamps: false
+  timestamps: false,
+  indexes: [
+    { fields: ['StudyPlanId'] },
+    { fields: ['SubjectId'] }
+  ]
 });
 
 module.exports = PlanSubject;
