@@ -123,6 +123,7 @@ router.post('/google', async (req, res) => {
           lastName: updatedUser.lastName,
           email: updatedUser.email,
           role: updatedUser.role,
+          studentId: updatedUser.studentId,
         },
       });
     }

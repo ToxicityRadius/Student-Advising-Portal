@@ -103,25 +103,52 @@ const Dashboard = () => {
                   <span className="me-2">👥</span> Manage Users
                 </ListGroup.Item>
                 <ListGroup.Item 
-                  href="#" 
-                  className="py-3 px-4 text-dark fw-semibold"
+                  as={Link}
+                  to="/admin/forecasting"
+                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
                   action
                 >
                   <span className="me-2">📊</span> Course Demand Forecasting
                 </ListGroup.Item>
                 <ListGroup.Item 
-                  href="#" 
-                  className="py-3 px-4 text-dark fw-semibold"
+                  as={Link}
+                  to="/admin/curriculums"
+                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
                   action
                 >
-                  <span className="me-2">📋</span> Petition Management
+                  <span className="me-2">🗺️</span> Curriculum Management
                 </ListGroup.Item>
                 <ListGroup.Item 
-                  href="#" 
-                  className="py-3 px-4 text-dark fw-semibold"
+                  as={Link}
+                  to="/admin/calendar"
+                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
                   action
                 >
-                  <span className="me-2">🗺️</span> Curriculum Mapping
+                  <span className="me-2">📅</span> Academic Calendar
+                </ListGroup.Item>
+                <ListGroup.Item 
+                  as={Link}
+                  to="/admin/import"
+                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
+                  action
+                >
+                  <span className="me-2">📥</span> Bulk Import
+                </ListGroup.Item>
+                <ListGroup.Item 
+                  as={Link}
+                  to="/admin/course-offerings"
+                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
+                  action
+                >
+                  <span className="me-2">📋</span> Course Offerings
+                </ListGroup.Item>
+                <ListGroup.Item 
+                  as={Link}
+                  to="/adviser/dashboard"
+                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
+                  action
+                >
+                  <span className="me-2">👨‍🏫</span> Adviser Dashboard
                 </ListGroup.Item>
               </>
             )}
@@ -129,25 +156,20 @@ const Dashboard = () => {
             {user?.role === 'adviser' && (
               <>
                 <ListGroup.Item 
-                  href="#" 
-                  className="py-3 px-4 text-dark fw-semibold"
+                  as={Link}
+                  to="/adviser/dashboard"
+                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
                   action
                 >
                   <span className="me-2">👨‍🎓</span> My Advisees
                 </ListGroup.Item>
                 <ListGroup.Item 
-                  href="#" 
-                  className="py-3 px-4 text-dark fw-semibold"
+                  as={Link}
+                  to="/study-plan"
+                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
                   action
                 >
-                  <span className="me-2">✅</span> Validate Study Plans
-                </ListGroup.Item>
-                <ListGroup.Item 
-                  href="#" 
-                  className="py-3 px-4 text-dark fw-semibold"
-                  action
-                >
-                  <span className="me-2">📄</span> Generate Advising Reports
+                  <span className="me-2">✅</span> Study Plans
                 </ListGroup.Item>
               </>
             )}
@@ -155,49 +177,39 @@ const Dashboard = () => {
             {user?.role === 'student' && (
               <>
                 <ListGroup.Item 
-                  href="#" 
-                  className="py-3 px-4 text-dark fw-semibold"
+                  as={Link}
+                  to="/grades/entry"
+                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
                   action
                 >
                   <span className="me-2">📝</span> Encode Grades
                 </ListGroup.Item>
                 <ListGroup.Item 
-                  href="#" 
-                  className="py-3 px-4 text-dark fw-semibold"
+                  as={Link}
+                  to="/grades/current"
+                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
                   action
                 >
-                  <span className="me-2">✔️</span> View Checklist & Progress
+                  <span className="me-2">✔️</span> Current Semester
                 </ListGroup.Item>
                 <ListGroup.Item 
-                  href="#" 
-                  className="py-3 px-4 text-dark fw-semibold"
+                  as={Link}
+                  to="/study-plan"
+                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
                   action
                 >
-                  <span className="me-2">📚</span> Generate Study Plan
-                </ListGroup.Item>
-                <ListGroup.Item 
-                  href="#" 
-                  className="py-3 px-4 text-dark fw-semibold"
-                  action
-                >
-                  <span className="me-2">🎯</span> Elective Guidance
+                  <span className="me-2">📚</span> My Study Plan
                 </ListGroup.Item>
               </>
             )}
             
             <ListGroup.Item 
-              href="#" 
-              className="py-3 px-4 text-dark fw-semibold"
+              as={Link}
+              to="/profile"
+              className="py-3 px-4 text-decoration-none text-dark fw-semibold"
               action
             >
               <span className="me-2">👤</span> My Profile
-            </ListGroup.Item>
-            <ListGroup.Item 
-              href="#" 
-              className="py-3 px-4 text-dark fw-semibold"
-              action
-            >
-              <span className="me-2">⚙️</span> Settings
             </ListGroup.Item>
           </ListGroup>
         </Card.Body>

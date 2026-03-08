@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
+import { useAuth } from '../context/AuthContext';
+import api from '../utils/api';
 import StudentIdModal from '../components/StudentIdModal';
 import backgroundImage from '../assets/images/bg.png';
 import studentIcon from '../assets/images/student yellow.png';
@@ -22,6 +24,7 @@ const Login = () => {
   const [selectedRole, setSelectedRole] = useState(null);
 
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleChange = (e) => {
     setFormData({
@@ -36,40 +39,26 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
+      const response = await api.post('/auth/login', {
+        email: formData.email,
+        password: formData.password
       });
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (response.ok) {
-        if (data.requiresVerification) {
-          // Redirect to verification page
-          navigate('/verify-code', { 
-            state: { 
-              userId: data.userId,
-              email: formData.email 
-            } 
-          });
-        } else {
-          // 2FA disabled — save token and redirect
-          localStorage.setItem('token', data.token);
-          localStorage.setItem('user', JSON.stringify(data.user));
-          window.location.href = '/dashboard';
-        }
+      if (data.requiresVerification) {
+        navigate('/verify-code', { 
+          state: { 
+            userId: data.userId,
+            email: formData.email 
+          } 
+        });
       } else {
-        setError(data.message || 'Invalid Credentials. Please try again.');
+        await login(data.token);
+        navigate('/dashboard');
       }
     } catch (err) {
-      setError('Invalid Credentials. Please try again.');
+      setError(err.response?.data?.message || 'Invalid Credentials. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -88,39 +77,28 @@ const Login = () => {
         return;
       }
 
-      // Send the Google token to your backend for verification and login
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/auth/google`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          token: credentialResponse.credential,
-          email: decoded.email,
-          name: decoded.name,
-        }),
+      const response = await api.post('/auth/google', {
+        token: credentialResponse.credential,
+        email: decoded.email,
+        name: decoded.name,
       });
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (response.ok) {
-        if (data.requiresVerification) {
-          // Redirect to verification page
-          navigate('/verify-code', { 
-            state: { 
-              userId: data.userId,
-              email: decoded.email 
-            } 
-          });
-        } else {
-          // Fallback if 2FA is not enabled
-          localStorage.setItem('token', data.token);
-          localStorage.setItem('user', JSON.stringify(data.user));
-          window.location.href = '/dashboard';
-        }
+      if (data.requiresVerification) {
+        navigate('/verify-code', { 
+          state: { 
+            userId: data.userId,
+            email: decoded.email 
+          } 
+        });
+      } else if (data.user && data.user.role === 'student' && !data.user.studentId) {
+        // Student without a Student Number — show the modal
+        setPendingGoogleUser({ userId: data.user.id, email: decoded.email, token: data.token });
+        setShowStudentIdModal(true);
       } else {
-        setError(data.message || 'Google Sign-In failed. Please try again.');
+        await login(data.token);
+        navigate('/dashboard');
       }
     } catch (err) {
       console.error('Google Sign-In error:', err);
@@ -136,30 +114,15 @@ const Login = () => {
 
   const handleStudentIdSubmit = async (studentId) => {
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/users/${pendingGoogleUser.userId}/update-student-id`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ studentId })
-      });
+      const response = await api.patch(`/users/${pendingGoogleUser.userId}/update-student-id`, { studentId });
+      const data = response.data;
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setShowStudentIdModal(false);
-        setPendingGoogleUser(null);
-        
-        // Redirect to dashboard with token and user data
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        window.location.href = '/dashboard';
-      } else {
-        throw new Error(data.message || 'Failed to update Student Number');
-      }
+      setShowStudentIdModal(false);
+      setPendingGoogleUser(null);
+      await login(data.token);
+      navigate('/dashboard');
     } catch (err) {
-      throw err;
+      throw new Error(err.response?.data?.message || 'Failed to update Student Number');
     }
   };
 
