@@ -21,7 +21,17 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [showStudentIdModal, setShowStudentIdModal] = useState(false);
   const [pendingGoogleUser, setPendingGoogleUser] = useState(null);
-  const [selectedRole, setSelectedRole] = useState(null);
+  const [selectedRole, setSelectedRole] = useState(() => sessionStorage.getItem('loginRole') || null);
+
+  const selectRole = (role) => {
+    sessionStorage.setItem('loginRole', role);
+    setSelectedRole(role);
+  };
+
+  const clearRole = () => {
+    sessionStorage.removeItem('loginRole');
+    setSelectedRole(null);
+  };
 
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -36,17 +46,30 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    const emailLower = formData.email.toLowerCase();
+    if (selectedRole === 'faculty' && !emailLower.endsWith('.cpe@tip.edu.ph')) {
+      setError('Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).');
+      return;
+    }
+    if (selectedRole === 'student' && emailLower.endsWith('.cpe@tip.edu.ph')) {
+      setError('Please use the Faculty login for department email addresses.');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const response = await api.post('/auth/login', {
         email: formData.email,
-        password: formData.password
+        password: formData.password,
+        selectedRole
       });
 
       const data = response.data;
 
       if (data.requiresVerification) {
+        sessionStorage.removeItem('loginRole');
         navigate('/verify-code', { 
           state: { 
             userId: data.userId,
@@ -54,6 +77,7 @@ const Login = () => {
           } 
         });
       } else {
+        sessionStorage.removeItem('loginRole');
         await login(data.token);
         navigate('/dashboard');
       }
@@ -69,10 +93,25 @@ const Login = () => {
       setLoading(true);
       // Decode the JWT token from Google
       const decoded = jwtDecode(credentialResponse.credential);
+      const emailLower = decoded.email.toLowerCase();
       
       // Check if email ends with @tip.edu.ph
-      if (!decoded.email.toLowerCase().endsWith('@tip.edu.ph')) {
+      if (!emailLower.endsWith('@tip.edu.ph')) {
         setError('Only TIP email addresses (@tip.edu.ph) are allowed to sign in.');
+        setLoading(false);
+        return;
+      }
+
+      // Faculty must use a .cpe@tip.edu.ph address
+      if (selectedRole === 'faculty' && !emailLower.endsWith('.cpe@tip.edu.ph')) {
+        setError('Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).');
+        setLoading(false);
+        return;
+      }
+
+      // Students must NOT use a faculty department address
+      if (selectedRole === 'student' && emailLower.endsWith('.cpe@tip.edu.ph')) {
+        setError('Please use the Faculty login for department email addresses.');
         setLoading(false);
         return;
       }
@@ -81,11 +120,13 @@ const Login = () => {
         token: credentialResponse.credential,
         email: decoded.email,
         name: decoded.name,
+        selectedRole,
       });
 
       const data = response.data;
 
       if (data.requiresVerification) {
+        sessionStorage.removeItem('loginRole');
         navigate('/verify-code', { 
           state: { 
             userId: data.userId,
@@ -97,6 +138,7 @@ const Login = () => {
         setPendingGoogleUser({ userId: data.user.id, email: decoded.email, token: data.token });
         setShowStudentIdModal(true);
       } else {
+        sessionStorage.removeItem('loginRole');
         await login(data.token);
         navigate('/dashboard');
       }
@@ -159,7 +201,7 @@ const Login = () => {
           <h2 style={{ fontWeight: 800, fontSize: '2rem', marginBottom: '40px', color: '#222' }}>Welcome Back!</h2>
           <div style={{ display: 'flex', gap: '40px', justifyContent: 'center' }}>
             <div
-              onClick={() => setSelectedRole('student')}
+              onClick={() => selectRole('student')}
               style={{
                 cursor: 'pointer',
                 padding: '36px 30px 26px',
@@ -176,7 +218,7 @@ const Login = () => {
               <p style={{ color: '#D4A000', fontWeight: 700, fontSize: '0.95rem', marginTop: '18px', letterSpacing: '0.5px', marginBottom: 0 }}>LOGIN AS STUDENT</p>
             </div>
             <div
-              onClick={() => setSelectedRole('faculty')}
+              onClick={() => selectRole('faculty')}
               style={{
                 cursor: 'pointer',
                 padding: '36px 30px 26px',
@@ -228,7 +270,7 @@ const Login = () => {
                 
                 <div className="text-start mb-2">
                   <span 
-                    onClick={() => setSelectedRole(null)} 
+                    onClick={() => clearRole()} 
                     style={{ cursor: 'pointer', color: '#666', fontSize: '0.8rem' }}
                   >
                     ← Back

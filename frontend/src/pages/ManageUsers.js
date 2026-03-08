@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Table, Button, Alert, Badge, Spinner, Form } from 'react-bootstrap';
 import api from '../utils/api';
-import InviteFaculty from '../components/InviteFaculty';
-import PendingInvitations from '../components/PendingInvitations';
 
 const ManageUsers = () => {
   const [users, setUsers] = useState([]);
@@ -86,9 +84,6 @@ const ManageUsers = () => {
       
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
       {success && <Alert variant="success" dismissible onClose={() => setSuccess('')}>{success}</Alert>}
-
-      <InviteFaculty />
-      <PendingInvitations />
 
       <div className="table-responsive">
         <Table striped bordered hover className="shadow-sm">

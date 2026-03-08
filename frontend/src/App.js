@@ -13,7 +13,6 @@ import ActivateAccount from './pages/ActivateAccount';
 import VerifyCode from './pages/VerifyCode';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import FacultyRegister from './pages/FacultyRegister';
 import CurriculumManager from './pages/Admin/CurriculumManager';
 import BulkImport from './pages/Admin/BulkImport';
 import GradeEntry from './pages/GradeEntry';
@@ -37,7 +36,7 @@ function AppContent() {
                      location.pathname === '/forgot-password' || 
                      location.pathname.startsWith('/reset-password') ||
                      location.pathname.startsWith('/activate') ||
-                     location.pathname.startsWith('/faculty-register');
+                     location.pathname.startsWith('/reset-password');
 
   return (
     <>

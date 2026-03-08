@@ -137,7 +137,6 @@ Student-Advising-Portal/
 │   │   ├── authController.js
 <<<<<<< HEAD
 │   │   ├── userController.js
-│   │   ├── invitationController.js
 │   │   ├── curriculumController.js       # Subjects, prereqs, equivalencies (+ cycle detection)
 │   │   ├── gradeController.js
 │   │   ├── importController.js
@@ -147,7 +146,6 @@ Student-Advising-Portal/
 │   │   ├── authRoutes.js
 │   │   ├── googleAuthRoutes.js
 │   │   ├── userRoutes.js
-│   │   ├── invitationRoutes.js
 │   │   ├── curriculumRoutes.js
 │   │   ├── gradeRoutes.js
 │   │   ├── importRoutes.js
@@ -162,19 +160,16 @@ Student-Advising-Portal/
 │       └── proofs/                       # Uploaded proof-of-grade files
 │
 =======
-│   │   ├── invitationController.js
 │   │   └── userController.js
 │   ├── database/
 │   │   └── db.js
 │   ├── middleware/
 │   │   └── auth.js
 │   ├── models/
-│   │   ├── Invitation.js
 │   │   └── User.js
 │   ├── routes/
 │   │   ├── authRoutes.js
 │   │   ├── googleAuthRoutes.js
-│   │   ├── invitationRoutes.js
 │   │   └── userRoutes.js
 │   ├── utils/
 │   │   ├── email.js
@@ -196,8 +191,6 @@ Student-Advising-Portal/
         ├── components/
         │   ├── Navbar.js
         │   ├── PrivateRoute.js
-        │   ├── InviteFaculty.js
-        │   ├── PendingInvitations.js
         │   └── StudentIdModal.js
         ├── context/
         │   └── AuthContext.js
@@ -210,7 +203,6 @@ Student-Advising-Portal/
         │   ├── VerifyCode.js
         │   ├── ForgotPassword.js
         │   ├── ResetPassword.js
-        │   ├── FacultyRegister.js
         │   ├── GradeEntry.js
         │   ├── CurrentSemester.js
         │   ├── AdviserDashboard.js
@@ -228,7 +220,6 @@ Student-Advising-Portal/
 | Model | Table | Key Fields |
 |-------|-------|------------|
 | **User** | `users` | id, studentId, firstName, lastName, email, password, role, isActive, isVerified, CurriculumId |
-| **Invitation** | `faculty_invitations` | id, email, role, invitationToken, invitationExpires, invitedBy, isUsed |
 | **Curriculum** | `curricula` | id, version_year, active_status |
 | **Subject** | `subjects` | id, course_code, title, units, seasonal_term, CurriculumId |
 | **Prerequisite** | `prerequisites` | id, subject_id, required_subj_id |
@@ -266,9 +257,7 @@ Grade       ── hasOne  ──▸ ProofDocument
     │   │       ├── student yellow.png
     │   │       └── teacher yellow.png
     │   ├── components/
-    │   │   ├── InviteFaculty.js
     │   │   ├── Navbar.js
-    │   │   ├── PendingInvitations.js
     │   │   ├── PrivateRoute.js
     │   │   └── StudentIdModal.js
     │   ├── context/
@@ -277,7 +266,6 @@ Grade       ── hasOne  ──▸ ProofDocument
     │   │   ├── AboutUs.js / AboutUs.css
     │   │   ├── ActivateAccount.js
     │   │   ├── Dashboard.js
-    │   │   ├── FacultyRegister.js
     │   │   ├── ForgotPassword.js
     │   │   ├── Landing.js / Landing.css
     │   │   ├── Login.js

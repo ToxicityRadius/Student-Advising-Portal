@@ -1,4 +1,4 @@
-const { User, Invitation, Curriculum } = require('../models');
+const { User, Curriculum } = require('../models');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
@@ -147,13 +147,29 @@ exports.activateAccount = async (req, res, next) => {
 // @access  Public
 exports.login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, selectedRole } = req.body;
 
     // Validate input
     if (!email || !password) {
       return res.status(400).json({
         success: false,
         message: 'Please provide email and password'
+      });
+    }
+
+    const emailLower = email.toLowerCase();
+
+    // Enforce email format matches selected role
+    if (selectedRole === 'faculty' && !emailLower.endsWith('.cpe@tip.edu.ph')) {
+      return res.status(403).json({
+        success: false,
+        message: 'Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).'
+      });
+    }
+    if (selectedRole === 'student' && emailLower.endsWith('.cpe@tip.edu.ph')) {
+      return res.status(403).json({
+        success: false,
+        message: 'Please use the Faculty login for department email addresses.'
       });
     }
 
@@ -164,6 +180,21 @@ exports.login = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
+      });
+    }
+
+    // Ensure the account role matches the selected login portal
+    const isFacultyRole = user.role === 'adviser' || user.role === 'admin';
+    if (selectedRole === 'faculty' && !isFacultyRole) {
+      return res.status(403).json({
+        success: false,
+        message: 'This account is not registered as Faculty or Admin.'
+      });
+    }
+    if (selectedRole === 'student' && isFacultyRole) {
+      return res.status(403).json({
+        success: false,
+        message: 'Please use the Faculty login for this account.'
       });
     }
 
@@ -451,127 +482,6 @@ exports.resetPassword = async (req, res, next) => {
 
     const updatedUser = await User.findByPk(result.id);
     sendTokenResponse(updatedUser, 200, res);
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Register faculty via invitation
-// @route   POST /api/auth/register-faculty/:token
-// @access  Public
-exports.registerFaculty = async (req, res, next) => {
-  try {
-    const { token } = req.params;
-    const { firstName, lastName, password } = req.body;
-
-    // Validate input
-    if (!firstName || !lastName || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide all required fields'
-      });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 6 characters'
-      });
-    }
-
-    // Find and validate invitation
-    const now = Date.now();
-    const invitation = await Invitation.findOne({
-      where: {
-        invitationToken: token,
-        invitationExpires: { [Op.gt]: now },
-        isUsed: false
-      }
-    });
-    
-    if (!invitation) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or expired invitation link'
-      });
-    }
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ where: { email: invitation.email } });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'An account with this email already exists'
-      });
-    }
-
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Create faculty user with pre-assigned role (no activation needed)
-    const user = await User.create({
-      studentId: null, // Faculty don't have student IDs
-      firstName,
-      lastName,
-      email: invitation.email,
-      password: hashedPassword,
-      role: invitation.role, // Use role from invitation (adviser or admin)
-      activationToken: null,
-      activationTokenExpires: null,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    });
-
-    // Activate user immediately
-    await User.update({
-      isActive: true,
-      updatedAt: Date.now()
-    }, { where: { id: user.id } });
-
-    // Mark invitation as used
-    await Invitation.update({ isUsed: true }, { where: { id: invitation.id } });
-
-    // Get updated user and send token
-    const activatedUser = await User.findByPk(user.id);
-    sendTokenResponse(activatedUser, 201, res);
-
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Validate invitation token
-// @route   GET /api/auth/validate-invitation/:token
-// @access  Public
-exports.validateInvitation = async (req, res, next) => {
-  try {
-    const { token } = req.params;
-
-    const nowVal = Date.now();
-    const invitation = await Invitation.findOne({
-      where: {
-        invitationToken: token,
-        invitationExpires: { [Op.gt]: nowVal },
-        isUsed: false
-      }
-    });
-
-    if (!invitation) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or expired invitation link'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      invitation: {
-        email: invitation.email,
-        role: invitation.role,
-        expiresAt: new Date(invitation.invitationExpires)
-      }
-    });
   } catch (error) {
     next(error);
   }

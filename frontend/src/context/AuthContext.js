@@ -1,7 +1,10 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useRef, useCallback } from 'react';
 import api from '../utils/api';
 
 const AuthContext = createContext();
+
+const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -14,6 +17,44 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const inactivityTimer = useRef(null);
+
+  const clearInactivityTimer = () => {
+    if (inactivityTimer.current) {
+      clearTimeout(inactivityTimer.current);
+      inactivityTimer.current = null;
+    }
+  };
+
+  const doLogout = useCallback(async () => {
+    clearInactivityTimer();
+    try { await api.post('/auth/logout'); } catch {}
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+  }, []);
+
+  const resetInactivityTimer = useCallback(() => {
+    clearInactivityTimer();
+    inactivityTimer.current = setTimeout(() => {
+      doLogout();
+    }, INACTIVITY_TIMEOUT);
+  }, [doLogout]);
+
+  // Attach/detach activity listeners whenever user login state changes
+  useEffect(() => {
+    if (!user) {
+      clearInactivityTimer();
+      ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, resetInactivityTimer));
+      return;
+    }
+    ACTIVITY_EVENTS.forEach(e => window.addEventListener(e, resetInactivityTimer, { passive: true }));
+    resetInactivityTimer();
+    return () => {
+      clearInactivityTimer();
+      ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, resetInactivityTimer));
+    };
+  }, [user, resetInactivityTimer]);
 
   const decodeToken = (token) => {
     try {
@@ -103,16 +144,7 @@ export const AuthProvider = ({ children }) => {
     return response.data;
   };
 
-  const logout = async () => {
-    try {
-      await api.post('/auth/logout');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
-  };
+  const logout = doLogout;
 
   const value = {
     user,

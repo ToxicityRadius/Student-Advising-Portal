@@ -13,7 +13,6 @@ const { sequelize } = require('./models');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const googleAuthRoutes = require('./routes/googleAuthRoutes');
-const invitationRoutes = require('./routes/invitationRoutes');
 const curriculumRoutes = require('./routes/curriculumRoutes');
 const importRoutes = require('./routes/importRoutes');
 const gradeRoutes = require('./routes/gradeRoutes');
@@ -49,7 +48,6 @@ app.use(cors({
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', googleAuthRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/admin', invitationRoutes);
 app.use('/api/curriculum', curriculumRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/grades', gradeRoutes);
@@ -78,7 +76,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 // Sync database and start server
-sequelize.sync({ alter: true }).then(() => {
+sequelize.sync({ alter: { drop: false } }).then(() => {
   console.log('Database synced successfully');
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

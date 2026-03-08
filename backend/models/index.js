@@ -1,6 +1,5 @@
 const sequelize = require('../database/db');
 const User = require('./User');
-const Invitation = require('./Invitation');
 const Curriculum = require('./Curriculum');
 const Subject = require('./Subject');
 const Prerequisite = require('./Prerequisite');
@@ -14,52 +13,52 @@ const OpenedSection = require('./OpenedSection');
 const CourseOffering = require('./CourseOffering');
 
 // Define ALL associations globally
-Curriculum.hasMany(Subject);
-Subject.belongsTo(Curriculum);
+Curriculum.hasMany(Subject, { constraints: false });
+Subject.belongsTo(Curriculum, { constraints: false });
 
-Curriculum.hasMany(User);
-User.belongsTo(Curriculum);
+Curriculum.hasMany(User, { constraints: false });
+User.belongsTo(Curriculum, { constraints: false });
 
-User.hasMany(Grade);
-Grade.belongsTo(User);
+User.hasMany(Grade, { constraints: false });
+Grade.belongsTo(User, { constraints: false });
 
-Subject.hasMany(Grade);
-Grade.belongsTo(Subject);
+Subject.hasMany(Grade, { constraints: false });
+Grade.belongsTo(Subject, { constraints: false });
 
-Grade.hasOne(ProofDocument);
-ProofDocument.belongsTo(Grade);
+Grade.hasOne(ProofDocument, { constraints: false });
+ProofDocument.belongsTo(Grade, { constraints: false });
 
-User.hasMany(StudyPlan, { as: 'StudyPlans', foreignKey: 'UserId' });
-StudyPlan.belongsTo(User, { as: 'Student', foreignKey: 'UserId' });
+User.hasMany(StudyPlan, { as: 'StudyPlans', foreignKey: 'UserId', constraints: false });
+StudyPlan.belongsTo(User, { as: 'Student', foreignKey: 'UserId', constraints: false });
 
-StudyPlan.hasMany(PlanSubject);
-PlanSubject.belongsTo(StudyPlan);
+StudyPlan.hasMany(PlanSubject, { constraints: false });
+PlanSubject.belongsTo(StudyPlan, { constraints: false });
 
-Subject.hasMany(PlanSubject);
-PlanSubject.belongsTo(Subject);
+Subject.hasMany(PlanSubject, { constraints: false });
+PlanSubject.belongsTo(Subject, { constraints: false });
 
 // Prerequisite associations
-Subject.hasMany(Prerequisite, { foreignKey: 'subject_id', as: 'prerequisites' });
-Prerequisite.belongsTo(Subject, { as: 'RequiredSubject', foreignKey: 'required_subj_id' });
+Subject.hasMany(Prerequisite, { foreignKey: 'subject_id', as: 'prerequisites', constraints: false });
+Prerequisite.belongsTo(Subject, { as: 'RequiredSubject', foreignKey: 'required_subj_id', constraints: false });
 
 // Equivalency associations
-Subject.hasMany(EquivalencyRule, { foreignKey: 'source_subject_id', as: 'equivalencies' });
-EquivalencyRule.belongsTo(Subject, { as: 'TargetSubject', foreignKey: 'target_subject_id' });
+Subject.hasMany(EquivalencyRule, { foreignKey: 'source_subject_id', as: 'equivalencies', constraints: false });
+EquivalencyRule.belongsTo(Subject, { as: 'TargetSubject', foreignKey: 'target_subject_id', constraints: false });
 
 // OpenedSection associations
-Subject.hasMany(OpenedSection);
-OpenedSection.belongsTo(Subject);
+Subject.hasMany(OpenedSection, { constraints: false });
+OpenedSection.belongsTo(Subject, { constraints: false });
 
 // CourseOffering associations
-Subject.hasMany(CourseOffering);
-CourseOffering.belongsTo(Subject);
+Subject.hasMany(CourseOffering, { constraints: false });
+CourseOffering.belongsTo(Subject, { constraints: false });
 
 // Adviser caseload associations (self-referential)
-User.hasMany(User, { as: 'Advisees', foreignKey: 'adviserId' });
-User.belongsTo(User, { as: 'Adviser', foreignKey: 'adviserId' });
+User.hasMany(User, { as: 'Advisees', foreignKey: 'adviserId', constraints: false });
+User.belongsTo(User, { as: 'Adviser', foreignKey: 'adviserId', constraints: false });
 
 module.exports = {
-  sequelize, User, Invitation, Curriculum, Subject, Prerequisite,
+  sequelize, User, Curriculum, Subject, Prerequisite,
   EquivalencyRule, Grade, ProofDocument, StudyPlan, PlanSubject, AcademicTerm,
   OpenedSection, CourseOffering
 };

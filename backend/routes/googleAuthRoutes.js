@@ -19,7 +19,7 @@ function generateVerificationCode() {
 // Google Sign-In route
 router.post('/google', async (req, res) => {
   try {
-    const { token, email, name } = req.body;
+    const { token, email, name, selectedRole } = req.body;
 
     // Verify the Google token
     const ticket = await client.verifyIdToken({
@@ -28,12 +28,26 @@ router.post('/google', async (req, res) => {
     });
 
     const payload = ticket.getPayload();
-    const googleEmail = payload.email;
+    const googleEmail = payload.email.toLowerCase();
 
     // Verify email domain
-    if (!googleEmail.toLowerCase().endsWith('@tip.edu.ph')) {
+    if (!googleEmail.endsWith('@tip.edu.ph')) {
       return res.status(403).json({ 
         message: 'Only TIP email addresses (@tip.edu.ph) are allowed.' 
+      });
+    }
+
+    // Faculty must use a department email (.cpe@tip.edu.ph)
+    if (selectedRole === 'faculty' && !googleEmail.endsWith('.cpe@tip.edu.ph')) {
+      return res.status(403).json({
+        message: 'Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).'
+      });
+    }
+
+    // Students must not use a faculty department address
+    if (selectedRole === 'student' && googleEmail.endsWith('.cpe@tip.edu.ph')) {
+      return res.status(403).json({
+        message: 'Please use the Faculty login for department email addresses.'
       });
     }
 
@@ -55,8 +69,8 @@ router.post('/google', async (req, res) => {
         lastName: parsedLastName,
         first_name: parsedFirstName,
         last_name: parsedLastName,
-        email: googleEmail,
-        role: 'student',
+        email: payload.email,
+        role: selectedRole === 'faculty' ? 'adviser' : 'student',
         CurriculumId: activeCurriculum ? activeCurriculum.id : null,
         isActive: true,
         password: hashedPassword,
