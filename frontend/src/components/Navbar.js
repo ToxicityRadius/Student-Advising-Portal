@@ -17,6 +17,7 @@ const Navbar = () => {
   const isPublicPage = ['/', '/about', '/purpose'].includes(location.pathname);
 
   return (
+
     <nav style={{
       position: 'fixed',
       top: isPublicPage ? '8px' : 0,
@@ -103,7 +104,7 @@ const Navbar = () => {
                 fontSize: '0.85rem',
                 marginRight: '8px'
               }}>
-                Welcome, <strong style={{ color: '#FFC107' }}>{user.firstName}</strong>
+                Welcome, <strong style={{ color: '#FFC107' }}>{user.firstName || user.first_name}</strong>
               </span>
 
               <AppNavLink to="/dashboard" active={isActive('/dashboard')}>
@@ -111,10 +112,45 @@ const Navbar = () => {
               </AppNavLink>
 
               {isAdmin && (
-                <AppNavLink to="/admin/users" active={isActive('/admin/users')}>
-                  Manage Users
+                <>
+                  <AppNavLink to="/admin/users" active={isActive('/admin/users')}>
+                    Manage Users
+                  </AppNavLink>
+                  <AppNavLink to="/admin/curriculums" active={isActive('/admin/curriculums')}>
+                    Curriculums
+                  </AppNavLink>
+                  <AppNavLink to="/admin/calendar" active={isActive('/admin/calendar')}>
+                    Calendar
+                  </AppNavLink>
+                  <AppNavLink to="/admin/course-offerings" active={isActive('/admin/course-offerings')}>
+                    Offerings
+                  </AppNavLink>
+                  <AppNavLink to="/adviser/dashboard" active={isActive('/adviser/dashboard')}>
+                    Adviser
+                  </AppNavLink>
+                </>
+              )}
+
+              {user.role === 'student' && (
+                <>
+                  <AppNavLink to="/grades/entry" active={isActive('/grades/entry')}>
+                    Grades
+                  </AppNavLink>
+                  <AppNavLink to="/study-plan" active={isActive('/study-plan')}>
+                    Study Plan
+                  </AppNavLink>
+                </>
+              )}
+
+              {user.role === 'adviser' && !isAdmin && (
+                <AppNavLink to="/adviser/dashboard" active={isActive('/adviser/dashboard')}>
+                  Adviser
                 </AppNavLink>
               )}
+
+              <AppNavLink to="/profile" active={isActive('/profile')}>
+                Profile
+              </AppNavLink>
 
               <button
                 onClick={handleLogout}
@@ -201,6 +237,7 @@ const Navbar = () => {
         }
       `}</style>
     </nav>
+
   );
 };
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import api from '../utils/api';
 import backgroundImage from '../assets/images/bg.png';
 import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 
@@ -24,16 +25,10 @@ const FacultyRegister = () => {
 
   const validateInvitation = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/auth/validate-invitation/${token}`);
-      const data = await response.json();
-
-      if (response.ok) {
-        setInvitation(data.invitation);
-      } else {
-        setError(data.message || 'Invalid or expired invitation link');
-      }
+      const { data } = await api.get(`/auth/validate-invitation/${token}`);
+      setInvitation(data.invitation);
     } catch (err) {
-      setError('Failed to validate invitation. Please try again.');
+      setError(err.response?.data?.message || 'Invalid or expired invitation link');
       console.error('Validation error:', err);
     } finally {
       setLoading(false);
@@ -65,33 +60,21 @@ const FacultyRegister = () => {
     setSubmitting(true);
 
     try {
-      const response = await fetch(`http://localhost:5000/api/auth/register-faculty/${token}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          password: formData.password
-        })
+      const { data } = await api.post(`/auth/register-faculty/${token}`, {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        password: formData.password
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        // Store token and user data
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        
-        // Redirect to dashboard
-        window.location.href = '/dashboard';
-      } else {
-        setError(data.message || 'Registration failed. Please try again.');
-      }
+      // Store token and user data
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Redirect to dashboard
+      navigate('/dashboard');
+      window.location.reload();
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      setError(err.response?.data?.message || 'An error occurred. Please try again.');
       console.error('Registration error:', err);
     } finally {
       setSubmitting(false);

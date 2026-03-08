@@ -4,7 +4,8 @@
 
 ### Backend Dependencies
 - **express:** ^4.18.2 - Web framework for Node.js
-- **pg:** ^8.16.3 - PostgreSQL client for Node.js
+- **sequelize:** ^6.37.7 - Promise-based ORM
+- **sqlite3:** ^5.1.7 - SQLite database driver (local development)
 - **bcryptjs:** ^2.4.3 - Password hashing library
 - **jsonwebtoken:** ^9.0.2 - JWT authentication
 - **cookie-parser:** ^1.4.6 - Parse HTTP cookies
@@ -12,7 +13,9 @@
 - **dotenv:** ^16.3.1 - Environment variable management
 - **google-auth-library:** ^10.5.0 - Google OAuth 2.0 authentication
 - **nodemailer:** ^7.0.12 - Email sending functionality
-- **nodemon:** ^3.0.2 (dev) - Auto-restart server on changes
+- **multer:** ^2.1.0 - File upload handling (proof documents, CSV imports)
+- **csv-parser:** ^3.2.0 - CSV file parsing for bulk imports
+- **nodemon:** ^3.1.11 (dev) - Auto-restart server on changes
 
 ### Frontend Dependencies
 - **react:** ^18.2.0 - UI library
@@ -22,12 +25,13 @@
 - **react-bootstrap:** ^2.10.10 - Bootstrap React components
 - **bootstrap:** ^5.3.8 - CSS framework
 - **axios:** ^1.6.2 - HTTP client for API calls
+- **bootstrap:** ^5.3.8 - CSS framework
+- **react-bootstrap:** ^2.10.10 - Bootstrap components for React
 - **@react-oauth/google:** ^0.13.4 - Google OAuth integration
 - **jwt-decode:** ^4.0.0 - Decode JWT tokens
-- **google-auth-library:** ^10.5.0 - Google authentication
 
 ### Database
-- **PostgreSQL** via **Supabase** (cloud-hosted)
+- **SQLite** via **Sequelize** (local file: `backend/database.sqlite`)
 
 ---
 
@@ -48,11 +52,11 @@
 - **Purpose:** React code snippets and shortcuts
 - **Install:** `ext install dsznajder.es7-react-js-snippets`
 
-### 4. **PostgreSQL**
-- **ID:** `ckolkman.vscode-postgres`
-- **Purpose:** PostgreSQL database management and queries
-- **Install:** `ext install ckolkman.vscode-postgres`
-- **Note:** Connect to Supabase PostgreSQL database
+### 4. **SQLite Viewer** (or similar)
+- **ID:** `alexcvzz.vscode-sqlite`
+- **Purpose:** Browse the local SQLite database file
+- **Install:** `ext install alexcvzz.vscode-sqlite`
+- **Note:** Open `backend/database.sqlite` to inspect tables
 
 ### 5. **Thunder Client** (or REST Client)
 - **ID:** `rangav.vscode-thunder-client`
@@ -133,7 +137,7 @@ Run this command in VS Code terminal or Command Palette (`Ctrl+Shift+P` → "She
 code --install-extension dbaeumer.vscode-eslint
 code --install-extension esbenp.prettier-vscode
 code --install-extension dsznajder.es7-react-js-snippets
-code --install-extension ckolkman.vscode-postgres
+code --install-extension alexcvzz.vscode-sqlite
 code --install-extension rangav.vscode-thunder-client
 code --install-extension christian-kohler.npm-intellisense
 code --install-extension christian-kohler.path-intellisense
@@ -176,9 +180,9 @@ Add these settings to your `.vscode/settings.json` for consistent team configura
 ## Node.js and npm Requirements
 
 Make sure team members have installed:
-- **Node.js:** v16 or higher
+- **Node.js:** v14 or higher
 - **npm:** v8 or higher
-- **PostgreSQL:** Using Supabase (cloud-hosted) - connection details in `.env`
+- **Database:** SQLite (no external DB setup needed — the file is auto-created on first run)
 
 Check versions:
 ```bash
@@ -194,13 +198,13 @@ npm --version
 2. Install Node.js: https://nodejs.org/
 3. Clone the repository
 4. Install all essential extensions listed above
-5. Run `npm install` in both `frontend` and `backend` folders
-6. Configure `.env` files:
-   - Backend: Set JWT secret, email credentials, Google OAuth Client ID
-   - Frontend: Set Google Client ID (if needed)
-7. Database is hosted on Supabase (PostgreSQL) - connection string in `.env`
-8. Review [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md) for OAuth configuration
-9. Start development!
+5. Run `npm install` in both `frontend/` and `backend/` folders
+6. Configure `.env` file in `backend/`:
+   - Set JWT secret, email credentials, Google OAuth Client ID
+7. Seed the database (optional): `cd backend && node seed.js`
+8. Database is a local SQLite file (`backend/database.sqlite`) — no external setup needed
+9. Review [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md) for OAuth configuration
+10. Start development: `npm run dev` (backend) and `npm start` (frontend)
 
 ---
 
@@ -210,8 +214,9 @@ npm --version
 - [VS Code Node.js Development](https://code.visualstudio.com/docs/nodejs/nodejs-tutorial)
 - [ESLint Configuration](https://eslint.org/docs/latest/use/getting-started)
 - [Prettier Configuration](https://prettier.io/docs/en/configuration.html)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
-- [Supabase Documentation](https://supabase.com/docs)
+- [Sequelize Documentation](https://sequelize.org/)
+- [SQLite Documentation](https://www.sqlite.org/docs.html)
+- [React Bootstrap Documentation](https://react-bootstrap.github.io/)
 - [Google OAuth 2.0 Documentation](https://developers.google.com/identity/protocols/oauth2)
 - [React Router v6 Documentation](https://reactrouter.com/en/main)
 - [JWT.io](https://jwt.io/) - JWT debugger and documentation

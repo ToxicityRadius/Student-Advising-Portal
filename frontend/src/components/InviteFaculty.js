@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Card, Form, Button, Alert } from 'react-bootstrap';
+import api from '../utils/api';
 
 const InviteFaculty = () => {
   const [formData, setFormData] = useState({
@@ -24,28 +25,11 @@ const InviteFaculty = () => {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/admin/invite-faculty`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: 'include',
-        body: JSON.stringify(formData)
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess(data.message);
-        setFormData({ email: '', role: 'adviser' });
-      } else {
-        setError(data.message || 'Failed to send invitation');
-      }
+      const { data } = await api.post('/admin/invite-faculty', formData);
+      setSuccess(data.message);
+      setFormData({ email: '', role: 'adviser' });
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      setError(err.response?.data?.message || 'An error occurred. Please try again.');
       console.error('Error sending invitation:', err);
     } finally {
       setLoading(false);

@@ -1,8 +1,28 @@
-const User = require('../models/User');
-const Invitation = require('../models/Invitation');
+const { User, Invitation, Curriculum } = require('../models');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
+const { Op } = require('sequelize');
 const { sendTokenResponse } = require('../utils/jwt');
 const { sendActivationEmail, sendVerificationCode } = require('../utils/email');
+
+// Helper: generate a random 6-digit verification code
+function generateVerificationCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// Helper: strip sensitive fields from a user plain object
+function sanitizeUser(user) {
+  if (!user) return null;
+  const plain = user.get ? user.get({ plain: true }) : { ...user };
+  delete plain.password;
+  delete plain.activationToken;
+  delete plain.activationTokenExpires;
+  delete plain.resetPasswordToken;
+  delete plain.resetPasswordExpires;
+  delete plain.verificationCode;
+  delete plain.verificationCodeExpires;
+  return plain;
+}
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -37,7 +57,7 @@ exports.register = async (req, res, next) => {
     }
 
     // Check if user exists
-    const existingUser = await User.findByEmail(email);
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -49,16 +69,28 @@ exports.register = async (req, res, next) => {
     const activationToken = crypto.randomBytes(32).toString('hex');
     const activationTokenExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
 
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Assign new students to the active curriculum when available.
+    const activeCurriculum = await Curriculum.findOne({ where: { active_status: true } });
+
     // Create user - assign role based on request
     const user = await User.create({
       studentId: isFaculty ? null : studentId,
       firstName,
       lastName,
+      first_name: firstName || null,
+      last_name: lastName || null,
       email,
-      password,
+      password: hashedPassword,
       role: isFaculty ? 'adviser' : 'student',
+      CurriculumId: !isFaculty && activeCurriculum ? activeCurriculum.id : null,
       activationToken,
-      activationTokenExpires
+      activationTokenExpires,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     });
 
     // Send activation email
@@ -67,7 +99,7 @@ exports.register = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: 'Registration successful! Please check your email to activate your account.',
-      userId: user._id
+      userId: user.id
     });
   } catch (error) {
     next(error);
@@ -81,7 +113,13 @@ exports.activateAccount = async (req, res, next) => {
   try {
     const { token } = req.params;
 
-    const user = await User.findByActivationToken(token);
+    const now = Date.now();
+    const user = await User.findOne({
+      where: {
+        activationToken: token,
+        activationTokenExpires: { [Op.gt]: now }
+      }
+    });
 
     if (!user) {
       return res.status(400).json({
@@ -90,13 +128,14 @@ exports.activateAccount = async (req, res, next) => {
       });
     }
 
-    await User.update(user.id, {
+    await User.update({
       isActive: true,
       activationToken: null,
-      activationTokenExpires: null
-    });
+      activationTokenExpires: null,
+      updatedAt: Date.now()
+    }, { where: { id: user.id } });
 
-    const updatedUser = await User.findById(user.id);
+    const updatedUser = await User.findByPk(user.id);
     sendTokenResponse(updatedUser, 200, res);
   } catch (error) {
     next(error);
@@ -119,7 +158,7 @@ exports.login = async (req, res, next) => {
     }
 
     // Check for user
-    const user = await User.findByEmail(email);
+    const user = await User.findOne({ where: { email } });
 
     if (!user) {
       return res.status(401).json({
@@ -129,7 +168,7 @@ exports.login = async (req, res, next) => {
     }
 
     // Check password
-    const isMatch = await User.comparePassword(password, user.password);
+    const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
       return res.status(401).json({
@@ -149,15 +188,16 @@ exports.login = async (req, res, next) => {
     // Check if 2FA is enabled
     if (process.env.ENABLE_2FA === 'true') {
       // Generate verification code
-      const verificationCode = User.generateVerificationCode();
+      const verificationCode = generateVerificationCode();
       const verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
       // Update user with verification code
-      await User.update(user.id, {
+      await User.update({
         verificationCode,
         verificationCodeExpires,
-        isVerified: false
-      });
+        isVerified: false,
+        updatedAt: Date.now()
+      }, { where: { id: user.id } });
 
       // Send verification code email
       await sendVerificationCode(user.email, verificationCode, user.firstName);
@@ -171,8 +211,8 @@ exports.login = async (req, res, next) => {
       });
     } else {
       // 2FA disabled - log in directly
-      await User.update(user.id, { lastLogin: true });
-      const updatedUser = await User.findById(user.id);
+      await User.update({ lastLogin: Date.now(), updatedAt: Date.now() }, { where: { id: user.id } });
+      const updatedUser = await User.findByPk(user.id);
       sendTokenResponse(updatedUser, 200, res);
     }
   } catch (error) {
@@ -194,7 +234,7 @@ exports.verifyCode = async (req, res, next) => {
       });
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
 
     if (!user) {
       return res.status(404).json({
@@ -219,14 +259,15 @@ exports.verifyCode = async (req, res, next) => {
     }
 
     // Clear verification code and mark as verified
-    await User.update(user.id, {
+    await User.update({
       verificationCode: null,
       verificationCodeExpires: null,
       isVerified: true,
-      lastLogin: true
-    });
+      lastLogin: Date.now(),
+      updatedAt: Date.now()
+    }, { where: { id: user.id } });
 
-    const updatedUser = await User.findById(user.id);
+    const updatedUser = await User.findByPk(user.id);
     sendTokenResponse(updatedUser, 200, res);
   } catch (error) {
     next(error);
@@ -247,7 +288,7 @@ exports.resendCode = async (req, res, next) => {
       });
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
 
     if (!user) {
       return res.status(404).json({
@@ -257,14 +298,15 @@ exports.resendCode = async (req, res, next) => {
     }
 
     // Generate new verification code
-    const verificationCode = User.generateVerificationCode();
+    const verificationCode = generateVerificationCode();
     const verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
     // Update user with new verification code
-    await User.update(user.id, {
+    await User.update({
       verificationCode,
-      verificationCodeExpires
-    });
+      verificationCodeExpires,
+      updatedAt: Date.now()
+    }, { where: { id: user.id } });
 
     // Send verification code email
     await sendVerificationCode(user.email, verificationCode, user.firstName);
@@ -302,11 +344,11 @@ exports.logout = async (req, res, next) => {
 // @access  Private
 exports.getMe = async (req, res, next) => {
   try {
-    const user = User.toJSON(await User.findById(req.user.id));
+    const user = await User.findByPk(req.user.id);
 
     res.status(200).json({
       success: true,
-      user
+      user: sanitizeUser(user)
     });
   } catch (error) {
     next(error);
@@ -327,7 +369,7 @@ exports.forgotPassword = async (req, res, next) => {
       });
     }
 
-    const user = await User.findByEmail(email);
+    const user = await User.findOne({ where: { email } });
 
     if (!user) {
       // Don't reveal if user exists or not for security
@@ -342,10 +384,11 @@ exports.forgotPassword = async (req, res, next) => {
     const resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
     const resetPasswordExpires = Date.now() + 30 * 60 * 1000; // 30 minutes
 
-    await User.update(user.id, {
+    await User.update({
       resetPasswordToken,
-      resetPasswordExpires
-    });
+      resetPasswordExpires,
+      updatedAt: Date.now()
+    }, { where: { id: user.id } });
 
     // Send password reset email
     const { sendPasswordResetEmail } = require('../utils/email');
@@ -379,7 +422,13 @@ exports.resetPassword = async (req, res, next) => {
     const resetPasswordToken = crypto.createHash('sha256').update(token).digest('hex');
 
     // Find user by reset token and check if not expired
-    const result = await User.findByResetToken(resetPasswordToken);
+    const now = Date.now();
+    const result = await User.findOne({
+      where: {
+        resetPasswordToken,
+        resetPasswordExpires: { [Op.gt]: now }
+      }
+    });
 
     if (!result) {
       return res.status(400).json({
@@ -389,14 +438,18 @@ exports.resetPassword = async (req, res, next) => {
     }
 
     // Hash new password
-    const bcrypt = require('bcryptjs');
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Update user password and clear reset token
-    await User.updatePassword(result.id, hashedPassword);
+    await User.update({
+      password: hashedPassword,
+      resetPasswordToken: null,
+      resetPasswordExpires: null,
+      updatedAt: Date.now()
+    }, { where: { id: result.id } });
 
-    const updatedUser = await User.findById(result.id);
+    const updatedUser = await User.findByPk(result.id);
     sendTokenResponse(updatedUser, 200, res);
   } catch (error) {
     next(error);
@@ -427,7 +480,14 @@ exports.registerFaculty = async (req, res, next) => {
     }
 
     // Find and validate invitation
-    const invitation = await Invitation.findByToken(token);
+    const now = Date.now();
+    const invitation = await Invitation.findOne({
+      where: {
+        invitationToken: token,
+        invitationExpires: { [Op.gt]: now },
+        isUsed: false
+      }
+    });
     
     if (!invitation) {
       return res.status(400).json({
@@ -437,7 +497,7 @@ exports.registerFaculty = async (req, res, next) => {
     }
 
     // Check if user already exists
-    const existingUser = await User.findByEmail(invitation.email);
+    const existingUser = await User.findOne({ where: { email: invitation.email } });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -445,28 +505,35 @@ exports.registerFaculty = async (req, res, next) => {
       });
     }
 
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
     // Create faculty user with pre-assigned role (no activation needed)
     const user = await User.create({
       studentId: null, // Faculty don't have student IDs
       firstName,
       lastName,
       email: invitation.email,
-      password,
+      password: hashedPassword,
       role: invitation.role, // Use role from invitation (adviser or admin)
       activationToken: null,
-      activationTokenExpires: null
+      activationTokenExpires: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     });
 
     // Activate user immediately
-    await User.update(user.id, {
-      isActive: true
-    });
+    await User.update({
+      isActive: true,
+      updatedAt: Date.now()
+    }, { where: { id: user.id } });
 
     // Mark invitation as used
-    await Invitation.markAsUsed(invitation.id);
+    await Invitation.update({ isUsed: true }, { where: { id: invitation.id } });
 
     // Get updated user and send token
-    const activatedUser = await User.findById(user.id);
+    const activatedUser = await User.findByPk(user.id);
     sendTokenResponse(activatedUser, 201, res);
 
   } catch (error) {
@@ -481,7 +548,14 @@ exports.validateInvitation = async (req, res, next) => {
   try {
     const { token } = req.params;
 
-    const invitation = await Invitation.findByToken(token);
+    const nowVal = Date.now();
+    const invitation = await Invitation.findOne({
+      where: {
+        invitationToken: token,
+        invitationExpires: { [Op.gt]: nowVal },
+        isUsed: false
+      }
+    });
 
     if (!invitation) {
       return res.status(400).json({
@@ -527,7 +601,7 @@ exports.refreshToken = async (req, res, next) => {
       });
     }
 
-    const user = await User.findById(decoded.id);
+    const user = await User.findByPk(decoded.id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -535,7 +609,7 @@ exports.refreshToken = async (req, res, next) => {
       });
     }
 
-    const newToken = generateToken(user.id, user.role);
+    const newToken = generateToken(user);
 
     res.json({
       success: true,

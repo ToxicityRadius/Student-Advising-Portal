@@ -1,6 +1,6 @@
-const Invitation = require('../models/Invitation');
-const User = require('../models/User');
+const { Invitation, User, sequelize } = require('../models');
 const crypto = require('crypto');
+const { Op } = require('sequelize');
 const { sendFacultyInvitation } = require('../utils/email');
 
 // @desc    Invite faculty member
@@ -35,7 +35,7 @@ exports.inviteFaculty = async (req, res, next) => {
     }
 
     // Check if user already exists
-    const existingUser = await User.findByEmail(email);
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -44,7 +44,10 @@ exports.inviteFaculty = async (req, res, next) => {
     }
 
     // Check if there's already a pending invitation
-    const existingInvitation = await Invitation.findByEmail(email);
+    const existingInvitation = await Invitation.findOne({
+      where: { email },
+      order: [['createdAt', 'DESC']]
+    });
     if (existingInvitation && !existingInvitation.isUsed && existingInvitation.invitationExpires > Date.now()) {
       return res.status(400).json({
         success: false,
@@ -62,7 +65,8 @@ exports.inviteFaculty = async (req, res, next) => {
       role,
       invitationToken,
       invitationExpires,
-      invitedBy: req.user.id
+      invitedBy: req.user.id,
+      createdAt: Date.now()
     });
 
     // Send invitation email
@@ -88,7 +92,13 @@ exports.inviteFaculty = async (req, res, next) => {
 // @access  Admin only
 exports.getInvitations = async (req, res, next) => {
   try {
-    const invitations = await Invitation.findAll();
+    const [invitations] = await sequelize.query(`
+      SELECT fi.*,
+        u."firstName" || ' ' || u."lastName" as "invitedByName"
+      FROM faculty_invitations fi
+      LEFT JOIN users u ON fi."invitedBy" = u.id
+      ORDER BY fi."createdAt" DESC
+    `);
 
     res.status(200).json({
       success: true,
@@ -105,7 +115,17 @@ exports.getInvitations = async (req, res, next) => {
 // @access  Admin only
 exports.getPendingInvitations = async (req, res, next) => {
   try {
-    const invitations = await Invitation.findPending();
+    const now = Date.now();
+    const [invitations] = await sequelize.query(`
+      SELECT fi.*,
+        u."firstName" || ' ' || u."lastName" as "invitedByName"
+      FROM faculty_invitations fi
+      LEFT JOIN users u ON fi."invitedBy" = u.id
+      WHERE fi."isUsed" = 0 AND fi."invitationExpires" > :now
+      ORDER BY fi."createdAt" DESC
+    `, {
+      replacements: { now }
+    });
 
     res.status(200).json({
       success: true,
@@ -124,7 +144,7 @@ exports.deleteInvitation = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    await Invitation.delete(id);
+    await Invitation.destroy({ where: { id } });
 
     res.status(200).json({
       success: true,
@@ -143,7 +163,7 @@ exports.resendInvitation = async (req, res, next) => {
     const { id } = req.params;
 
     // Get the invitation to get email and role
-    const invitation = await Invitation.findById(id);
+    const invitation = await Invitation.findByPk(id);
     
     if (!invitation) {
       return res.status(404).json({
@@ -155,7 +175,7 @@ exports.resendInvitation = async (req, res, next) => {
     const { email, role } = invitation;
 
     // Delete old invitation
-    await Invitation.delete(id);
+    await Invitation.destroy({ where: { id } });
 
     // Generate new token
     const invitationToken = crypto.randomBytes(32).toString('hex');
@@ -167,7 +187,8 @@ exports.resendInvitation = async (req, res, next) => {
       role,
       invitationToken,
       invitationExpires,
-      invitedBy: req.user.id
+      invitedBy: req.user.id,
+      createdAt: Date.now()
     });
 
     // Resend email

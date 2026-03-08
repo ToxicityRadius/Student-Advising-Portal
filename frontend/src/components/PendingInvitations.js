@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Alert, Badge, Spinner } from 'react-bootstrap';
+import api from '../utils/api';
 
 const PendingInvitations = () => {
   const [invitations, setInvitations] = useState([]);
@@ -14,24 +15,10 @@ const PendingInvitations = () => {
   const fetchPendingInvitations = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/admin/invitations/pending`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setInvitations(data.invitations || []);
-      } else {
-        setError(data.message || 'Failed to fetch invitations');
-      }
+      const { data } = await api.get('/admin/invitations/pending');
+      setInvitations(data.invitations || []);
     } catch (err) {
-      setError('An error occurred while fetching invitations');
+      setError(err.response?.data?.message || 'An error occurred while fetching invitations');
       console.error('Error:', err);
     } finally {
       setLoading(false);
@@ -44,28 +31,12 @@ const PendingInvitations = () => {
     }
 
     try {
-      const token = localStorage.getItem('token');
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/admin/invitations/${invitationId}/resend`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess(data.message);
-        fetchPendingInvitations();
-        setTimeout(() => setSuccess(''), 3000);
-      } else {
-        setError(data.message || 'Failed to resend invitation');
-        setTimeout(() => setError(''), 3000);
-      }
+      const { data } = await api.post(`/admin/invitations/${invitationId}/resend`);
+      setSuccess(data.message);
+      fetchPendingInvitations();
+      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError('An error occurred while resending invitation');
+      setError(err.response?.data?.message || 'An error occurred while resending invitation');
       console.error('Error:', err);
       setTimeout(() => setError(''), 3000);
     }
@@ -77,27 +48,12 @@ const PendingInvitations = () => {
     }
 
     try {
-      const token = localStorage.getItem('token');
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/admin/invitations/${invitationId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess('Invitation deleted successfully');
-        fetchPendingInvitations();
-        setTimeout(() => setSuccess(''), 3000);
-      } else {
-        setError(data.message || 'Failed to delete invitation');
-        setTimeout(() => setError(''), 3000);
-      }
+      const { data } = await api.delete(`/admin/invitations/${invitationId}`);
+      setSuccess('Invitation deleted successfully');
+      fetchPendingInvitations();
+      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError('An error occurred while deleting invitation');
+      setError(err.response?.data?.message || 'An error occurred while deleting invitation');
       console.error('Error:', err);
       setTimeout(() => setError(''), 3000);
     }

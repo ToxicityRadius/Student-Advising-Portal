@@ -1,16 +1,65 @@
-const User = require('../models/User');
+const { User, StudyPlan } = require('../models');
+const { generateToken } = require('../utils/jwt');
+const { generateDraftStudyPlanForUser } = require('./advisingController');
+
+// Helper: strip sensitive fields from a user plain object
+function sanitizeUser(user) {
+  if (!user) return null;
+  const plain = user.get ? user.get({ plain: true }) : { ...user };
+  delete plain.password;
+  delete plain.activationToken;
+  delete plain.activationTokenExpires;
+  delete plain.resetPasswordToken;
+  delete plain.resetPasswordExpires;
+  delete plain.verificationCode;
+  delete plain.verificationCodeExpires;
+  return plain;
+}
+
+// @desc    Complete student onboarding (set year level)
+// @route   POST /api/users/onboard
+// @access  Private
+exports.completeOnboarding = async (req, res, next) => {
+  try {
+    const { current_year_level } = req.body;
+
+    if (!current_year_level || ![1, 2, 3, 4].includes(Number(current_year_level))) {
+      return res.status(400).json({
+        success: false,
+        message: 'current_year_level must be 1, 2, 3, or 4'
+      });
+    }
+
+    await User.update(
+      { current_year_level: Number(current_year_level), is_onboarded: true, updatedAt: Date.now() },
+      { where: { id: req.user.id } }
+    );
+
+    const updatedUser = await User.findByPk(req.user.id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Onboarding completed successfully',
+      user: sanitizeUser(updatedUser)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 // @desc    Get all users (Admin only)
 // @route   GET /api/users
 // @access  Private/Admin
 exports.getAllUsers = async (req, res, next) => {
   try {
-    const users = await User.findAll();
+    const users = await User.findAll({ order: [['createdAt', 'DESC']] });
+
+    const sanitized = users.map(u => sanitizeUser(u));
 
     res.status(200).json({
       success: true,
-      count: users.length,
-      users
+      count: sanitized.length,
+      users: sanitized
     });
   } catch (error) {
     next(error);
@@ -19,10 +68,18 @@ exports.getAllUsers = async (req, res, next) => {
 
 // @desc    Get user by ID
 // @route   GET /api/users/:id
-// @access  Private/Admin
+// @access  Private (self or admin)
 exports.getUserById = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const requestingOwnProfile = req.user && req.user.id.toString() === req.params.id.toString();
+    if (!requestingOwnProfile && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to view this profile'
+      });
+    }
+
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({
@@ -33,7 +90,7 @@ exports.getUserById = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      user: User.toJSON(user)
+      user: sanitizeUser(user)
     });
   } catch (error) {
     next(error);
@@ -47,7 +104,7 @@ exports.updateUser = async (req, res, next) => {
   try {
     const { firstName, lastName, email, role, isActive } = req.body;
 
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({
@@ -57,18 +114,21 @@ exports.updateUser = async (req, res, next) => {
     }
 
     // Update user
-    const updatedUser = await User.update(req.params.id, {
+    await User.update({
       firstName,
       lastName,
       email,
       role,
-      isActive
-    });
+      isActive,
+      updatedAt: Date.now()
+    }, { where: { id: req.params.id } });
+
+    const updatedUser = await User.findByPk(req.params.id);
 
     res.status(200).json({
       success: true,
       message: 'User updated successfully',
-      user: User.toJSON(updatedUser)
+      user: sanitizeUser(updatedUser)
     });
   } catch (error) {
     next(error);
@@ -80,7 +140,7 @@ exports.updateUser = async (req, res, next) => {
 // @access  Private/Admin
 exports.deleteUser = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({
@@ -97,7 +157,7 @@ exports.deleteUser = async (req, res, next) => {
       });
     }
 
-    await User.delete(req.params.id);
+    await User.destroy({ where: { id: req.params.id } });
 
     res.status(200).json({
       success: true,
@@ -113,7 +173,7 @@ exports.deleteUser = async (req, res, next) => {
 // @access  Private/Admin
 exports.toggleUserStatus = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({
@@ -122,14 +182,17 @@ exports.toggleUserStatus = async (req, res, next) => {
       });
     }
 
-    const updatedUser = await User.update(req.params.id, {
-      isActive: !user.isActive
-    });
+    await User.update({
+      isActive: !user.isActive,
+      updatedAt: Date.now()
+    }, { where: { id: req.params.id } });
+
+    const updatedUser = await User.findByPk(req.params.id);
 
     res.status(200).json({
       success: true,
       message: `User ${updatedUser.isActive ? 'activated' : 'deactivated'} successfully`,
-      user: User.toJSON(updatedUser)
+      user: sanitizeUser(updatedUser)
     });
   } catch (error) {
     next(error);
@@ -152,7 +215,7 @@ exports.updateStudentId = async (req, res, next) => {
     }
 
     // Check if studentId already exists
-    const existingUser = await User.findByStudentId(studentId);
+    const existingUser = await User.findOne({ where: { studentId } });
     if (existingUser && existingUser.id !== req.user.id) {
       return res.status(400).json({
         success: false,
@@ -169,13 +232,14 @@ exports.updateStudentId = async (req, res, next) => {
     }
 
     // Update user's studentId
-    const updatedUser = await User.update(req.user.id, { studentId });
+    await User.update({ studentId, updatedAt: Date.now() }, { where: { id: req.user.id } });
+    const updatedUser = await User.findByPk(req.user.id);
 
     res.status(200).json({
       success: true,
       message: 'Student Number updated successfully',
       user: {
-        ...User.toJSON(updatedUser),
+        ...sanitizeUser(updatedUser),
         studentId
       }
     });
@@ -201,7 +265,7 @@ exports.updateUserStudentId = async (req, res, next) => {
     }
 
     // Find the user
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -210,7 +274,7 @@ exports.updateUserStudentId = async (req, res, next) => {
     }
 
     // Check if studentId already exists (but different user)
-    const existingUser = await User.findByStudentId(studentId);
+    const existingUser = await User.findOne({ where: { studentId } });
     if (existingUser && existingUser.id !== user.id) {
       return res.status(400).json({
         success: false,
@@ -219,25 +283,170 @@ exports.updateUserStudentId = async (req, res, next) => {
     }
 
     // Update user's studentId
-    const updatedUser = await User.update(userId, { studentId });
-    const finalUser = await User.findById(userId);
+    await User.update({ studentId, updatedAt: Date.now() }, { where: { id: userId } });
+    const finalUser = await User.findByPk(userId);
 
     // Generate token
-    const { generateToken } = require('../utils/jwt');
-    const token = generateToken(finalUser.id, finalUser.role);
+    const token = generateToken(finalUser);
 
     res.status(200).json({
       success: true,
       message: 'Student Number updated successfully',
       token,
       user: {
-        id: finalUser._id,
+        id: finalUser.id,
         firstName: finalUser.firstName,
         lastName: finalUser.lastName,
         email: finalUser.email,
         role: finalUser.role,
         studentId: finalUser.studentId
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update user profile fields and profile picture
+// @route   PUT /api/users/:id/profile
+// @access  Private (self or admin)
+exports.updateProfile = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const requestingOwnProfile = req.user && req.user.id.toString() === id.toString();
+    if (!requestingOwnProfile && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to update this profile'
+      });
+    }
+
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const allowedFields = [
+      'first_name',
+      'middle_name',
+      'last_name',
+      'program',
+      'contact_number',
+      'year_level',
+      'adviserId'
+    ];
+
+    const updatePayload = {};
+    for (const field of allowedFields) {
+      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+        updatePayload[field] = req.body[field];
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'adviserId')) {
+      updatePayload.adviserId = updatePayload.adviserId === '' ? null : Number(updatePayload.adviserId);
+      if (updatePayload.adviserId !== null && Number.isNaN(updatePayload.adviserId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'adviserId must be a valid number or empty'
+        });
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'year_level')) {
+      const normalized = updatePayload.year_level === '' || updatePayload.year_level === null
+        ? null
+        : Number(updatePayload.year_level);
+
+      if (normalized !== null && (Number.isNaN(normalized) || normalized < 1 || normalized > 5)) {
+        return res.status(400).json({
+          success: false,
+          message: 'year_level must be a number from 1 to 5'
+        });
+      }
+
+      updatePayload.current_year_level = normalized;
+      delete updatePayload.year_level;
+
+      if (user.role === 'student' && normalized !== null) {
+        updatePayload.is_onboarded = true;
+      }
+    }
+
+    if (req.file) {
+      updatePayload.profile_picture = `/uploads/profiles/${req.file.filename}`;
+    }
+
+    updatePayload.updatedAt = Date.now();
+
+    Object.assign(user, updatePayload);
+    await user.save();
+
+    if (user.role === 'student' && user.program) {
+      try {
+        const existingPlans = await StudyPlan.count({ where: { UserId: user.id } });
+        if (existingPlans === 0) {
+          // Generate the first draft only after profile completion provides program data.
+          await generateDraftStudyPlanForUser(user.id);
+        }
+      } catch (planError) {
+        console.error('Auto-generation after profile completion failed:', planError);
+      }
+    }
+
+    const token = generateToken(user);
+
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      user: sanitizeUser(user),
+      token
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Assign adviser to a student
+// @route   PUT /api/users/:id/assign-adviser
+// @access  Private/Admin
+exports.assignAdviser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { adviserId } = req.body;
+
+    const student = await User.findByPk(id);
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    if (student.role !== 'student') {
+      return res.status(400).json({ success: false, message: 'Adviser can only be assigned to student users' });
+    }
+
+    let normalizedAdviserId = null;
+    if (adviserId !== null && adviserId !== undefined && adviserId !== '') {
+      normalizedAdviserId = Number(adviserId);
+      if (Number.isNaN(normalizedAdviserId)) {
+        return res.status(400).json({ success: false, message: 'adviserId must be a valid number' });
+      }
+
+      const adviser = await User.findByPk(normalizedAdviserId);
+      if (!adviser || adviser.role !== 'adviser') {
+        return res.status(400).json({ success: false, message: 'Selected adviser does not exist or is not an adviser' });
+      }
+    }
+
+    await User.update({ adviserId: normalizedAdviserId, updatedAt: Date.now() }, { where: { id } });
+    const updated = await User.findByPk(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Adviser assigned successfully',
+      user: sanitizeUser(updated)
     });
   } catch (error) {
     next(error);

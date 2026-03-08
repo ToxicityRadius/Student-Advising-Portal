@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../utils/api';
 import backgroundImage from '../assets/images/bg.png';
 import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 
@@ -95,25 +96,14 @@ const VerifyCode = () => {
     setLoading(true);
 
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/auth/verify-code`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId,
-          code: verificationCode,
-        }),
+      const { data } = await api.post('/auth/verify-code', {
+        userId,
+        code: verificationCode,
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
-      
-      const data = await response.json();
       console.log('Response data:', data);
 
-      if (response.ok && data.success) {
+      if (data.success) {
         console.log('Success! Storing token and redirecting...');
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
@@ -127,7 +117,7 @@ const VerifyCode = () => {
       }
     } catch (err) {
       console.error('Verification error:', err);
-      setError('An error occurred. Please try again.');
+      setError(err.response?.data?.message || 'An error occurred. Please try again.');
       setCode(['', '', '', '', '', '']);
       document.getElementById('code-input-0')?.focus();
     } finally {
@@ -142,26 +132,12 @@ const VerifyCode = () => {
     setError('');
 
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/auth/resend-code`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userId }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setCountdown(60); // 60 second cooldown
-        setCode(['', '', '', '', '', '']);
-        document.getElementById('code-input-0')?.focus();
-      } else {
-        setError(data.message || 'Failed to resend code');
-      }
+      const { data } = await api.post('/auth/resend-code', { userId });
+      setCountdown(60); // 60 second cooldown
+      setCode(['', '', '', '', '', '']);
+      document.getElementById('code-input-0')?.focus();
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      setError(err.response?.data?.message || 'An error occurred. Please try again.');
     } finally {
       setResendLoading(false);
     }

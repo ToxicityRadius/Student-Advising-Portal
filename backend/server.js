@@ -6,13 +6,21 @@ const dotenv = require('dotenv');
 // Load environment variables
 dotenv.config();
 
-// Initialize database
-require('./database/db');
+// Import models (centralized associations)
+const { sequelize } = require('./models');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const googleAuthRoutes = require('./routes/googleAuthRoutes');
+const invitationRoutes = require('./routes/invitationRoutes');
+const curriculumRoutes = require('./routes/curriculumRoutes');
+const importRoutes = require('./routes/importRoutes');
+const gradeRoutes = require('./routes/gradeRoutes');
+const termRoutes = require('./routes/termRoutes');
+const advisingRoutes = require('./routes/advisingRoutes');
+const forecastingRoutes = require('./routes/forecastingRoutes');
+const courseOfferingRoutes = require('./routes/courseOfferingRoutes');
 
 const app = express();
 
@@ -41,6 +49,17 @@ app.use(cors({
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', googleAuthRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/admin', invitationRoutes);
+app.use('/api/curriculum', curriculumRoutes);
+app.use('/api/import', importRoutes);
+app.use('/api/grades', gradeRoutes);
+app.use('/api/terms', termRoutes);
+app.use('/api/advising', advisingRoutes);
+app.use('/api/forecasting', forecastingRoutes);
+app.use('/api/course-offerings', courseOfferingRoutes);
+
+// Serve uploaded files
+app.use('/uploads', express.static('uploads'));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -57,6 +76,13 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+
+// Sync database and start server
+sequelize.sync({ alter: true }).then(() => {
+  console.log('Database synced successfully');
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}).catch((err) => {
+  console.error('Failed to sync database:', err);
 });

@@ -4,6 +4,7 @@ import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap'
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../context/AuthContext';
+import api from '../utils/api';
 import backgroundImage from '../assets/images/bg.png';
 import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 
@@ -96,33 +97,22 @@ const Register = () => {
       }
 
       // Send the Google token to your backend for verification and login
-      const response = await fetch('http://localhost:5000/api/auth/google', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          token: credentialResponse.credential,
-          email: decoded.email,
-          name: decoded.name,
-        }),
+      const { data } = await api.post('/auth/google', {
+        token: credentialResponse.credential,
+        email: decoded.email,
+        name: decoded.name,
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        // Store the token and user data
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        
-        // Force a page reload to trigger AuthContext to load the user
-        window.location.href = '/dashboard';
-      } else {
-        setError(data.message || 'Google Sign-In failed. Please try again.');
-      }
+      // Store the token and user data
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Navigate to dashboard
+      navigate('/dashboard');
+      window.location.reload();
     } catch (err) {
       console.error('Google Sign-In error:', err);
-      setError('An error occurred during Google Sign-In. Please try again.');
+      setError(err.response?.data?.message || 'An error occurred during Google Sign-In. Please try again.');
     } finally {
       setLoading(false);
     }
