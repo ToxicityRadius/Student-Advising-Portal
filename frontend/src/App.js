@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import PrivateRoute from './components/PrivateRoute';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -24,6 +25,8 @@ import DemandForecasting from './pages/Admin/DemandForecasting';
 import CourseOfferingManager from './pages/Admin/CourseOfferingManager';
 import CompleteProfile from './pages/CompleteProfile';
 import Profile from './pages/Profile';
+import AboutUs from './pages/AboutUs';
+import Purpose from './pages/Purpose';
 import './index.css';
 
 function AppContent() {
@@ -33,16 +36,18 @@ function AppContent() {
                      location.pathname === '/verify-code' || 
                      location.pathname === '/forgot-password' || 
                      location.pathname.startsWith('/reset-password') ||
+                     location.pathname.startsWith('/activate') ||
                      location.pathname.startsWith('/faculty-register');
 
   return (
     <>
       {!hideNavbar && <Navbar />}
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="/about" element={<AboutUs />} />
+        <Route path="/purpose" element={<Purpose />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/faculty-register/:token" element={<FacultyRegister />} />
         <Route path="/verify-code" element={<VerifyCode />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />

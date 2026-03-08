@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap';
-import backgroundImage from '../bg.png';
-import tipLogo from '../tip logo.png';
+import backgroundImage from '../assets/images/bg.png';
+import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
@@ -56,8 +56,8 @@ const ForgotPassword = () => {
         style={{ 
           left: 0,
           top: '10.5%',
-          width: '750px',
-          height: '100px',
+          width: '550px',
+          height: '60px',
           backgroundColor: '#FFC107',
           zIndex: 2,
           boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
@@ -71,7 +71,7 @@ const ForgotPassword = () => {
           right: 0,
           bottom: '10.5%',
           width: '1500px',
-          height: '100px',
+          height: '60px',
           backgroundColor: '#FFC107',
           zIndex: 1,
           boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
@@ -79,16 +79,16 @@ const ForgotPassword = () => {
       />
       
       <Container className="position-relative" style={{ zIndex: 1 }}>
-        <Row className="justify-content-start">
-          <Col xs={12} sm={10} md={8} lg={6} xl={5}>
+        <Row className="justify-content-center">
+          <Col xs={12} sm={10} md={8} lg={6} xl={5} style={{ maxWidth: '380px' }}>
             <Card className="shadow-lg border-0" style={{ position: 'relative', zIndex: 3, borderRadius: '20px', overflow: 'hidden' }}>
               <Card.Body className="p-4 p-md-5">
-                <div className="text-center mb-4">
-                  <img src={tipLogo} alt="TIP Logo" style={{ maxWidth: '280px', height: 'auto' }} />
+                <div className="text-center mb-3">
+                  <img src={studentAdvisingLogo} alt="Student Advising Logo" style={{ maxWidth: '220px', height: 'auto' }} />
                 </div>
                 
-                <h2 className="mb-3">Forgot Password?</h2>
-                <p className="text-muted mb-4 small">
+                <h2 className="mb-2" style={{ fontSize: '1.3rem' }}>Forgot Password?</h2>
+                <p className="text-muted mb-3" style={{ fontSize: '0.85rem' }}>
                   Enter your email address and we'll send you a link to reset your password.
                 </p>
                 
@@ -111,13 +111,18 @@ const ForgotPassword = () => {
                     type="submit" 
                     variant="warning" 
                     size="lg" 
-                    className="w-100 fw-bold text-dark mb-3"
+                    className="w-100 fw-bold mb-3 login-button"
                     disabled={loading}
+                    style={{
+                      backgroundColor: '#FFC107',
+                      borderColor: '#FFC107',
+                      color: '#000'
+                    }}
                   >
                     {loading ? 'Sending...' : 'Send Reset Link'}
                   </Button>
                   
-                  <div className="text-center">
+                  <div className="text-center" style={{ fontSize: '0.85rem' }}>
                     <Link to="/login" className="text-decoration-none">
                       ← Back to Login
                     </Link>

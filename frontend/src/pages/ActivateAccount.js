@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import backgroundImage from '../bg.png';
+import backgroundImage from '../assets/images/bg.png';
 
 const ActivateAccount = () => {
   const { token } = useParams();
@@ -49,8 +49,8 @@ const ActivateAccount = () => {
         style={{ 
           left: 0,
           top: '10.5%',
-          width: '750px',
-          height: '100px',
+          width: '550px',
+          height: '60px',
           backgroundColor: '#FFC107',
           zIndex: 2,
           boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
@@ -64,7 +64,7 @@ const ActivateAccount = () => {
           right: 0,
           bottom: '10.5%',
           width: '1500px',
-          height: '100px',
+          height: '60px',
           backgroundColor: '#FFC107',
           zIndex: 1,
           boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'

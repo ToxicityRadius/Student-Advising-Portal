@@ -22,6 +22,8 @@
 - **react-dom:** ^18.2.0 - React DOM rendering
 - **react-router-dom:** ^6.20.1 - Client-side routing
 - **react-scripts:** ^5.0.1 - React development scripts
+- **react-bootstrap:** ^2.10.10 - Bootstrap React components
+- **bootstrap:** ^5.3.8 - CSS framework
 - **axios:** ^1.6.2 - HTTP client for API calls
 - **bootstrap:** ^5.3.8 - CSS framework
 - **react-bootstrap:** ^2.10.10 - Bootstrap components for React

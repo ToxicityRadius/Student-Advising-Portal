@@ -29,10 +29,11 @@ function sanitizeUser(user) {
 // @access  Public
 exports.register = async (req, res, next) => {
   try {
-    const { studentId, firstName, lastName, email, password } = req.body;
+    const { studentId, firstName, lastName, email, password, role: requestedRole } = req.body;
+    const isFaculty = requestedRole === 'adviser';
 
-    // Validate Student ID format (7 digits only)
-    if (studentId && (!/^\d{7}$/.test(studentId))) {
+    // Validate Student ID format (7 digits only) - only for students
+    if (!isFaculty && studentId && (!/^\d{7}$/.test(studentId))) {
       return res.status(400).json({
         success: false,
         message: 'Student ID must be exactly 7 digits'
@@ -44,6 +45,14 @@ exports.register = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Only T.I.P. email addresses (@tip.edu.ph) are allowed to register.'
+      });
+    }
+
+    // For faculty, validate .cpe@tip.edu.ph domain
+    if (isFaculty && !email.toLowerCase().endsWith('.cpe@tip.edu.ph')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Faculty email must end with .cpe@tip.edu.ph'
       });
     }
 
@@ -67,17 +76,17 @@ exports.register = async (req, res, next) => {
     // Assign new students to the active curriculum when available.
     const activeCurriculum = await Curriculum.findOne({ where: { active_status: true } });
 
-    // Create user - automatically assign Student role
+    // Create user - assign role based on request
     const user = await User.create({
-      studentId,
+      studentId: isFaculty ? null : studentId,
       firstName,
       lastName,
       first_name: firstName || null,
       last_name: lastName || null,
       email,
       password: hashedPassword,
-      role: 'student',
-      CurriculumId: activeCurriculum ? activeCurriculum.id : null,
+      role: isFaculty ? 'adviser' : 'student',
+      CurriculumId: !isFaculty && activeCurriculum ? activeCurriculum.id : null,
       activationToken,
       activationTokenExpires,
       createdAt: Date.now(),
