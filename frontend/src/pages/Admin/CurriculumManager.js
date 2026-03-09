@@ -43,7 +43,7 @@ const CurriculumManager = () => {
 
   // Prerequisite modal
   const [showPrereqModal, setShowPrereqModal] = useState(false);
-  const [prereqForm, setPrereqForm] = useState({ subject_id: '', required_subj_id: '' });
+  const [prereqForm, setPrereqForm] = useState({ subject_id: '', required_subj_id: '', type: 'prerequisite' });
 
   // Equivalency modal
   const [showEquivModal, setShowEquivModal] = useState(false);
@@ -187,11 +187,12 @@ const CurriculumManager = () => {
     try {
       await api.post('/curriculum/prerequisites', {
         subject_id: Number(prereqForm.subject_id),
-        required_subj_id: Number(prereqForm.required_subj_id)
+        required_subj_id: Number(prereqForm.required_subj_id),
+        type: prereqForm.type
       });
-      flash('Prerequisite added');
+      flash(prereqForm.type === 'corequisite' ? 'Corequisite added' : 'Prerequisite added');
       setShowPrereqModal(false);
-      setPrereqForm({ subject_id: '', required_subj_id: '' });
+      setPrereqForm({ subject_id: '', required_subj_id: '', type: 'prerequisite' });
       fetchCurriculums();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to add prerequisite');
@@ -348,9 +349,14 @@ const CurriculumManager = () => {
                                           <td>{s.units}</td>
                                           <td>
                                             {s.prerequisites && s.prerequisites.length > 0
-                                              ? s.prerequisites.map(p =>
-                                                  p.RequiredSubject ? p.RequiredSubject.course_code : `ID ${p.required_subj_id}`
-                                                ).join(', ')
+                                              ? s.prerequisites.map((p, i) => (
+                                                  <span key={p.id ?? i} className="me-1">
+                                                    {p.RequiredSubject ? p.RequiredSubject.course_code : `ID ${p.required_subj_id}`}
+                                                    {p.type === 'corequisite' && (
+                                                      <Badge bg="info" text="dark" className="ms-1" style={{ fontSize: '0.7em' }}>C</Badge>
+                                                    )}
+                                                  </span>
+                                                ))
                                               : <span className="text-muted">None</span>
                                             }
                                           </td>
@@ -561,10 +567,20 @@ const CurriculumManager = () => {
       {/* ── Prerequisite Modal ── */}
       <Modal show={showPrereqModal} onHide={() => setShowPrereqModal(false)}>
         <Modal.Header closeButton>
-          <Modal.Title>Add Prerequisite</Modal.Title>
+          <Modal.Title>Add Prerequisite / Corequisite</Modal.Title>
         </Modal.Header>
         <Form onSubmit={handlePrereqSubmit}>
           <Modal.Body>
+            <Form.Group className="mb-3">
+              <Form.Label>Type</Form.Label>
+              <Form.Select
+                value={prereqForm.type}
+                onChange={e => setPrereqForm({ ...prereqForm, type: e.target.value })}
+              >
+                <option value="prerequisite">Prerequisite (must be taken before)</option>
+                <option value="corequisite">Corequisite (must be taken in the same semester)</option>
+              </Form.Select>
+            </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Subject</Form.Label>
               <Form.Select
@@ -581,13 +597,15 @@ const CurriculumManager = () => {
               </Form.Select>
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Required Prerequisite Subject</Form.Label>
+              <Form.Label>
+                {prereqForm.type === 'corequisite' ? 'Corequisite Subject' : 'Required Prerequisite Subject'}
+              </Form.Label>
               <Form.Select
                 value={prereqForm.required_subj_id}
                 onChange={e => setPrereqForm({ ...prereqForm, required_subj_id: e.target.value })}
                 required
               >
-                <option value="">Select prerequisite...</option>
+                <option value="">Select subject...</option>
                 {allSubjects
                   .filter(s => String(s.id) !== String(prereqForm.subject_id))
                   .map(s => (
@@ -597,10 +615,17 @@ const CurriculumManager = () => {
                   ))}
               </Form.Select>
             </Form.Group>
+            {prereqForm.type === 'corequisite' && (
+              <small className="text-muted">
+                Note: Both subjects must be enrolled in the same semester. This will not block scheduling.
+              </small>
+            )}
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={() => setShowPrereqModal(false)}>Cancel</Button>
-            <Button variant="warning" type="submit">Add Prerequisite</Button>
+            <Button variant="warning" type="submit">
+              {prereqForm.type === 'corequisite' ? 'Add Corequisite' : 'Add Prerequisite'}
+            </Button>
           </Modal.Footer>
         </Form>
       </Modal>

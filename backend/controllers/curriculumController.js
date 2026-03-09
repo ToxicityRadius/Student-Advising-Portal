@@ -230,12 +230,19 @@ exports.deleteSubject = async (req, res, next) => {
 
 exports.addPrerequisite = async (req, res, next) => {
   try {
-    const { subject_id, required_subj_id } = req.body;
+    const { subject_id, required_subj_id, type = 'prerequisite' } = req.body;
 
     if (!subject_id || !required_subj_id) {
       return res.status(400).json({
         success: false,
         message: 'subject_id and required_subj_id are required'
+      });
+    }
+
+    if (!['prerequisite', 'corequisite'].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: "type must be 'prerequisite' or 'corequisite'"
       });
     }
 
@@ -263,36 +270,39 @@ exports.addPrerequisite = async (req, res, next) => {
       return res.status(409).json({ success: false, message: 'Prerequisite already exists' });
     }
 
-    // Direct reverse-loop check: does the required subject already require this subject?
-    const reversePrereq = await Prerequisite.findOne({
-      where: { subject_id: required_subj_id, required_subj_id: subject_id }
-    });
-
-    if (reversePrereq) {
-      return res.status(400).json({
-        success: false,
-        message: 'Circular dependency detected: The required subject already requires this subject.'
+    // Corequisites are bidirectional by nature — skip cycle detection
+    if (type === 'prerequisite') {
+      // Direct reverse-loop check
+      const reversePrereq = await Prerequisite.findOne({
+        where: { subject_id: required_subj_id, required_subj_id: subject_id, type: 'prerequisite' }
       });
+
+      if (reversePrereq) {
+        return res.status(400).json({
+          success: false,
+          message: 'Circular dependency detected: The required subject already requires this subject.'
+        });
+      }
+
+      // Deep circular dependency check (transitive loops)
+      const cycle = await wouldCreateCycle(
+        async (nodeId) => {
+          const rows = await Prerequisite.findAll({ where: { subject_id: nodeId, type: 'prerequisite' } });
+          return rows.map(r => r.required_subj_id);
+        },
+        required_subj_id,
+        subject_id
+      );
+
+      if (cycle) {
+        return res.status(400).json({
+          success: false,
+          message: 'Circular dependency detected: The required subject already requires this subject.'
+        });
+      }
     }
 
-    // Deep circular dependency check (transitive loops)
-    const cycle = await wouldCreateCycle(
-      async (nodeId) => {
-        const rows = await Prerequisite.findAll({ where: { subject_id: nodeId } });
-        return rows.map(r => r.required_subj_id);
-      },
-      required_subj_id,
-      subject_id
-    );
-
-    if (cycle) {
-      return res.status(400).json({
-        success: false,
-        message: 'Circular dependency detected: The required subject already requires this subject.'
-      });
-    }
-
-    const prerequisite = await Prerequisite.create({ subject_id, required_subj_id });
+    const prerequisite = await Prerequisite.create({ subject_id, required_subj_id, type });
     res.status(201).json({ success: true, data: prerequisite });
   } catch (error) {
     next(error);

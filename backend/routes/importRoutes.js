@@ -5,7 +5,9 @@ const {
   uploadUsers,
   importUsers,
   uploadGrades,
-  importGrades
+  importGrades,
+  uploadSubjects,
+  importSubjects
 } = require('../controllers/importController');
 
 // All routes require authentication + admin role
@@ -16,5 +18,8 @@ router.post('/users', uploadUsers, importUsers);
 
 // Import historical grades (CSV)
 router.post('/grades', uploadGrades, importGrades);
+
+// Import curriculum subjects (CSV)
+router.post('/subjects', uploadSubjects, importSubjects);
 
 module.exports = router;

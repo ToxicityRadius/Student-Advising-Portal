@@ -15,6 +15,12 @@ const BulkImport = () => {
   const [gradeResult, setGradeResult] = useState(null);
   const [gradeError, setGradeError] = useState('');
 
+  // ── Subjects import state ──
+  const [subjectFile, setSubjectFile] = useState(null);
+  const [subjectLoading, setSubjectLoading] = useState(false);
+  const [subjectResult, setSubjectResult] = useState(null);
+  const [subjectError, setSubjectError] = useState('');
+
   // ── Import Users ──
   const handleUserImport = async (e) => {
     e.preventDefault();
@@ -63,6 +69,30 @@ const BulkImport = () => {
     }
   };
 
+  // ── Import Subjects ──
+  const handleSubjectImport = async (e) => {
+    e.preventDefault();
+    if (!subjectFile) return;
+
+    setSubjectLoading(true);
+    setSubjectError('');
+    setSubjectResult(null);
+
+    const formData = new FormData();
+    formData.append('file', subjectFile);
+
+    try {
+      const res = await api.post('/import/subjects', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setSubjectResult(res.data);
+    } catch (err) {
+      setSubjectError(err.response?.data?.message || 'Import failed');
+    } finally {
+      setSubjectLoading(false);
+    }
+  };
+
   const renderResult = (result) => {
     if (!result) return null;
     return (
@@ -70,7 +100,10 @@ const BulkImport = () => {
         <strong>{result.message}</strong>
         {result.data && (
           <div className="mt-2">
-            <small>Created: {result.data.created} | Skipped: {result.data.skipped}</small>
+            <small>
+              Created: {result.data.created} | Skipped: {result.data.skipped}
+              {result.data.prereqCreated !== undefined && ` | Prerequisites linked: ${result.data.prereqCreated}`}
+            </small>
             {result.data.errors && result.data.errors.length > 0 && (
               <details className="mt-2">
                 <summary className="text-danger">
@@ -172,6 +205,46 @@ const BulkImport = () => {
 
               {gradeError && <Alert variant="danger" className="mt-3">{gradeError}</Alert>}
               {renderResult(gradeResult)}
+            </Card.Body>
+          </Card>
+        </Col>
+
+        {/* ── Curriculum Subjects Import ── */}
+        <Col md={6}>
+          <Card>
+            <Card.Header className="bg-warning text-dark fw-bold">
+              Import Curriculum Subjects
+            </Card.Header>
+            <Card.Body>
+              <p className="text-muted small mb-3">
+                Upload a CSV file with columns: <code>curriculum_year</code>, <code>course_code</code>, <code>descriptive_title</code>, <code>lecture_hours</code>, <code>laboratory_hours</code>, <code>credit_units</code>, <code>prerequisite</code>.
+                <br />
+                The <code>curriculum_year</code> must match an existing curriculum (e.g., <em>BS CpE – 2025</em>). Use comma-separated values in <code>prerequisite</code> for multiple prereqs. Existing subjects are skipped.
+              </p>
+              <Form onSubmit={handleSubjectImport}>
+                <Form.Group className="mb-3">
+                  <Form.Label>CSV File</Form.Label>
+                  <Form.Control
+                    type="file"
+                    accept=".csv"
+                    onChange={e => setSubjectFile(e.target.files[0])}
+                    required
+                  />
+                </Form.Group>
+                <Button type="submit" variant="warning" disabled={subjectLoading || !subjectFile}>
+                  {subjectLoading ? (
+                    <>
+                      <Spinner size="sm" animation="border" className="me-2" />
+                      Importing...
+                    </>
+                  ) : (
+                    'Import Subjects'
+                  )}
+                </Button>
+              </Form>
+
+              {subjectError && <Alert variant="danger" className="mt-3">{subjectError}</Alert>}
+              {renderResult(subjectResult)}
             </Card.Body>
           </Card>
         </Col>

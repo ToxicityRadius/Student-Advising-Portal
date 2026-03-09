@@ -7,6 +7,12 @@ const Prerequisite = sequelize.define('Prerequisite', {
   },
   required_subj_id: {
     type: DataTypes.INTEGER
+  },
+  type: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: 'prerequisite',
+    validate: { isIn: [['prerequisite', 'corequisite']] }
   }
 }, {
   tableName: 'prerequisites',

@@ -137,7 +137,9 @@ async function generateDraftStudyPlanForUser(userId) {
       if (termUnits + subjectUnits > maxUnits) continue;
 
       const subjectPrereqs = allPrereqs.filter(pr => pr.subject_id === subject.id);
-      const prereqsMet = subjectPrereqs.every(pr => projectedPassedIds.has(pr.required_subj_id));
+      // Corequisites don't block scheduling — only hard prerequisites do
+      const blockingPrereqs = subjectPrereqs.filter(pr => pr.type !== 'corequisite');
+      const prereqsMet = blockingPrereqs.every(pr => projectedPassedIds.has(pr.required_subj_id));
 
       const seasonal = (subject.seasonal_term || '').toLowerCase();
       const nativeFirstSem = seasonal.includes('1st semester');
