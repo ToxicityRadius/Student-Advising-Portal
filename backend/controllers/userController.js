@@ -1,5 +1,5 @@
-const { User } = require('../models');
-const { generateToken } = require('../utils/jwt');
+const { User } = require("../models");
+const { generateToken } = require("../utils/jwt");
 
 // Helper: strip sensitive fields from a user plain object
 function sanitizeUser(user) {
@@ -22,24 +22,31 @@ exports.completeOnboarding = async (req, res, next) => {
   try {
     const { current_year_level } = req.body;
 
-    if (!current_year_level || ![1, 2, 3, 4].includes(Number(current_year_level))) {
+    if (
+      !current_year_level ||
+      ![1, 2, 3, 4].includes(Number(current_year_level))
+    ) {
       return res.status(400).json({
         success: false,
-        message: 'current_year_level must be 1, 2, 3, or 4'
+        message: "current_year_level must be 1, 2, 3, or 4",
       });
     }
 
     await User.update(
-      { current_year_level: Number(current_year_level), is_onboarded: true, updatedAt: Date.now() },
-      { where: { id: req.user.id } }
+      {
+        current_year_level: Number(current_year_level),
+        is_onboarded: true,
+        updatedAt: Date.now(),
+      },
+      { where: { id: req.user.id } },
     );
 
     const updatedUser = await User.findByPk(req.user.id);
 
     res.status(200).json({
       success: true,
-      message: 'Onboarding completed successfully',
-      user: sanitizeUser(updatedUser)
+      message: "Onboarding completed successfully",
+      user: sanitizeUser(updatedUser),
     });
   } catch (error) {
     next(error);
@@ -51,14 +58,14 @@ exports.completeOnboarding = async (req, res, next) => {
 // @access  Private/Admin
 exports.getAllUsers = async (req, res, next) => {
   try {
-    const users = await User.findAll({ order: [['createdAt', 'DESC']] });
+    const users = await User.findAll({ order: [["createdAt", "DESC"]] });
 
-    const sanitized = users.map(u => sanitizeUser(u));
+    const sanitized = users.map((u) => sanitizeUser(u));
 
     res.status(200).json({
       success: true,
       count: sanitized.length,
-      users: sanitized
+      users: sanitized,
     });
   } catch (error) {
     next(error);
@@ -70,11 +77,12 @@ exports.getAllUsers = async (req, res, next) => {
 // @access  Private (self or admin)
 exports.getUserById = async (req, res, next) => {
   try {
-    const requestingOwnProfile = req.user && req.user.id.toString() === req.params.id.toString();
-    if (!requestingOwnProfile && req.user.role !== 'admin') {
+    const requestingOwnProfile =
+      req.user && req.user.id.toString() === req.params.id.toString();
+    if (!requestingOwnProfile && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
-        message: 'You are not authorized to view this profile'
+        message: "You are not authorized to view this profile",
       });
     }
 
@@ -83,13 +91,13 @@ exports.getUserById = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
     res.status(200).json({
       success: true,
-      user: sanitizeUser(user)
+      user: sanitizeUser(user),
     });
   } catch (error) {
     next(error);
@@ -108,26 +116,29 @@ exports.updateUser = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
     // Update user
-    await User.update({
-      firstName,
-      lastName,
-      email,
-      role,
-      isActive,
-      updatedAt: Date.now()
-    }, { where: { id: req.params.id } });
+    await User.update(
+      {
+        firstName,
+        lastName,
+        email,
+        role,
+        isActive,
+        updatedAt: Date.now(),
+      },
+      { where: { id: req.params.id } },
+    );
 
     const updatedUser = await User.findByPk(req.params.id);
 
     res.status(200).json({
       success: true,
-      message: 'User updated successfully',
-      user: sanitizeUser(updatedUser)
+      message: "User updated successfully",
+      user: sanitizeUser(updatedUser),
     });
   } catch (error) {
     next(error);
@@ -144,7 +155,7 @@ exports.deleteUser = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
@@ -152,7 +163,7 @@ exports.deleteUser = async (req, res, next) => {
     if (user.id.toString() === req.user.id.toString()) {
       return res.status(400).json({
         success: false,
-        message: 'You cannot delete your own account'
+        message: "You cannot delete your own account",
       });
     }
 
@@ -160,7 +171,7 @@ exports.deleteUser = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'User deleted successfully'
+      message: "User deleted successfully",
     });
   } catch (error) {
     next(error);
@@ -177,21 +188,24 @@ exports.toggleUserStatus = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
-    await User.update({
-      isActive: !user.isActive,
-      updatedAt: Date.now()
-    }, { where: { id: req.params.id } });
+    await User.update(
+      {
+        isActive: !user.isActive,
+        updatedAt: Date.now(),
+      },
+      { where: { id: req.params.id } },
+    );
 
     const updatedUser = await User.findByPk(req.params.id);
 
     res.status(200).json({
       success: true,
-      message: `User ${updatedUser.isActive ? 'activated' : 'deactivated'} successfully`,
-      user: sanitizeUser(updatedUser)
+      message: `User ${updatedUser.isActive ? "activated" : "deactivated"} successfully`,
+      user: sanitizeUser(updatedUser),
     });
   } catch (error) {
     next(error);
@@ -209,7 +223,7 @@ exports.updateStudentId = async (req, res, next) => {
     if (!studentId || !/^\d{7}$/.test(studentId)) {
       return res.status(400).json({
         success: false,
-        message: 'Student Number must be exactly 7 digits'
+        message: "Student Number must be exactly 7 digits",
       });
     }
 
@@ -218,29 +232,32 @@ exports.updateStudentId = async (req, res, next) => {
     if (existingUser && existingUser.id !== req.user.id) {
       return res.status(400).json({
         success: false,
-        message: 'This Student Number is already registered to another account'
+        message: "This Student Number is already registered to another account",
       });
     }
 
     // Only students can update their student ID
-    if (req.user.role !== 'student') {
+    if (req.user.role !== "student") {
       return res.status(403).json({
         success: false,
-        message: 'Only student accounts can have a Student Number'
+        message: "Only student accounts can have a Student Number",
       });
     }
 
     // Update user's studentId
-    await User.update({ studentId, updatedAt: Date.now() }, { where: { id: req.user.id } });
+    await User.update(
+      { studentId, updatedAt: Date.now() },
+      { where: { id: req.user.id } },
+    );
     const updatedUser = await User.findByPk(req.user.id);
 
     res.status(200).json({
       success: true,
-      message: 'Student Number updated successfully',
+      message: "Student Number updated successfully",
       user: {
         ...sanitizeUser(updatedUser),
-        studentId
-      }
+        studentId,
+      },
     });
   } catch (error) {
     next(error);
@@ -259,7 +276,7 @@ exports.updateUserStudentId = async (req, res, next) => {
     if (!studentId || !/^\d{7}$/.test(studentId)) {
       return res.status(400).json({
         success: false,
-        message: 'Student Number must be exactly 7 digits'
+        message: "Student Number must be exactly 7 digits",
       });
     }
 
@@ -268,7 +285,7 @@ exports.updateUserStudentId = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
@@ -277,12 +294,15 @@ exports.updateUserStudentId = async (req, res, next) => {
     if (existingUser && existingUser.id !== user.id) {
       return res.status(400).json({
         success: false,
-        message: 'This Student Number is already registered to another account'
+        message: "This Student Number is already registered to another account",
       });
     }
 
     // Update user's studentId
-    await User.update({ studentId, updatedAt: Date.now() }, { where: { id: userId } });
+    await User.update(
+      { studentId, updatedAt: Date.now() },
+      { where: { id: userId } },
+    );
     const finalUser = await User.findByPk(userId);
 
     // Generate token
@@ -290,7 +310,7 @@ exports.updateUserStudentId = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Student Number updated successfully',
+      message: "Student Number updated successfully",
       token,
       user: {
         id: finalUser.id,
@@ -298,8 +318,8 @@ exports.updateUserStudentId = async (req, res, next) => {
         lastName: finalUser.lastName,
         email: finalUser.email,
         role: finalUser.role,
-        studentId: finalUser.studentId
-      }
+        studentId: finalUser.studentId,
+      },
     });
   } catch (error) {
     next(error);
@@ -313,11 +333,12 @@ exports.updateProfile = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const requestingOwnProfile = req.user && req.user.id.toString() === id.toString();
-    if (!requestingOwnProfile && req.user.role !== 'admin') {
+    const requestingOwnProfile =
+      req.user && req.user.id.toString() === id.toString();
+    if (!requestingOwnProfile && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
-        message: 'You are not authorized to update this profile'
+        message: "You are not authorized to update this profile",
       });
     }
 
@@ -325,18 +346,18 @@ exports.updateProfile = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
     const allowedFields = [
-      'first_name',
-      'middle_name',
-      'last_name',
-      'program',
-      'contact_number',
-      'year_level',
-      'adviserId'
+      "first_name",
+      "middle_name",
+      "last_name",
+      "program",
+      "contact_number",
+      "year_level",
+      "adviserId",
     ];
 
     const updatePayload = {};
@@ -346,32 +367,40 @@ exports.updateProfile = async (req, res, next) => {
       }
     }
 
-    if (Object.prototype.hasOwnProperty.call(updatePayload, 'adviserId')) {
-      updatePayload.adviserId = updatePayload.adviserId === '' ? null : Number(updatePayload.adviserId);
-      if (updatePayload.adviserId !== null && Number.isNaN(updatePayload.adviserId)) {
+    if (Object.prototype.hasOwnProperty.call(updatePayload, "adviserId")) {
+      updatePayload.adviserId =
+        updatePayload.adviserId === "" ? null : Number(updatePayload.adviserId);
+      if (
+        updatePayload.adviserId !== null &&
+        Number.isNaN(updatePayload.adviserId)
+      ) {
         return res.status(400).json({
           success: false,
-          message: 'adviserId must be a valid number or empty'
+          message: "adviserId must be a valid number or empty",
         });
       }
     }
 
-    if (Object.prototype.hasOwnProperty.call(updatePayload, 'year_level')) {
-      const normalized = updatePayload.year_level === '' || updatePayload.year_level === null
-        ? null
-        : Number(updatePayload.year_level);
+    if (Object.prototype.hasOwnProperty.call(updatePayload, "year_level")) {
+      const normalized =
+        updatePayload.year_level === "" || updatePayload.year_level === null
+          ? null
+          : Number(updatePayload.year_level);
 
-      if (normalized !== null && (Number.isNaN(normalized) || normalized < 1 || normalized > 5)) {
+      if (
+        normalized !== null &&
+        (Number.isNaN(normalized) || normalized < 1 || normalized > 5)
+      ) {
         return res.status(400).json({
           success: false,
-          message: 'year_level must be a number from 1 to 5'
+          message: "year_level must be a number from 1 to 5",
         });
       }
 
       updatePayload.current_year_level = normalized;
       delete updatePayload.year_level;
 
-      if (user.role === 'student' && normalized !== null) {
+      if (user.role === "student" && normalized !== null) {
         updatePayload.is_onboarded = true;
       }
     }
@@ -388,9 +417,9 @@ exports.updateProfile = async (req, res, next) => {
     const token = generateToken(user);
 
     res.status(200).json({
-      message: 'Profile updated successfully',
+      message: "Profile updated successfully",
       user: sanitizeUser(user),
-      token
+      token,
     });
   } catch (error) {
     next(error);
@@ -407,35 +436,159 @@ exports.assignAdviser = async (req, res, next) => {
 
     const student = await User.findByPk(id);
     if (!student) {
-      return res.status(404).json({ success: false, message: 'Student not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: "Student not found" });
     }
 
-    if (student.role !== 'student') {
-      return res.status(400).json({ success: false, message: 'Adviser can only be assigned to student users' });
+    if (student.role !== "student") {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Adviser can only be assigned to student users",
+        });
     }
 
     let normalizedAdviserId = null;
-    if (adviserId !== null && adviserId !== undefined && adviserId !== '') {
+    if (adviserId !== null && adviserId !== undefined && adviserId !== "") {
       normalizedAdviserId = Number(adviserId);
       if (Number.isNaN(normalizedAdviserId)) {
-        return res.status(400).json({ success: false, message: 'adviserId must be a valid number' });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "adviserId must be a valid number",
+          });
       }
 
       const adviser = await User.findByPk(normalizedAdviserId);
-      if (!adviser || adviser.role !== 'adviser') {
-        return res.status(400).json({ success: false, message: 'Selected adviser does not exist or is not an adviser' });
+      if (!adviser || adviser.role !== "adviser") {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Selected adviser does not exist or is not an adviser",
+          });
       }
     }
 
-    await User.update({ adviserId: normalizedAdviserId, updatedAt: Date.now() }, { where: { id } });
+    await User.update(
+      { adviserId: normalizedAdviserId, updatedAt: Date.now() },
+      { where: { id } },
+    );
     const updated = await User.findByPk(id);
 
     res.status(200).json({
       success: true,
-      message: 'Adviser assigned successfully',
-      user: sanitizeUser(updated)
+      message: "Adviser assigned successfully",
+      user: sanitizeUser(updated),
     });
   } catch (error) {
     next(error);
+  }
+};
+
+exports.getDashboardData = async (req, res, next) => {
+  try {
+    const {
+      StudentAcademicRecord,
+      StudyPlan,
+      StudyPlanVersion,
+      StudyPlanCourse,
+      Course,
+    } = require("../models");
+
+    const record = await StudentAcademicRecord.findOne({
+      where: { userId: req.user.id },
+    });
+    if (!record) return res.status(200).json({ success: true, data: null });
+
+    const studyPlan = await StudyPlan.findOne({
+      where: { studentAcademicRecordId: record.id },
+    });
+    if (!studyPlan) return res.status(200).json({ success: true, data: null });
+
+    const activeVersion = await StudyPlanVersion.findOne({
+      where: { studyPlanId: studyPlan.id, status: "active" },
+    });
+    if (!activeVersion)
+      return res.status(200).json({ success: true, data: null });
+
+    const planCourses = await StudyPlanCourse.findAll({
+      where: { studyPlanVersionId: activeVersion.id },
+      include: [{ model: Course }],
+    });
+
+    const completed = planCourses.filter((c) => c.status === "passed");
+    const pending = planCourses.filter((c) => c.status === "pending");
+
+    // GWA: weighted average of numeric grades for passed courses
+    let gwaNum = 0,
+      gwaDen = 0;
+    for (const c of completed) {
+      const g = parseFloat(c.grade);
+      const u = c.Course ? c.Course.units : 0;
+      if (!isNaN(g) && u > 0) {
+        gwaNum += g * u;
+        gwaDen += u;
+      }
+    }
+    const gwa = gwaDen > 0 ? (gwaNum / gwaDen).toFixed(2) : null;
+
+    const unitsCredited = completed.reduce(
+      (sum, c) => sum + (c.Course ? c.Course.units : 0),
+      0,
+    );
+    const totalUnits = planCourses.reduce(
+      (sum, c) => sum + (c.Course ? c.Course.units : 0),
+      0,
+    );
+
+    // Group by (yearLevel, semester)
+    const semMap = {};
+    for (const c of planCourses) {
+      const key = `${c.yearLevel}-${c.semester}`;
+      if (!semMap[key])
+        semMap[key] = {
+          yearLevel: c.yearLevel,
+          semester: c.semester,
+          courses: [],
+        };
+      semMap[key].courses.push({
+        code: c.Course ? c.Course.code : "",
+        name: c.Course ? c.Course.name : "",
+        units: c.Course ? c.Course.units : 0,
+        grade: c.grade,
+        status: c.status,
+      });
+    }
+
+    const semesterSummary = Object.values(semMap).sort((a, b) =>
+      a.yearLevel !== b.yearLevel
+        ? a.yearLevel - b.yearLevel
+        : a.semester - b.semester,
+    );
+
+    for (const sem of semesterSummary) {
+      const hasPending = sem.courses.some(
+        (c) => c.status === "pending" || c.status === "incomplete",
+      );
+      sem.status = hasPending ? "In Progress" : "Completed";
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        gwa,
+        unitsCredited,
+        totalUnits,
+        subjectsCompleted: completed.length,
+        subjectsPending: pending.length,
+        semesterSummary,
+      },
+    });
+  } catch (err) {
+    next(err);
   }
 };
