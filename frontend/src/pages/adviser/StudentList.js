@@ -1,5 +1,5 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, Form, InputGroup, Pagination, Spinner, Table } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Form, InputGroup, Pagination, Spinner, Table } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import CreateSARModal from '../../components/adviser/CreateSARModal';
 import api from '../../utils/api';
@@ -122,6 +122,7 @@ const StudentList = () => {
                     <th>Student</th>
                     <th>Student Number</th>
                     <th>Email</th>
+                    <th>Link Status</th>
                     <th>Year Level</th>
                     <th>Curriculum</th>
                     <th className="text-end">Actions</th>
@@ -133,6 +134,11 @@ const StudentList = () => {
                       <td>{sar.studentName}</td>
                       <td>{sar.studentNumber}</td>
                       <td>{sar.email}</td>
+                      <td>
+                        <Badge bg={sar.isLinkedToAccount ? 'success' : 'secondary'} className="text-uppercase">
+                          {sar.isLinkedToAccount ? 'linked' : 'unlinked'}
+                        </Badge>
+                      </td>
                       <td>Year {sar.yearLevel}</td>
                       <td>{sar.Curriculum?.name || 'Unassigned'}</td>
                       <td className="text-end">
@@ -145,7 +151,7 @@ const StudentList = () => {
 
                   {paginatedSars.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="text-center text-muted py-4">
+                      <td colSpan={7} className="text-center text-muted py-4">
                         No student academic records found.
                       </td>
                     </tr>

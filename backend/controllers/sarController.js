@@ -64,6 +64,17 @@ const isSarOwnedByUser = (sar, user) => {
   );
 };
 
+const serializeSar = (sar) => {
+  const plainSar = sar?.get ? sar.get({ plain: true }) : sar;
+  const isLinkedToAccount = Boolean(plainSar?.userId);
+
+  return {
+    ...plainSar,
+    isLinkedToAccount,
+    linkStatus: isLinkedToAccount ? 'linked' : 'unlinked'
+  };
+};
+
 const getAssignedCurriculum = async (curriculumId) => {
   if (curriculumId) {
     return Curriculum.findByPk(curriculumId);
@@ -207,7 +218,7 @@ exports.createSAR = async (req, res, next) => {
       include: buildSarIncludes()
     });
 
-    return res.status(201).json({ success: true, data: createdSar });
+    return res.status(201).json({ success: true, data: serializeSar(createdSar) });
   } catch (error) {
     next(error);
   }
@@ -226,7 +237,7 @@ exports.getSARs = async (req, res, next) => {
       order: [['studentName', 'ASC'], ['studentNumber', 'ASC']]
     });
 
-    return res.status(200).json({ success: true, data: sars });
+    return res.status(200).json({ success: true, data: sars.map(serializeSar) });
   } catch (error) {
     next(error);
   }
@@ -255,7 +266,7 @@ exports.getSARById = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
-    const sarData = sar.get({ plain: true });
+    const sarData = serializeSar(sar);
     const versions = sarData.StudyPlan?.id
       ? await fetchStudyPlanVersionsForStudyPlan(sarData.StudyPlan.id)
       : [];
@@ -322,7 +333,7 @@ exports.updateSAR = async (req, res, next) => {
       include: buildSarIncludes()
     });
 
-    return res.status(200).json({ success: true, data: updatedSar });
+    return res.status(200).json({ success: true, data: serializeSar(updatedSar) });
   } catch (error) {
     next(error);
   }

@@ -22,6 +22,8 @@ import TermManagement from './pages/admin/TermManagement';
 import StudentList from './pages/adviser/StudentList';
 import StudentDetail from './pages/adviser/StudentDetail';
 import StudyPlanView from './pages/adviser/StudyPlanView';
+import GradeEntry from './pages/adviser/GradeEntry';
+import RegenerationReview from './pages/adviser/RegenerationReview';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 
@@ -116,6 +118,22 @@ function AppContent() {
           element={
             <PrivateRoute roles={['adviser', 'admin']}>
               <StudyPlanView />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/adviser/students/:sarId/grades"
+          element={
+            <PrivateRoute roles={['adviser', 'admin']}>
+              <GradeEntry />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/adviser/students/:sarId/plan/:versionId/review"
+          element={
+            <PrivateRoute roles={['adviser', 'admin']}>
+              <RegenerationReview />
             </PrivateRoute>
           }
         />

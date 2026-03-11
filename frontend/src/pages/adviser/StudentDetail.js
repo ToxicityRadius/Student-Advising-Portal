@@ -152,6 +152,12 @@ const StudentDetail = () => {
                       <span className="text-muted">Elective Track</span>
                       <strong>{sar.ElectiveTrack?.name || 'Not selected'}</strong>
                     </ListGroup.Item>
+                    <ListGroup.Item className="px-0 d-flex justify-content-between align-items-center">
+                      <span className="text-muted">Link Status</span>
+                      <Badge bg={sar.isLinkedToAccount ? 'success' : 'secondary'} className="text-uppercase">
+                        {sar.isLinkedToAccount ? 'linked' : 'unlinked'}
+                      </Badge>
+                    </ListGroup.Item>
                     <ListGroup.Item className="px-0 d-flex justify-content-between">
                       <span className="text-muted">Created By</span>
                       <strong>
@@ -192,13 +198,22 @@ const StudentDetail = () => {
                   )}
 
                   {canOpenPlanRoute && activeVersion && (
-                    <Button
-                      as={Link}
-                      to={`/adviser/students/${sar.id}/plan/${activeVersion.id}`}
-                      variant="outline-primary"
-                    >
-                      View Active Plan
-                    </Button>
+                    <div className="d-flex flex-wrap gap-2">
+                      <Button
+                        as={Link}
+                        to={`/adviser/students/${sar.id}/plan/${activeVersion.id}`}
+                        variant="outline-primary"
+                      >
+                        View Active Plan
+                      </Button>
+                      <Button
+                        as={Link}
+                        to={`/adviser/students/${sar.id}/grades`}
+                        variant="primary"
+                      >
+                        Enter Grades
+                      </Button>
+                    </div>
                   )}
 
                   {!activeVersion && hasStudyPlan && (

@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const { sendTokenResponse } = require('../utils/jwt');
 const { sendActivationEmail, sendVerificationCode } = require('../utils/email');
+const { linkStudentAccountToSar } = require('../utils/sarLinking');
 
 // Helper: generate a cryptographically secure 6-digit verification code
 function generateVerificationCode() {
@@ -112,6 +113,14 @@ exports.register = async (req, res, next) => {
       updatedAt: Date.now()
     });
 
+    if (!isFaculty) {
+      await linkStudentAccountToSar({
+        userId: user.id,
+        email: user.email,
+        studentId: user.studentId
+      });
+    }
+
     // Send activation email
     await sendActivationEmail(user.email, activationToken);
 
@@ -199,6 +208,14 @@ exports.login = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
+      });
+    }
+
+    if (user.role === 'student') {
+      await linkStudentAccountToSar({
+        userId: user.id,
+        email: user.email,
+        studentId: user.studentId
       });
     }
 

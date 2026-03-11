@@ -16,7 +16,7 @@
 | 3 | Curriculum Management — Frontend UI | `[DONE]` |
 | 4 | Academic Term Management | `[DONE]` |
 | 5 | Student Academic Record & Initial Study Plan | `[DONE]` |
-| 6 | Grade Entry & Study Plan Regeneration | `[ ] Not Started` |
+| 6 | Grade Entry & Study Plan Regeneration | `[DONE]` |
 | 7 | Study Plan Validation & Elective Track Enforcement | `[ ] Not Started` |
 | 8 | Student-Facing Views & PDF Export | `[ ] Not Started` |
 | 9 | Forecasting System | `[ ] Not Started` |
@@ -757,12 +757,27 @@ Add "Enter Grades" button → navigates to `GradeEntry` page for the active vers
 7. Confirm prerequisite-dependent courses are not scheduled before their prerequisites in regenerated output.
 
 ### Verification Checklist
-- [ ] Adviser can enter grades for each course in the active version
-- [ ] Grade values are validated (only valid grade formats accepted)
-- [ ] If all courses passed, no regeneration is needed (UI shows "All courses passed" message)
-- [ ] If unresolved courses exist, regeneration produces a new draft version
-- [ ] Regenerated plan respects all algorithm constraints (prerequisites, co-reqs, 25-unit cap)
-- [ ] Regeneration review shows the new plan clearly before validation
+- [x] Adviser can enter grades for each course in the active version
+- [x] Grade values are validated (only valid grade formats accepted)
+- [x] If all courses passed, no regeneration is needed (UI shows "All courses passed" message)
+- [x] If unresolved courses exist, regeneration produces a new draft version
+- [x] Regenerated plan respects all algorithm constraints (prerequisites, co-reqs, 25-unit cap)
+- [x] Regeneration review shows the new plan clearly before validation
+
+### Implementation Notes
+- Added `backend/controllers/gradeController.js` and `backend/routes/gradeRoutes.js` with two protected endpoints for adviser/admin: grade entry and study plan regeneration.
+- Regeneration uses slot-filling with prerequisite ordering, co-requisite grouping, 25-unit cap per semester slot, passed-course retention, and elective-track filtering for elective courses.
+- Since there is no explicit lock flag on `StudyPlanVersion` in the current schema, server-side edit blocking is enforced via archived-status checks.
+- During verification, fixed PostgreSQL row-locking failures by removing `FOR UPDATE` locking on joined include queries (same issue pattern encountered in earlier phases).
+- Frontend implementation added adviser-only Grade Entry and Regeneration Review pages, wired routes, and “Enter Grades” navigation from `StudentDetail`.
+- Added bidirectional SAR ↔ student account auto-linking via `backend/utils/sarLinking.js` and controller hooks:
+  - on student registration (`authController.register`)
+  - on student login self-healing pass (`authController.login`)
+  - on student number updates (`userController.updateStudentId` and `userController.updateUserStudentId`)
+- Added SAR link visibility for adviser/admin workflows by exposing `isLinkedToAccount` and `linkStatus` in SAR responses and rendering link-status badges in:
+  - `frontend/src/pages/adviser/StudentList.js`
+  - `frontend/src/pages/adviser/StudentDetail.js`
+- Adjusted `GradeEntry` post-save behavior so passed/failed/incomplete summary badges remain visible after data reload.
 
 ---
 
@@ -1187,4 +1202,4 @@ After each phase, manually test using the browser and network tab, or use a tool
 
 ---
 
-*Last updated: Phases 1, 2, 3, 4, and 5 complete; Phase 5 student academic record and initial study plan flow (backend SAR APIs + adviser/student SAR frontend pages + verification/build/manual checks) implemented and verified.*
+*Last updated: Phases 1, 2, 3, 4, 5, and 6 complete; Phase 6 grade entry and study plan regeneration flow (backend grade/regeneration APIs + adviser grade/review frontend pages + verification/build checks) implemented and verified.*

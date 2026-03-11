@@ -1,5 +1,6 @@
 const { User } = require('../models');
 const { generateToken } = require('../utils/jwt');
+const { linkStudentAccountToSar } = require('../utils/sarLinking');
 
 // Helper: strip sensitive fields from a user plain object
 function sanitizeUser(user) {
@@ -234,6 +235,12 @@ exports.updateStudentId = async (req, res, next) => {
     await User.update({ studentId, updatedAt: Date.now() }, { where: { id: req.user.id } });
     const updatedUser = await User.findByPk(req.user.id);
 
+    await linkStudentAccountToSar({
+      userId: updatedUser.id,
+      email: updatedUser.email,
+      studentId: updatedUser.studentId
+    });
+
     res.status(200).json({
       success: true,
       message: 'Student Number updated successfully',
@@ -284,6 +291,12 @@ exports.updateUserStudentId = async (req, res, next) => {
     // Update user's studentId
     await User.update({ studentId, updatedAt: Date.now() }, { where: { id: userId } });
     const finalUser = await User.findByPk(userId);
+
+    await linkStudentAccountToSar({
+      userId: finalUser.id,
+      email: finalUser.email,
+      studentId: finalUser.studentId
+    });
 
     // Generate token
     const token = generateToken(finalUser);

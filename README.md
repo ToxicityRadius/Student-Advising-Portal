@@ -23,7 +23,7 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 | 3 | Curriculum Management — Frontend UI | ✅ Done |
 | 4 | Academic Term Management | ✅ Done |
 | 5 | Student Academic Record & Initial Study Plan | ✅ Done |
-| 6 | Grade Entry & Study Plan Regeneration | 🔲 Not started |
+| 6 | Grade Entry & Study Plan Regeneration | ✅ Done |
 | 7 | Study Plan Validation & Elective Track Enforcement | 🔲 Not started |
 | 8 | Student-Facing Views & PDF Export | 🔲 Not started |
 | 9 | Forecasting System | 🔲 Not started |
@@ -92,7 +92,8 @@ Student-Advising-Portal/
 │   │   ├── userController.js       # Profile read/update, student ID
 │   │   ├── curriculumController.js # Curricula, courses, prereqs, co-reqs, equivalencies, tracks
 │   │   ├── termController.js       # Academic term create/list/current/activate/end actions
-│   │   └── sarController.js        # Student academic records + initial study plan generation/version listing
+│   │   ├── sarController.js        # Student academic records + initial study plan generation/version listing
+│   │   └── gradeController.js      # Active-version grade entry + study plan regeneration
 │   │
 │   ├── routes/
 │   │   ├── authRoutes.js
@@ -100,7 +101,8 @@ Student-Advising-Portal/
 │   │   ├── userRoutes.js
 │   │   ├── curriculumRoutes.js
 │   │   ├── termRoutes.js
-│   │   └── sarRoutes.js
+│   │   ├── sarRoutes.js
+│   │   └── gradeRoutes.js
 │   │
 │   ├── middleware/
 │   │   └── auth.js                 # protect (JWT guard) + requireRole(...roles)
@@ -147,6 +149,8 @@ Student-Advising-Portal/
     │   ├── adviser/
     │   │   ├── StudentList.js
     │   │   ├── StudentDetail.js
+    │   │   ├── GradeEntry.js
+    │   │   ├── RegenerationReview.js
     │   │   └── StudyPlanView.js
     │   └── admin/
     │       ├── CurriculumManagement.js
@@ -255,6 +259,12 @@ Student-Advising-Portal/
 | POST | `/:id/study-plan/generate` | adviser, admin | Generate initial study plan (version 1, draft) |
 | GET | `/:id/study-plan/versions` | adviser, admin, student (own only) | List study plan versions with courses |
 
+### Grade Entry & Regeneration — `/api`
+| Method | Route | Access | Description |
+|--------|-------|--------|-------------|
+| PUT | `/sars/:id/study-plan/active-version/grades` | adviser, admin | Enter/update grades on active version courses |
+| POST | `/sars/:id/study-plan/regenerate` | adviser, admin | Create next draft study plan version from unresolved courses |
+
 ### Utility
 | Method | Route | Description |
 |--------|-------|-------------|
@@ -317,6 +327,55 @@ Create `frontend/.env`:
 REACT_APP_GOOGLE_CLIENT_ID=your-google-client-id
 REACT_APP_API_URL=http://localhost:5000/api
 ```
+
+---
+
+## Phase Implementation Context
+
+Use this section as quick context when implementing phases in new chat sessions.
+
+### Correct Commands From Repo Root
+
+This monorepo does **not** have a root `package.json`. Running `npm run ...` at repository root will fail with `ENOENT`.
+
+Use one of these patterns:
+
+```bash
+# Backend
+npm --prefix /home/charmoree/Desktop/Student-Advising-Portal/backend run dev
+
+# Frontend dev server
+npm --prefix /home/charmoree/Desktop/Student-Advising-Portal/frontend start
+
+# Frontend production build
+npm --prefix /home/charmoree/Desktop/Student-Advising-Portal/frontend run build
+```
+
+or `cd` into `backend/` or `frontend/` first.
+
+### Default Credentials (Current Seed)
+
+After reset, these accounts are expected to exist:
+
+| Role | Email | Password |
+|------|-------|----------|
+| Admin / Program Chair | `admin.cpe@tip.edu.ph` | `password123` |
+| Adviser | `adviser.cpe@tip.edu.ph` | `password123` |
+| Student | `student@tip.edu.ph` | `password123` |
+
+Login portal selection must match role:
+- Admin/Adviser: use `selectedRole = faculty`
+- Student: use `selectedRole = student`
+
+### Database Reset + Re-seed (All Tables)
+
+When a clean state is needed for manual phase testing, use this one-shot command from `backend/`:
+
+```bash
+DOTENV_CONFIG_PATH=/home/charmoree/Desktop/Student-Advising-Portal/backend/.env node -r dotenv/config -e 'const bcrypt=require("bcryptjs");const m=require("./models");const sequelize=m.sequelize;const User=m.User;(async()=>{try{await sequelize.authenticate();const q=await sequelize.query("SELECT tablename FROM pg_tables WHERE schemaname = '"'"'public'"'"' AND tablename NOT IN ('"'"'SequelizeMeta'"'"') ORDER BY tablename;");const rows=q[0];if(rows.length===0){console.log("No tables found");await sequelize.close();process.exit(0);}const names=rows.map(r=>"\""+r.tablename+"\"").join(", ");await sequelize.query("TRUNCATE TABLE "+names+" RESTART IDENTITY CASCADE;");const hash=await bcrypt.hash("password123",10);const now=Date.now();await User.bulkCreate([{firstName:"Program",lastName:"Chair",first_name:"Program",last_name:"Chair",email:"admin.cpe@tip.edu.ph",password:hash,role:"admin",isActive:true,isVerified:true,createdAt:now,updatedAt:now},{firstName:"Student",lastName:"Adviser",first_name:"Student",last_name:"Adviser",email:"adviser.cpe@tip.edu.ph",password:hash,role:"adviser",isActive:true,isVerified:true,createdAt:now,updatedAt:now},{studentId:"1234567",firstName:"Sample",lastName:"Student",first_name:"Sample",last_name:"Student",email:"student@tip.edu.ph",password:hash,role:"student",isActive:true,isVerified:true,createdAt:now,updatedAt:now}]);console.log("Reset complete");await sequelize.close();}catch(e){console.error(e);try{await sequelize.close();}catch(_){}process.exit(1);}})();'
+```
+
+Note: this truncates **all** tables in the `public` schema (except `SequelizeMeta`) and recreates only the three default users.
 
 ---
 

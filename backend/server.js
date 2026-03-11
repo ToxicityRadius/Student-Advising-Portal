@@ -18,6 +18,7 @@ const googleAuthRoutes = require('./routes/googleAuthRoutes');
 const curriculumRoutes = require('./routes/curriculumRoutes');
 const termRoutes = require('./routes/termRoutes');
 const sarRoutes = require('./routes/sarRoutes');
+const gradeRoutes = require('./routes/gradeRoutes');
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.use('/api/users', userRoutes);
 app.use('/api', curriculumRoutes);
 app.use('/api/terms', termRoutes);
 app.use('/api/sars', sarRoutes);
+app.use('/api', gradeRoutes);
 
 // Serve uploaded files (authenticated)
 const { protect } = require('./middleware/auth');
