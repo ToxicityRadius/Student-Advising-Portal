@@ -15,6 +15,7 @@ const { sequelize } = require('./models');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const googleAuthRoutes = require('./routes/googleAuthRoutes');
+const curriculumRoutes = require('./routes/curriculumRoutes');
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.use(cors({
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', googleAuthRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api', curriculumRoutes);
 
 // Serve uploaded files (authenticated)
 const { protect } = require('./middleware/auth');

@@ -40,6 +40,8 @@ CoRequisite.belongsTo(Course, { as: 'CoRequisiteCourse', foreignKey: 'coRequisit
 // CourseEquivalency
 Course.hasMany(CourseEquivalency, { foreignKey: 'courseId' });
 Course.hasMany(CourseEquivalency, { as: 'EquivalentFor', foreignKey: 'equivalentCourseId' });
+CourseEquivalency.belongsTo(Course, { as: 'Course', foreignKey: 'courseId' });
+CourseEquivalency.belongsTo(Course, { as: 'EquivalentCourse', foreignKey: 'equivalentCourseId' });
 
 // Curriculum <-> ElectiveTrack <-> ElectiveTrackCourse <-> Course
 Curriculum.hasMany(ElectiveTrack, { foreignKey: 'curriculumId' });

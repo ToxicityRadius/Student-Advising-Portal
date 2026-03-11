@@ -16,6 +16,8 @@ import CompleteProfile from './pages/CompleteProfile';
 import Profile from './pages/Profile';
 import AboutUs from './pages/AboutUs';
 import Purpose from './pages/Purpose';
+import CurriculumManagement from './pages/admin/CurriculumManagement';
+import CurriculumDetail from './pages/admin/CurriculumDetail';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 
@@ -62,6 +64,22 @@ function AppContent() {
           element={
             <PrivateRoute>
               <Profile />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/curriculum"
+          element={
+            <PrivateRoute roles={['admin']}>
+              <CurriculumManagement />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/curriculum/:id"
+          element={
+            <PrivateRoute roles={['admin']}>
+              <CurriculumDetail />
             </PrivateRoute>
           }
         />

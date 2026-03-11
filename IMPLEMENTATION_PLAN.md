@@ -12,8 +12,8 @@
 | Phase | Title | Status |
 |-------|-------|--------|
 | 1 | Database Schema & Core Models | `[DONE]` |
-| 2 | Curriculum Management — Backend APIs | `[ ] Not Started` |
-| 3 | Curriculum Management — Frontend UI | `[ ] Not Started` |
+| 2 | Curriculum Management — Backend APIs | `[DONE]` |
+| 3 | Curriculum Management — Frontend UI | `[DONE]` |
 | 4 | Academic Term Management | `[ ] Not Started` |
 | 5 | Student Academic Record & Initial Study Plan | `[ ] Not Started` |
 | 6 | Grade Entry & Study Plan Regeneration | `[ ] Not Started` |
@@ -365,11 +365,16 @@ app.use('/api', curriculumRoutes);
 | DELETE | `/api/elective-tracks/:id/courses/:etsId` | admin |
 
 ### Verification Checklist
-- [ ] `requireRole` middleware added and exported from `backend/middleware/auth.js`
-- [ ] All curriculum endpoints return correct status codes (201 for creates, 200 for reads/updates, 204 for deletes)
-- [ ] Only one curriculum can be active at a time (`setActiveCurriculum` deactivates others)
-- [ ] Course deletion blocked if referenced in any `CurriculumCourse`, `Prerequisite`, or `CoRequisite`
-- [ ] All routes registered in `server.js`
+- [x] `requireRole` middleware added and exported from `backend/middleware/auth.js`
+- [x] All curriculum endpoints return correct status codes (201 for creates, 200 for reads/updates, 204 for deletes)
+- [x] Only one curriculum can be active at a time (`setActiveCurriculum` deactivates others)
+- [x] Course deletion blocked if referenced in any `CurriculumCourse`, `Prerequisite`, `CoRequisite`, `ElectiveTrackCourse`, or `StudyPlanCourse`
+- [x] All routes registered in `server.js`
+
+### Implementation Notes
+- Added `CourseEquivalency.belongsTo(Course, ...)` associations (both `Course` and `EquivalentCourse` aliases) to `backend/models/index.js` — required for eager loading in equivalency endpoints
+- `deleteCourse` also blocks if the course is referenced in `ElectiveTrackCourse` or `StudyPlanCourse`
+- Route param for curriculum-course removal is `:ccId`; for elective track course removal is `:etcId`
 
 ---
 
@@ -429,15 +434,30 @@ Add a "Curriculum Management" card/link visible only to `admin` role users.
 - The curriculum structure view should be a grid table: rows = Year Level, columns = Semester 1 / Semester 2 / Summer
 - Courses in the structure table should be clickable chips/badges
 
+### Manual Testing Steps
+1. Log in as `admin` and open `/dashboard`; verify a visible "Curriculum Management" entry point.
+2. Open `/admin/curriculum`; verify tabs for Curricula, Courses, and Equivalencies render without errors.
+3. Create a curriculum, set it active, refresh the page, and verify active badge/state persists.
+4. Add at least 3 courses, then open one curriculum detail page and place courses in different year/semester slots.
+5. Create one prerequisite and one co-requisite rule, then reload and verify both are still listed.
+6. Create one elective track and assign courses to it; verify the assigned list updates immediately.
+7. Open `/admin/curriculum` using a non-admin account and confirm redirect/blocked access.
+8. In browser network tab, verify each action maps to the expected endpoint and returns 2xx.
+
 ### Verification Checklist
-- [ ] Admin can create a new curriculum and set it as active
-- [ ] Admin can add courses to curriculum at specific year/semester slots
-- [ ] Admin can define prerequisites (A requires B)
-- [ ] Admin can define co-requisites (A and B must be taken together)
-- [ ] Admin can create elective tracks and assign courses to them
-- [ ] Admin can define course equivalencies across curricula
-- [ ] Non-admin users cannot access `/admin/curriculum`
-- [ ] Dashboard shows Curriculum Management link for admin only
+- [x] Admin can create a new curriculum and set it as active
+- [x] Admin can add courses to curriculum at specific year/semester slots
+- [x] Admin can define prerequisites (A requires B)
+- [x] Admin can define co-requisites (A and B must be taken together)
+- [x] Admin can create elective tracks and assign courses to them
+- [x] Admin can define course equivalencies across curricula
+- [x] Non-admin users cannot access `/admin/curriculum`
+- [x] Dashboard shows Curriculum Management link for admin only
+
+### Implementation Notes
+- `PrivateRoute` already supported role-based guarding via `roles` prop, so no additional changes were needed there.
+- Implemented Phase 3 feedback UX with in-page `Alert` messages and loading indicators (`Spinner`) using React Bootstrap.
+- Verified role guard behavior by confirming non-admin navigation to `/admin/curriculum` is redirected to `/dashboard`.
 
 ---
 
@@ -500,6 +520,15 @@ app.use('/api/terms', termRoutes);
 | GET | `/api/terms/current` | admin, adviser, student |
 | PATCH | `/api/terms/:id/activate` | admin |
 | PATCH | `/api/terms/current/end` | admin |
+
+### Manual Testing Steps
+1. Log in as `admin` and open `/admin/terms`; verify current term panel and historical list render.
+2. Create a new term (for example `2026-2027`, semester `1`) and verify it appears in the list.
+3. Activate the new term and confirm the modal appears before the action is committed.
+4. Refresh `/admin/terms` and `/dashboard`; verify the current term reflects the newly activated term.
+5. End the current term and confirm the confirmation modal appears and action succeeds.
+6. Attempt `/admin/terms` as `adviser` and `student`; verify page access is blocked by role guard.
+7. Check network tab for `POST /api/terms`, `PATCH /api/terms/:id/activate`, and `PATCH /api/terms/current/end` status codes.
 
 ### Verification Checklist
 - [ ] Only one term can have `isCurrent = true` at a time
@@ -597,6 +626,15 @@ app.use('/api/sars', sarRoutes);
 | PUT | `/api/sars/:id` | adviser, admin |
 | POST | `/api/sars/:id/study-plan/generate` | adviser, admin |
 | GET | `/api/sars/:id/study-plan/versions` | adviser, admin, student (own) |
+
+### Manual Testing Steps
+1. Log in as `adviser` and open `/adviser/students`; verify list loads and search works.
+2. Create a SAR using valid `@tip.edu.ph` email and verify new record appears in the table.
+3. Attempt SAR creation with invalid student email domain and verify server-side validation message.
+4. Open the new student's detail page and click "Generate Initial Study Plan".
+5. Open plan view and verify courses are grouped by year/semester and match active curriculum structure.
+6. Log in as `student` mapped to that SAR and open `/my-record`; verify read-only visibility.
+7. As that same student, manually open another SAR URL and verify access is denied.
 
 ### Verification Checklist
 - [ ] Adviser can create a new SAR with valid `@tip.edu.ph` student email
@@ -698,6 +736,15 @@ Add "Enter Grades" button → navigates to `GradeEntry` page for the active vers
 5. Max 25 units per semester
 6. If a student's Elective Track is set, elective courses must come from that track
 
+### Manual Testing Steps
+1. Open `/adviser/students/:sarId/grades` for a student with an active plan and verify all plan courses are editable.
+2. Enter a mixed set of grades (`2.00`, `5.00`, `INC`, `Pending`) and save; verify success and persisted values after reload.
+3. Confirm unresolved courses trigger visibility of "Regenerate Study Plan" button.
+4. Click regenerate and verify a new draft version is created and review page opens.
+5. On review page, confirm moved courses are visually highlighted and unchanged courses are not.
+6. Validate with a heavy test case that no semester exceeds 25 units.
+7. Confirm prerequisite-dependent courses are not scheduled before their prerequisites in regenerated output.
+
 ### Verification Checklist
 - [ ] Adviser can enter grades for each course in the active version
 - [ ] Grade values are validated (only valid grade formats accepted)
@@ -785,6 +832,15 @@ Show "Validate Draft" button if a draft version exists.
 - Elective courses in future semesters (in the plan) must belong to the selected track (enforce in regeneration Phase 6, double-check here)
 - A draft version must exist to validate — cannot validate an 'archived' or already 'active' version
 
+### Manual Testing Steps
+1. Open a student with a draft plan and go to the validation flow page.
+2. Validate a draft plan and verify success redirect to student detail.
+3. Refresh versions list and verify new version is `active` and prior active version is `archived`.
+4. Use a 2nd year, 2nd semester student with no elective track and attempt validation; verify blocked with required-track message.
+5. Select elective track, validate again, and verify success.
+6. Attempt to change elective track after it is set; verify request is rejected.
+7. Confirm track-constrained elective courses in the validated plan all belong to selected track.
+
 ### Verification Checklist
 - [ ] Adviser can validate a draft version
 - [ ] On validation, the previous active version becomes archived
@@ -871,6 +927,14 @@ Student role: "My Academic Record" card → `/my-record`
 - Selected Elective Track
 - Validating Student Adviser name
 - Validation timestamp
+
+### Manual Testing Steps
+1. Log in as `student` and open `/my-record`; verify page is read-only and all sections render.
+2. Click "Export as PDF" and verify browser downloads a PDF file with expected filename pattern.
+3. Open PDF and confirm it contains student info, curriculum, active plan, grades/statuses, elective track, and validation metadata.
+4. Log in as `adviser`, open a student detail page, and export PDF from adviser side.
+5. Compare student-exported and adviser-exported PDF content for consistency.
+6. Try exporting another student's record while logged in as student and verify access is denied.
 
 ### Verification Checklist
 - [ ] Student can view their academic record (read-only, no edit controls)
@@ -968,6 +1032,15 @@ Add "Forecasting" card/link for admin role.
 - "Next semester demand" = same, but for next semester slot
 - Semester slot mapping: Identify courses by their `yearLevel` + `semester` in the student's plan, then figure out which absolute semester in the student's journey corresponds to the current term (this requires knowing the student's starting year and term, which may need to be added to SAR in a future iteration; for now, use the `yearLevel` field on the SAR + the course's assigned semester in the plan)
 
+### Manual Testing Steps
+1. Seed or prepare at least 3 students with active validated plans that share some overlapping courses.
+2. Open `/admin/forecast` and verify all four tabs load: Current Demand, Next Forecast, Comparison, History.
+3. In Current Demand tab, spot-check at least two courses by manually counting matching students from SAR plans.
+4. End current term via Term Management and confirm a snapshot appears in Forecast History.
+5. Activate next term and verify Next Forecast updates according to new context.
+6. Open Comparison tab and verify `difference = actual - forecasted` for sample rows.
+7. Attempt `/admin/forecast` as non-admin and verify route guard blocks page access.
+
 ### Verification Checklist
 - [ ] Current demand counts are accurate (verified against known test data)
 - [ ] Next semester forecast shows expected courses
@@ -1056,6 +1129,16 @@ On success, re-fetches user and redirects to dashboard.
 | PUT | `/api/auth/change-password` | authenticated users |
 | PATCH | `/api/auth/transfer-ownership` | admin only |
 
+### Manual Testing Steps
+1. Attempt adviser registration with non-`.cpe@tip.edu.ph` email and verify rejection.
+2. Attempt student registration with non-`@tip.edu.ph` email and verify rejection.
+3. Set an admin user with `mustChangePassword=true`, log in, and verify forced redirect to `/change-password`.
+4. Complete password change and verify normal dashboard access resumes.
+5. Open `/admin/transfer-ownership`, transfer to an adviser, and confirm success.
+6. Verify old admin is now adviser and cannot access admin-only pages.
+7. Verify new admin can access `/admin/*` and old adviser-only pages still behave correctly for adviser/admin users.
+8. Spot-check protected API endpoints in network tab to confirm `401/403` when role/user is unauthorized.
+
 ### Verification Checklist
 - [ ] Adviser registration fails if email doesn't end with `.cpe@tip.edu.ph`
 - [ ] Student registration fails if email doesn't end with `@tip.edu.ph`
@@ -1093,4 +1176,4 @@ After each phase, manually test using the browser and network tab, or use a tool
 
 ---
 
-*Last updated: Phase 1 complete — all 14 Sequelize models created, associations defined in `backend/models/index.js`, all tables synced to PostgreSQL.*
+*Last updated: Phases 1, 2, and 3 complete; Phase 3 frontend curriculum management routes/pages/components implemented and verified manually.*

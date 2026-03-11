@@ -64,6 +64,16 @@ const Dashboard = () => {
             >
               <span className="me-2">👤</span> My Profile
             </ListGroup.Item>
+            {user?.role === 'admin' && (
+              <ListGroup.Item
+                as={Link}
+                to="/admin/curriculum"
+                className="py-3 px-4 text-decoration-none text-dark fw-semibold"
+                action
+              >
+                <span className="me-2">📘</span> Curriculum Management
+              </ListGroup.Item>
+            )}
           </ListGroup>
         </Card.Body>
       </Card>
