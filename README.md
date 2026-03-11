@@ -20,7 +20,7 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 |-------|-------------|--------|
 | 1 | Database Schema & Core Models | ✅ Done |
 | 2 | Curriculum Management — Backend APIs | ✅ Done |
-| 3 | Curriculum Management — Frontend UI | 🔲 Not started |
+| 3 | Curriculum Management — Frontend UI | ✅ Done |
 | 4 | Academic Term Management | 🔲 Not started |
 | 5 | Student Academic Record & Initial Study Plan | 🔲 Not started |
 | 6 | Grade Entry & Study Plan Regeneration | 🔲 Not started |
