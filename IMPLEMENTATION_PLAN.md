@@ -15,7 +15,7 @@
 | 2 | Curriculum Management — Backend APIs | `[DONE]` |
 | 3 | Curriculum Management — Frontend UI | `[DONE]` |
 | 4 | Academic Term Management | `[DONE]` |
-| 5 | Student Academic Record & Initial Study Plan | `[ ] Not Started` |
+| 5 | Student Academic Record & Initial Study Plan | `[DONE]` |
 | 6 | Grade Entry & Study Plan Regeneration | `[ ] Not Started` |
 | 7 | Study Plan Validation & Elective Track Enforcement | `[ ] Not Started` |
 | 8 | Student-Facing Views & PDF Export | `[ ] Not Started` |
@@ -643,12 +643,17 @@ app.use('/api/sars', sarRoutes);
 7. As that same student, manually open another SAR URL and verify access is denied.
 
 ### Verification Checklist
-- [ ] Adviser can create a new SAR with valid `@tip.edu.ph` student email
-- [ ] SAR email is validated server-side
-- [ ] Adviser can generate initial study plan from active curriculum
-- [ ] Generated study plan courses match the curriculum structure exactly
-- [ ] Student can view their own SAR but cannot access other students'
-- [ ] StudyPlanView displays courses grouped by year level and semester
+- [x] Adviser can create a new SAR with valid `@tip.edu.ph` student email
+- [x] SAR email is validated server-side
+- [x] Adviser can generate initial study plan from active curriculum
+- [x] Generated study plan courses match the curriculum structure exactly
+- [x] Student can view their own SAR but cannot access other students'
+- [x] StudyPlanView displays courses grouped by year level and semester
+
+### Implementation Notes
+- Added defensive SAR ownership checks using linked `userId`, plus email and student number fallback matching so existing student accounts can access `/my-record` when not yet linked.
+- During verification, fixed study plan generation row-locking by removing lock usage from the `StudyPlan` existence query path that can conflict with joined reads in PostgreSQL.
+- Kept `StudyPlanView` read-only per scope; no editing/regeneration UI from Phase 6 was started.
 
 ---
 
@@ -1182,4 +1187,4 @@ After each phase, manually test using the browser and network tab, or use a tool
 
 ---
 
-*Last updated: Phases 1, 2, 3, and 4 complete; Phase 4 academic term management (backend routes/controllers + frontend admin page/dashboard term visibility) implemented and verified (build + API/manual checks).*
+*Last updated: Phases 1, 2, 3, 4, and 5 complete; Phase 5 student academic record and initial study plan flow (backend SAR APIs + adviser/student SAR frontend pages + verification/build/manual checks) implemented and verified.*

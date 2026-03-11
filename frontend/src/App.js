@@ -19,6 +19,9 @@ import Purpose from './pages/Purpose';
 import CurriculumManagement from './pages/admin/CurriculumManagement';
 import CurriculumDetail from './pages/admin/CurriculumDetail';
 import TermManagement from './pages/admin/TermManagement';
+import StudentList from './pages/adviser/StudentList';
+import StudentDetail from './pages/adviser/StudentDetail';
+import StudyPlanView from './pages/adviser/StudyPlanView';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 
@@ -89,6 +92,38 @@ function AppContent() {
           element={
             <PrivateRoute roles={['admin']}>
               <TermManagement />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/adviser/students"
+          element={
+            <PrivateRoute roles={['adviser', 'admin']}>
+              <StudentList />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/adviser/students/:sarId"
+          element={
+            <PrivateRoute roles={['adviser', 'admin']}>
+              <StudentDetail />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/adviser/students/:sarId/plan/:versionId"
+          element={
+            <PrivateRoute roles={['adviser', 'admin']}>
+              <StudyPlanView />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/my-record"
+          element={
+            <PrivateRoute roles={['student']}>
+              <StudentDetail />
             </PrivateRoute>
           }
         />

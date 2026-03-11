@@ -22,7 +22,7 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 | 2 | Curriculum Management — Backend APIs | ✅ Done |
 | 3 | Curriculum Management — Frontend UI | ✅ Done |
 | 4 | Academic Term Management | ✅ Done |
-| 5 | Student Academic Record & Initial Study Plan | 🔲 Not started |
+| 5 | Student Academic Record & Initial Study Plan | ✅ Done |
 | 6 | Grade Entry & Study Plan Regeneration | 🔲 Not started |
 | 7 | Study Plan Validation & Elective Track Enforcement | 🔲 Not started |
 | 8 | Student-Facing Views & PDF Export | 🔲 Not started |
@@ -91,14 +91,16 @@ Student-Advising-Portal/
 │   │   ├── authController.js       # Register, login, logout, 2FA, password reset, Google OAuth
 │   │   ├── userController.js       # Profile read/update, student ID
 │   │   ├── curriculumController.js # Curricula, courses, prereqs, co-reqs, equivalencies, tracks
-│   │   └── termController.js       # Academic term create/list/current/activate/end actions
+│   │   ├── termController.js       # Academic term create/list/current/activate/end actions
+│   │   └── sarController.js        # Student academic records + initial study plan generation/version listing
 │   │
 │   ├── routes/
 │   │   ├── authRoutes.js
 │   │   ├── googleAuthRoutes.js
 │   │   ├── userRoutes.js
 │   │   ├── curriculumRoutes.js
-│   │   └── termRoutes.js
+│   │   ├── termRoutes.js
+│   │   └── sarRoutes.js
 │   │
 │   ├── middleware/
 │   │   └── auth.js                 # protect (JWT guard) + requireRole(...roles)
@@ -124,7 +126,9 @@ Student-Advising-Portal/
     │   ├── Navbar.js
     │   ├── PrivateRoute.js
     │   ├── StudentIdModal.js
-    │   └── ErrorBoundary.js
+    │   ├── ErrorBoundary.js
+    │   └── adviser/
+    │       └── CreateSARModal.js
     ├── context/
     │   └── AuthContext.js
     ├── pages/
@@ -140,6 +144,10 @@ Student-Advising-Portal/
     │   ├── Dashboard.js
     │   ├── CompleteProfile.js
     │   ├── Profile.js
+    │   ├── adviser/
+    │   │   ├── StudentList.js
+    │   │   ├── StudentDetail.js
+    │   │   └── StudyPlanView.js
     │   └── admin/
     │       ├── CurriculumManagement.js
     │       ├── CurriculumDetail.js
@@ -236,6 +244,16 @@ Student-Advising-Portal/
 | GET | `/current` | admin, adviser, student | Get current active term |
 | PATCH | `/:id/activate` | admin | Activate a term and flag active plans for revalidation |
 | PATCH | `/current/end` | admin | End current term and store forecast snapshot placeholder |
+
+### Student Academic Records — `/api/sars`
+| Method | Route | Access | Description |
+|--------|-------|--------|-------------|
+| POST | `/` | adviser, admin | Create student academic record |
+| GET | `/` | adviser, admin, student (own only) | List SARs (students receive only owned SAR) |
+| GET | `/:id` | adviser, admin, student (own only) | Get SAR details and study plan summary |
+| PUT | `/:id` | adviser, admin | Update SAR year level and curriculum |
+| POST | `/:id/study-plan/generate` | adviser, admin | Generate initial study plan (version 1, draft) |
+| GET | `/:id/study-plan/versions` | adviser, admin, student (own only) | List study plan versions with courses |
 
 ### Utility
 | Method | Route | Description |
