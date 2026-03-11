@@ -1,0 +1,1096 @@
+# Study Plan Management & Forecasting System — Implementation Plan
+
+> **How to use this file across sessions:**
+> - At the start of a session, read this file to determine which phase to work on.
+> - When a phase is fully complete, mark it with `[DONE]` and update the status table.
+> - Each phase is self-contained. Never skip prerequisites — each phase lists its dependencies.
+
+---
+
+## Status Overview
+
+| Phase | Title | Status |
+|-------|-------|--------|
+| 1 | Database Schema & Core Models | `[DONE]` |
+| 2 | Curriculum Management — Backend APIs | `[ ] Not Started` |
+| 3 | Curriculum Management — Frontend UI | `[ ] Not Started` |
+| 4 | Academic Term Management | `[ ] Not Started` |
+| 5 | Student Academic Record & Initial Study Plan | `[ ] Not Started` |
+| 6 | Grade Entry & Study Plan Regeneration | `[ ] Not Started` |
+| 7 | Study Plan Validation & Elective Track Enforcement | `[ ] Not Started` |
+| 8 | Student-Facing Views & PDF Export | `[ ] Not Started` |
+| 9 | Forecasting System | `[ ] Not Started` |
+| 10 | Auth & Access Control Refinements | `[ ] Not Started` |
+
+---
+
+## Codebase Context (Read Before Starting Any Phase)
+
+### Existing Stack
+- **Backend:** Node.js + Express, PostgreSQL, Sequelize ORM (`{ alter: { drop: false } }` in dev, auto-syncs)
+- **Frontend:** React 18, React Bootstrap, React Router v6, Context API for auth
+- **Auth:** JWT (access + refresh tokens), HTTP-only cookies, bcryptjs, Google OAuth
+- **Database connection:** `backend/database/db.js` — reads `DATABASE_URL` from `.env`
+- **Model registry:** `backend/models/index.js` — exports all models and defines associations
+
+### Existing Roles (map to system roles)
+| Existing `role` value | System Role |
+|---|---|
+| `admin` | Program Chair |
+| `adviser` | Student Adviser |
+| `student` | Student |
+
+### Key Existing Files
+- `backend/models/User.js` — existing user model, already has role, email, firstName, lastName
+- `backend/middleware/auth.js` — exports `protect` middleware (JWT guard)
+- `backend/server.js` — registers routes, auto-syncs DB
+- `frontend/src/context/AuthContext.js` — provides `user` with role info
+- `frontend/src/components/PrivateRoute.js` — wraps protected routes
+- `frontend/src/utils/api.js` — pre-configured Axios instance
+
+### Middleware Notes
+- Add a `requireRole(...roles)` middleware in `backend/middleware/auth.js` for role-based access control
+- Example: `router.get('/curriculum', protect, requireRole('admin'), ...)` 
+
+---
+
+## Phase 1 — Database Schema & Core Models
+
+**Depends on:** Nothing (foundation phase)  
+**Scope:** Backend only — create all Sequelize models and register associations
+
+### Goal
+Create all the database tables needed by the system. No APIs yet — just the data layer.
+
+### Files to Create (Backend)
+All new model files go in `backend/models/`.
+
+#### 1. `backend/models/Curriculum.js`
+Fields:
+- `id` — INTEGER, PK, autoIncrement
+- `name` — STRING, not null (e.g., "CPE Curriculum 2022")
+- `description` — TEXT, nullable
+- `isActive` — BOOLEAN, default false (only one can be true at a time)
+- `createdById` — INTEGER, FK → users.id (who created it, the Program Chair)
+- `createdAt`, `updatedAt` — BIGINT (Unix ms), consistent with existing User model
+
+#### 2. `backend/models/Course.js`
+Fields:
+- `id` — INTEGER, PK, autoIncrement
+- `code` — STRING, not null, unique (e.g., "CPE411")
+- `name` — STRING, not null (e.g., "Digital Electronics")
+- `units` — INTEGER, not null (1–9)
+- `createdAt`, `updatedAt` — BIGINT
+
+#### 3. `backend/models/CurriculumCourse.js`
+Junction table — assigns courses to a curriculum at a specific year level and semester.
+Fields:
+- `id` — INTEGER, PK, autoIncrement
+- `curriculumId` — INTEGER, FK → curriculums.id
+- `courseId` — INTEGER, FK → courses.id
+- `yearLevel` — INTEGER, not null (1–4)
+- `semester` — INTEGER, not null (1=First, 2=Second, 3=Summer)
+- `isElective` — BOOLEAN, default false
+
+#### 4. `backend/models/Prerequisite.js`
+Fields:
+- `id` — INTEGER, PK, autoIncrement
+- `curriculumId` — INTEGER, FK → curriculums.id
+- `courseId` — INTEGER, FK → courses.id (the course that has the prerequisite)
+- `prerequisiteCourseId` — INTEGER, FK → courses.id (the required course)
+
+#### 5. `backend/models/CoRequisite.js`
+Fields:
+- `id` — INTEGER, PK, autoIncrement
+- `curriculumId` — INTEGER, FK → curriculums.id
+- `courseId` — INTEGER, FK → courses.id
+- `coRequisiteCourseId` — INTEGER, FK → courses.id
+
+#### 6. `backend/models/CourseEquivalency.js`
+Fields:
+- `id` — INTEGER, PK, autoIncrement
+- `courseId` — INTEGER, FK → courses.id (original)
+- `equivalentCourseId` — INTEGER, FK → courses.id (equivalent, from another curriculum)
+- `notes` — TEXT, nullable
+
+#### 7. `backend/models/ElectiveTrack.js`
+Fields:
+- `id` — INTEGER, PK, autoIncrement
+- `curriculumId` — INTEGER, FK → curriculums.id
+- `name` — STRING, not null (e.g., "Data Science", "Robotics", "Cybersecurity")
+- `description` — TEXT, nullable
+
+#### 8. `backend/models/ElectiveTrackCourse.js`
+Junction — which courses belong to which elective track (and at which year/semester sequence).
+Fields:
+- `id` — INTEGER, PK, autoIncrement
+- `electiveTrackId` — INTEGER, FK → elective_tracks.id
+- `courseId` — INTEGER, FK → courses.id
+- `yearLevel` — INTEGER (suggested placement)
+- `semester` — INTEGER (suggested placement)
+
+#### 9. `backend/models/AcademicTerm.js`
+Fields:
+- `id` — INTEGER, PK, autoIncrement
+- `schoolYear` — STRING, not null (e.g., "2025-2026")
+- `semester` — INTEGER, not null (1, 2, or 3)
+- `isCurrent` — BOOLEAN, default false (only one can be true)
+- `startedAt` — BIGINT (when the Program Chair activated this term)
+- `endedAt` — BIGINT, nullable (when the term was closed)
+- `closedById` — INTEGER, FK → users.id
+
+#### 10. `backend/models/StudentAcademicRecord.js`
+Fields:
+- `id` — INTEGER, PK, autoIncrement
+- `userId` — INTEGER, FK → users.id (the student — nullable if student not yet registered)
+- `curriculumId` — INTEGER, FK → curriculums.id
+- `electiveTrackId` — INTEGER, FK → elective_tracks.id, nullable (set when selected)
+- `studentName` — STRING, not null
+- `studentNumber` — STRING, not null, unique
+- `email` — STRING, not null
+- `yearLevel` — INTEGER, not null
+- `createdByAdviserId` — INTEGER, FK → users.id (the adviser who created it)
+- `createdAt`, `updatedAt` — BIGINT
+
+#### 11. `backend/models/StudyPlan.js`
+One per StudentAcademicRecord. Acts as a container for versions.
+Fields:
+- `id` — INTEGER, PK, autoIncrement
+- `studentAcademicRecordId` — INTEGER, FK → student_academic_records.id, unique
+- `createdAt`, `updatedAt` — BIGINT
+
+#### 12. `backend/models/StudyPlanVersion.js`
+Fields:
+- `id` — INTEGER, PK, autoIncrement  
+- `studyPlanId` — INTEGER, FK → study_plans.id
+- `versionNumber` — INTEGER, not null (sequential, e.g., 1, 2, 3)
+- `status` — ENUM('draft', 'active', 'archived'), default 'draft'
+- `generatedByAdviserId` — INTEGER, FK → users.id
+- `validatedByAdviserId` — INTEGER, FK → users.id, nullable
+- `validatedAt` — BIGINT, nullable
+- `notes` — TEXT, nullable
+- `createdAt`, `updatedAt` — BIGINT
+
+#### 13. `backend/models/StudyPlanCourse.js`
+One row per course in a StudyPlanVersion.
+Fields:
+- `id` — INTEGER, PK, autoIncrement
+- `studyPlanVersionId` — INTEGER, FK → study_plan_versions.id
+- `courseId` — INTEGER, FK → courses.id
+- `yearLevel` — INTEGER (scheduled year level)
+- `semester` — INTEGER (scheduled semester, 1/2/3)
+- `grade` — STRING(10), nullable (e.g., "1.00", "2.50", "INC", "5.00", "4.00", "Pending")
+- `status` — ENUM('pending', 'passed', 'failed', 'dropped', 'incomplete'), default 'pending'
+- `createdAt`, `updatedAt` — BIGINT
+
+#### 14. `backend/models/ForecastSnapshot.js`
+Stores a point-in-time demand forecast taken when a term ends.
+Fields:
+- `id` — INTEGER, PK, autoIncrement
+- `academicTermId` — INTEGER, FK → academic_terms.id
+- `schoolYear` — STRING
+- `semester` — INTEGER
+- `snapshotData` — JSONB (stores the full demand data array at time of snapshot)
+- `triggeredByUserId` — INTEGER, FK → users.id
+- `createdAt` — BIGINT
+
+### Files to Modify (Backend)
+
+#### `backend/models/index.js`
+Import all new models and define all associations:
+
+```
+Associations to define:
+- Curriculum.hasMany(CurriculumCourse)
+- CurriculumCourse.belongsTo(Curriculum)
+- CurriculumCourse.belongsTo(Course)
+- Course.hasMany(CurriculumCourse)
+
+- Curriculum.hasMany(Prerequisite)
+- Prerequisite.belongsTo(Curriculum)
+- Prerequisite.belongsTo(Course, { as: 'Course', foreignKey: 'courseId' })
+- Prerequisite.belongsTo(Course, { as: 'PrerequisiteCourse', foreignKey: 'prerequisiteCourseId' })
+
+- Curriculum.hasMany(CoRequisite)
+- CoRequisite.belongsTo(Curriculum)
+- CoRequisite.belongsTo(Course, { as: 'Course', foreignKey: 'courseId' })
+- CoRequisite.belongsTo(Course, { as: 'CoRequisiteCourse', foreignKey: 'coRequisiteCourseId' })
+
+- Course.hasMany(CourseEquivalency, { foreignKey: 'courseId' })
+- Course.hasMany(CourseEquivalency, { as: 'EquivalentFor', foreignKey: 'equivalentCourseId' })
+
+- Curriculum.hasMany(ElectiveTrack)
+- ElectiveTrack.belongsTo(Curriculum)
+- ElectiveTrack.hasMany(ElectiveTrackCourse)
+- ElectiveTrackCourse.belongsTo(ElectiveTrack)
+- ElectiveTrackCourse.belongsTo(Course)
+
+- StudentAcademicRecord.belongsTo(User, { as: 'Student', foreignKey: 'userId' })
+- StudentAcademicRecord.belongsTo(User, { as: 'CreatedByAdviser', foreignKey: 'createdByAdviserId' })
+- StudentAcademicRecord.belongsTo(Curriculum)
+- StudentAcademicRecord.belongsTo(ElectiveTrack)
+- StudentAcademicRecord.hasOne(StudyPlan)
+
+- StudyPlan.belongsTo(StudentAcademicRecord)
+- StudyPlan.hasMany(StudyPlanVersion)
+
+- StudyPlanVersion.belongsTo(StudyPlan)
+- StudyPlanVersion.belongsTo(User, { as: 'GeneratedByAdviser', foreignKey: 'generatedByAdviserId' })
+- StudyPlanVersion.belongsTo(User, { as: 'ValidatedByAdviser', foreignKey: 'validatedByAdviserId' })
+- StudyPlanVersion.hasMany(StudyPlanCourse)
+
+- StudyPlanCourse.belongsTo(StudyPlanVersion)
+- StudyPlanCourse.belongsTo(Course)
+
+- ForecastSnapshot.belongsTo(AcademicTerm)
+- ForecastSnapshot.belongsTo(User, { as: 'TriggeredBy', foreignKey: 'triggeredByUserId' })
+- AcademicTerm.hasMany(ForecastSnapshot)
+```
+
+### Verification Checklist
+- [x] All 14 model files created in `backend/models/`  
+- [x] `backend/models/index.js` imports all models and defines all associations
+- [x] Dev server starts without Sequelize sync errors (`npm run dev` in backend)
+- [x] All tables visible in the PostgreSQL database
+
+---
+
+## Phase 2 — Curriculum Management Backend APIs
+
+**Depends on:** Phase 1  
+**Scope:** Backend only — REST API for all curriculum configuration
+
+### Goal
+Build all the backend routes and controllers that the Program Chair will use to configure curricula, courses, prerequisites, co-requisites, equivalencies, and elective tracks.
+
+### Files to Create (Backend)
+
+#### `backend/controllers/curriculumController.js`
+Exports the following handler functions:
+
+**Curriculum**
+- `createCurriculum(req, res)` — POST, creates new curriculum, validates `admin` role
+- `getCurriculums(req, res)` — GET, returns all curricula, accessible to `admin` and `adviser`
+- `getCurriculumById(req, res)` — GET, returns one curriculum with full course/track structure
+- `updateCurriculum(req, res)` — PUT, update name/description
+- `setActiveCurriculum(req, res)` — PATCH `/curriculum/:id/activate` — sets `isActive=true`, sets all others to `false`
+
+**Course**
+- `createCourse(req, res)` — POST
+- `getCourses(req, res)` — GET, returns all courses
+- `updateCourse(req, res)` — PUT
+- `deleteCourse(req, res)` — DELETE (only if not used in any curriculum)
+
+**Curriculum–Course assignment**
+- `addCourseToCurriculum(req, res)` — POST `/curriculum/:id/courses`
+- `removeCourseFromCurriculum(req, res)` — DELETE `/curriculum/:id/courses/:ccId`
+- `getCurriculumCourses(req, res)` — GET `/curriculum/:id/courses`
+
+**Prerequisites**
+- `addPrerequisite(req, res)` — POST `/curriculum/:id/prerequisites`
+- `removePrerequisite(req, res)` — DELETE `/curriculum/:id/prerequisites/:prereqId`
+- `getPrerequisites(req, res)` — GET `/curriculum/:id/prerequisites`
+
+**Co-Requisites**
+- `addCoRequisite(req, res)` — POST `/curriculum/:id/corequisites`
+- `removeCoRequisite(req, res)` — DELETE `/curriculum/:id/corequisites/:coreqId`
+- `getCoRequisites(req, res)` — GET `/curriculum/:id/corequisites`
+
+**Equivalencies**
+- `addEquivalency(req, res)` — POST `/equivalencies`
+- `removeEquivalency(req, res)` — DELETE `/equivalencies/:id`
+- `getEquivalencies(req, res)` — GET `/equivalencies`
+
+**Elective Tracks**
+- `createElectiveTrack(req, res)` — POST `/curriculum/:id/elective-tracks`
+- `getElectiveTracks(req, res)` — GET `/curriculum/:id/elective-tracks`
+- `updateElectiveTrack(req, res)` — PUT `/elective-tracks/:id`
+- `deleteElectiveTrack(req, res)` — DELETE `/elective-tracks/:id`
+- `addCourseToTrack(req, res)` — POST `/elective-tracks/:id/courses`
+- `removeCourseFromTrack(req, res)` — DELETE `/elective-tracks/:id/courses/:etcId`
+
+#### `backend/routes/curriculumRoutes.js`
+Registers all curriculum routes. All routes require `protect + requireRole('admin')` except read routes which also allow `adviser`.
+
+### Files to Modify (Backend)
+
+#### `backend/middleware/auth.js`
+Add `requireRole(...roles)` middleware:
+```js
+exports.requireRole = (...roles) => (req, res, next) => {
+  if (!req.user || !roles.includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Forbidden' });
+  }
+  next();
+};
+```
+
+#### `backend/server.js`
+Register the new router:
+```js
+const curriculumRoutes = require('./routes/curriculumRoutes');
+app.use('/api', curriculumRoutes);
+```
+
+### API Endpoint Summary
+
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| POST | `/api/curriculums` | admin |
+| GET | `/api/curriculums` | admin, adviser |
+| GET | `/api/curriculums/:id` | admin, adviser |
+| PUT | `/api/curriculums/:id` | admin |
+| PATCH | `/api/curriculums/:id/activate` | admin |
+| POST | `/api/courses` | admin |
+| GET | `/api/courses` | admin, adviser |
+| PUT | `/api/courses/:id` | admin |
+| DELETE | `/api/courses/:id` | admin |
+| POST | `/api/curriculums/:id/courses` | admin |
+| DELETE | `/api/curriculums/:id/courses/:csId` | admin |
+| GET | `/api/curriculums/:id/courses` | admin, adviser |
+| POST | `/api/curriculums/:id/prerequisites` | admin |
+| DELETE | `/api/curriculums/:id/prerequisites/:prereqId` | admin |
+| GET | `/api/curriculums/:id/prerequisites` | admin, adviser |
+| POST | `/api/curriculums/:id/corequisites` | admin |
+| DELETE | `/api/curriculums/:id/corequisites/:coreqId` | admin |
+| GET | `/api/curriculums/:id/corequisites` | admin, adviser |
+| POST | `/api/equivalencies` | admin |
+| DELETE | `/api/equivalencies/:id` | admin |
+| GET | `/api/equivalencies` | admin, adviser |
+| POST | `/api/curriculums/:id/elective-tracks` | admin |
+| GET | `/api/curriculums/:id/elective-tracks` | admin, adviser |
+| PUT | `/api/elective-tracks/:id` | admin |
+| DELETE | `/api/elective-tracks/:id` | admin |
+| POST | `/api/elective-tracks/:id/courses` | admin |
+| DELETE | `/api/elective-tracks/:id/courses/:etsId` | admin |
+
+### Verification Checklist
+- [ ] `requireRole` middleware added and exported from `backend/middleware/auth.js`
+- [ ] All curriculum endpoints return correct status codes (201 for creates, 200 for reads/updates, 204 for deletes)
+- [ ] Only one curriculum can be active at a time (`setActiveCurriculum` deactivates others)
+- [ ] Course deletion blocked if referenced in any `CurriculumCourse`, `Prerequisite`, or `CoRequisite`
+- [ ] All routes registered in `server.js`
+
+---
+
+## Phase 3 — Curriculum Management Frontend UI
+
+**Depends on:** Phase 2  
+**Scope:** Frontend only — Program Chair curriculum configuration pages
+
+### Goal
+Build the React pages and components for the Program Chair to manage curricula, courses, prerequisites, co-requisites, equivalencies, and elective tracks.
+
+### Files to Create (Frontend)
+
+#### `frontend/src/pages/admin/CurriculumManagement.js`
+Main page for Program Chair. Tabbed layout with tabs:
+1. **Curricula** — list all curricula, create new, set active, click to open
+2. **Courses** — global course library (create, edit, delete)
+3. **Equivalencies** — define course equivalencies across curricula
+
+#### `frontend/src/pages/admin/CurriculumDetail.js`
+Opened when a specific curriculum is selected. Tabs:
+1. **Structure** — table of courses organized by Year Level + Semester; add/remove courses
+2. **Prerequisites** — list and manage prerequisite relationships
+3. **Co-Requisites** — list and manage co-requisite relationships
+4. **Elective Tracks** — list tracks, create new track, assign courses to tracks
+
+#### `frontend/src/components/admin/CoursePickerModal.js`
+Reusable modal — shows a searchable list of all courses; used when assigning courses to:
+- Curriculum structure
+- Prerequisites
+- Co-Requisites
+- Elective Track courses
+
+### Files to Modify (Frontend)
+
+#### `frontend/src/App.js`
+Add new admin routes:
+```jsx
+<Route path="/admin/curriculum" element={<PrivateRoute roles={['admin']}><CurriculumManagement /></PrivateRoute>} />
+<Route path="/admin/curriculum/:id" element={<PrivateRoute roles={['admin']}><CurriculumDetail /></PrivateRoute>} />
+```
+> Note: Update `PrivateRoute.js` if needed to accept a `roles` prop for role-based guards.
+
+#### `frontend/src/components/PrivateRoute.js`
+If not already done, add `roles` prop support:
+```jsx
+if (roles && !roles.includes(user.role)) return <Navigate to="/dashboard" />;
+```
+
+#### `frontend/src/pages/Dashboard.js`
+Add a "Curriculum Management" card/link visible only to `admin` role users.
+
+### UI/UX Notes
+- Use React Bootstrap `Table`, `Modal`, `Tabs`, `Button`, `Form` components
+- Show loading spinners during API calls
+- Show success/error toasts (use React Bootstrap `Toast` or a simple alert state)
+- The curriculum structure view should be a grid table: rows = Year Level, columns = Semester 1 / Semester 2 / Summer
+- Courses in the structure table should be clickable chips/badges
+
+### Verification Checklist
+- [ ] Admin can create a new curriculum and set it as active
+- [ ] Admin can add courses to curriculum at specific year/semester slots
+- [ ] Admin can define prerequisites (A requires B)
+- [ ] Admin can define co-requisites (A and B must be taken together)
+- [ ] Admin can create elective tracks and assign courses to them
+- [ ] Admin can define course equivalencies across curricula
+- [ ] Non-admin users cannot access `/admin/curriculum`
+- [ ] Dashboard shows Curriculum Management link for admin only
+
+---
+
+## Phase 4 — Academic Term Management
+
+**Depends on:** Phase 1  
+**Scope:** Backend + Frontend — managing the current academic term
+
+### Goal
+Allow the Program Chair to set and manage the current academic term (school year + semester). Advancing the term triggers system events (mark versions for revalidation, store forecast snapshot — the snapshot storage will be a placeholder until Phase 9).
+
+### Files to Create (Backend)
+
+#### `backend/controllers/termController.js`
+- `createTerm(req, res)` — POST, creates a new term (does not activate it yet)
+- `getCurrentTerm(req, res)` — GET, returns the term where `isCurrent = true`
+- `getAllTerms(req, res)` — GET, returns all terms ordered by schoolYear + semester
+- `activateTerm(req, res)` — PATCH `/:id/activate` — sets `isCurrent=true`, deactivates previous term, marks all `active` StudyPlanVersions as needing revalidation (set a `needsRevalidation` flag — add this boolean field to `StudyPlanVersion`)
+- `endCurrentTerm(req, res)` — PATCH `/current/end` — sets `endedAt`, stores a forecast snapshot placeholder (actual snapshot filled in Phase 9)
+
+#### `backend/routes/termRoutes.js`
+All POST/PATCH routes are `admin` only. GET routes allow `admin` and `adviser`.
+
+### Files to Create (Frontend)
+
+#### `frontend/src/pages/admin/TermManagement.js`
+- Displays current active term prominently
+- Lists all past terms
+- Form to create a new term (schoolYear string + semester select 1/2/3)
+- "Activate Term" button (with confirmation modal — this ends the current advising cycle)
+- "End Current Term" button (with confirmation modal — triggers revalidation flags)
+
+### Files to Modify (Backend)
+
+#### `backend/models/StudyPlanVersion.js`
+Add field:
+- `needsRevalidation` — BOOLEAN, default false
+
+#### `backend/server.js`
+```js
+const termRoutes = require('./routes/termRoutes');
+app.use('/api/terms', termRoutes);
+```
+
+#### `frontend/src/App.js`
+```jsx
+<Route path="/admin/terms" element={<PrivateRoute roles={['admin']}><TermManagement /></PrivateRoute>} />
+```
+
+#### `frontend/src/pages/Dashboard.js`
+- Show current active term for all logged-in users
+- Add "Term Management" card/link for admin only
+
+### API Endpoint Summary
+
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| POST | `/api/terms` | admin |
+| GET | `/api/terms` | admin, adviser |
+| GET | `/api/terms/current` | admin, adviser, student |
+| PATCH | `/api/terms/:id/activate` | admin |
+| PATCH | `/api/terms/current/end` | admin |
+
+### Verification Checklist
+- [ ] Only one term can have `isCurrent = true` at a time
+- [ ] Activating a new term marks all active `StudyPlanVersion` rows with `needsRevalidation = true`
+- [ ] Current term is visible in the dashboard for all users
+- [ ] Admin sees Term Management page with create/activate/end controls
+- [ ] Confirmation modals shown before activate/end operations
+
+---
+
+## Phase 5 — Student Academic Record & Initial Study Plan
+
+**Depends on:** Phases 1, 2, 4  
+**Scope:** Backend + Frontend — adviser creates academic records and generates initial study plans
+
+### Goal
+Student Advisers can search for students, create Student Academic Records (SAR), and automatically generate the first Study Plan Version from the active curriculum.
+
+### Files to Create (Backend)
+
+#### `backend/controllers/sarController.js`
+- `createSAR(req, res)` — POST `/sars` — adviser creates a new Student Academic Record (name, studentNumber, email, yearLevel, curriculumId defaults to active curriculum)
+- `getSARs(req, res)` — GET `/sars` — adviser/admin sees all SARs; student sees only their own
+- `getSARById(req, res)` — GET `/sars/:id` — returns SAR with current active StudyPlanVersion details
+- `updateSAR(req, res)` — PUT `/sars/:id` — adviser can update year level, curriculum assignment
+- `generateInitialStudyPlan(req, res)` — POST `/sars/:id/study-plan/generate` — copies from the active curriculum structure, creates StudyPlan + first StudyPlanVersion (status: 'draft')
+- `getStudyPlanVersions(req, res)` — GET `/sars/:id/study-plan/versions` — list all versions with status, version number, created date
+
+**Initial Study Plan Generation Logic (inside `generateInitialStudyPlan`):**
+1. Fetch the SAR's assigned curriculum
+2. Fetch all `CurriculumCourse` rows for that curriculum
+3. Create a `StudyPlan` record linked to the SAR
+4. Create a `StudyPlanVersion` with `versionNumber=1`, `status='draft'`
+5. For each `CurriculumCourse`, create a `StudyPlanCourse` with the assigned `yearLevel` and `semester`, `status='pending'`, `grade=null`
+6. Return the created version
+
+#### `backend/routes/sarRoutes.js`
+Register routes. Students can only read their own SAR (enforce ownership check in controller).
+
+### Files to Create (Frontend)
+
+#### `frontend/src/pages/adviser/StudentList.js`
+- Lists all Student Academic Records (paginated, searchable by name or student number)
+- "Create New Record" button → opens `CreateSARModal`
+- Each row links to `StudentDetail` page
+
+#### `frontend/src/pages/adviser/StudentDetail.js`
+- Displays SAR info: name, student number, email, year level, assigned curriculum, elective track
+- Shows Study Plan Versions list (version number, status, date)
+- "Generate Initial Study Plan" button (if no study plan exists yet)
+- "View Active Plan" button → navigates to `StudyPlanView`
+- Accessible by adviser (any SAR) and student (only their own SAR via a separate `/my-record` route)
+
+#### `frontend/src/pages/adviser/StudyPlanView.js`
+- Displays StudyPlanVersion as a table grid: rows = semester slot (Year 1 Sem 1, Year 1 Sem 2, etc.), columns = courses
+- Shows course code, name, units, grade, status for each entry
+- Used in read-only mode for now (editing comes in Phase 6)
+
+#### `frontend/src/components/adviser/CreateSARModal.js`
+Form modal:
+- Student Name, Student Number, Email (validated to end in `@tip.edu.ph`)
+- Year Level (1–4 select)
+- Curriculum (auto-filled with active curriculum, but can be changed by adviser)
+- Submit calls `POST /api/sars`
+
+### Files to Modify (Backend)
+
+#### `backend/server.js`
+```js
+const sarRoutes = require('./routes/sarRoutes');
+app.use('/api/sars', sarRoutes);
+```
+
+### Files to Modify (Frontend)
+
+#### `frontend/src/App.js`
+```jsx
+<Route path="/adviser/students" element={<PrivateRoute roles={['adviser', 'admin']}><StudentList /></PrivateRoute>} />
+<Route path="/adviser/students/:sarId" element={<PrivateRoute roles={['adviser', 'admin']}><StudentDetail /></PrivateRoute>} />
+<Route path="/adviser/students/:sarId/plan/:versionId" element={<PrivateRoute roles={['adviser', 'admin']}><StudyPlanView /></PrivateRoute>} />
+<Route path="/my-record" element={<PrivateRoute roles={['student']}><StudentDetail /></PrivateRoute>} />
+```
+
+#### `frontend/src/pages/Dashboard.js`
+- Adviser/admin: Show "Student Records" card → links to `/adviser/students`
+- Student: Show "My Academic Record" card → links to `/my-record`
+
+### API Endpoint Summary
+
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| POST | `/api/sars` | adviser, admin |
+| GET | `/api/sars` | adviser, admin |
+| GET | `/api/sars/:id` | adviser, admin, student (own only) |
+| PUT | `/api/sars/:id` | adviser, admin |
+| POST | `/api/sars/:id/study-plan/generate` | adviser, admin |
+| GET | `/api/sars/:id/study-plan/versions` | adviser, admin, student (own) |
+
+### Verification Checklist
+- [ ] Adviser can create a new SAR with valid `@tip.edu.ph` student email
+- [ ] SAR email is validated server-side
+- [ ] Adviser can generate initial study plan from active curriculum
+- [ ] Generated study plan courses match the curriculum structure exactly
+- [ ] Student can view their own SAR but cannot access other students'
+- [ ] StudyPlanView displays courses grouped by year level and semester
+
+---
+
+## Phase 6 — Grade Entry & Study Plan Regeneration
+
+**Depends on:** Phase 5  
+**Scope:** Backend + Frontend — entering transcript grades and regenerating the study plan
+
+### Goal
+Advisers enter grades into the active StudyPlanVersion. If any courses are unresolved (failed/dropped/incomplete), the system generates a new Study Plan Version that reschedules those courses while following all rules.
+
+### Files to Create (Backend)
+
+#### `backend/controllers/gradeController.js`
+- `enterGrades(req, res)` — PUT `/sars/:id/study-plan/active-version/grades` — accepts an array of `{ studyPlanCourseId, grade, status }`, updates each `StudyPlanCourse` row. Only works if version is not archived or locked.
+- `triggerRegeneration(req, res)` — POST `/sars/:id/study-plan/regenerate` — runs the regeneration algorithm, creates a new StudyPlanVersion (status: 'draft') with the optimally rescheduled courses. Returns the new version.
+
+**Study Plan Regeneration Algorithm (inside `triggerRegeneration`):**
+1. Fetch current active StudyPlanVersion with all StudyPlanCourses + Course details
+2. Classify each course:
+   - `passed`: grade 1.00–3.00
+   - `dropped`: grade 4.00
+   - `failed`: grade 5.00
+   - `incomplete`: grade INC
+   - `pending`: not yet taken / no grade
+3. Fetch the curriculum's prerequisites and co-requisites
+4. Build the new schedule using a slot-filling algorithm:
+   - Passed courses are retained at their original year/semester (completed, no re-scheduling needed)
+   - Unresolved courses (dropped, failed, incomplete) are re-queued for rescheduling
+   - Pending courses that haven't been taken yet are also re-queued
+   - Sort re-queued courses by year/semester order from the original curriculum
+   - Assign each course to the earliest semester slot where:
+     a. All prerequisites are in earlier semesters
+     b. All co-requisites are in the same semester
+     c. Total units for the semester does not exceed 25
+   - Elective courses must come from the student's chosen Elective Track
+5. Increment `versionNumber`, set `status='draft'`, link to `generatedByAdviserId`
+6. Create all `StudyPlanCourse` rows for the new version
+7. Return the new version with full course detail
+
+#### `backend/routes/gradeRoutes.js`
+Register grade entry and regeneration routes. Only `adviser` and `admin` access.
+
+### Files to Create (Frontend)
+
+#### `frontend/src/pages/adviser/GradeEntry.js`
+- Opened for a specific SAR's active StudyPlanVersion
+- Displays courses in a table with input fields for grade
+- Grade input: number input (1.00–5.00 in 0.25 steps) OR select dropdown for INC / 4.00 / Pending
+- "Save Grades" button calls `PUT .../active-version/grades`
+- After saving, shows a summary: how many passed, failed, incomplete
+- "Regenerate Study Plan" button (shown if any unresolved courses exist)
+
+#### `frontend/src/pages/adviser/RegenerationReview.js`
+- Accepts the new (draft) StudyPlanVersion returned by `triggerRegeneration`
+- Displays the new plan as a semester-grid table (same layout as StudyPlanView)
+- Shows diff indicators: courses that moved semester (rescheduled) are highlighted
+- "Proceed to Validation" button → navigates to Phase 7 validation flow
+
+### Files to Modify (Backend)
+
+#### `backend/server.js`
+```js
+const gradeRoutes = require('./routes/gradeRoutes');
+app.use('/api', gradeRoutes);
+```
+
+### Files to Modify (Frontend)
+
+#### `frontend/src/pages/adviser/StudentDetail.js`
+Add "Enter Grades" button → navigates to `GradeEntry` page for the active version.
+
+#### `frontend/src/App.js`
+```jsx
+<Route path="/adviser/students/:sarId/grades" element={<PrivateRoute roles={['adviser', 'admin']}><GradeEntry /></PrivateRoute>} />
+<Route path="/adviser/students/:sarId/plan/:versionId/review" element={<PrivateRoute roles={['adviser', 'admin']}><RegenerationReview /></PrivateRoute>} />
+```
+
+### API Endpoint Summary
+
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| PUT | `/api/sars/:id/study-plan/active-version/grades` | adviser, admin |
+| POST | `/api/sars/:id/study-plan/regenerate` | adviser, admin |
+
+### Algorithm Constraints (Enforced Server-Side)
+1. Passed courses are never rescheduled
+2. Unresolved courses are re-queued and moved to earliest valid slot
+3. Prerequisites must appear in an earlier semester than the dependent course
+4. Co-requisites must appear in the same semester
+5. Max 25 units per semester
+6. If a student's Elective Track is set, elective courses must come from that track
+
+### Verification Checklist
+- [ ] Adviser can enter grades for each course in the active version
+- [ ] Grade values are validated (only valid grade formats accepted)
+- [ ] If all courses passed, no regeneration is needed (UI shows "All courses passed" message)
+- [ ] If unresolved courses exist, regeneration produces a new draft version
+- [ ] Regenerated plan respects all algorithm constraints (prerequisites, co-reqs, 25-unit cap)
+- [ ] Regeneration review shows the new plan clearly before validation
+
+---
+
+## Phase 7 — Study Plan Validation & Elective Track Enforcement
+
+**Depends on:** Phase 6  
+**Scope:** Backend + Frontend — advisers validate draft versions; elective track selection at 2nd year 2nd semester
+
+### Goal
+The adviser formally validates a draft StudyPlanVersion, making it the new active version. The previous active version is archived. If the student is at 2nd Year 2nd Semester and no Elective Track is selected, the adviser must select one before validation is allowed.
+
+### Files to Create (Backend)
+
+#### `backend/controllers/validationController.js`
+- `validateVersion(req, res)` — PATCH `/sars/:id/study-plan/versions/:versionId/validate`
+  1. Check `versionId` is in 'draft' status
+  2. Check the SAR's year level — if 2nd year and current term is 2nd sem, check that `electiveTrackId` is set on the SAR
+  3. If no track selected, return 400 with `{ code: 'ELECTIVE_TRACK_REQUIRED' }`
+  4. Set the version `status='active'`, `validatedByAdviserId=req.user.id`, `validatedAt=Date.now()`, `needsRevalidation=false`
+  5. Archive all previous 'active' versions for this study plan (set to 'archived')
+  6. Return the updated version
+
+- `selectElectiveTrack(req, res)` — PATCH `/sars/:id/elective-track`
+  1. Validate that `electiveTrackId` exists and belongs to the SAR's curriculum
+  2. Check that SAR does not already have an elective track (once set, it cannot be changed)
+  3. Update `StudentAcademicRecord.electiveTrackId`
+  4. Return the updated SAR
+
+#### `backend/routes/validationRoutes.js`
+Register routes. Only `adviser` and `admin`.
+
+### Files to Create (Frontend)
+
+#### `frontend/src/pages/adviser/ValidationFlow.js`
+- Displayed before confirming validation of a draft version
+- Shows the full draft plan (semester grid, same layout as StudyPlanView)
+- If Elective Track is required and not yet set, shows `ElectiveTrackSelector` component
+- "Validate Plan" button — calls `PATCH .../validate`
+- On success, shows a success message and redirects to `StudentDetail`
+
+#### `frontend/src/components/adviser/ElectiveTrackSelector.js`
+- Dropdown list of available Elective Tracks from the SAR's curriculum
+- Fetches from `GET /api/curriculums/:id/elective-tracks`
+- On confirm, calls `PATCH /api/sars/:id/elective-track`
+- Shows a warning: "Once selected, the elective track cannot be changed."
+
+### Files to Modify (Backend)
+
+#### `backend/server.js`
+```js
+const validationRoutes = require('./routes/validationRoutes');
+app.use('/api', validationRoutes);
+```
+
+### Files to Modify (Frontend)
+
+#### `frontend/src/pages/adviser/RegenerationReview.js`
+"Proceed to Validation" navigates to `ValidationFlow`.
+
+#### `frontend/src/pages/adviser/StudentDetail.js`
+Show "Validate Draft" button if a draft version exists.
+
+#### `frontend/src/App.js`
+```jsx
+<Route path="/adviser/students/:sarId/plan/:versionId/validate" element={<PrivateRoute roles={['adviser', 'admin']}><ValidationFlow /></PrivateRoute>} />
+```
+
+### API Endpoint Summary
+
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| PATCH | `/api/sars/:id/study-plan/versions/:versionId/validate` | adviser, admin |
+| PATCH | `/api/sars/:id/elective-track` | adviser, admin |
+
+### Business Rules (Enforced)
+- Only one version can be 'active' at a time per StudyPlan — validation archives the previous one
+- Elective Track is immutable once set
+- Elective courses in future semesters (in the plan) must belong to the selected track (enforce in regeneration Phase 6, double-check here)
+- A draft version must exist to validate — cannot validate an 'archived' or already 'active' version
+
+### Verification Checklist
+- [ ] Adviser can validate a draft version
+- [ ] On validation, the previous active version becomes archived
+- [ ] If student is at 2nd Year 2nd Sem and no elective track selected, validation is blocked
+- [ ] Elective track selection is permanent (attempting to change returns 400)
+- [ ] After validation, the new version is shown as active in StudentDetail
+- [ ] Elective courses in the validated plan belong to the selected track
+
+---
+
+## Phase 8 — Student-Facing Views & PDF Export
+
+**Depends on:** Phase 7  
+**Scope:** Backend + Frontend — student read-only access and PDF export
+
+### Goal
+Students can view their Student Academic Record and current Study Plan. Both students and advisers can export the SAR as a PDF. The PDF includes all required information per the spec.
+
+### Files to Create (Backend)
+
+#### `backend/controllers/exportController.js`
+- `exportSARPDF(req, res)` — GET `/sars/:id/export/pdf`
+  1. Verify requester is the student (ownership) or an adviser/admin
+  2. Fetch full SAR: student info, curriculum, active StudyPlanVersion with all courses and grades, Elective Track, validating adviser, validation timestamp
+  3. Generate PDF using `pdfkit` npm package
+  4. Stream the PDF response with `Content-Type: application/pdf` and `Content-Disposition: attachment; filename="SAR-{studentNumber}.pdf"`
+  
+  PDF layout:
+  - Header: School name / "Student Academic Record"
+  - Section 1: Student Information (name, student number, email, year level)
+  - Section 2: Curriculum Information (curriculum name)
+  - Section 3: Selected Elective Track (if applicable)
+  - Section 4: Study Plan table (Year/Semester grid, course code, name, units, grade, status)
+  - Section 5: Validation info (validating adviser name, validation timestamp)
+  - Footer: "Generated on: [timestamp]"
+
+#### `backend/routes/exportRoutes.js`
+Register the export route. Access: adviser, admin (any SAR), student (own SAR only).
+
+### Files to Create (Frontend)
+
+#### `frontend/src/pages/student/MyRecord.js`
+- Student's read-only SAR view
+- Displays: personal info, curriculum, elective track, active study plan as semester grid
+- Shows grade and status for each course
+- "Export as PDF" button → calls `GET /api/sars/:id/export/pdf` and triggers browser download
+
+### Files to Modify (Backend)
+
+#### Install `pdfkit`:
+```bash
+cd backend && npm install pdfkit
+```
+
+#### `backend/server.js`
+```js
+const exportRoutes = require('./routes/exportRoutes');
+app.use('/api', exportRoutes);
+```
+
+### Files to Modify (Frontend)
+
+#### `frontend/src/pages/adviser/StudentDetail.js`
+Add "Export PDF" button for advisers — calls the pdf export endpoint.
+
+#### `frontend/src/App.js`
+```jsx
+<Route path="/my-record" element={<PrivateRoute roles={['student']}><MyRecord /></PrivateRoute>} />
+```
+
+#### `frontend/src/pages/Dashboard.js`
+Student role: "My Academic Record" card → `/my-record`
+
+### API Endpoint Summary
+
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| GET | `/api/sars/:id/export/pdf` | student (own), adviser, admin |
+
+### PDF Content Requirements (from spec)
+- Student information
+- Curriculum information
+- Current Study Plan Version (courses, grades, statuses)
+- Selected Elective Track
+- Validating Student Adviser name
+- Validation timestamp
+
+### Verification Checklist
+- [ ] Student can view their academic record (read-only, no edit controls)
+- [ ] Student cannot see other students' records
+- [ ] PDF export includes all required sections per the spec
+- [ ] PDF downloads correctly in the browser
+- [ ] Adviser can also export the PDF from StudentDetail
+- [ ] PDF generation is tested with a populated SAR (at least one validated version)
+- [ ] `pdfkit` installed in backend dependencies
+
+---
+
+## Phase 9 — Forecasting System
+
+**Depends on:** Phase 4, Phase 7  
+**Scope:** Backend + Frontend — course demand forecasting and semester transition
+
+### Goal
+The system analyzes active validated Study Plan Versions to count how many students will take each course in the current semester (actual demand) and the next semester (forecasted demand). When a term ends, a snapshot is stored. The Program Chair can view current and historical forecasts.
+
+### Files to Create (Backend)
+
+#### `backend/controllers/forecastController.js`
+- `getCurrentDemand(req, res)` — GET `/forecast/current`
+  1. Get the current academic term
+  2. For all active StudyPlanVersions, find StudyPlanCourses scheduled at the current term's yearLevel equivalent semester
+  3. Group by courseId, count students per course
+  4. Return: `[{ courseId, courseCode, courseName, units, studentCount }]`
+  
+- `getNextSemesterForecast(req, res)` — GET `/forecast/next`
+  1. Same logic, but for the next semester's slot (increment current semester, handle year rollover)
+  2. Return demand predictions
+
+- `getComparisonReport(req, res)` — GET `/forecast/comparison`
+  1. Get current actual demand
+  2. Get the most recent `ForecastSnapshot` for the previous term
+  3. For each course, compute: `{ courseCode, courseName, forecastedDemand, actualDemand, difference }`
+  4. Return the comparison array
+
+- `getForecastHistory(req, res)` — GET `/forecast/history`
+  1. Return all `ForecastSnapshot` records ordered by date descending
+  2. Include triggering user name and school year/semester
+
+- `storeForecastSnapshot(termId, userId)` — Internal utility function (not a route handler)
+  1. Calls `getCurrentDemand` logic
+  2. Stores result as a new `ForecastSnapshot` row
+  3. Called by `termController.endCurrentTerm` and `termController.activateTerm`
+
+#### `backend/routes/forecastRoutes.js`
+All routes: `admin` and `adviser` access.
+
+> **Update `termController.js`:** In `endCurrentTerm`, after setting `endedAt`, call `storeForecastSnapshot(termId, req.user.id)` to persist the snapshot before term closes.
+
+### Files to Create (Frontend)
+
+#### `frontend/src/pages/admin/ForecastDashboard.js`
+Tabbed layout:
+1. **Current Demand** — table listing all courses with student count for the current semester
+2. **Next Semester Forecast** — table of predicted demand for the upcoming semester
+3. **Comparison Report** — table with columns: Course Code | Course Name | Forecasted | Actual | Difference (with color coding: positive diff = green, negative = red)
+4. **Forecast History** — timeline/list of past snapshots with click-to-expand detail
+
+### Files to Modify (Backend)
+
+#### `backend/server.js`
+```js
+const forecastRoutes = require('./routes/forecastRoutes');
+app.use('/api/forecast', forecastRoutes);
+```
+
+#### `backend/controllers/termController.js`
+In `endCurrentTerm`, import and call `storeForecastSnapshot`.
+
+### Files to Modify (Frontend)
+
+#### `frontend/src/App.js`
+```jsx
+<Route path="/admin/forecast" element={<PrivateRoute roles={['admin']}><ForecastDashboard /></PrivateRoute>} />
+```
+
+#### `frontend/src/pages/Dashboard.js`
+Add "Forecasting" card/link for admin role.
+
+### API Endpoint Summary
+
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| GET | `/api/forecast/current` | admin, adviser |
+| GET | `/api/forecast/next` | admin, adviser |
+| GET | `/api/forecast/comparison` | admin, adviser |
+| GET | `/api/forecast/history` | admin, adviser |
+
+### Demand Calculation Logic
+- "Current semester demand" = count of students whose active StudyPlanVersion has a course scheduled at the semester corresponding to the current academic term, with status `pending` (meaning they are supposed to take it this term)
+- "Next semester demand" = same, but for next semester slot
+- Semester slot mapping: Identify courses by their `yearLevel` + `semester` in the student's plan, then figure out which absolute semester in the student's journey corresponds to the current term (this requires knowing the student's starting year and term, which may need to be added to SAR in a future iteration; for now, use the `yearLevel` field on the SAR + the course's assigned semester in the plan)
+
+### Verification Checklist
+- [ ] Current demand counts are accurate (verified against known test data)
+- [ ] Next semester forecast shows expected courses
+- [ ] Comparison report shows correct difference (actual minus previous forecast)
+- [ ] Snapshot is stored when a term ends
+- [ ] Forecast history lists all past snapshots with correct metadata
+- [ ] Forecasting dashboard is only accessible to admin
+
+---
+
+## Phase 10 — Auth & Access Control Refinements
+
+**Depends on:** All previous phases  
+**Scope:** Backend + Frontend — email domain enforcement, Program Chair first-login, ownership transfer, role-based guards audit
+
+### Goal
+Enforce all role-specific business rules from the spec that haven't been addressed yet:
+- Email domain validation for student advisers (`.cpe@tip.edu.ph`)
+- Email domain validation for students (`@tip.edu.ph`)
+- Program Chair's initial forced password change
+- Program Chair ownership transfer
+- Full role-based access control audit across all pages and APIs
+
+### Files to Modify (Backend)
+
+#### `backend/controllers/authController.js`
+**Email domain enforcement in `register`:**
+- If role is `adviser`: email must end with `.cpe@tip.edu.ph`
+- If role is `student` (public registration): email must end with `@tip.edu.ph` (note: `.cpe@tip.edu.ph` is a subset, so advisers registering as students should be blocked from the student registration path)
+- If role is `admin`: only one admin can exist, and creation should be protected
+
+**First-login forced credential change:**
+Add `mustChangePassword` BOOLEAN field to `User` model (default `false`).
+In `login`, if `user.mustChangePassword === true`, return a response with `{ mustChangePassword: true }` instead of a full token.
+Add `changePassword(req, res)` route — PUT `/api/auth/change-password` — requires the old password for verification, sets new password, sets `mustChangePassword=false`.
+
+**Program Chair ownership transfer:**
+Add `transferOwnership(req, res)` — PATCH `/api/auth/transfer-ownership`:
+1. Requester must be current `admin`
+2. Target user (`targetUserId` in body) must exist and be an `adviser`
+3. Change target user's `role` to `admin`
+4. Change requester's `role` to `adviser`
+5. Return success message
+
+#### `backend/routes/authRoutes.js`
+Add:
+```js
+router.put('/change-password', protect, changePassword);
+router.patch('/transfer-ownership', protect, requireRole('admin'), transferOwnership);
+```
+
+### Files to Modify (Frontend)
+
+#### `frontend/src/pages/Login.js`
+After successful login, check if response includes `mustChangePassword: true`. If so, redirect to `/change-password` instead of dashboard.
+
+#### `frontend/src/pages/ChangePassword.js` (Create new)
+Form with fields: New Password, Confirm New Password.
+Displays a warning: "You must change your password before continuing."
+On submit, calls `PUT /api/auth/change-password`.
+On success, re-fetches user and redirects to dashboard.
+
+#### `frontend/src/pages/admin/TransferOwnership.js` (Create new)
+- Lists all advisers
+- "Transfer Ownership" button per adviser, with confirmation modal
+- Warning: "This will permanently transfer Program Chair access to the selected adviser. You will become a Student Adviser."
+- Calls `PATCH /api/auth/transfer-ownership`
+- On success, logs out current user (since their role changed)
+
+#### `frontend/src/App.js`
+```jsx
+<Route path="/change-password" element={<ChangePassword />} />
+<Route path="/admin/transfer-ownership" element={<PrivateRoute roles={['admin']}><TransferOwnership /></PrivateRoute>} />
+```
+
+#### Audit pass — check all pages:
+- `/admin/*` routes: only `admin` role
+- `/adviser/*` routes: `adviser` and `admin` roles
+- `/my-record`: only `student` role
+- API controllers: verify `requireRole` is applied consistently
+
+### API Endpoint Summary
+
+| Method | Endpoint | Access |
+|--------|----------|--------|
+| PUT | `/api/auth/change-password` | authenticated users |
+| PATCH | `/api/auth/transfer-ownership` | admin only |
+
+### Verification Checklist
+- [ ] Adviser registration fails if email doesn't end with `.cpe@tip.edu.ph`
+- [ ] Student registration fails if email doesn't end with `@tip.edu.ph`
+- [ ] Admin account with `mustChangePassword=true` is forced to change password on first login
+- [ ] Program Chair can transfer ownership to any adviser
+- [ ] After transfer, old admin becomes adviser and is logged out
+- [ ] All frontend routes enforce role-based access (no unauthorized page access)
+- [ ] All backend endpoints have correct `protect` + `requireRole` guards
+- [ ] Audit for any missing role guards across all controllers
+
+---
+
+## General Implementation Notes (Apply to All Phases)
+
+### Backend Conventions
+- All timestamps use Unix milliseconds (BIGINT), consistent with the existing `User` model
+- All routes follow RESTful conventions
+- All controllers use try/catch and call `next(err)` for unhandled errors
+- Validation errors return `400`, auth errors `401`, forbidden `403`, not found `404`
+- Add `sequelize: { timestamps: false }` to all new models (handle timestamps manually)
+
+### Frontend Conventions
+- Use the existing `api` utility from `frontend/src/utils/api.js` for all HTTP calls (it handles the auth token)
+- All new pages import `useAuth` from `AuthContext` for user/role info
+- Show loading state for async operations
+- Handle errors by displaying a user-friendly message (not a raw error object)
+- Role checks in UI should mirror backend role checks (defense in depth)
+
+### Sequelize Sync Behavior
+- In development, `{ alter: { drop: false } }` is used — **adding new columns is safe**, but renaming or removing columns must be done manually via SQL or a migration
+- After creating new models, the next `npm run dev` startup will auto-create the tables
+
+### Testing Each Phase
+After each phase, manually test using the browser and network tab, or use a tool like Postman/Thunder Client for API endpoints. There is no automated test suite in the current codebase.
+
+---
+
+*Last updated: Phase 1 complete — all 14 Sequelize models created, associations defined in `backend/models/index.js`, all tables synced to PostgreSQL.*
