@@ -1,0 +1,90 @@
+course_code,course_title,lecture_hours,lab_hours,credit_units,prerequisites,year,semester,category
+CHM 001,Chemistry for Engineers,3,3,4,,1,1,core
+MATH 141,Calculus 1,4,0,4,,1,1,core
+MATH 025,Discrete Mathematics,3,0,3,,1,1,core
+CPE 101,Computer Engineering as a Discipline,1,0,1,,1,1,core
+CPE 102,Programming Logic and Design,0,6,2,,1,1,core
+CPE 103,Computer System Administration and Troubleshooting,0,3,1,,1,1,core
+GEC 001,Understanding the Self,3,0,3,,1,1,core
+PE 001,PATHFit 1,2,0,2,,1,1,core
+NSTP 001,National Service Training Program 1,3,0,3,,1,1,core
+GEC 006,Art Appreciation,3,0,3,,1,2,core
+MATH 242,Calculus 2,4,0,4,MATH 141,1,2,core
+PHYS 111,Calculus-Based Physics,3,3,4,MATH 141,1,2,core
+CPE 105A,Object-Oriented Programming 1,0,3,1,CPE 102,1,2,core
+MATH 027C,Engineering Data Analysis 1,3,0,3,MATH 141,1,2,core
+GEE 001B,Gender and Society,3,0,3,,1,2,core
+GEC 004,Mathematics in the Modern World,3,0,3,,1,2,core
+PE 002,PATHFit 2,2,0,2,PE 001,1,2,core
+NSTP 002,National Service Training Program 2,3,0,3,NSTP 001,1,2,core
+MATH 021,Differential Equations,3,0,3,MATH 242,2,1,core
+MATH 022B,Linear Algebra with MATLAB,2,3,3,MATH 025,2,1,core
+ECE 201A,Fundamentals of Electronic Circuits,3,3,4,PHYS 111,2,1,core
+EE 200D,Fundamentals of Electrical Circuits,3,3,4,PHYS 111,2,1,core
+CPE 105C,Object-Oriented Programming 2,0,3,1,CPE 105A,2,1,core
+CPE 200,Data Structures and Algorithms,0,6,2,CPE 105A,2,1,core
+IE 321A,Visualizations and Data Analysis,0,3,1,MATH 027C,2,1,core
+GEC 007,Science Technology and Society,3,0,3,,2,1,core
+GEE 003C,The Entrepreneurial Mind,3,0,3,,2,1,core
+PE 003,PATHFit 3,2,0,2,PE 001; PE 002,2,1,core
+MATH 026B,Numerical Methods,3,0,3,MATH 021,2,2,core
+CPE 202,Database Management System,0,6,2,CPE 200,2,2,core
+CPE 203,Logic Circuits and Design,3,3,4,ECE 201A; EE 200D,2,2,core
+GEC 005,Purposive Communication,3,0,3,,2,2,core
+CPE 206,Computer Networks 1,2,3,3,CPE 103,2,2,core
+CPEC 001,Cognate/Elective Course 1,2,3,3,See Track,2,2,core
+CPE 204,Computer Engineering Drafting and Design,0,3,1,ECE 201A; EE 200D,2,2,core
+CPE 106,Data and Digital Communications,3,0,3,PHYS 111,2,2,core
+PE 004,PATHFit 4,2,0,2,PE 001; PE 002,2,2,core
+CPE 408A,Emerging Technologies 1 in CpE,0,3,1,2nd year standing,3,1,core
+CPE 104,Computer-Aided Drafting,0,3,1,2nd year standing,3,1,core
+CPE 313A,Computer Organization with Assembly Language,1,3,2,CPE 203,3,1,core
+CPE 308,CpE Laws and Professional Practice,2,0,2,3rd year standing,3,1,core
+CPE 316,Introduction to HDL,0,3,1,CPE 203,3,1,core
+BOSH 101A,Basic Occupational Health and Safety,3,0,3,3rd year standing,3,1,core
+CPE 408B,Emerging Technologies 2 in CpE,0,3,1,CPE 408A,3,1,core
+ECE 309A,Feedback and Control Systems,3,0,3,MATH 026B,3,1,core
+CPE 205A,Software Design 1,2,0,2,CPE 202,3,1,core
+CPE 306,Computer Networks 2,2,3,3,CPE 206,3,1,core
+CPEC 002,Cognate/Elective Course 2,2,3,3,See Track,3,2,core
+CPE 309,Methods of Research,2,0,2,IE 321A; GEC 005,3,2,core
+CPE 300,Optimization Techniques,3,0,3,MATH 021,3,2,core
+CPE 313B,Computer Architecture,1,3,2,CPE 313A,3,2,core
+CPE 405B,Microprocessor Systems,3,3,4,CPE 313A,3,2,core
+CPE 205B,Software Design 2,1,3,2,CPE 205A,3,2,core
+CPE 314,Computer Networks 3,2,3,3,CPE 306,3,2,core
+CPEC 003,Cognate/Elective Course 3,2,3,3,See Track,3,2,core
+GEC 002,Readings in Philippine History,3,0,3,,3,2,core
+CPE 406A,CpE Design 1,2,0,2,CPE 309,3,2,core
+CPE 317,Fundamentals of Mixed Signals and Sensors,3,0,3,ECE 201A,3,summer,core
+CPE 402A,Human-Centered Innovation,0,3,1,CPE 309,3,summer,core
+COE 302,Introduction to Intellectual Property,0,3,1,4th year standing,3,summer,core
+CPE 311A,Operating Systems,2,3,3,CPE 205B,3,summer,core
+COE 030,Sustainable Development Engineering,1,0,1,4th year standing,3,summer,core
+CPE 400,Embedded Systems,3,3,4,CPE 405B,4,1,core
+CPE 416,Digital Signal Processing and Application,3,3,4,MATH 026B,4,1,core
+CPE 415,Developing Applications and Automation,2,3,3,CPE 314,4,1,core
+CPE 406B,CpE Design 2,1,3,2,CPE 406A,4,1,core
+ME 304,Engineering Economics,3,0,3,4th year standing,4,1,core
+CPE 409,Seminars and Field Trips,0,3,1,4th year standing,4,1,core
+GEE 002B,Living in the IT Era,3,0,3,,4,1,core
+GEM 001,Life and Works of Rizal,3,0,3,,4,1,core
+GEC 008,Ethics,3,0,3,,4,2,core
+CPE 406C,CpE Design 3,0,6,2,Graduating,4,2,core
+CPE 414A,On-the-Job Training for CpE,3,0,3,Graduating,4,2,core
+TECH 101A,Technology Entrepreneurship,3,0,3,Graduating,4,2,core
+CPE 207A,Advanced System Administration,2,3,3,CPE 206,elective,track,Systems Administration
+CPE 307B,Automating Server Management,2,3,3,CPE 207A,elective,track,Systems Administration
+CPE 312B,Cloud Management and Security,2,3,3,CPE 307B,elective,track,Systems Administration
+CPE 209,Fundamentals of Cybersecurity,2,3,3,CPE 206,elective,track,Cybersecurity
+CPE 320,Computer Security Management,2,3,3,CPE 209,elective,track,Cybersecurity
+CPE 315,Forensics of Cybersecurity,2,3,3,CPE 320,elective,track,Cybersecurity
+CPE 331B,Internet of Things,2,3,3,CPE 203,elective,track,Cyber-Physical Systems
+CPE 332B,Machine Perception and Robotics,2,3,3,CPE 331B,elective,track,Cyber-Physical Systems
+CPE 343C,Intelligent System Design,2,3,3,CPE 332B,elective,track,Cyber-Physical Systems
+COE 003,Computational Thinking with Python,2,3,3,CPE 200,elective,track,Data Science
+COE 004A,Predictive Analytics using Machine Learning,2,3,3,COE 003,elective,track,Data Science
+COE 005A,Advanced Machine Learning and Deep Learning,2,3,3,COE 004A,elective,track,Data Science
+RWE 001,Introduction to Railway Systems and Engineering,3,0,3,,elective,track,Railway Engineering
+RWE 002A,Railway Management Governance and Operations,3,0,3,RWE 001,elective,track,Railway Engineering
+RWE 003A,Advanced Topic on Railway Engineering,3,0,3,RWE 002A,elective,track,Railway Engineering

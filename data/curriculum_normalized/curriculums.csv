@@ -1,0 +1,4 @@
+curriculum_code,name,description,is_active
+BS_CPE_2018,BS CPE Curriculum 2018,Imported from bs_cpe_curriculum_2018_full.csv,false
+BS_CPE_2023,BS CPE Curriculum 2023,Imported from bs_cpe_curriculum_2023_full.csv,false
+BS_CPE_2025,BS CPE Curriculum 2025,Imported from bs_cpe_curriculum_2025_full.csv,true

@@ -50,7 +50,14 @@
 
 ### Middleware Notes
 - Add a `requireRole(...roles)` middleware in `backend/middleware/auth.js` for role-based access control
-- Example: `router.get('/curriculum', protect, requireRole('admin'), ...)` 
+- Example: `router.get('/curriculum', protect, requireRole('admin'), ...)`
+
+### Data Seeding
+- **Seed script:** `backend/scripts/seed.js` — resets all tables, creates default users, and imports all curricula from pre-built normalized CSVs.
+- **Run from repo root:** `node backend/scripts/seed.js`
+- **Normalized CSV source:** `data/curriculum_normalized/` — six CSVs covering all three BS CPE curricula (2018, 2023, 2025). These are the stable source of truth for curriculum data.
+- **Re-normalization:** If the upstream spreadsheet CSVs change, re-run `node backend/scripts/normalize_curricula_csv.js` to regenerate the normalized files, then re-run the seed.
+- **Active curriculum after seed:** BS CPE Curriculum 2025 (`isActive = true`). 
 
 ---
 

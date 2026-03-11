@@ -1,0 +1,133 @@
+course_code,course_title,credit_units,lecture_hours,lab_hours
+BOSH 101,Basic Occupational Health and Safety,3,3,0
+BOSH 101A,Basic Occupational Health and Safety,3,3,0
+CHM 001,Chemistry for Engineers,4,3,3
+COE 003,Computational Thinking with Python,3,2,3
+COE 004,Inferential Thinking by Resampling,3,2,3
+COE 004A,Predictive Analytics using Machine Learning,3,2,3
+COE 005,Prediction and Machine Learning,3,2,3
+COE 005A,Advanced Machine Learning and Deep Learning,3,2,3
+COE 030,Sustainable Development Engineering,1,1,0
+COE 302,Introduction to Intellectual Property,1,0,3
+CPE 023,Engineering Data Analysis,4,3,3
+CPE 101,Computer Engineering as a Discipline,1,1,0
+CPE 102,Programming Logic and Design,2,0,6
+CPE 103,Computer System Administration and Troubleshooting,1,0,3
+CPE 104,Computer-Aided Drafting,1,0,3
+CPE 105,Object-Oriented Programming,2,0,6
+CPE 105A,Object-Oriented Programming 1,1,0,3
+CPE 105C,Object-Oriented Programming 2,1,0,3
+CPE 106,Data and Digital Communications,3,3,0
+CPE 200,Data Structures and Algorithms,2,0,6
+CPE 202,Database Management System,2,0,6
+CPE 203,Logic Circuits and Design,4,3,3
+CPE 204,Computer Engineering Drafting and Design,1,0,3
+CPE 205,Software Design,4,3,3
+CPE 205A,Software Design 1,2,2,0
+CPE 205B,Software Design 2,2,1,3
+CPE 206,Computer Networks 1,3,2,3
+CPE 207,System Administration Fundamentals,3,2,3
+CPE 207A,Advanced System Administration,3,2,3
+CPE 209,Fundamentals of Cybersecurity,3,2,3
+CPE 300,Optimization Techniques,3,3,0
+CPE 304A,Project Management,3,3,0
+CPE 306,Computer Networks 2,3,2,3
+CPE 307,Managing Enterprise Servers,3,2,3
+CPE 307B,Automating Server Management,3,2,3
+CPE 308,CpE Laws and Professional Practice,2,2,0
+CPE 309,Methods of Research,2,2,0
+CPE 310,Computer Architecture and Organization,4,3,3
+CPE 311,Operating Systems,3,3,0
+CPE 311A,Operating Systems,3,2,3
+CPE 312,Enterprise Security,3,2,3
+CPE 312B,Cloud Management and Security,3,2,3
+CPE 313A,Computer Organization with Assembly Language,2,1,3
+CPE 313B,Computer Architecture,2,1,3
+CPE 314,Computer Networks 3,3,2,3
+CPE 315,Forensics of Cybersecurity,3,2,3
+CPE 316,Introduction to HDL,1,0,3
+CPE 317,Fundamentals of Mixed Signals and Sensors,3,3,0
+CPE 318,Computer System Performance Evaluation,1,0,3
+CPE 320,Computer Security Management,3,2,3
+CPE 331A,Principles of Robotics,3,2,3
+CPE 331B,Internet of Things,3,2,3
+CPE 332,Programming Robots,3,2,3
+CPE 332B,Machine Perception and Robotics,3,2,3
+CPE 343,Robot Design,3,2,3
+CPE 343C,Intelligent System Design,3,2,3
+CPE 400,Embedded Systems,4,3,3
+CPE 402A,Human-Centered Innovation,1,0,3
+CPE 405,Microprocessors,4,3,3
+CPE 405B,Microprocessor Systems,4,3,3
+CPE 406,CpE Design 1,3,2,3
+CPE 406A,CpE Design 1,2,2,0
+CPE 406B,CpE Design 2,2,1,3
+CPE 406C,CpE Design 3,2,0,6
+CPE 407,Computer Networks Design,3,2,3
+CPE 408,Emerging Technologies in CpE,3,2,3
+CPE 408A,Emerging Technologies 1 in CpE,1,0,3
+CPE 408B,Emerging Technologies 2 in CpE,1,0,3
+CPE 408C,Emerging Technologies 3 in CpE,1,0,3
+CPE 409,Seminars and Field Trips,1,0,3
+CPE 410,Introduction to Intellectual Property,1,0,3
+CPE 412,CpE Design 1,3,2,3
+CPE 413,CpE Design 2,3,1,6
+CPE 414,On-the-Job Training for CpE,3,3,240
+CPE 414A,On-the-Job Training for CpE,3,3,0
+CPE 415,Developing Applications and Automation,3,2,3
+CPE 416,Digital Signal Processing and Application,4,3,3
+CPEC 001,Cognate/Elective Course 1,3,2,3
+CPEC 002,Cognate/Elective Course 2,3,2,3
+CPEC 003,Cognate/Elective Course 3,3,2,3
+CPEC 202,Cognate/Elective Course 1,3,2,3
+CPEC 301,Cognate/Elective Course 2,3,2,3
+CPEC 302,Cognate/Elective Course 3,3,2,3
+ECE 201A,Fundamentals of Electronic Circuits,4,3,3
+ECE 308A,Data and Digital Communications,3,3,0
+ECE 309A,Feedback and Control Systems,3,3,0
+EE 200D,Fundamentals of Electrical Circuits,4,3,3
+GEC 001,Understanding the Self,3,3,0
+GEC 002,Readings in Philippine History,3,3,0
+GEC 003,The Contemporary World,3,3,0
+GEC 004,Mathematics in the Modern World,3,3,0
+GEC 005,Purposive Communication,3,3,0
+GEC 006,Art Appreciation,3,3,0
+GEC 007,Science Technology and Society,3,3,0
+GEC 008,Ethics,3,3,0
+GEE 001B,Gender and Society,3,3,0
+GEE 002B,Living in the IT Era,3,3,0
+GEE 003B,People and the Earth's Ecosystem,3,3,0
+GEE 003C,The Entrepreneurial Mind,3,3,0
+GEM 001,Life and Works of Rizal,3,3,0
+IE 321,Engineering Data Analysis 2,1,0,3
+IE 321A,Visualizations and Data Analysis,1,0,3
+MATH 018,Calculus 1,3,3,0
+MATH 019,Calculus 2,3,3,0
+MATH 021,Differential Equations,3,3,0
+MATH 022B,Linear Algebra with MATLAB,3,2,3
+MATH 025,Discrete Mathematics,3,3,0
+MATH 026B,Numerical Methods,3,3,0
+MATH 027C,Engineering Data Analysis 1,3,3,0
+MATH 141,Calculus 1,4,4,0
+MATH 242,Calculus 2,4,4,0
+ME 304,Engineering Economics,3,3,0
+ME 304A,Engineering Economics,3,3,0
+NSTP 001,National Service Training Program 1,3,3,0
+NSTP 002,National Service Training Program 2,3,3,0
+PE 001,PATHFit 1,2,2,0
+PE 002,PATHFit 2,2,2,0
+PE 003,PATHFit 3,2,2,0
+PE 004,PATHFit 4,2,2,0
+PE 101,Physical Education 1,2,2,0
+PE 102,Physical Education 2,2,2,0
+PE 201,Physical Education 3,2,2,0
+PE 202,Physical Education 4,2,2,0
+PHYS 111,Calculus-Based Physics,4,3,3
+RWE 001,Introduction to Railway Systems and Engineering,3,3,0
+RWE 002A,Railway Management Governance and Operations,3,3,0
+RWE 003A,Advanced Topic on Railway Engineering,3,3,0
+TECH 101,Introduction to Engineering Entrepreneurship,3,3,0
+TECH 101A,Technology Entrepreneurship,3,3,0
+TECH 102,Technopreneurship 2,3,3,0
+TECH 103,Technopreneurship 3,3,3,0
+TECH 104,Technopreneurship 4,3,2,3

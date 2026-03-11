@@ -61,6 +61,15 @@ Student-Advising-Portal/
 ├── GOOGLE_OAUTH_SETUP.md
 ├── REQUIRED_EXTENSIONS.md
 │
+├── data/
+│   └── curriculum_normalized/       # Pre-built normalized CSVs consumed by seed script
+│       ├── curriculums.csv
+│       ├── courses.csv
+│       ├── curriculum_courses.csv
+│       ├── prerequisites.csv
+│       ├── elective_tracks.csv
+│       └── elective_track_courses.csv
+│
 ├── backend/
 │   ├── server.js                   # Express app entry point, route mounting, DB sync
 │   ├── make-admin.js               # Utility: promote a user to admin by email
@@ -111,6 +120,9 @@ Student-Advising-Portal/
 │   │   ├── email.js
 │   │   └── jwt.js
 │   │
+│   ├── scripts/
+│   │   ├── seed.js                 # Full DB reset + default users + all curricula
+│   │   └── normalize_curricula_csv.js  # Re-normalizes raw curriculum CSVs → data/curriculum_normalized/
 │   └── uploads/
 │       ├── profiles/
 │       └── proofs/
@@ -369,13 +381,38 @@ Login portal selection must match role:
 
 ### Database Reset + Re-seed (All Tables)
 
-When a clean state is needed for manual phase testing, use this one-shot command from `backend/`:
+When a clean state is needed for manual phase testing, run the seed script from the repo root:
 
 ```bash
-DOTENV_CONFIG_PATH=/home/charmoree/Desktop/Student-Advising-Portal/backend/.env node -r dotenv/config -e 'const bcrypt=require("bcryptjs");const m=require("./models");const sequelize=m.sequelize;const User=m.User;(async()=>{try{await sequelize.authenticate();const q=await sequelize.query("SELECT tablename FROM pg_tables WHERE schemaname = '"'"'public'"'"' AND tablename NOT IN ('"'"'SequelizeMeta'"'"') ORDER BY tablename;");const rows=q[0];if(rows.length===0){console.log("No tables found");await sequelize.close();process.exit(0);}const names=rows.map(r=>"\""+r.tablename+"\"").join(", ");await sequelize.query("TRUNCATE TABLE "+names+" RESTART IDENTITY CASCADE;");const hash=await bcrypt.hash("password123",10);const now=Date.now();await User.bulkCreate([{firstName:"Program",lastName:"Chair",first_name:"Program",last_name:"Chair",email:"admin.cpe@tip.edu.ph",password:hash,role:"admin",isActive:true,isVerified:true,createdAt:now,updatedAt:now},{firstName:"Student",lastName:"Adviser",first_name:"Student",last_name:"Adviser",email:"adviser.cpe@tip.edu.ph",password:hash,role:"adviser",isActive:true,isVerified:true,createdAt:now,updatedAt:now},{studentId:"1234567",firstName:"Sample",lastName:"Student",first_name:"Sample",last_name:"Student",email:"student@tip.edu.ph",password:hash,role:"student",isActive:true,isVerified:true,createdAt:now,updatedAt:now}]);console.log("Reset complete");await sequelize.close();}catch(e){console.error(e);try{await sequelize.close();}catch(_){}process.exit(1);}})();'
+node backend/scripts/seed.js
 ```
 
-Note: this truncates **all** tables in the `public` schema (except `SequelizeMeta`) and recreates only the three default users.
+Or from `backend/`:
+
+```bash
+node scripts/seed.js
+```
+
+What the seed script does:
+1. Truncates **all** tables in the `public` schema (except `SequelizeMeta`), resetting identity sequences.
+2. Creates the three default user accounts (admin, adviser, student).
+3. Imports all three BS CPE curricula (2018, 2023, 2025) from `data/curriculum_normalized/`.
+
+Expected output after a clean seed:
+
+```json
+{
+  "users": 3,
+  "curriculums": 3,
+  "courses": 132,
+  "curriculumCourses": 214,
+  "prerequisites": 177,
+  "electiveTracks": 16,
+  "electiveTrackCourses": 48
+}
+```
+
+> **Curriculum source files:** The normalized CSVs used by the seed script live in `data/curriculum_normalized/`. If the raw curriculum spreadsheets change, re-run `node backend/scripts/normalize_curricula_csv.js` first to regenerate them, then re-run the seed.
 
 ---
 
