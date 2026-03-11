@@ -1,14 +1,57 @@
-import React from 'react';
-import { Container, Card, Row, Col, Badge, ListGroup } from 'react-bootstrap';
+import React, { useEffect, useState } from 'react';
+import { Container, Card, Row, Col, Badge, ListGroup, Spinner } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
+import api from '../utils/api';
+
+const semesterLabel = {
+  1: '1st Semester',
+  2: '2nd Semester',
+  3: 'Summer'
+};
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const [currentTerm, setCurrentTerm] = useState(null);
+  const [termLoading, setTermLoading] = useState(true);
+
+  useEffect(() => {
+    const loadCurrentTerm = async () => {
+      try {
+        const response = await api.get('/terms/current');
+        setCurrentTerm(response.data?.data || null);
+      } catch (error) {
+        setCurrentTerm(null);
+      } finally {
+        setTermLoading(false);
+      }
+    };
+
+    loadCurrentTerm();
+  }, []);
 
   return (
     <Container className="py-4">
       <h1 className="mb-4">Dashboard</h1>
+
+      <Card className="mb-4 border-start border-primary border-5 shadow-sm">
+        <Card.Body className="p-4">
+          <h5 className="mb-2">Current Academic Term</h5>
+          {termLoading ? (
+            <div className="d-flex align-items-center gap-2 text-muted">
+              <Spinner animation="border" size="sm" />
+              <span>Loading current term...</span>
+            </div>
+          ) : currentTerm ? (
+            <div>
+              <div className="fw-semibold fs-5">{currentTerm.schoolYear}</div>
+              <div className="text-muted">{semesterLabel[currentTerm.semester] || `Semester ${currentTerm.semester}`}</div>
+            </div>
+          ) : (
+            <p className="text-muted mb-0">No active term set yet.</p>
+          )}
+        </Card.Body>
+      </Card>
       
       <Card className="mb-4 border-start border-warning border-5 shadow-sm">
         <Card.Body className="p-4">
@@ -72,6 +115,16 @@ const Dashboard = () => {
                 action
               >
                 <span className="me-2">📘</span> Curriculum Management
+              </ListGroup.Item>
+            )}
+            {user?.role === 'admin' && (
+              <ListGroup.Item
+                as={Link}
+                to="/admin/terms"
+                className="py-3 px-4 text-decoration-none text-dark fw-semibold"
+                action
+              >
+                <span className="me-2">📅</span> Term Management
               </ListGroup.Item>
             )}
           </ListGroup>

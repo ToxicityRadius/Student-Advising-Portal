@@ -14,7 +14,7 @@
 | 1 | Database Schema & Core Models | `[DONE]` |
 | 2 | Curriculum Management — Backend APIs | `[DONE]` |
 | 3 | Curriculum Management — Frontend UI | `[DONE]` |
-| 4 | Academic Term Management | `[ ] Not Started` |
+| 4 | Academic Term Management | `[DONE]` |
 | 5 | Student Academic Record & Initial Study Plan | `[ ] Not Started` |
 | 6 | Grade Entry & Study Plan Regeneration | `[ ] Not Started` |
 | 7 | Study Plan Validation & Elective Track Enforcement | `[ ] Not Started` |
@@ -531,11 +531,17 @@ app.use('/api/terms', termRoutes);
 7. Check network tab for `POST /api/terms`, `PATCH /api/terms/:id/activate`, and `PATCH /api/terms/current/end` status codes.
 
 ### Verification Checklist
-- [ ] Only one term can have `isCurrent = true` at a time
-- [ ] Activating a new term marks all active `StudyPlanVersion` rows with `needsRevalidation = true`
-- [ ] Current term is visible in the dashboard for all users
-- [ ] Admin sees Term Management page with create/activate/end controls
-- [ ] Confirmation modals shown before activate/end operations
+- [x] Only one term can have `isCurrent = true` at a time
+- [x] Activating a new term marks all active `StudyPlanVersion` rows with `needsRevalidation = true`
+- [x] Current term is visible in the dashboard for all users
+- [x] Admin sees Term Management page with create/activate/end controls
+- [x] Confirmation modals shown before activate/end operations
+
+### Implementation Notes
+- `backend/models/StudyPlanVersion.js` already contained `needsRevalidation`, so no model schema edit was needed in this phase.
+- `endCurrentTerm` sets `isCurrent=false` when ending the active term so no closed term remains flagged as current.
+- A forecast snapshot placeholder row is stored in `forecast_snapshots` with `snapshotData.placeholder=true`; full forecast computation remains in Phase 9.
+- Verified API behavior with role-scoped JWT checks (`admin`, `adviser`, `student`) and 2xx/403 status codes on `/api/terms` endpoints.
 
 ---
 
@@ -1176,4 +1182,4 @@ After each phase, manually test using the browser and network tab, or use a tool
 
 ---
 
-*Last updated: Phases 1, 2, and 3 complete; Phase 3 frontend curriculum management routes/pages/components implemented and verified manually.*
+*Last updated: Phases 1, 2, 3, and 4 complete; Phase 4 academic term management (backend routes/controllers + frontend admin page/dashboard term visibility) implemented and verified (build + API/manual checks).*

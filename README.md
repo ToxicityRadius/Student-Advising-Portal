@@ -21,7 +21,7 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 | 1 | Database Schema & Core Models | ✅ Done |
 | 2 | Curriculum Management — Backend APIs | ✅ Done |
 | 3 | Curriculum Management — Frontend UI | ✅ Done |
-| 4 | Academic Term Management | 🔲 Not started |
+| 4 | Academic Term Management | ✅ Done |
 | 5 | Student Academic Record & Initial Study Plan | 🔲 Not started |
 | 6 | Grade Entry & Study Plan Regeneration | 🔲 Not started |
 | 7 | Study Plan Validation & Elective Track Enforcement | 🔲 Not started |
@@ -90,13 +90,15 @@ Student-Advising-Portal/
 │   ├── controllers/
 │   │   ├── authController.js       # Register, login, logout, 2FA, password reset, Google OAuth
 │   │   ├── userController.js       # Profile read/update, student ID
-│   │   └── curriculumController.js # Curricula, courses, prereqs, co-reqs, equivalencies, tracks
+│   │   ├── curriculumController.js # Curricula, courses, prereqs, co-reqs, equivalencies, tracks
+│   │   └── termController.js       # Academic term create/list/current/activate/end actions
 │   │
 │   ├── routes/
 │   │   ├── authRoutes.js
 │   │   ├── googleAuthRoutes.js
 │   │   ├── userRoutes.js
-│   │   └── curriculumRoutes.js
+│   │   ├── curriculumRoutes.js
+│   │   └── termRoutes.js
 │   │
 │   ├── middleware/
 │   │   └── auth.js                 # protect (JWT guard) + requireRole(...roles)
@@ -140,7 +142,8 @@ Student-Advising-Portal/
     │   ├── Profile.js
     │   └── admin/
     │       ├── CurriculumManagement.js
-    │       └── CurriculumDetail.js
+    │       ├── CurriculumDetail.js
+    │       └── TermManagement.js
     └── utils/
       └── api.js
 ```
@@ -224,6 +227,15 @@ Student-Advising-Portal/
 | DELETE | `/elective-tracks/:id` | admin | Delete elective track |
 | POST | `/elective-tracks/:id/courses` | admin | Assign course to track |
 | DELETE | `/elective-tracks/:id/courses/:etcId` | admin | Remove course from track |
+
+### Academic Term Management — `/api/terms`
+| Method | Route | Access | Description |
+|--------|-------|--------|-------------|
+| POST | `/` | admin | Create a new academic term (inactive by default) |
+| GET | `/` | admin, adviser | List all terms |
+| GET | `/current` | admin, adviser, student | Get current active term |
+| PATCH | `/:id/activate` | admin | Activate a term and flag active plans for revalidation |
+| PATCH | `/current/end` | admin | End current term and store forecast snapshot placeholder |
 
 ### Utility
 | Method | Route | Description |

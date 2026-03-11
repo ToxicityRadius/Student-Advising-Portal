@@ -18,6 +18,7 @@ import AboutUs from './pages/AboutUs';
 import Purpose from './pages/Purpose';
 import CurriculumManagement from './pages/admin/CurriculumManagement';
 import CurriculumDetail from './pages/admin/CurriculumDetail';
+import TermManagement from './pages/admin/TermManagement';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 
@@ -80,6 +81,14 @@ function AppContent() {
           element={
             <PrivateRoute roles={['admin']}>
               <CurriculumDetail />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/terms"
+          element={
+            <PrivateRoute roles={['admin']}>
+              <TermManagement />
             </PrivateRoute>
           }
         />
