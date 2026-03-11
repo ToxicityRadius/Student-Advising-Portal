@@ -3,18 +3,12 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const {
-  getAllUsers,
   getUserById,
-  updateUser,
-  deleteUser,
-  toggleUserStatus,
   updateStudentId,
   updateUserStudentId,
-  completeOnboarding,
-  updateProfile,
-  assignAdviser
+  updateProfile
 } = require('../controllers/userController');
-const { protect, authorize } = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -39,25 +33,10 @@ router.patch('/:userId/update-student-id', updateUserStudentId);
 // Route for users to update their own student ID (protected but not admin-only)
 router.patch('/update-student-id', protect, updateStudentId);
 
-// Student onboarding route (protected, any authenticated user)
-router.post('/onboard', protect, completeOnboarding);
-
 // Profile update route (protected, user can update self; admin can update any)
 router.put('/:id/profile', protect, upload.single('profile_picture'), updateProfile);
 
 // Profile read route (protected, user can view self; admin can view any)
 router.get('/:id', protect, getUserById);
-
-// Admin: assign adviser to a student
-router.put('/:id/assign-adviser', protect, authorize('admin'), assignAdviser);
-
-// All other routes require authentication and admin role
-router.use(protect);
-router.use(authorize('admin'));
-
-router.get('/', getAllUsers);
-router.put('/:id', updateUser);
-router.delete('/:id', deleteUser);
-router.patch('/:id/toggle-status', toggleUserStatus);
 
 module.exports = router;

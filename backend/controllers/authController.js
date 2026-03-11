@@ -1,4 +1,4 @@
-const { User, Curriculum } = require('../models');
+const { User } = require('../models');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
@@ -96,9 +96,6 @@ exports.register = async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Assign new students to the active curriculum when available.
-    const activeCurriculum = await Curriculum.findOne({ where: { active_status: true } });
-
     // Create user - assign role based on request
     const user = await User.create({
       studentId: isFaculty ? null : studentId,
@@ -109,7 +106,6 @@ exports.register = async (req, res, next) => {
       email: email.toLowerCase(),
       password: hashedPassword,
       role: isFaculty ? 'adviser' : 'student',
-      CurriculumId: !isFaculty && activeCurriculum ? activeCurriculum.id : null,
       activationToken,
       activationTokenExpires,
       createdAt: Date.now(),

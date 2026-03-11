@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -110,43 +110,6 @@ const Navbar = () => {
               <AppNavLink to="/dashboard" active={isActive('/dashboard')}>
                 Dashboard
               </AppNavLink>
-
-              {isAdmin && (
-                <>
-                  <AppNavLink to="/admin/users" active={isActive('/admin/users')}>
-                    Manage Users
-                  </AppNavLink>
-                  <AppNavLink to="/admin/curriculums" active={isActive('/admin/curriculums')}>
-                    Curriculums
-                  </AppNavLink>
-                  <AppNavLink to="/admin/calendar" active={isActive('/admin/calendar')}>
-                    Calendar
-                  </AppNavLink>
-                  <AppNavLink to="/admin/course-offerings" active={isActive('/admin/course-offerings')}>
-                    Offerings
-                  </AppNavLink>
-                  <AppNavLink to="/adviser/dashboard" active={isActive('/adviser/dashboard')}>
-                    Adviser
-                  </AppNavLink>
-                </>
-              )}
-
-              {user.role === 'student' && (
-                <>
-                  <AppNavLink to="/grades/entry" active={isActive('/grades/entry')}>
-                    Grades
-                  </AppNavLink>
-                  <AppNavLink to="/study-plan" active={isActive('/study-plan')}>
-                    Study Plan
-                  </AppNavLink>
-                </>
-              )}
-
-              {user.role === 'adviser' && !isAdmin && (
-                <AppNavLink to="/adviser/dashboard" active={isActive('/adviser/dashboard')}>
-                  Adviser
-                </AppNavLink>
-              )}
 
               <AppNavLink to="/profile" active={isActive('/profile')}>
                 Profile

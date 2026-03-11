@@ -8,20 +8,10 @@ import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
-import ManageUsers from './pages/ManageUsers';
 import ActivateAccount from './pages/ActivateAccount';
 import VerifyCode from './pages/VerifyCode';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import CurriculumManager from './pages/Admin/CurriculumManager';
-import BulkImport from './pages/Admin/BulkImport';
-import GradeEntry from './pages/GradeEntry';
-import CurrentSemester from './pages/CurrentSemester';
-import AdviserDashboard from './pages/AdviserDashboard';
-import AcademicCalendar from './pages/AcademicCalendar';
-import StudyPlan from './pages/StudyPlan';
-import DemandForecasting from './pages/Admin/DemandForecasting';
-import CourseOfferingManager from './pages/Admin/CourseOfferingManager';
 import CompleteProfile from './pages/CompleteProfile';
 import Profile from './pages/Profile';
 import AboutUs from './pages/AboutUs';
@@ -75,86 +65,7 @@ function AppContent() {
             </PrivateRoute>
           }
         />
-        <Route
-          path="/admin/users"
-          element={
-            <PrivateRoute adminOnly={true}>
-              <ManageUsers />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/admin/curriculums"
-          element={
-            <PrivateRoute adminOnly={true}>
-              <CurriculumManager />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/admin/import"
-          element={
-            <PrivateRoute adminOnly={true}>
-              <BulkImport />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/admin/calendar"
-          element={
-            <PrivateRoute adminOnly={true}>
-              <AcademicCalendar />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/grades/entry"
-          element={
-            <PrivateRoute roles={['student']}>
-              <GradeEntry />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/grades/current"
-          element={
-            <PrivateRoute roles={['student']}>
-              <CurrentSemester />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/study-plan"
-          element={
-            <PrivateRoute roles={['student', 'adviser']}>
-              <StudyPlan />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/admin/forecasting"
-          element={
-            <PrivateRoute adminOnly={true}>
-              <DemandForecasting />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/admin/course-offerings"
-          element={
-            <PrivateRoute adminOnly={true}>
-              <CourseOfferingManager />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/adviser/dashboard"
-          element={
-            <PrivateRoute roles={['adviser', 'admin']}>
-              <AdviserDashboard />
-            </PrivateRoute>
-          }
-        />
+
       </Routes>
     </>
   );

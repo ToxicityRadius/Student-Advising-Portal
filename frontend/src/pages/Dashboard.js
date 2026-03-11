@@ -1,46 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Card, Row, Col, Badge, ListGroup, Modal, Form, Button, Alert, Spinner } from 'react-bootstrap';
+import React from 'react';
+import { Container, Card, Row, Col, Badge, ListGroup } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
-import api from '../utils/api';
 
 const Dashboard = () => {
-  const { user, setUser } = useAuth();
-
-  // Onboarding state
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [yearLevel, setYearLevel] = useState('');
-  const [onboardingLoading, setOnboardingLoading] = useState(false);
-  const [onboardingAlert, setOnboardingAlert] = useState('');
-
-  useEffect(() => {
-    // After studentId is set, check onboarding status
-    if (user && user.role === 'student' && user.studentId && !user.is_onboarded) {
-      setShowOnboarding(true);
-    }
-  }, [user]);
-
-  const handleOnboardingSubmit = async () => {
-    if (!yearLevel) return;
-    setOnboardingLoading(true);
-    setOnboardingAlert('');
-    try {
-      const res = await api.post('/users/onboard', { current_year_level: Number(yearLevel) });
-      const updatedUser = res.data.user;
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-
-      if (Number(yearLevel) > 1) {
-        setOnboardingAlert('Please navigate to Grade Entry to input your past grades, then generate your Study Plan.');
-      } else {
-        setShowOnboarding(false);
-      }
-    } catch (err) {
-      setOnboardingAlert(err.response?.data?.message || 'Onboarding failed');
-    } finally {
-      setOnboardingLoading(false);
-    }
-  };
+  const { user } = useAuth();
 
   return (
     <Container className="py-4">
@@ -92,117 +56,6 @@ const Dashboard = () => {
         </Card.Header>
         <Card.Body className="p-0">
           <ListGroup variant="flush">
-            {user?.role === 'admin' && (
-              <>
-                <ListGroup.Item 
-                  as={Link} 
-                  to="/admin/users"
-                  className="py-3 px-4 text-decoration-none text-dark fw-semibold border-2"
-                  action
-                >
-                  <span className="me-2">👥</span> Manage Users
-                </ListGroup.Item>
-                <ListGroup.Item 
-                  as={Link}
-                  to="/admin/forecasting"
-                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
-                  action
-                >
-                  <span className="me-2">📊</span> Course Demand Forecasting
-                </ListGroup.Item>
-                <ListGroup.Item 
-                  as={Link}
-                  to="/admin/curriculums"
-                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
-                  action
-                >
-                  <span className="me-2">🗺️</span> Curriculum Management
-                </ListGroup.Item>
-                <ListGroup.Item 
-                  as={Link}
-                  to="/admin/calendar"
-                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
-                  action
-                >
-                  <span className="me-2">📅</span> Academic Calendar
-                </ListGroup.Item>
-                <ListGroup.Item 
-                  as={Link}
-                  to="/admin/import"
-                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
-                  action
-                >
-                  <span className="me-2">📥</span> Bulk Import
-                </ListGroup.Item>
-                <ListGroup.Item 
-                  as={Link}
-                  to="/admin/course-offerings"
-                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
-                  action
-                >
-                  <span className="me-2">📋</span> Course Offerings
-                </ListGroup.Item>
-                <ListGroup.Item 
-                  as={Link}
-                  to="/adviser/dashboard"
-                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
-                  action
-                >
-                  <span className="me-2">👨‍🏫</span> Adviser Dashboard
-                </ListGroup.Item>
-              </>
-            )}
-            
-            {user?.role === 'adviser' && (
-              <>
-                <ListGroup.Item 
-                  as={Link}
-                  to="/adviser/dashboard"
-                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
-                  action
-                >
-                  <span className="me-2">👨‍🎓</span> My Advisees
-                </ListGroup.Item>
-                <ListGroup.Item 
-                  as={Link}
-                  to="/study-plan"
-                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
-                  action
-                >
-                  <span className="me-2">✅</span> Study Plans
-                </ListGroup.Item>
-              </>
-            )}
-            
-            {user?.role === 'student' && (
-              <>
-                <ListGroup.Item 
-                  as={Link}
-                  to="/grades/entry"
-                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
-                  action
-                >
-                  <span className="me-2">📝</span> Encode Grades
-                </ListGroup.Item>
-                <ListGroup.Item 
-                  as={Link}
-                  to="/grades/current"
-                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
-                  action
-                >
-                  <span className="me-2">✔️</span> Current Semester
-                </ListGroup.Item>
-                <ListGroup.Item 
-                  as={Link}
-                  to="/study-plan"
-                  className="py-3 px-4 text-decoration-none text-dark fw-semibold"
-                  action
-                >
-                  <span className="me-2">📚</span> My Study Plan
-                </ListGroup.Item>
-              </>
-            )}
-            
             <ListGroup.Item 
               as={Link}
               to="/profile"
@@ -214,49 +67,6 @@ const Dashboard = () => {
           </ListGroup>
         </Card.Body>
       </Card>
-
-      {/* ── Onboarding Modal ── */}
-      <Modal show={showOnboarding} backdrop="static" keyboard={false} centered>
-        <Modal.Header>
-          <Modal.Title>Welcome! Complete Your Onboarding</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {onboardingAlert && (
-            <Alert variant={user?.is_onboarded ? 'info' : 'danger'}>
-              {onboardingAlert}
-            </Alert>
-          )}
-          <Form.Group className="mb-3">
-            <Form.Label className="fw-bold">What is your current Year Level?</Form.Label>
-            <Form.Select
-              value={yearLevel}
-              onChange={e => setYearLevel(e.target.value)}
-              disabled={user?.is_onboarded}
-            >
-              <option value="">Select year level...</option>
-              <option value="1">1st Year</option>
-              <option value="2">2nd Year</option>
-              <option value="3">3rd Year</option>
-              <option value="4">4th Year</option>
-            </Form.Select>
-          </Form.Group>
-        </Modal.Body>
-        <Modal.Footer>
-          {user?.is_onboarded && onboardingAlert ? (
-            <Button variant="warning" onClick={() => setShowOnboarding(false)}>
-              Got it
-            </Button>
-          ) : (
-            <Button
-              variant="warning"
-              disabled={!yearLevel || onboardingLoading}
-              onClick={handleOnboardingSubmit}
-            >
-              {onboardingLoading ? <Spinner size="sm" animation="border" /> : 'Submit'}
-            </Button>
-          )}
-        </Modal.Footer>
-      </Modal>
     </Container>
   );
 };

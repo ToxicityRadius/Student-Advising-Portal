@@ -119,7 +119,6 @@ const User = sequelize.define('User', {
   timestamps: false,
   indexes: [
     { fields: ['email'], unique: true },
-    { fields: ['CurriculumId'] },
     { fields: ['adviserId'] },
     { fields: ['role'] },
     { fields: ['studentId'], unique: true }

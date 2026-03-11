@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
-const { Curriculum } = require('../models');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/jwt');
 const { sendVerificationCode } = require('../utils/email');
@@ -60,7 +59,6 @@ router.post('/google', async (req, res) => {
       // Create new user if doesn't exist
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(Math.random().toString(36).slice(-10), salt);
-      const activeCurriculum = await Curriculum.findOne({ where: { active_status: true } });
 
       const parsedFirstName = payload.given_name || name.split(' ')[0];
       const parsedLastName = payload.family_name || name.split(' ').slice(1).join(' ');
@@ -73,7 +71,6 @@ router.post('/google', async (req, res) => {
         last_name: parsedLastName,
         email: googleEmail,
         role: selectedRole === 'faculty' ? 'adviser' : 'student',
-        CurriculumId: activeCurriculum ? activeCurriculum.id : null,
         isActive: true,
         password: hashedPassword,
         activationToken: null,
