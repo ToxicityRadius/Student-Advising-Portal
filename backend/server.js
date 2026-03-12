@@ -21,6 +21,7 @@ const sarRoutes = require('./routes/sarRoutes');
 const gradeRoutes = require('./routes/gradeRoutes');
 const validationRoutes = require('./routes/validationRoutes');
 const exportRoutes = require('./routes/exportRoutes');
+const forecastRoutes = require('./routes/forecastRoutes');
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.use('/api/sars', sarRoutes);
 app.use('/api', gradeRoutes);
 app.use('/api', validationRoutes);
 app.use('/api', exportRoutes);
+app.use('/api/forecast', forecastRoutes);
 
 // Serve uploaded files (authenticated)
 const { protect } = require('./middleware/auth');

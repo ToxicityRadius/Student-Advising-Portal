@@ -19,6 +19,7 @@ import Purpose from './pages/Purpose';
 import CurriculumManagement from './pages/admin/CurriculumManagement';
 import CurriculumDetail from './pages/admin/CurriculumDetail';
 import TermManagement from './pages/admin/TermManagement';
+import ForecastDashboard from './pages/admin/ForecastDashboard';
 import StudentList from './pages/adviser/StudentList';
 import StudentDetail from './pages/adviser/StudentDetail';
 import StudyPlanView from './pages/adviser/StudyPlanView';
@@ -101,6 +102,14 @@ function AppContent() {
             element={
               <PrivateRoute roles={['admin']}>
                 <TermManagement />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/forecast"
+            element={
+              <PrivateRoute roles={['admin']}>
+                <ForecastDashboard />
               </PrivateRoute>
             }
           />

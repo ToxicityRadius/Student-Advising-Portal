@@ -19,7 +19,7 @@
 | 6 | Grade Entry & Study Plan Regeneration | `[DONE]` |
 | 7 | Study Plan Validation & Elective Track Enforcement | `[DONE]` |
 | 8 | Student-Facing Views & PDF Export | `[DONE]` |
-| 9 | Forecasting System | `[ ] Not Started` |
+| 9 | Forecasting System | `[DONE]` |
 | 10 | Auth & Access Control Refinements | `[ ] Not Started` |
 
 ---
@@ -1089,12 +1089,17 @@ Add "Forecasting" card/link for admin role.
 7. Attempt `/admin/forecast` as non-admin and verify route guard blocks page access.
 
 ### Verification Checklist
-- [ ] Current demand counts are accurate (verified against known test data)
-- [ ] Next semester forecast shows expected courses
-- [ ] Comparison report shows correct difference (actual minus previous forecast)
-- [ ] Snapshot is stored when a term ends
-- [ ] Forecast history lists all past snapshots with correct metadata
-- [ ] Forecasting dashboard is only accessible to admin
+- [x] Current demand counts are accurate (verified against known test data)
+- [x] Next semester forecast shows expected courses
+- [x] Comparison report shows correct difference (actual minus previous forecast)
+- [x] Snapshot is stored when a term ends
+- [x] Forecast history lists all past snapshots with correct metadata
+- [x] Forecasting dashboard is only accessible to admin
+
+### Implementation Notes
+- `ForecastSnapshot.snapshotData` now stores both `currentDemand` and `nextSemesterForecast` arrays so forecast history can show the full captured context and the comparison tab can compare current actual demand against the previous term's stored forecast.
+- `activateTerm` stores a snapshot only for an outgoing still-active term when switching terms without an explicit end action; after an explicit `endCurrentTerm`, activating the next term does not create a duplicate snapshot for the closed term.
+- Manual verification used three prepared Year 4 SARs with validated plans because curriculum `1` only has summer-slot courses in `Year 4`, which made the next-semester forecast and comparison rows observable in live data.
 
 ---
 
@@ -1223,4 +1228,4 @@ After each phase, manually test using the browser and network tab, or use a tool
 
 ---
 
-*Last updated: Phases 1, 2, 3, 4, 5, 6, 7, and 8 complete; Phase 8 student-facing record view and SAR PDF export flow (backend pdfkit export API + student MyRecord page + adviser export action + browser/API/manual verification) implemented and verified.*
+*Last updated: Phases 1, 2, 3, 4, 5, 6, 7, 8, and 9 complete; Phase 9 forecasting system (backend demand aggregation + snapshot history/comparison APIs + admin dashboard + term snapshot lifecycle + browser/API/manual verification) implemented and verified.*

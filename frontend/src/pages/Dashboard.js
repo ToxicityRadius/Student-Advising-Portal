@@ -127,6 +127,16 @@ const Dashboard = () => {
                 <span className="me-2">📅</span> Term Management
               </ListGroup.Item>
             )}
+            {user?.role === 'admin' && (
+              <ListGroup.Item
+                as={Link}
+                to="/admin/forecast"
+                className="py-3 px-4 text-decoration-none text-dark fw-semibold"
+                action
+              >
+                <span className="me-2">📈</span> Forecasting
+              </ListGroup.Item>
+            )}
             {(user?.role === 'admin' || user?.role === 'adviser') && (
               <ListGroup.Item
                 as={Link}

@@ -1,4 +1,5 @@
-const { sequelize, AcademicTerm, StudyPlanVersion, ForecastSnapshot } = require('../models');
+const { sequelize, AcademicTerm, StudyPlanVersion } = require('../models');
+const { storeForecastSnapshot } = require('./forecastController');
 
 const isValidSchoolYear = (value) => {
   if (!/^\d{4}-\d{4}$/.test(value || '')) {
@@ -78,11 +79,25 @@ exports.activateTerm = async (req, res, next) => {
   const transaction = await sequelize.transaction();
 
   try {
-    const term = await AcademicTerm.findByPk(req.params.id, { transaction });
+    const [term, existingCurrentTerm] = await Promise.all([
+      AcademicTerm.findByPk(req.params.id, { transaction }),
+      AcademicTerm.findOne({ where: { isCurrent: true }, transaction })
+    ]);
 
     if (!term) {
       await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Term not found' });
+    }
+
+    if (
+      existingCurrentTerm &&
+      String(existingCurrentTerm.id) !== String(term.id) &&
+      !existingCurrentTerm.endedAt
+    ) {
+      await storeForecastSnapshot(existingCurrentTerm.id, req.user.id, {
+        transaction,
+        term: existingCurrentTerm
+      });
     }
 
     await AcademicTerm.update(
@@ -113,7 +128,7 @@ exports.activateTerm = async (req, res, next) => {
   }
 };
 
-// @desc   End current term and store forecast snapshot placeholder
+// @desc   End current term and store forecast snapshot
 // @route  PATCH /api/terms/current/end
 // @access admin
 exports.endCurrentTerm = async (req, res, next) => {
@@ -146,20 +161,11 @@ exports.endCurrentTerm = async (req, res, next) => {
       { transaction }
     );
 
-    await ForecastSnapshot.create(
-      {
-        academicTermId: currentTerm.id,
-        schoolYear: currentTerm.schoolYear,
-        semester: currentTerm.semester,
-        snapshotData: {
-          placeholder: true,
-          note: 'Forecast snapshot placeholder. Full demand computation will be implemented in Phase 9.'
-        },
-        triggeredByUserId: req.user.id,
-        createdAt: endedAt
-      },
-      { transaction }
-    );
+    await storeForecastSnapshot(currentTerm.id, req.user.id, {
+      transaction,
+      term: currentTerm,
+      createdAt: endedAt
+    });
 
     await transaction.commit();
 

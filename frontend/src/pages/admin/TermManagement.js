@@ -128,7 +128,7 @@ const TermManagement = () => {
       await api.patch('/terms/current/end');
       setShowEndModal(false);
       await loadData();
-      showFeedback('success', 'Current term ended and forecast snapshot placeholder was stored.');
+      showFeedback('success', 'Current term ended and a forecast snapshot was stored.');
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to end current term.'));
     } finally {
@@ -300,7 +300,7 @@ const TermManagement = () => {
         </Modal.Header>
         <Modal.Body>
           <p className="mb-0">
-            End the current term now? This will set an end timestamp and create a forecast snapshot placeholder.
+            End the current term now? This will set an end timestamp and store the current forecast snapshot.
           </p>
         </Modal.Body>
         <Modal.Footer>

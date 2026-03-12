@@ -26,7 +26,7 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 | 6 | Grade Entry & Study Plan Regeneration | ✅ Done |
 | 7 | Study Plan Validation & Elective Track Enforcement | ✅ Done |
 | 8 | Student-Facing Views & PDF Export | ✅ Done |
-| 9 | Forecasting System | 🔲 Not started |
+| 9 | Forecasting System | ✅ Done |
 | 10 | Auth & Access Control Refinements | 🔲 Not started |
 
 ---
@@ -105,6 +105,7 @@ Student-Advising-Portal/
 │   │   ├── sarController.js        # Student academic records + initial study plan generation/version listing
 │   │   ├── gradeController.js      # Active-version grade entry + study plan regeneration
 │   │   ├── validationController.js # Draft validation + elective track selection enforcement
+│   │   ├── forecastController.js   # Current demand, next forecast, history, and comparison snapshot APIs
 │   │   └── exportController.js     # SAR PDF export (student own / adviser/admin any SAR)
 │   │
 │   ├── routes/
@@ -116,6 +117,7 @@ Student-Advising-Portal/
 │   │   ├── sarRoutes.js
 │   │   ├── gradeRoutes.js
 │   │   ├── validationRoutes.js
+│   │   ├── forecastRoutes.js
 │   │   └── exportRoutes.js
 │   │
 │   ├── middleware/
@@ -176,7 +178,8 @@ Student-Advising-Portal/
     │   └── admin/
     │       ├── CurriculumManagement.js
     │       ├── CurriculumDetail.js
-    │       └── TermManagement.js
+    │       ├── TermManagement.js
+    │       └── ForecastDashboard.js
     └── utils/
       └── api.js
 ```
@@ -268,7 +271,15 @@ Student-Advising-Portal/
 | GET | `/` | admin, adviser | List all terms |
 | GET | `/current` | admin, adviser, student | Get current active term |
 | PATCH | `/:id/activate` | admin | Activate a term and flag active plans for revalidation |
-| PATCH | `/current/end` | admin | End current term and store forecast snapshot placeholder |
+| PATCH | `/current/end` | admin | End current term and store forecast snapshot |
+
+### Forecasting — `/api/forecast`
+| Method | Route | Access | Description |
+|--------|-------|--------|-------------|
+| GET | `/current` | admin, adviser | Get current-semester course demand from active study plans |
+| GET | `/next` | admin, adviser | Get next-semester course demand forecast |
+| GET | `/comparison` | admin, adviser | Compare current actual demand against the previous term's stored forecast |
+| GET | `/history` | admin, adviser | List stored forecast snapshots with metadata and captured demand payloads |
 
 ### Student Academic Records — `/api/sars`
 | Method | Route | Access | Description |
