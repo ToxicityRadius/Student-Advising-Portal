@@ -19,6 +19,10 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import CompleteProfile from "./pages/CompleteProfile";
 import Profile from "./pages/Profile";
+import ViewGrades from "./pages/ViewGrades";
+import Checklist from "./pages/Checklist";
+import PlanOfStudy from "./pages/PlanOfStudy";
+import AvailableSubjects from "./pages/AvailableSubjects";
 import AboutUs from "./pages/AboutUs";
 import Purpose from "./pages/Purpose";
 import CurriculumManagement from "./pages/admin/CurriculumManagement";
@@ -36,7 +40,11 @@ function AppContent() {
     location.pathname.startsWith("/reset-password") ||
     location.pathname.startsWith("/activate") ||
     location.pathname === "/dashboard" ||
-    location.pathname === "/profile";
+    location.pathname === "/profile" ||
+    location.pathname === "/grades" ||
+    location.pathname === "/checklist" ||
+    location.pathname === "/plan-of-study" ||
+    location.pathname === "/subjects";
 
   return (
     <>
@@ -72,6 +80,38 @@ function AppContent() {
           element={
             <PrivateRoute>
               <Profile />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/grades"
+          element={
+            <PrivateRoute>
+              <ViewGrades />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/checklist"
+          element={
+            <PrivateRoute>
+              <Checklist />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/plan-of-study"
+          element={
+            <PrivateRoute>
+              <PlanOfStudy />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/subjects"
+          element={
+            <PrivateRoute>
+              <AvailableSubjects />
             </PrivateRoute>
           }
         />

@@ -22,6 +22,8 @@ import goldHelpImg from "../assets/images/Gold Help & Support.png";
 import boxCheckImg from "../assets/images/Box Check.png";
 import boxUncheckImg from "../assets/images/Box Uncheck.png";
 
+import "./Dashboard.css";
+
 const YELLOW = "#FFC107";
 const SIDEBAR_W = 240;
 
@@ -119,17 +121,18 @@ const SideNavItem = ({ icon, label, to, active, badge }) => (
 const ActionButton = ({ to, icon, label }) => (
   <Link
     to={to}
+    className="dashboard-action-btn"
     style={{
       display: "flex",
       alignItems: "center",
       gap: 16,
-      padding: "0 24px",
-      minHeight: 85,
+      padding: "0 20px",
+      minHeight: 80,
       background: YELLOW,
       color: "#fff",
       textDecoration: "none",
       borderRadius: 12,
-      fontSize: "1rem",
+      fontSize: "0.95rem",
       fontWeight: 700,
       transition: "background-color 0.15s, transform 0.1s",
     }}
@@ -142,10 +145,13 @@ const ActionButton = ({ to, icon, label }) => (
       e.currentTarget.style.transform = "translateY(0)";
     }}
   >
-    <span style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
+    <span
+      className="dashboard-action-icon"
+      style={{ flexShrink: 0, display: "flex", alignItems: "center" }}
+    >
       {icon}
     </span>
-    <span>{label}</span>
+    <span className="dashboard-action-label">{label}</span>
   </Link>
 );
 
@@ -155,6 +161,7 @@ const ActionButton = ({ to, icon, label }) => (
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -191,6 +198,17 @@ const Dashboard = () => {
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 780) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   // Fetch dashboard data from backend
@@ -232,6 +250,7 @@ const Dashboard = () => {
     >
       {/* ══════════ SIDEBAR ══════════ */}
       <aside
+        className={`dashboard-sidebar ${mobileMenuOpen ? "open" : ""}`}
         style={{
           width: SIDEBAR_W,
           background: "#fff",
@@ -512,7 +531,17 @@ const Dashboard = () => {
       </aside>
 
       {/* ══════════ MAIN AREA ══════════ */}
+      {mobileMenuOpen && (
+        <button
+          type="button"
+          className="dashboard-mobile-overlay"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-label="Close menu overlay"
+        />
+      )}
+
       <div
+        className="dashboard-main-shell"
         style={{
           flex: 1,
           marginLeft: SIDEBAR_W,
@@ -524,6 +553,7 @@ const Dashboard = () => {
       >
         {/* ── Topbar ── */}
         <header
+          className="dashboard-topbar"
           style={{
             background: YELLOW,
             height: 70,
@@ -537,6 +567,27 @@ const Dashboard = () => {
         >
           {/* Logo + breadcrumb */}
           <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+            <button
+              type="button"
+              className="dashboard-mobile-menu-btn"
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M4 7H20M4 12H20M4 17H20"
+                  stroke="#222"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
             <img
               src={logo}
               alt="Student Advising"
@@ -966,23 +1017,10 @@ const Dashboard = () => {
               marginBottom: 24,
             }}
           >
-            <h2
-              style={{
-                fontSize: "1.4rem",
-                fontWeight: 800,
-                color: "#111",
-                marginBottom: 20,
-              }}
-            >
+            <h2 className="dashboard-actions-h2">
               Actions Course
             </h2>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 16,
-              }}
-            >
+            <div className="dashboard-actions-grid">
               <ActionButton
                 to="/subjects"
                 icon={

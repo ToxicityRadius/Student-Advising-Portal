@@ -128,6 +128,10 @@ const Profile = () => {
   const notifRef = useRef(null);
   const notifications = [];
   const notifCount = notifications.length;
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMobileView, setIsMobileView] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= 780 : false,
+  );
   const [formData, setFormData] = useState({
     first_name: "",
     middle_name: "",
@@ -156,6 +160,19 @@ const Profile = () => {
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const isMobile = window.innerWidth <= 780;
+      setIsMobileView(isMobile);
+      if (!isMobile) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const handleLogout = async () => {
@@ -381,8 +398,11 @@ const Profile = () => {
           left: 0,
           height: "100vh",
           overflowY: "auto",
-          zIndex: 100,
+          zIndex: isMobileView ? 220 : 100,
           flexShrink: 0,
+          transform:
+            isMobileView && !mobileMenuOpen ? "translateX(-100%)" : "none",
+          transition: isMobileView ? "transform 0.2s ease" : "none",
         }}
       >
         {/* Avatar + user info */}
@@ -620,11 +640,27 @@ const Profile = () => {
         </div>
       </aside>
 
+      {isMobileView && mobileMenuOpen && (
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-label="Close menu overlay"
+          style={{
+            position: "fixed",
+            inset: 0,
+            border: 0,
+            background: "rgba(0,0,0,0.35)",
+            zIndex: 210,
+            cursor: "pointer",
+          }}
+        />
+      )}
+
       {/* ══════════ MAIN AREA ══════════ */}
       <div
         style={{
           flex: 1,
-          marginLeft: SIDEBAR_W,
+          marginLeft: isMobileView ? 0 : SIDEBAR_W,
           height: "100vh",
           display: "flex",
           flexDirection: "column",
@@ -641,24 +677,72 @@ const Profile = () => {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "0 28px",
+            padding: isMobileView ? "0 14px" : "0 28px",
             boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
           }}
         >
           {/* Logo + breadcrumb */}
-          <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: isMobileView ? 10 : 24,
+              minWidth: 0,
+              flex: 1,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              style={{
+                display: isMobileView ? "inline-flex" : "none",
+                border: 0,
+                background: "rgba(255,255,255,0.28)",
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                flexShrink: 0,
+              }}
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M4 7H20M4 12H20M4 17H20"
+                  stroke="#222"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
             <img
               src={logo}
               alt="Student Advising"
-              style={{ height: 46, objectFit: "contain" }}
+              style={{
+                height: isMobileView ? 34 : 46,
+                width: "auto",
+                objectFit: "contain",
+              }}
             />
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 6,
-                fontSize: "0.85rem",
+                fontSize: isMobileView ? "0.75rem" : "0.85rem",
                 fontWeight: 600,
+                minWidth: 0,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
               }}
             >
               <Link
