@@ -24,7 +24,7 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 | 4 | Academic Term Management | ✅ Done |
 | 5 | Student Academic Record & Initial Study Plan | ✅ Done |
 | 6 | Grade Entry & Study Plan Regeneration | ✅ Done |
-| 7 | Study Plan Validation & Elective Track Enforcement | 🔲 Not started |
+| 7 | Study Plan Validation & Elective Track Enforcement | ✅ Done |
 | 8 | Student-Facing Views & PDF Export | 🔲 Not started |
 | 9 | Forecasting System | 🔲 Not started |
 | 10 | Auth & Access Control Refinements | 🔲 Not started |
@@ -102,7 +102,8 @@ Student-Advising-Portal/
 │   │   ├── curriculumController.js # Curricula, courses, prereqs, co-reqs, equivalencies, tracks
 │   │   ├── termController.js       # Academic term create/list/current/activate/end actions
 │   │   ├── sarController.js        # Student academic records + initial study plan generation/version listing
-│   │   └── gradeController.js      # Active-version grade entry + study plan regeneration
+│   │   ├── gradeController.js      # Active-version grade entry + study plan regeneration
+│   │   └── validationController.js # Draft validation + elective track selection enforcement
 │   │
 │   ├── routes/
 │   │   ├── authRoutes.js
@@ -111,7 +112,8 @@ Student-Advising-Portal/
 │   │   ├── curriculumRoutes.js
 │   │   ├── termRoutes.js
 │   │   ├── sarRoutes.js
-│   │   └── gradeRoutes.js
+│   │   ├── gradeRoutes.js
+│   │   └── validationRoutes.js
 │   │
 │   ├── middleware/
 │   │   └── auth.js                 # protect (JWT guard) + requireRole(...roles)
@@ -142,7 +144,8 @@ Student-Advising-Portal/
     │   ├── StudentIdModal.js
     │   ├── ErrorBoundary.js
     │   └── adviser/
-    │       └── CreateSARModal.js
+    │       ├── CreateSARModal.js
+    │       └── ElectiveTrackSelector.js
     ├── context/
     │   └── AuthContext.js
     ├── pages/
@@ -163,6 +166,7 @@ Student-Advising-Portal/
     │   │   ├── StudentDetail.js
     │   │   ├── GradeEntry.js
     │   │   ├── RegenerationReview.js
+    │   │   ├── ValidationFlow.js
     │   │   └── StudyPlanView.js
     │   └── admin/
     │       ├── CurriculumManagement.js
@@ -271,11 +275,13 @@ Student-Advising-Portal/
 | POST | `/:id/study-plan/generate` | adviser, admin | Generate initial study plan (version 1, draft) |
 | GET | `/:id/study-plan/versions` | adviser, admin, student (own only) | List study plan versions with courses |
 
-### Grade Entry & Regeneration — `/api`
+### Grade Entry, Regeneration & Validation — `/api`
 | Method | Route | Access | Description |
 |--------|-------|--------|-------------|
 | PUT | `/sars/:id/study-plan/active-version/grades` | adviser, admin | Enter/update grades on active version courses |
 | POST | `/sars/:id/study-plan/regenerate` | adviser, admin | Create next draft study plan version from unresolved courses |
+| PATCH | `/sars/:id/study-plan/versions/:versionId/validate` | adviser, admin | Validate a draft study plan version and archive prior active version |
+| PATCH | `/sars/:id/elective-track` | adviser, admin | Select immutable elective track for SAR |
 
 ### Utility
 | Method | Route | Description |

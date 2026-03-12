@@ -25,7 +25,7 @@ const Navbar = () => {
       right: isPublicPage ? 'auto' : 0,
       transform: isPublicPage ? 'translateX(-50%)' : 'none',
       width: isPublicPage ? '100%' : '100%',
-      maxWidth: '1200px',
+      maxWidth: isPublicPage ? '1200px' : 'none',
       zIndex: 1000,
       background: isPublicPage ? 'rgba(255, 255, 255, 0.6)' : '#111',
       backdropFilter: isPublicPage ? 'saturate(180%) blur(20px)' : 'none',

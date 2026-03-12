@@ -198,7 +198,7 @@ const RegenerationReview = () => {
           </Card>
 
           <div className="d-flex flex-wrap gap-2">
-            <Button onClick={() => navigate(`/adviser/students/${sarId}/plan/${regeneratedVersion.id}`)}>
+            <Button onClick={() => navigate(`/adviser/students/${sarId}/plan/${regeneratedVersion.id}/validate`)}>
               Proceed to Validation
             </Button>
             <Button variant="outline-secondary" onClick={() => navigate(`/adviser/students/${sarId}`)}>

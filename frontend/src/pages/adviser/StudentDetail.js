@@ -93,6 +93,9 @@ const StudentDetail = () => {
   };
 
   const activeVersion = versions.find((version) => version.status === 'active') || sar?.activeStudyPlanVersion || null;
+  const latestDraftVersion = versions
+    .filter((version) => version.status === 'draft')
+    .sort((left, right) => Number(right.versionNumber) - Number(left.versionNumber))[0] || null;
   const hasStudyPlan = Boolean(sar?.StudyPlan?.id || versions.length > 0);
 
   return (
@@ -213,6 +216,15 @@ const StudentDetail = () => {
                       >
                         Enter Grades
                       </Button>
+                      {latestDraftVersion && (
+                        <Button
+                          as={Link}
+                          to={`/adviser/students/${sar.id}/plan/${latestDraftVersion.id}/validate`}
+                          variant="success"
+                        >
+                          Validate Draft
+                        </Button>
+                      )}
                     </div>
                   )}
 
@@ -254,14 +266,26 @@ const StudentDetail = () => {
                       </td>
                       <td className="text-end">
                         {canOpenPlanRoute ? (
-                          <Button
-                            as={Link}
-                            to={`/adviser/students/${sar.id}/plan/${version.id}`}
-                            size="sm"
-                            variant="outline-primary"
-                          >
-                            View Plan
-                          </Button>
+                          <div className="d-inline-flex gap-2">
+                            <Button
+                              as={Link}
+                              to={`/adviser/students/${sar.id}/plan/${version.id}`}
+                              size="sm"
+                              variant="outline-primary"
+                            >
+                              View Plan
+                            </Button>
+                            {version.status === 'draft' && (
+                              <Button
+                                as={Link}
+                                to={`/adviser/students/${sar.id}/plan/${version.id}/validate`}
+                                size="sm"
+                                variant="success"
+                              >
+                                Validate Draft
+                              </Button>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-muted small">Read-only</span>
                         )}

@@ -19,6 +19,7 @@ const curriculumRoutes = require('./routes/curriculumRoutes');
 const termRoutes = require('./routes/termRoutes');
 const sarRoutes = require('./routes/sarRoutes');
 const gradeRoutes = require('./routes/gradeRoutes');
+const validationRoutes = require('./routes/validationRoutes');
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use('/api', curriculumRoutes);
 app.use('/api/terms', termRoutes);
 app.use('/api/sars', sarRoutes);
 app.use('/api', gradeRoutes);
+app.use('/api', validationRoutes);
 
 // Serve uploaded files (authenticated)
 const { protect } = require('./middleware/auth');

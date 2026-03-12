@@ -17,7 +17,7 @@
 | 4 | Academic Term Management | `[DONE]` |
 | 5 | Student Academic Record & Initial Study Plan | `[DONE]` |
 | 6 | Grade Entry & Study Plan Regeneration | `[DONE]` |
-| 7 | Study Plan Validation & Elective Track Enforcement | `[ ] Not Started` |
+| 7 | Study Plan Validation & Elective Track Enforcement | `[DONE]` |
 | 8 | Student-Facing Views & PDF Export | `[ ] Not Started` |
 | 9 | Forecasting System | `[ ] Not Started` |
 | 10 | Auth & Access Control Refinements | `[ ] Not Started` |
@@ -875,12 +875,19 @@ Show "Validate Draft" button if a draft version exists.
 7. Confirm track-constrained elective courses in the validated plan all belong to selected track.
 
 ### Verification Checklist
-- [ ] Adviser can validate a draft version
-- [ ] On validation, the previous active version becomes archived
-- [ ] If student is at 2nd Year 2nd Sem and no elective track selected, validation is blocked
-- [ ] Elective track selection is permanent (attempting to change returns 400)
-- [ ] After validation, the new version is shown as active in StudentDetail
-- [ ] Elective courses in the validated plan belong to the selected track
+- [x] Adviser can validate a draft version
+- [x] On validation, the previous active version becomes archived
+- [x] If student is at 2nd Year 2nd Sem and no elective track selected, validation is blocked
+- [x] Elective track selection is permanent (attempting to change returns 400)
+- [x] After validation, the new version is shown as active in StudentDetail
+- [x] Elective courses in the validated plan belong to the selected track
+
+### Implementation Notes
+- Added `backend/controllers/validationController.js` and `backend/routes/validationRoutes.js` for validation and elective-track selection workflows, mounted in `backend/server.js` under `/api`.
+- During verification, fixed PostgreSQL row-locking issues by removing `FOR UPDATE` locking on nullable include joins in validation queries.
+- Validation now enforces track membership for **future** elective courses only, and only for elective courses that are explicitly mapped in curriculum track definitions.
+- Added frontend validation flow via `frontend/src/pages/adviser/ValidationFlow.js` and `frontend/src/components/adviser/ElectiveTrackSelector.js`, with route wiring in `frontend/src/App.js` and navigation updates in adviser pages.
+- UX fix (browser walk): "Validate Plan" button now switches to `variant="secondary"` (gray) when disabled so its locked state is visually distinct from its enabled primary (blue) state.
 
 ---
 
@@ -1209,4 +1216,4 @@ After each phase, manually test using the browser and network tab, or use a tool
 
 ---
 
-*Last updated: Phases 1, 2, 3, 4, 5, and 6 complete; Phase 6 grade entry and study plan regeneration flow (backend grade/regeneration APIs + adviser grade/review frontend pages + verification/build checks) implemented and verified.*
+*Last updated: Phases 1, 2, 3, 4, 5, 6, and 7 complete; Phase 7 study plan validation and elective track enforcement flow (backend validation/elective-track APIs + adviser validation UI/selector + verification/manual endpoint checks) implemented and verified.*
