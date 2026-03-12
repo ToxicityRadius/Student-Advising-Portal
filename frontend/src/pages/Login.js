@@ -81,6 +81,10 @@ const Login = () => {
         sessionStorage.setItem('forcePasswordChangeToken', data.token);
         sessionStorage.setItem('forcePasswordChangeOldPassword', formData.password);
         navigate('/change-password');
+      } else if (data.mustChangeEmail) {
+        sessionStorage.removeItem('loginRole');
+        sessionStorage.setItem('forceEmailChangeToken', data.token);
+        navigate('/change-email');
       } else {
         sessionStorage.removeItem('loginRole');
         await login(data.token);

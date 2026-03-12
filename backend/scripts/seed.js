@@ -126,6 +126,7 @@ const toIntOrNull = (value) => {
         isActive: true,
         isVerified: true,
         mustChangePassword: true,
+        mustChangeEmail: true,
         createdAt: now,
         updatedAt: now
       },

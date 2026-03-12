@@ -252,3 +252,71 @@ exports.sendPasswordResetEmail = async (email, token, firstName) => {
   }
 };
 
+// Send email change verification code (Phase 2A)
+exports.sendEmailChangeVerificationCode = async (newEmail, code, firstName) => {
+  const transporter = createTransporter();
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: newEmail,
+    subject: 'Verify Your New Email — Student Advising Portal',
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #1a3557; color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; background-color: #f9f9f9; }
+          .code-box {
+            background-color: #fff;
+            border: 2px solid #1a3557;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+            font-size: 32px;
+            font-weight: bold;
+            letter-spacing: 5px;
+            color: #1a3557;
+          }
+          .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Email Verification — Program Chair Setup</h1>
+          </div>
+          <div class="content">
+            <h2>Hello ${firstName || 'Program Chair'}!</h2>
+            <p>As part of your initial account setup, you must verify ownership of this new email address before it can be activated.</p>
+            <p>Enter the code below in the verification form:</p>
+            <div class="code-box">${code}</div>
+            <p><strong>Important:</strong></p>
+            <ul>
+              <li>This code expires in <strong>10 minutes</strong></li>
+              <li>Never share this code with anyone</li>
+              <li>Your account will remain restricted until email verification is complete</li>
+            </ul>
+          </div>
+          <div class="footer">
+            <p>This is an automated security message. Do not reply.</p>
+            <p>&copy; 2026 Student Advising Portal. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log('[AUDIT] Email change verification code sent to:', newEmail);
+  } catch (error) {
+    console.error('Error sending email change verification code:', error);
+    throw new Error('Failed to send email verification code');
+  }
+};
+

@@ -58,6 +58,18 @@ exports.protect = async (req, res, next) => {
         });
       }
 
+      // Block all non-auth routes when email change is still required (Phase 2A)
+      if (user.mustChangeEmail) {
+        const isAuthRoute = req.baseUrl === '/api/auth';
+        if (!isAuthRoute) {
+          return res.status(403).json({
+            success: false,
+            message: 'Email change required before accessing this route',
+            code: 'EMAIL_CHANGE_REQUIRED'
+          });
+        }
+      }
+
       // Store user and token info in request
       req.user = user;
       req.token = token;

@@ -175,6 +175,23 @@ const User = sequelize.define('User', {
   profile_updated_at: {
     type: DataTypes.BIGINT,
     allowNull: true
+  },
+  // --- Phase 2A: Credential Rotation Fields ---
+  mustChangeEmail: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  pendingEmail: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  emailChangeCode: {
+    type: DataTypes.STRING(10),
+    allowNull: true
+  },
+  emailChangeCodeExpires: {
+    type: DataTypes.BIGINT,
+    allowNull: true
   }
 }, {
   tableName: 'users',

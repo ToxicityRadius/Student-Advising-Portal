@@ -69,6 +69,12 @@ const ChangePassword = () => {
       sessionStorage.removeItem('forcePasswordChangeToken');
       sessionStorage.removeItem('forcePasswordChangeOldPassword');
 
+      if (response.data.mustChangeEmail) {
+        sessionStorage.setItem('forceEmailChangeToken', response.data.token);
+        navigate('/change-email');
+        return;
+      }
+
       setSuccess('Password changed successfully. Redirecting...');
       await login(response.data.token);
       navigate('/dashboard');

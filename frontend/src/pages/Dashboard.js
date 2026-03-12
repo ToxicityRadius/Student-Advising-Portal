@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Container, Card, Row, Col, Badge, ListGroup, Spinner } from 'react-bootstrap';
+import { Container, Card, Row, Col, Badge, ListGroup, Spinner, Alert } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
@@ -14,6 +14,21 @@ const Dashboard = () => {
   const { user } = useAuth();
   const [currentTerm, setCurrentTerm] = useState(null);
   const [termLoading, setTermLoading] = useState(true);
+  const [profileReminderDismissed, setProfileReminderDismissed] = useState(
+    () => sessionStorage.getItem('profileReminderDismissed') === 'true'
+  );
+
+  const profileIncomplete =
+    user?.role === 'student'
+      ? !user?.program
+      : !user?.contact_number;
+
+  const showProfileReminder = profileIncomplete && !profileReminderDismissed;
+
+  const handleDismissProfileReminder = () => {
+    sessionStorage.setItem('profileReminderDismissed', 'true');
+    setProfileReminderDismissed(true);
+  };
 
   useEffect(() => {
     const loadCurrentTerm = async () => {
@@ -33,6 +48,18 @@ const Dashboard = () => {
   return (
     <Container className="py-4">
       <h1 className="mb-4">Dashboard</h1>
+
+      {showProfileReminder && (
+        <Alert
+          variant="info"
+          dismissible
+          onClose={handleDismissProfileReminder}
+          className="mb-4"
+        >
+          <strong>Your profile is incomplete.</strong> Complete your profile to help your adviser and get the most out of the portal.{' '}
+          <Alert.Link as={Link} to="/profile">Complete profile &rarr;</Alert.Link>
+        </Alert>
+      )}
 
       <Card className="mb-4 border-start border-primary border-5 shadow-sm">
         <Card.Body className="p-4">

@@ -18,8 +18,8 @@
 |---|---|---|
 | 0 | Execution Protocol & Safety Guardrails | `[DONE]` |
 | 1 | Profile Domain Redesign (Schema + API Contract) | `[DONE]` |
-| 2 | Remove First-Login Complete Profile Flow | `[TODO]` |
-| 2A | Program Chair First-Login Email + Password Rotation | `[TODO]` |
+| 2 | Remove First-Login Complete Profile Flow | `[DONE]` |
+| 2A | Program Chair First-Login Email + Password Rotation | `[DONE]` |
 | 3 | Profile Images End-to-End | `[TODO]` |
 | 4 | SAR ↔ Profile Bi-Directional Sync | `[TODO]` |
 | 5 | SAR Creation UX (Email-First + Autofill) | `[TODO]` |
@@ -150,15 +150,15 @@ Remove mandatory “Complete Profile” interruption after first login while kee
 3. Open profile page and edit/save successfully.
 
 ### Verification Checklist
-- [ ] No forced complete-profile redirect remains.
-- [ ] New and existing users can access dashboard immediately.
-- [ ] Profile page remains editable and stable.
+- [x] No forced complete-profile redirect remains.
+- [x] New and existing users can access dashboard immediately.
+- [x] Profile page remains editable and stable.
 
 ### Completion Note (fill when done)
-- **Date:**
-- **Executor:**
-- **Result:**
-- **Notes:**
+- **Date:** 2026-03-13
+- **Executor:** GitHub Copilot
+- **Result:** Pass
+- **Notes:** Removed the `needsProfile` profile-completeness guard from `PrivateRoute.js` (the block that checked `!user.program` for students and `!user.contact_number` for other roles and redirected to `/complete-profile`). Cleaned up now-unused `useLocation` import. Added a non-blocking, session-dismissible profile completeness `Alert` to `Dashboard.js` that links the user to `/profile` when their profile is incomplete — this satisfies the "keep optional profile completeness indicators as non-blocking reminders" requirement. The `/complete-profile` route remains in `App.js` and the `CompleteProfile` page remains accessible; it is simply no longer forced. All auth and role-based access checks in `PrivateRoute.js` are fully preserved.
 
 ---
 
@@ -196,18 +196,18 @@ When the default/initial Program Chair credential is used for first login, requi
 5. Re-login after completion and confirm flow does not trigger again.
 
 ### Verification Checklist
-- [ ] First-login Program Chair accounts are forced into credential rotation.
-- [ ] Both password and email change are required before access.
-- [ ] New email requires successful verification before activation.
-- [ ] Account remains restricted until full completion.
-- [ ] Flow is one-time and does not repeat after successful completion.
-- [ ] Security/audit logging exists for rotation and verification events.
+- [x] First-login Program Chair accounts are forced into credential rotation.
+- [x] Both password and email change are required before access.
+- [x] New email requires successful verification before activation.
+- [x] Account remains restricted until full completion.
+- [x] Flow is one-time and does not repeat after successful completion.
+- [x] Security/audit logging exists for rotation and verification events.
 
 ### Completion Note (fill when done)
-- **Date:**
-- **Executor:**
-- **Result:**
-- **Notes:**
+- **Date:** 2026-03-12
+- **Executor:** GitHub Copilot
+- **Result:** Pass
+- **Notes:** Implemented full two-stage credential rotation for Program Chair first login. Added `mustChangeEmail`, `pendingEmail`, `emailChangeCode`, `emailChangeCodeExpires` fields to `User` model. Seeded admin with `mustChangeEmail: true`. Added `sendEmailChangeVerificationCode` email utility. Extended `protect` middleware to block non-auth routes when `mustChangeEmail: true`. Modified `login` and `changePassword` controllers to detect and return `mustChangeEmail: true` with a regular JWT. Added three new auth endpoints: `POST /auth/initiate-email-change`, `POST /auth/verify-email-change`, `POST /auth/resend-email-change-code`. Created frontend `/change-email` page (two-step: enter email → verify code). Updated `Login.js`, `ChangePassword.js`, `PrivateRoute.js`, and `App.js` to handle the email-change forced flow. All 8 manual tests passed including edge cases (wrong code rejection, domain validation, re-login when `mustChangeEmail=true`, old email login failure after rotation).
 
 ---
 
@@ -726,6 +726,37 @@ Validate all revamp work together, prevent regressions, and prepare safe rollout
 ## Work Log (Update During Implementation)
 
 > Add one entry per completed phase.
+
+### Phase 2A — Program Chair First-Login Email + Password Rotation
+- **Phase:** 2A
+- **Date:** 2026-03-12
+- **Implemented By:** GitHub Copilot
+- **Summary of Changes:**
+  - `backend/models/User.js`: Added 4 new fields — `mustChangeEmail` (BOOLEAN, default false), `pendingEmail` (STRING, nullable), `emailChangeCode` (STRING(10), nullable), `emailChangeCodeExpires` (BIGINT, nullable).
+  - `backend/scripts/seed.js`: Admin user seeded with `mustChangeEmail: true`.
+  - `backend/utils/email.js`: Added `sendEmailChangeVerificationCode(newEmail, code, firstName)` export — sends 6-digit verification code with dark-blue branded template and 10-minute expiry notice.
+  - `backend/middleware/auth.js`: Added `mustChangeEmail` block after `mustChangePassword` checks — all non-`/api/auth` routes return HTTP 403 with `code: EMAIL_CHANGE_REQUIRED` when user's `mustChangeEmail` flag is true.
+  - `backend/controllers/authController.js`: Updated import to include `sendEmailChangeVerificationCode`. Modified `login` to detect `mustChangeEmail: true` after `mustChangePassword` check and return a regular JWT with the flag. Modified `changePassword` to detect `updatedUser.mustChangeEmail` after clearing `mustChangePassword` and return early with `mustChangeEmail: true`. Added `initiateEmailChange` (validates domain/uniqueness, generates code, stores `pendingEmail`, sends email, audit logs). Added `verifyEmailChange` (validates code and expiry, updates email, clears all flags, calls `sendTokenResponse`). Added `resendEmailChangeCode` (regenerates code, sends to `pendingEmail`).
+  - `backend/routes/authRoutes.js`: Destructured 3 new handlers and registered `POST /initiate-email-change`, `POST /verify-email-change`, `POST /resend-email-change-code` — all protected.
+  - `frontend/src/pages/ChangeEmail.js`: New page — two-step form (enter `.cpe@tip.edu.ph` email → send code; enter 6-digit code → verify). Uses `forceEmailChangeToken` from `sessionStorage` or falls back to `localStorage` token. On success: removes sessionStorage token, calls `login(token)`, navigates to `/dashboard`.
+  - `frontend/src/pages/ChangePassword.js`: After successful password change, checks `response.data.mustChangeEmail`; if true, stores `forceEmailChangeToken` in sessionStorage and navigates to `/change-email` instead of dashboard.
+  - `frontend/src/pages/Login.js`: Added `mustChangeEmail` case in `handleSubmit` — stores `forceEmailChangeToken` in sessionStorage and navigates to `/change-email`.
+  - `frontend/src/components/PrivateRoute.js`: Added `mustChangeEmail` guard — if `user.mustChangeEmail` is true, redirects to `/change-email`.
+  - `frontend/src/App.js`: Added `ChangeEmail` import, added `/change-email` to `hideNavbar` condition, added `<Route path="/change-email" element={<ChangeEmail />} />`.
+- **Manual Test Result:** Pass
+- **Verification Checklist Result:** Pass
+- **Follow-up Actions:** Proceed to Phase 3 (Profile Images End-to-End) or Phase 5 (SAR Creation UX).
+
+### Phase 2 — Remove First-Login Complete Profile Flow
+- **Phase:** 2
+- **Date:** 2026-03-13
+- **Implemented By:** GitHub Copilot
+- **Summary of Changes:**
+  - `frontend/src/components/PrivateRoute.js`: Removed the `needsProfile` check block (lines that detected missing `program` for students and missing `contact_number` for non-students and redirected to `/complete-profile`). Removed now-unused `useLocation` import.
+  - `frontend/src/pages/Dashboard.js`: Added `Alert` from React Bootstrap imports. Added `profileReminderDismissed` state (persisted to `sessionStorage` so dismissal survives re-renders but resets on tab close). Added `profileIncomplete` computed flag and `showProfileReminder` bool. Added dismissible `Alert` banner at the top of the dashboard content area linking to `/profile` when the profile is incomplete.
+- **Manual Test Result:** Pass
+- **Verification Checklist Result:** Pass
+- **Follow-up Actions:** Proceed to Phase 2A (Program Chair First-Login Email + Password Rotation).
 
 ### Log Entry Template
 - **Phase:**

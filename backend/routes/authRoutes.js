@@ -12,7 +12,10 @@ const {
   resetPassword,
   refreshToken,
   changePassword,
-  transferOwnership
+  transferOwnership,
+  initiateEmailChange,
+  verifyEmailChange,
+  resendEmailChangeCode
 } = require('../controllers/authController');
 const { protect, requireRole } = require('../middleware/auth');
 
@@ -47,5 +50,8 @@ router.get('/activate/:token', activateAccount);
 router.get('/me', protect, getMe);
 router.put('/change-password', protect, changePassword);
 router.patch('/transfer-ownership', protect, requireRole('admin'), transferOwnership);
+router.post('/initiate-email-change', protect, initiateEmailChange);
+router.post('/verify-email-change', protect, verifyEmailChange);
+router.post('/resend-email-change-code', protect, resendEmailChangeCode);
 
 module.exports = router;

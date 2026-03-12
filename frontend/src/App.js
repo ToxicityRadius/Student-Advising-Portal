@@ -13,6 +13,7 @@ import VerifyCode from './pages/VerifyCode';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import ChangePassword from './pages/ChangePassword';
+import ChangeEmail from './pages/ChangeEmail';
 import CompleteProfile from './pages/CompleteProfile';
 import Profile from './pages/Profile';
 import AboutUs from './pages/AboutUs';
@@ -40,6 +41,7 @@ function AppContent() {
     location.pathname === '/register' ||
     location.pathname === '/verify-code' ||
     location.pathname === '/change-password' ||
+    location.pathname === '/change-email' ||
     location.pathname === '/forgot-password' ||
     location.pathname.startsWith('/reset-password') ||
     location.pathname.startsWith('/activate');
@@ -61,6 +63,7 @@ function AppContent() {
           <Route path="/reset-password/:token" element={<ResetPassword />} />
           <Route path="/activate/:token" element={<ActivateAccount />} />
           <Route path="/change-password" element={<ChangePassword />} />
+          <Route path="/change-email" element={<ChangeEmail />} />
           <Route
             path="/dashboard"
             element={

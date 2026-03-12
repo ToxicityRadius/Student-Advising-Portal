@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const { sendTokenResponse } = require('../utils/jwt');
-const { sendActivationEmail, sendVerificationCode } = require('../utils/email');
+const { sendActivationEmail, sendVerificationCode, sendEmailChangeVerificationCode } = require('../utils/email');
 const { linkStudentAccountToSar } = require('../utils/sarLinking');
 
 // Helper: generate a cryptographically secure 6-digit verification code
@@ -289,6 +289,19 @@ exports.login = async (req, res, next) => {
       });
     }
 
+    // Phase 2A: if email change is pending, return restricted response
+    if (user.mustChangeEmail) {
+      const { generateToken } = require('../utils/jwt');
+      const token = generateToken(user);
+      console.log(`[AUDIT] login with mustChangeEmail: user=${user.id} role=${user.role}`);
+      return res.status(200).json({
+        success: true,
+        mustChangeEmail: true,
+        token,
+        user: sanitizeUser(user)
+      });
+    }
+
     if (process.env.ENABLE_2FA === 'true') {
       // Generate verification code
       const verificationCode = generateVerificationCode();
@@ -529,7 +542,163 @@ exports.changePassword = async (req, res, next) => {
     }, { where: { id: user.id } });
 
     const updatedUser = await User.findByPk(user.id);
+
+    // Phase 2A: if email change is still required, return restricted response
+    if (updatedUser.mustChangeEmail) {
+      const { generateToken } = require('../utils/jwt');
+      const token = generateToken(updatedUser);
+      console.log(`[AUDIT] password rotated for user=${updatedUser.id} role=${updatedUser.role}, email change still required`);
+      return res.status(200).json({
+        success: true,
+        mustChangeEmail: true,
+        token,
+        user: sanitizeUser(updatedUser)
+      });
+    }
+
+    console.log(`[AUDIT] password changed for user=${updatedUser.id} role=${updatedUser.role}`);
     sendTokenResponse(updatedUser, 200, res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Initiate email change — send verification code to new email (Phase 2A)
+// @route   POST /api/auth/initiate-email-change
+// @access  Private
+exports.initiateEmailChange = async (req, res, next) => {
+  try {
+    const { newEmail } = req.body;
+    const user = await User.findByPk(req.user.id);
+
+    if (!user || !user.mustChangeEmail) {
+      return res.status(400).json({ success: false, message: 'Email change not required for this account' });
+    }
+
+    const newEmailLower = (newEmail || '').toLowerCase().trim();
+
+    if (!newEmailLower) {
+      return res.status(400).json({ success: false, message: 'New email is required' });
+    }
+
+    // Validate institutional email format
+    if (!newEmailLower.endsWith('@tip.edu.ph')) {
+      return res.status(400).json({ success: false, message: 'Only @tip.edu.ph email addresses are allowed' });
+    }
+
+    // Program Chair must use department email
+    if (user.role === 'admin' && !newEmailLower.endsWith('.cpe@tip.edu.ph')) {
+      return res.status(400).json({ success: false, message: 'Program Chair email must end with .cpe@tip.edu.ph' });
+    }
+
+    // Must differ from current email
+    if (newEmailLower === user.email.toLowerCase()) {
+      return res.status(400).json({ success: false, message: 'New email must be different from current email' });
+    }
+
+    // Must be unique
+    const existing = await User.findOne({ where: { email: newEmailLower } });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'This email address is already in use' });
+    }
+
+    const code = generateVerificationCode();
+    const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    await User.update({
+      pendingEmail: newEmailLower,
+      emailChangeCode: code,
+      emailChangeCodeExpires: expires,
+      updatedAt: Date.now()
+    }, { where: { id: user.id } });
+
+    await sendEmailChangeVerificationCode(newEmailLower, code, user.firstName);
+
+    console.log(`[AUDIT] email change initiated: user=${user.id} role=${user.role} pendingEmail=${newEmailLower}`);
+
+    res.status(200).json({ success: true, message: 'Verification code sent to new email address' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify email change code and activate new email (Phase 2A)
+// @route   POST /api/auth/verify-email-change
+// @access  Private
+exports.verifyEmailChange = async (req, res, next) => {
+  try {
+    const { code } = req.body;
+    const user = await User.findByPk(req.user.id);
+
+    if (!user || !user.mustChangeEmail) {
+      return res.status(400).json({ success: false, message: 'Email change not required for this account' });
+    }
+
+    if (!user.pendingEmail || !user.emailChangeCode) {
+      return res.status(400).json({ success: false, message: 'No pending email change. Please submit your new email first.' });
+    }
+
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Verification code is required' });
+    }
+
+    if (user.emailChangeCode !== code) {
+      return res.status(400).json({ success: false, message: 'Invalid verification code' });
+    }
+
+    if (Date.now() > Number(user.emailChangeCodeExpires)) {
+      return res.status(400).json({ success: false, message: 'Verification code has expired. Please request a new one.' });
+    }
+
+    const oldEmail = user.email;
+    const newEmail = user.pendingEmail;
+
+    await User.update({
+      email: newEmail,
+      pendingEmail: null,
+      emailChangeCode: null,
+      emailChangeCodeExpires: null,
+      mustChangeEmail: false,
+      updatedAt: Date.now()
+    }, { where: { id: user.id } });
+
+    const updatedUser = await User.findByPk(user.id);
+
+    console.log(`[AUDIT] email change completed: user=${user.id} role=${user.role} oldEmail=${oldEmail} newEmail=${newEmail}`);
+
+    sendTokenResponse(updatedUser, 200, res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Resend email change verification code (Phase 2A)
+// @route   POST /api/auth/resend-email-change-code
+// @access  Private
+exports.resendEmailChangeCode = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+
+    if (!user || !user.mustChangeEmail) {
+      return res.status(400).json({ success: false, message: 'Email change not required for this account' });
+    }
+
+    if (!user.pendingEmail) {
+      return res.status(400).json({ success: false, message: 'No pending email found. Please submit your new email address first.' });
+    }
+
+    const code = generateVerificationCode();
+    const expires = Date.now() + 10 * 60 * 1000;
+
+    await User.update({
+      emailChangeCode: code,
+      emailChangeCodeExpires: expires,
+      updatedAt: Date.now()
+    }, { where: { id: user.id } });
+
+    await sendEmailChangeVerificationCode(user.pendingEmail, code, user.firstName);
+
+    res.status(200).json({ success: true, message: 'New verification code sent to your new email address' });
   } catch (error) {
     next(error);
   }
