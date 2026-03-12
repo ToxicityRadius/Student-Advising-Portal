@@ -25,7 +25,7 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 | 5 | Student Academic Record & Initial Study Plan | ✅ Done |
 | 6 | Grade Entry & Study Plan Regeneration | ✅ Done |
 | 7 | Study Plan Validation & Elective Track Enforcement | ✅ Done |
-| 8 | Student-Facing Views & PDF Export | 🔲 Not started |
+| 8 | Student-Facing Views & PDF Export | ✅ Done |
 | 9 | Forecasting System | 🔲 Not started |
 | 10 | Auth & Access Control Refinements | 🔲 Not started |
 
@@ -42,6 +42,7 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 - **Nodemailer** — email for verification codes and password reset
 - **Multer** — profile picture and proof document uploads
 - **Google OAuth 2.0** via `google-auth-library`
+- **PDFKit** — backend SAR PDF export generation
 - **nodemon** (dev), **helmet**, **morgan**
 
 ### Frontend
@@ -103,7 +104,8 @@ Student-Advising-Portal/
 │   │   ├── termController.js       # Academic term create/list/current/activate/end actions
 │   │   ├── sarController.js        # Student academic records + initial study plan generation/version listing
 │   │   ├── gradeController.js      # Active-version grade entry + study plan regeneration
-│   │   └── validationController.js # Draft validation + elective track selection enforcement
+│   │   ├── validationController.js # Draft validation + elective track selection enforcement
+│   │   └── exportController.js     # SAR PDF export (student own / adviser/admin any SAR)
 │   │
 │   ├── routes/
 │   │   ├── authRoutes.js
@@ -113,7 +115,8 @@ Student-Advising-Portal/
 │   │   ├── termRoutes.js
 │   │   ├── sarRoutes.js
 │   │   ├── gradeRoutes.js
-│   │   └── validationRoutes.js
+│   │   ├── validationRoutes.js
+│   │   └── exportRoutes.js
 │   │
 │   ├── middleware/
 │   │   └── auth.js                 # protect (JWT guard) + requireRole(...roles)
@@ -168,6 +171,8 @@ Student-Advising-Portal/
     │   │   ├── RegenerationReview.js
     │   │   ├── ValidationFlow.js
     │   │   └── StudyPlanView.js
+    │   ├── student/
+    │   │   └── MyRecord.js
     │   └── admin/
     │       ├── CurriculumManagement.js
     │       ├── CurriculumDetail.js
@@ -274,6 +279,7 @@ Student-Advising-Portal/
 | PUT | `/:id` | adviser, admin | Update SAR year level and curriculum |
 | POST | `/:id/study-plan/generate` | adviser, admin | Generate initial study plan (version 1, draft) |
 | GET | `/:id/study-plan/versions` | adviser, admin, student (own only) | List study plan versions with courses |
+| GET | `/:id/export/pdf` | adviser, admin, student (own only) | Export SAR as PDF |
 
 ### Grade Entry, Regeneration & Validation — `/api`
 | Method | Route | Access | Description |

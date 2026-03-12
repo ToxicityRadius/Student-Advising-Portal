@@ -25,6 +25,7 @@ import StudyPlanView from './pages/adviser/StudyPlanView';
 import GradeEntry from './pages/adviser/GradeEntry';
 import RegenerationReview from './pages/adviser/RegenerationReview';
 import ValidationFlow from './pages/adviser/ValidationFlow';
+import MyRecord from './pages/student/MyRecord';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 
@@ -155,7 +156,7 @@ function AppContent() {
             path="/my-record"
             element={
               <PrivateRoute roles={['student']}>
-                <StudentDetail />
+                <MyRecord />
               </PrivateRoute>
             }
           />

@@ -20,6 +20,7 @@ const termRoutes = require('./routes/termRoutes');
 const sarRoutes = require('./routes/sarRoutes');
 const gradeRoutes = require('./routes/gradeRoutes');
 const validationRoutes = require('./routes/validationRoutes');
+const exportRoutes = require('./routes/exportRoutes');
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.use('/api/terms', termRoutes);
 app.use('/api/sars', sarRoutes);
 app.use('/api', gradeRoutes);
 app.use('/api', validationRoutes);
+app.use('/api', exportRoutes);
 
 // Serve uploaded files (authenticated)
 const { protect } = require('./middleware/auth');

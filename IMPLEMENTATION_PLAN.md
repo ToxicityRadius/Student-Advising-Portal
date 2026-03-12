@@ -18,7 +18,7 @@
 | 5 | Student Academic Record & Initial Study Plan | `[DONE]` |
 | 6 | Grade Entry & Study Plan Regeneration | `[DONE]` |
 | 7 | Study Plan Validation & Elective Track Enforcement | `[DONE]` |
-| 8 | Student-Facing Views & PDF Export | `[ ] Not Started` |
+| 8 | Student-Facing Views & PDF Export | `[DONE]` |
 | 9 | Forecasting System | `[ ] Not Started` |
 | 10 | Auth & Access Control Refinements | `[ ] Not Started` |
 
@@ -977,13 +977,20 @@ Student role: "My Academic Record" card → `/my-record`
 6. Try exporting another student's record while logged in as student and verify access is denied.
 
 ### Verification Checklist
-- [ ] Student can view their academic record (read-only, no edit controls)
-- [ ] Student cannot see other students' records
-- [ ] PDF export includes all required sections per the spec
-- [ ] PDF downloads correctly in the browser
-- [ ] Adviser can also export the PDF from StudentDetail
-- [ ] PDF generation is tested with a populated SAR (at least one validated version)
-- [ ] `pdfkit` installed in backend dependencies
+- [x] Student can view their academic record (read-only, no edit controls)
+- [x] Student cannot see other students' records
+- [x] PDF export includes all required sections per the spec
+- [x] PDF downloads correctly in the browser
+- [x] Adviser can also export the PDF from StudentDetail
+- [x] PDF generation is tested with a populated SAR (at least one validated version)
+- [x] `pdfkit` installed in backend dependencies
+
+### Implementation Notes
+- Added `backend/controllers/exportController.js` and `backend/routes/exportRoutes.js`, mounted via `backend/server.js`, with ownership enforcement for student exports and adviser/admin access for any SAR.
+- Added student-only `frontend/src/pages/student/MyRecord.js` and wired `/my-record` in `frontend/src/App.js` to use the dedicated read-only record page.
+- Added adviser/admin SAR export action in `frontend/src/pages/adviser/StudentDetail.js`.
+- Verification used both browser checks (`/my-record`, adviser student detail export) and API checks (student own export = 200, student exporting another SAR = 403, PDF headers/content type/disposition validated).
+- Populated-SAR PDF content verification was executed against an existing validated active SAR and inspected via `pdftotext` to confirm required sections and validation metadata.
 
 ---
 
@@ -1216,4 +1223,4 @@ After each phase, manually test using the browser and network tab, or use a tool
 
 ---
 
-*Last updated: Phases 1, 2, 3, 4, 5, 6, and 7 complete; Phase 7 study plan validation and elective track enforcement flow (backend validation/elective-track APIs + adviser validation UI/selector + verification/manual endpoint checks) implemented and verified.*
+*Last updated: Phases 1, 2, 3, 4, 5, 6, 7, and 8 complete; Phase 8 student-facing record view and SAR PDF export flow (backend pdfkit export API + student MyRecord page + adviser export action + browser/API/manual verification) implemented and verified.*

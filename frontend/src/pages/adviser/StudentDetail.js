@@ -28,6 +28,7 @@ const StudentDetail = () => {
   const isStudentView = user?.role === 'student' && !sarId;
   const canGeneratePlan = user?.role === 'adviser' || user?.role === 'admin';
   const canOpenPlanRoute = user?.role === 'adviser' || user?.role === 'admin';
+  const canExportPdf = user?.role === 'adviser' || user?.role === 'admin';
 
   const loadSarData = useCallback(async () => {
     setLoading(true);
@@ -69,6 +70,32 @@ const StudentDetail = () => {
     loadSarData();
   }, [loadSarData]);
 
+  const handleExportPDF = async () => {
+    if (!sar?.id) {
+      return;
+    }
+
+    setActionLoading(true);
+    setAlert({ variant: '', message: '' });
+
+    try {
+      const response = await api.get(`/sars/${sar.id}/export/pdf`, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `SAR-${sar.studentNumber}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      setAlert({ variant: 'danger', message: getErrorMessage(error, 'Failed to export the SAR PDF.') });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleGenerateInitialStudyPlan = async () => {
     if (!sar?.id) {
       return;
@@ -106,9 +133,16 @@ const StudentDetail = () => {
           <p className="text-muted mb-0">Review student profile data and available study plan versions.</p>
         </div>
         {!isStudentView && (
-          <Button as={Link} to="/adviser/students" variant="outline-secondary">
-            Back to Records
-          </Button>
+          <div className="d-flex gap-2">
+            {canExportPdf && (
+              <Button onClick={handleExportPDF} disabled={!sar?.id || actionLoading} variant="primary">
+                {actionLoading ? 'Exporting...' : 'Export PDF'}
+              </Button>
+            )}
+            <Button as={Link} to="/adviser/students" variant="outline-secondary">
+              Back to Records
+            </Button>
+          </div>
         )}
       </div>
 
