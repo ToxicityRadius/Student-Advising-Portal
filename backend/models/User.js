@@ -117,6 +117,64 @@ const User = sequelize.define('User', {
   adviserId: {
     type: DataTypes.INTEGER,
     allowNull: true
+  },
+  // --- Phase 1: Extended Profile Fields ---
+  // Identity
+  suffix: {
+    type: DataTypes.STRING(20),
+    allowNull: true
+  },
+  preferred_name: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  // Academic identity
+  curriculum_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  student_type: {
+    type: DataTypes.STRING(30),
+    allowNull: true
+    // 'regular', 'irregular', 'transferee', 'ladderized'
+  },
+  // Contact
+  alternate_email: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  // Demographics
+  sex: {
+    type: DataTypes.STRING(30),
+    allowNull: true
+    // 'Male', 'Female', 'Non-binary', 'Prefer not to say'
+  },
+  citizenship: {
+    type: DataTypes.STRING(60),
+    allowNull: true
+  },
+  // Location
+  address: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  // Emergency contact
+  emergency_contact_name: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  emergency_contact_relationship: {
+    type: DataTypes.STRING(60),
+    allowNull: true
+  },
+  emergency_contact_number: {
+    type: DataTypes.STRING(30),
+    allowNull: true
+  },
+  // Metadata
+  profile_updated_at: {
+    type: DataTypes.BIGINT,
+    allowNull: true
   }
 }, {
   tableName: 'users',

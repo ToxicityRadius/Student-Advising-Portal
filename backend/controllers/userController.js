@@ -2,7 +2,33 @@ const { User } = require('../models');
 const { generateToken } = require('../utils/jwt');
 const { linkStudentAccountToSar } = require('../utils/sarLinking');
 
-// Helper: strip sensitive fields from a user plain object
+// Allowed enum values for validated fields
+const ALLOWED_SEX = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
+const ALLOWED_STUDENT_TYPES = ['regular', 'irregular', 'transferee', 'ladderized'];
+
+// Compute profile completion score (0-100) for a user object/plain object
+function computeProfileCompletionScore(user) {
+  const commonFields = [
+    'first_name', 'last_name', 'contact_number',
+    'sex', 'address', 'alternate_email',
+    'emergency_contact_name', 'emergency_contact_number',
+    'citizenship', 'profile_picture'
+  ];
+  const studentOnlyFields = ['program', 'curriculum_id', 'student_type'];
+
+  const fields = user.role === 'student'
+    ? [...commonFields, ...studentOnlyFields]
+    : commonFields;
+
+  const filled = fields.filter(f => {
+    const val = user[f];
+    return val !== null && val !== undefined && val !== '';
+  });
+
+  return Math.round((filled.length / fields.length) * 100);
+}
+
+// Helper: strip sensitive fields from a user plain object and add computed fields
 function sanitizeUser(user) {
   if (!user) return null;
   const plain = user.get ? user.get({ plain: true }) : { ...user };
@@ -13,6 +39,7 @@ function sanitizeUser(user) {
   delete plain.resetPasswordExpires;
   delete plain.verificationCode;
   delete plain.verificationCodeExpires;
+  plain.profileCompletionScore = computeProfileCompletionScore(plain);
   return plain;
 }
 
@@ -343,29 +370,88 @@ exports.updateProfile = async (req, res, next) => {
     }
 
     const allowedFields = [
+      // Identity
       'first_name',
       'middle_name',
       'last_name',
+      'suffix',
+      'preferred_name',
+      // Academic identity (student-relevant)
       'program',
+      'curriculum_id',
+      'student_type',
+      // Contact
       'contact_number',
+      'alternate_email',
+      // Demographics
+      'sex',
+      'citizenship',
+      // Location
+      'address',
+      // Emergency contact
+      'emergency_contact_name',
+      'emergency_contact_relationship',
+      'emergency_contact_number',
+      // Legacy/admin fields
       'year_level',
       'adviserId'
     ];
 
     const updatePayload = {};
+    const validationErrors = {};
+
     for (const field of allowedFields) {
       if (Object.prototype.hasOwnProperty.call(req.body, field)) {
         updatePayload[field] = req.body[field];
       }
     }
 
+    // Validate: sex enum
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'sex') && updatePayload.sex !== '' && updatePayload.sex !== null) {
+      if (!ALLOWED_SEX.includes(updatePayload.sex)) {
+        validationErrors.sex = `sex must be one of: ${ALLOWED_SEX.join(', ')}`;
+      }
+    }
+
+    // Validate: student_type enum
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'student_type') && updatePayload.student_type !== '' && updatePayload.student_type !== null) {
+      if (!ALLOWED_STUDENT_TYPES.includes(updatePayload.student_type)) {
+        validationErrors.student_type = `student_type must be one of: ${ALLOWED_STUDENT_TYPES.join(', ')}`;
+      }
+    }
+
+    // Validate: alternate_email format
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'alternate_email') && updatePayload.alternate_email !== '' && updatePayload.alternate_email !== null) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(updatePayload.alternate_email)) {
+        validationErrors.alternate_email = 'alternate_email must be a valid email address';
+      }
+    }
+
+    // Validate: curriculum_id must be a positive integer if provided
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'curriculum_id') && updatePayload.curriculum_id !== '' && updatePayload.curriculum_id !== null) {
+      const cid = Number(updatePayload.curriculum_id);
+      if (Number.isNaN(cid) || !Number.isInteger(cid) || cid < 1) {
+        validationErrors.curriculum_id = 'curriculum_id must be a valid positive integer';
+      } else {
+        updatePayload.curriculum_id = cid;
+      }
+    } else if (Object.prototype.hasOwnProperty.call(updatePayload, 'curriculum_id') && (updatePayload.curriculum_id === '' || updatePayload.curriculum_id === null)) {
+      updatePayload.curriculum_id = null;
+    }
+
+    // Return all field-level validation errors at once (form-friendly)
+    if (Object.keys(validationErrors).length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validationErrors
+      });
+    }
     if (Object.prototype.hasOwnProperty.call(updatePayload, 'adviserId')) {
       updatePayload.adviserId = updatePayload.adviserId === '' ? null : Number(updatePayload.adviserId);
       if (updatePayload.adviserId !== null && Number.isNaN(updatePayload.adviserId)) {
-        return res.status(400).json({
-          success: false,
-          message: 'adviserId must be a valid number or empty'
-        });
+        validationErrors.adviserId = 'adviserId must be a valid number or empty';
       }
     }
 
@@ -375,25 +461,33 @@ exports.updateProfile = async (req, res, next) => {
         : Number(updatePayload.year_level);
 
       if (normalized !== null && (Number.isNaN(normalized) || normalized < 1 || normalized > 5)) {
-        return res.status(400).json({
-          success: false,
-          message: 'year_level must be a number from 1 to 5'
-        });
-      }
+        validationErrors.year_level = 'year_level must be a number from 1 to 5';
+      } else {
+        updatePayload.current_year_level = normalized;
+        delete updatePayload.year_level;
 
-      updatePayload.current_year_level = normalized;
-      delete updatePayload.year_level;
-
-      if (user.role === 'student' && normalized !== null) {
-        updatePayload.is_onboarded = true;
+        if (user.role === 'student' && normalized !== null) {
+          updatePayload.is_onboarded = true;
+        }
       }
+    }
+
+    // Final check after all field-level validations (adviserId / year_level may have added errors)
+    if (Object.keys(validationErrors).length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validationErrors
+      });
     }
 
     if (req.file) {
       updatePayload.profile_picture = `/uploads/profiles/${req.file.filename}`;
     }
 
-    updatePayload.updatedAt = Date.now();
+    const now = Date.now();
+    updatePayload.updatedAt = now;
+    updatePayload.profile_updated_at = now;
 
     Object.assign(user, updatePayload);
     await user.save();

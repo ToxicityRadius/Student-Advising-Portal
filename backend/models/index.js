@@ -19,6 +19,10 @@ const ForecastSnapshot = require('./ForecastSnapshot');
 User.hasMany(User, { as: 'Advisees', foreignKey: 'adviserId', constraints: false });
 User.belongsTo(User, { as: 'Adviser', foreignKey: 'adviserId', constraints: false });
 
+// User's selected curriculum (profile canonical reference)
+User.belongsTo(Curriculum, { as: 'CurriculumRef', foreignKey: 'curriculum_id', constraints: false });
+Curriculum.hasMany(User, { as: 'EnrolledStudents', foreignKey: 'curriculum_id', constraints: false });
+
 // Curriculum <-> CurriculumCourse <-> Course
 Curriculum.hasMany(CurriculumCourse, { foreignKey: 'curriculumId' });
 CurriculumCourse.belongsTo(Curriculum, { foreignKey: 'curriculumId' });

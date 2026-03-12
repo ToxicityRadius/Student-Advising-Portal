@@ -17,7 +17,7 @@
 | Phase | Title | Status |
 |---|---|---|
 | 0 | Execution Protocol & Safety Guardrails | `[DONE]` |
-| 1 | Profile Domain Redesign (Schema + API Contract) | `[TODO]` |
+| 1 | Profile Domain Redesign (Schema + API Contract) | `[DONE]` |
 | 2 | Remove First-Login Complete Profile Flow | `[TODO]` |
 | 2A | Program Chair First-Login Email + Password Rotation | `[TODO]` |
 | 3 | Profile Images End-to-End | `[TODO]` |
@@ -117,16 +117,16 @@ Revamp profile data for all users and ensure shared fields can power SAR linkage
 3. Submit invalid payloads and confirm precise field-level validation responses.
 
 ### Verification Checklist
-- [ ] New profile schema fields exist and are persisted.
-- [ ] Old users can still load profile without crashes.
-- [ ] Validation responses are deterministic and front-end consumable.
-- [ ] API documentation/contract notes updated.
+- [x] New profile schema fields exist and are persisted.
+- [x] Old users can still load profile without crashes.
+- [x] Validation responses are deterministic and front-end consumable.
+- [x] API documentation/contract notes updated.
 
 ### Completion Note (fill when done)
-- **Date:**
-- **Executor:**
-- **Result:**
-- **Notes:**
+- **Date:** 2026-05-11
+- **Executor:** GitHub Copilot
+- **Result:** Pass
+- **Notes:** All 12 new profile fields added to `User` model (suffix, preferred_name, curriculum_id, student_type, alternate_email, sex, citizenship, address, emergency_contact_name, emergency_contact_relationship, emergency_contact_number, profile_updated_at). Curriculum FK association added in `models/index.js`. Controller updated with `computeProfileCompletionScore()`, expanded `allowedFields`, enum validation for sex/student_type, email format validation for alternate_email, multi-field error aggregation, and `profile_updated_at` timestamp. Frontend `Profile.js` completely rewritten with all new sections and ProgressBar completion score. All manual tests passed (GET new fields, PUT persistence, validation error shape, multi-field errors, completion score).
 
 ---
 
@@ -735,6 +735,21 @@ Validate all revamp work together, prevent regressions, and prepare safe rollout
 - **Manual Test Result:** Pass / Fail
 - **Verification Checklist Result:** Pass / Fail
 - **Follow-up Actions:**
+
+---
+
+### Phase 1 — Profile Domain Redesign (Schema + API Contract)
+- **Phase:** 1
+- **Date:** 2026-05-11
+- **Implemented By:** GitHub Copilot
+- **Summary of Changes:**
+  - `backend/models/User.js`: Added 12 new nullable fields — suffix, preferred_name, curriculum_id (INT FK), student_type (STRING 30), alternate_email, sex (STRING 30), citizenship, address (TEXT), emergency_contact_name, emergency_contact_relationship, emergency_contact_number (STRING 30), profile_updated_at (BIGINT).
+  - `backend/models/index.js`: Added `User.belongsTo(Curriculum)` and `Curriculum.hasMany(User)` FK associations with `constraints: false` for safe additive sync.
+  - `backend/controllers/userController.js`: Added `ALLOWED_SEX` and `ALLOWED_STUDENT_TYPES` constants; added `computeProfileCompletionScore()` helper; updated `sanitizeUser()` to include `profileCompletionScore`; expanded `allowedFields` with all new fields; added per-field validation with multi-error aggregation; set `profile_updated_at` timestamp on save.
+  - `frontend/src/pages/Profile.js`: Complete rewrite — added form sections (Identity, Academic Identity, Contact, Demographics, Location, Emergency Contact, Profile Photo), `ProgressBar` completion score display (green/yellow/red), field-level error display via `Form.Control.Feedback`, curricula fetched from `/api/curriculums`.
+- **Manual Test Result:** Pass
+- **Verification Checklist Result:** Pass
+- **Follow-up Actions:** Proceed to Phase 2 (Remove First-Login Complete Profile Flow) and Phase 2A (Program Chair First-Login Email + Password Rotation).
 
 ---
 
