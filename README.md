@@ -1,7 +1,9 @@
 # Student Advising System
 A full-stack academic advising portal for the Computer Engineering program. Supports role-based access for Program Chair (admin), Student Advisers, and Students, with curriculum management, study plan generation, grade tracking, demand forecasting, and PDF export.
 
-> **Implementation in progress.** See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the phased development roadmap and current status.
+> **Implementation in progress.**
+> - Core build roadmap: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
+> - Revamp roadmap (Part 2): [IMPLEMENTATION_PLAN_PART2.md](IMPLEMENTATION_PLAN_PART2.md)
 
 ---
 
@@ -9,6 +11,7 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 
 - [README.md](README.md) — This file
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) — Phased development plan with per-phase status
+- [IMPLEMENTATION_PLAN_PART2.md](IMPLEMENTATION_PLAN_PART2.md) — Part 2 phased revamp plan (profiles, SAR enhancements, pagination, dashboards, UX/UI, PDF redesign)
 - [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md) — Google OAuth configuration guide
 - [REQUIRED_EXTENSIONS.md](REQUIRED_EXTENSIONS.md) — Recommended VS Code extensions
 
@@ -59,6 +62,7 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 ```
 Student-Advising-Portal/
 ├── IMPLEMENTATION_PLAN.md          # Phased development plan
+├── IMPLEMENTATION_PLAN_PART2.md    # Part 2 phased revamp execution plan
 ├── GOOGLE_OAUTH_SETUP.md
 ├── REQUIRED_EXTENSIONS.md
 │

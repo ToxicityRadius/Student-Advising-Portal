@@ -1,0 +1,684 @@
+# Student Advising Portal — Implementation Plan Part 2 (Profile, SAR, UX, Pagination, Dashboards)
+
+> **Purpose:** This file is the execution plan for your next major system revamp.
+> 
+> **How to use this file in a new chat session:**
+> 1. Ask the new chat to read this file first.
+> 2. Tell it which phase to implement.
+> 3. After implementation, require it to run manual tests + verification steps in that phase.
+> 4. Require it to update this file by marking the phase as `[DONE]` and writing a short completion note under that phase.
+> 
+> **Rule:** Do not start a phase unless all dependencies are complete.
+
+---
+
+## Status Overview
+
+| Phase | Title | Status |
+|---|---|---|
+| 0 | Execution Protocol & Safety Guardrails | `[TODO]` |
+| 1 | Profile Domain Redesign (Schema + API Contract) | `[TODO]` |
+| 2 | Remove First-Login Complete Profile Flow | `[TODO]` |
+| 3 | Profile Images End-to-End | `[TODO]` |
+| 4 | SAR ↔ Profile Bi-Directional Sync | `[TODO]` |
+| 5 | SAR Creation UX (Email-First + Autofill) | `[TODO]` |
+| 6 | Student “No SAR Yet” Visibility | `[TODO]` |
+| 7 | Platform-Wide Pagination Standardization | `[TODO]` |
+| 8 | SAR Academic Intelligence Engine | `[TODO]` |
+| 9 | Unified SAR Experience (Student + Adviser + Program Chair) | `[TODO]` |
+| 10 | Role-Specific Home Dashboard Revamp | `[TODO]` |
+| 11 | Navbar Quicklinks Expansion | `[TODO]` |
+| 12 | Forecasting UX/Charts Upgrade | `[TODO]` |
+| 13 | Curriculum & Equivalency UX Upgrade | `[TODO]` |
+| 14 | Professional SAR PDF Redesign | `[TODO]` |
+| 15 | Cross-Role UX Polish, Regression, and Rollout | `[TODO]` |
+
+---
+
+## Global Implementation Principles (Must Follow in Every Phase)
+
+- Keep backward compatibility for existing records whenever possible.
+- Prefer additive schema changes before destructive changes.
+- Use feature-safe defaults for new fields to avoid breaking existing users.
+- For list pages, default page size to `12` (within requested 10–15), and allow optional `10` or `15`.
+- All new UX must preserve role access control (`admin`, `adviser`, `student`).
+- If a phase introduces API shape changes, update frontend integration in the same phase.
+- Every phase must include:
+  - implementation notes,
+  - manual testing,
+  - verification checklist,
+  - completion note (added when done).
+
+---
+
+## Phase 0 — Execution Protocol & Safety Guardrails
+
+**Depends on:** None  
+**Scope:** Process + planning hygiene
+
+### Goal
+Define a strict implementation workflow so future chat sessions can execute phases reliably and update this file correctly.
+
+### Implementation Instructions
+1. Add a “work log” section at the bottom of this file once execution starts.
+2. For each completed phase:
+   - change phase status in table to `[DONE]`,
+   - add completion date,
+   - add changed files summary,
+   - add pass/fail result of manual tests.
+3. If blocked, mark `[BLOCKED]` and include blocker + next action.
+4. Never mark `[DONE]` without completing all verification checks.
+
+### Manual Testing Steps
+1. In a new chat, ask it to implement only one sample phase and update this file status.
+2. Confirm the chat updates both status table and phase completion note.
+
+### Verification Checklist
+- [ ] Clear status transition rules exist (`[TODO]`, `[IN-PROGRESS]`, `[DONE]`, `[BLOCKED]`).
+- [ ] A completion note format is defined and used.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 1 — Profile Domain Redesign (Schema + API Contract)
+
+**Depends on:** Phase 0  
+**Scope:** Backend models, validation, profile response shape
+
+### Goal
+Revamp profile data for all users and ensure shared fields can power SAR linkage and student analytics context.
+
+### Implementation Instructions
+1. Expand user profile fields with normalized categories:
+   - identity: first name, middle name, last name, suffix, preferred name,
+   - academic identity: student number, program, curriculum reference, student type,
+   - contact: email, alternate email, mobile,
+   - demographics (if allowed by policy): sex, citizenship,
+   - location: current address,
+   - emergency contact fields,
+   - metadata: profile completion score, last updated timestamp.
+2. Define role-aware required fields:
+   - student: student number/program/year-level context,
+   - adviser/admin: professional identity fields.
+3. Align SAR-related fields with profile canonical source-of-truth policy:
+   - decide ownership per field (e.g., student number canonical in user profile, mirrored in SAR).
+4. Update API contracts and validation errors to be explicit and form-friendly.
+5. Add migration/backfill logic for existing users with null-safe defaults.
+
+### Manual Testing Steps
+1. Fetch existing user profiles (all roles) and verify response includes new fields.
+2. Update each role profile with valid data and verify persistence.
+3. Submit invalid payloads and confirm precise field-level validation responses.
+
+### Verification Checklist
+- [ ] New profile schema fields exist and are persisted.
+- [ ] Old users can still load profile without crashes.
+- [ ] Validation responses are deterministic and front-end consumable.
+- [ ] API documentation/contract notes updated.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 2 — Remove First-Login Complete Profile Flow
+
+**Depends on:** Phase 1  
+**Scope:** Auth flow, routing guards, onboarding UX
+
+### Goal
+Remove mandatory “Complete Profile” interruption after first login while keeping profile editing available anytime.
+
+### Implementation Instructions
+1. Remove blocking redirection logic tied to incomplete profile state.
+2. Keep optional profile completeness indicators as non-blocking reminders.
+3. Ensure role dashboards load directly after login.
+4. Preserve security checks (auth/role) independent of profile completeness.
+
+### Manual Testing Steps
+1. Login with a newly seeded account with minimal profile data.
+2. Confirm user lands on dashboard, not forced to complete profile.
+3. Open profile page and edit/save successfully.
+
+### Verification Checklist
+- [ ] No forced complete-profile redirect remains.
+- [ ] New and existing users can access dashboard immediately.
+- [ ] Profile page remains editable and stable.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 3 — Profile Images End-to-End
+
+**Depends on:** Phase 1  
+**Scope:** Upload pipeline, storage strategy, profile UI rendering
+
+### Goal
+Add profile photo upload/display for all users and reuse the photo in SAR surfaces and PDF.
+
+### Implementation Instructions
+1. Define image constraints: type, size, dimensions, max file size.
+2. Implement upload endpoint with validation and safe filename strategy.
+3. Store image path/url in user profile.
+4. Implement replace/remove image logic and fallback avatar behavior.
+5. Render profile images in profile pages, SAR overview cards, and dashboard identity cards.
+
+### Manual Testing Steps
+1. Upload valid profile photo for each role and verify display.
+2. Attempt invalid files (oversized/wrong type) and verify proper errors.
+3. Replace and remove photos; verify fallback image behavior.
+
+### Verification Checklist
+- [ ] Upload, replace, remove flows all work.
+- [ ] Images render in profile + SAR-related UI.
+- [ ] Invalid uploads are blocked with clear messages.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 4 — SAR ↔ Profile Bi-Directional Sync
+
+**Depends on:** Phases 1, 2  
+**Scope:** Backend SAR controllers + user/profile controllers + linking logic
+
+### Goal
+Ensure student name/student ID entered in SAR reflects in profile, and existing student profile can autofill SAR when adviser enters student email.
+
+### Implementation Instructions
+1. Define canonical sync rules per field (to avoid circular overwrite):
+   - email: key identity lookup,
+   - student number and student name: synchronized with conflict strategy,
+   - profile updates from SAR only when values are non-empty and trusted.
+2. Implement SAR creation/update hooks to mirror fields to linked student profile.
+3. Implement profile update hooks to mirror core identity fields back to SAR when linked.
+4. Add conflict resolution policy:
+   - if mismatch detected, either strict overwrite or soft warning + manual confirmation path.
+5. Ensure idempotency: repeated save operations should not create duplicate updates.
+
+### Manual Testing Steps
+1. Adviser creates SAR with student email tied to existing account; verify autofill occurs.
+2. Adviser changes SAR student name/student number; verify student profile updates.
+3. Student updates profile name/student number; verify SAR mirrors update.
+4. Test mismatch scenario and verify expected conflict behavior.
+
+### Verification Checklist
+- [ ] Email-based linking is reliable.
+- [ ] SAR-to-profile and profile-to-SAR sync both work.
+- [ ] No duplicate linkage records or unstable loops.
+- [ ] Audit trail/logging exists for sync operations (recommended).
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 5 — SAR Creation UX (Email-First + Autofill)
+
+**Depends on:** Phase 4  
+**Scope:** Adviser/Program Chair SAR create forms + UX behavior
+
+### Goal
+Make student email the first field in SAR creation and drive smart autofill of remaining fields.
+
+### Implementation Instructions
+1. Reorder SAR create form fields with email first.
+2. On email entry/blur/search trigger:
+   - fetch student account/profile by email,
+   - if found, autofill name/student number/program-related defaults,
+   - show clear indicator when values are auto-populated.
+3. Keep manual override controls for authorized roles.
+4. Add guardrails for missing account (email not found):
+   - allow creating SAR for not-yet-registered student,
+   - clearly indicate unlinked state.
+
+### Manual Testing Steps
+1. Enter existing student email first and confirm autofill fills fields.
+2. Enter unknown email and confirm manual input flow still works.
+3. Save SAR and ensure linkage state is accurate.
+
+### Verification Checklist
+- [ ] Email field is first and primary trigger.
+- [ ] Autofill works for existing students.
+- [ ] Manual flow works for unregistered students.
+- [ ] Adviser/program chair UX clearly communicates linked vs unlinked state.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 6 — Student “No SAR Yet” Visibility
+
+**Depends on:** Phases 2, 4  
+**Scope:** Student dashboard empty-state logic
+
+### Goal
+If a student has no SAR yet, show clear dashboard status and next steps.
+
+### Implementation Instructions
+1. Add SAR existence check in student dashboard data loader.
+2. Design empty state panel with:
+   - status badge: “No Student Academic Record yet”,
+   - explanation text,
+   - action guidance (contact adviser/program chair).
+3. Ensure this state does not look like a system crash.
+
+### Manual Testing Steps
+1. Login as student with no SAR and verify empty-state panel appears.
+2. Create SAR for same student, reload dashboard, verify SAR overview replaces empty state.
+
+### Verification Checklist
+- [ ] No-SAR students get informative dashboard state.
+- [ ] SAR-present students get SAR overview view.
+- [ ] No false-positive missing-SAR state for linked students.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 7 — Platform-Wide Pagination Standardization
+
+**Depends on:** Phase 0  
+**Scope:** Backend list APIs + frontend list components
+
+### Goal
+Apply pagination to all list-heavy screens and endpoints (target 10–15 items per page, default 12).
+
+### Implementation Instructions
+1. Inventory all list endpoints and pages (users, SARs, curriculums, courses, equivalencies, terms, snapshots, etc.).
+2. Standardize API query params:
+   - `page`, `pageSize`, `search`, `sortBy`, `sortOrder`.
+3. Standardize API response shape:
+   - `items`, `meta: { page, pageSize, totalItems, totalPages }`.
+4. Implement frontend pagination controls uniformly across list pages.
+5. Ensure persisted filter/page state where beneficial (e.g., returning from detail to list).
+
+### Manual Testing Steps
+1. Populate enough data to exceed one page.
+2. Verify next/prev/page-number navigation on each list page.
+3. Verify pagination interacts correctly with search and sorting.
+
+### Verification Checklist
+- [ ] All list endpoints support pagination parameters.
+- [ ] All list UIs show consistent pagination controls.
+- [ ] Performance improves for large datasets.
+- [ ] No regression in permissions/filtering.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 8 — SAR Academic Intelligence Engine
+
+**Depends on:** Phases 1, 4  
+**Scope:** Backend SAR computations + analytics DTO
+
+### Goal
+Add advanced SAR metrics and indicators requested for academic progress intelligence.
+
+### Required Data Outputs
+- units completed vs total units,
+- overall program completion percentage,
+- completed vs remaining units summary,
+- units earned tracking,
+- remaining semesters tracking,
+- estimated graduation date,
+- academic tags (year level, semester, program, student type),
+- curriculum checklist overview,
+- used curriculum display,
+- subject status indicators (`completed`, `failed`, `pending`, `not yet taken`, `credited`),
+- status counters,
+- GPA/GWA monitoring,
+- subjects taken summary (passed vs failed),
+- semester academic summary (units, subjects, GPA),
+- adviser review workflow status,
+- prerequisite checking,
+- prerequisite met/eligibility indicators,
+- priority subject indicators.
+
+### Implementation Instructions
+1. Build a centralized SAR computation service layer to avoid controller duplication.
+2. Define consistent grade-to-status mapping and unit-crediting rules.
+3. Implement prerequisite graph checks with explicit unmet prerequisites per subject.
+4. Implement graduation estimate logic with configurable assumptions.
+5. Add review workflow flags (e.g., draft/reviewed/approved) where applicable.
+6. Return a structured SAR analytics payload consumable by multiple UIs + PDF.
+
+### Manual Testing Steps
+1. Use seed students with varying grades (pass/fail/pending) and verify metrics.
+2. Validate completion percentage and units remaining against manual calculations.
+3. Check prerequisite indicators on known unmet/met course scenarios.
+4. Validate estimated graduation output for at least 3 profile scenarios.
+
+### Verification Checklist
+- [ ] All requested indicators are present in API response.
+- [ ] Core metrics match manual calculations.
+- [ ] Prerequisite checks are accurate and explainable.
+- [ ] Output is reusable by dashboard, SAR page, and PDF generator.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 9 — Unified SAR Experience (Student + Adviser + Program Chair)
+
+**Depends on:** Phases 3, 6, 8  
+**Scope:** Frontend SAR layout architecture + role-based view modes
+
+### Goal
+Show student SAR overview directly in student dashboard and provide the same core layout for adviser/program chair via student search.
+
+### Implementation Instructions
+1. Create one shared SAR layout system with role-based actions:
+   - student: read-only + export,
+   - adviser/program chair: searchable access + review controls.
+2. Organize SAR into sections/cards/tabs:
+   - profile & identity,
+   - progress summary,
+   - checklist/status indicators,
+   - prerequisite alerts,
+   - grades/semester performance,
+   - current study plan snapshot.
+3. Add section jump links (e.g., quick buttons to Grades, Study Plan, Prerequisites).
+4. Ensure visual consistency and readability on desktop and common laptop resolutions.
+
+### Manual Testing Steps
+1. Student logs in and sees SAR overview embedded in dashboard.
+2. Adviser searches student and opens SAR in same layout.
+3. Program chair searches student and opens SAR in same layout.
+4. Validate role-based action visibility (edit/review/export controls).
+
+### Verification Checklist
+- [ ] One shared SAR layout used across roles.
+- [ ] Student dashboard contains SAR overview by default when SAR exists.
+- [ ] Adviser/program chair can discover and open SAR quickly.
+- [ ] Sections are readable and not visually cluttered.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 10 — Role-Specific Home Dashboard Revamp
+
+**Depends on:** Phases 6, 8, 9, 12, 13  
+**Scope:** Dashboard content strategy by role
+
+### Goal
+Replace generic quicklink-only dashboards with richer role-specific summaries and quick actions.
+
+### Implementation Instructions
+1. Student dashboard:
+   - SAR overview snapshot,
+   - key progress KPIs,
+   - export shortcut,
+   - profile shortcut.
+2. Adviser dashboard:
+   - assigned students summary,
+   - students needing review,
+   - SARs with prerequisite risk,
+   - quick-create SAR action.
+3. Program chair dashboard:
+   - forecast snapshot preview,
+   - curriculum/equivalency health summary,
+   - term management quick actions,
+   - adviser workload overview (if available).
+4. Keep quicklinks, but make them secondary to actionable summaries.
+
+### Manual Testing Steps
+1. Login per role and verify distinct dashboard content.
+2. Validate quick action buttons navigate to intended pages.
+3. Confirm dashboard data loads fast and has graceful empty/loading states.
+
+### Verification Checklist
+- [ ] Dashboards are role-tailored and informative.
+- [ ] Quicklinks still accessible.
+- [ ] KPI cards and previews map to actual data.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 11 — Navbar Quicklinks Expansion
+
+**Depends on:** Phase 10  
+**Scope:** Global navigation IA improvements
+
+### Goal
+Add quicklinks to navbar for faster feature access while keeping role-safe visibility.
+
+### Implementation Instructions
+1. Add role-based quicklink groups to navbar.
+2. Prioritize high-frequency actions per role.
+3. Keep navigation compact and non-overwhelming.
+4. Ensure responsive behavior and no overlap on smaller screens.
+
+### Manual Testing Steps
+1. Validate navbar links per role account.
+2. Verify no unauthorized links are shown.
+3. Test responsive behavior at common breakpoints.
+
+### Verification Checklist
+- [ ] Role-based quicklinks visible and accurate.
+- [ ] Navigation remains usable on mobile/laptop widths.
+- [ ] No duplicate/conflicting links with existing nav items.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 12 — Forecasting UX/Charts Upgrade
+
+**Depends on:** Phase 8  
+**Scope:** Forecast UI/UX improvements with visualizations
+
+### Goal
+Make forecasting pages intuitive and decision-friendly using charts and visual summaries.
+
+### Implementation Instructions
+1. Introduce chart-based views for current demand, next-term forecast, and historical trends.
+2. Add consistent legend/filter controls and clear axis labeling.
+3. Add quick comparison cards (current vs projected demand deltas).
+4. Include empty-state and “no current term” UX fallback message.
+5. Preserve existing API behavior; only enhance consumption + presentation unless API enhancement is needed.
+
+### Manual Testing Steps
+1. Open all forecasting pages and verify charts render with real data.
+2. Trigger no-current-term scenario and verify graceful message.
+3. Compare chart totals with underlying table numbers.
+
+### Verification Checklist
+- [ ] Forecast pages show clear visual insights.
+- [ ] No-current-term scenario is user-friendly.
+- [ ] Chart values match source data.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 13 — Curriculum & Equivalency UX Upgrade
+
+**Depends on:** Phase 7  
+**Scope:** Program chair workflows for curriculum and equivalency management
+
+### Goal
+Improve curriculum management UX with better course list usability and a mapped view for course equivalencies.
+
+### Implementation Instructions
+1. Enhance course list view with better grouping/search/filter and pagination.
+2. Add dual equivalency views:
+   - list view (existing style),
+   - mapped/connected view (relationship-focused editing).
+3. Implement interaction model for mapping equivalencies quickly (connect/edit/remove).
+4. Ensure edit operations are validated and auditable.
+
+### Manual Testing Steps
+1. Create/edit/remove equivalencies in list view.
+2. Switch to mapped view and perform connect/disconnect edits.
+3. Verify both views stay in sync after operations.
+
+### Verification Checklist
+- [ ] Program chair can use either list or mapped equivalency view.
+- [ ] Mapped edits persist correctly.
+- [ ] Course list is easier to scan/manage than prior version.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 14 — Professional SAR PDF Redesign
+
+**Depends on:** Phases 3, 8, 9  
+**Scope:** PDF layout, typography hierarchy, section formatting
+
+### Goal
+Redesign generated SAR PDF into a professional academic report that is clean and easy to read.
+
+### Implementation Instructions
+1. Define PDF information architecture:
+   - header (student identity, profile photo, program/curriculum tags),
+   - summary KPIs,
+   - detailed academic sections,
+   - prerequisite and eligibility summaries,
+   - adviser review status/footer metadata.
+2. Improve spacing, table hierarchy, section headers, and page break behavior.
+3. Ensure long content wraps properly and avoids clipping/overlap.
+4. Add generation timestamp and version metadata.
+
+### Manual Testing Steps
+1. Export SAR PDF for at least 3 students with different data density.
+2. Verify readability in browser and printed output.
+3. Validate all required indicators appear and are ordered logically.
+
+### Verification Checklist
+- [ ] PDF is visually structured and professional.
+- [ ] No clunky overlap/misaligned tables.
+- [ ] Required SAR analytics and profile image are included.
+- [ ] Multi-page outputs remain readable.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 15 — Cross-Role UX Polish, Regression, and Rollout
+
+**Depends on:** Phases 1–14  
+**Scope:** Final integration QA and deployment readiness
+
+### Goal
+Validate all revamp work together, prevent regressions, and prepare safe rollout.
+
+### Implementation Instructions
+1. Execute end-to-end regression paths per role:
+   - authentication,
+   - profile update,
+   - SAR create/edit/view,
+   - pagination flows,
+   - dashboard interactions,
+   - PDF export.
+2. Verify old data compatibility after schema changes.
+3. Validate performance on list-heavy pages.
+4. Produce release notes and known limitations list.
+
+### Manual Testing Steps
+1. Full scenario walk-through for student/adviser/admin.
+2. Verify no permission leaks across role boundaries.
+3. Confirm major pages handle empty/loading/error states.
+
+### Verification Checklist
+- [ ] No critical regressions in core workflows.
+- [ ] New features are role-safe and stable.
+- [ ] Release notes completed.
+- [ ] Plan status table updated accurately.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Work Log (Update During Implementation)
+
+> Add one entry per completed phase.
+
+### Log Entry Template
+- **Phase:**
+- **Date:**
+- **Implemented By:**
+- **Summary of Changes:**
+- **Manual Test Result:** Pass / Fail
+- **Verification Checklist Result:** Pass / Fail
+- **Follow-up Actions:**
+
+---
+
+## Suggested Execution Order for New Chat Sessions
+
+1. Phase 0 → 5 (foundation for profile/SAR behavior)
+2. Phase 6 → 9 (student-centric SAR experience)
+3. Phase 7, 11, 13 (platform navigation/list UX and curriculum UX)
+4. Phase 12, 10 (analytics previews + role dashboards)
+5. Phase 14 → 15 (PDF finalization and hardening)
+
+This order reduces rework and ensures shared SAR data contracts are stable before UI-heavy phases.

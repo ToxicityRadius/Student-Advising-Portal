@@ -4,6 +4,7 @@
 > - At the start of a session, read this file to determine which phase to work on.
 > - When a phase is fully complete, mark it with `[DONE]` and update the status table.
 > - Each phase is self-contained. Never skip prerequisites — each phase lists its dependencies.
+> - For the next major revamp (profiles, SAR UX, pagination, dashboards, PDF redesign), continue with [IMPLEMENTATION_PLAN_PART2.md](IMPLEMENTATION_PLAN_PART2.md).
 
 ---
 
