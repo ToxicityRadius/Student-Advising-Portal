@@ -125,6 +125,7 @@ const toIntOrNull = (value) => {
         role: 'admin',
         isActive: true,
         isVerified: true,
+        mustChangePassword: true,
         createdAt: now,
         updatedAt: now
       },

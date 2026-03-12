@@ -27,7 +27,7 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 | 7 | Study Plan Validation & Elective Track Enforcement | ✅ Done |
 | 8 | Student-Facing Views & PDF Export | ✅ Done |
 | 9 | Forecasting System | ✅ Done |
-| 10 | Auth & Access Control Refinements | 🔲 Not started |
+| 10 | Auth & Access Control Refinements | ✅ Done |
 
 ---
 
@@ -160,6 +160,7 @@ Student-Advising-Portal/
     │   ├── Login.js
     │   ├── Register.js
     │   ├── VerifyCode.js
+    │   ├── ChangePassword.js
     │   ├── ActivateAccount.js
     │   ├── ForgotPassword.js
     │   ├── ResetPassword.js
@@ -179,7 +180,8 @@ Student-Advising-Portal/
     │       ├── CurriculumManagement.js
     │       ├── CurriculumDetail.js
     │       ├── TermManagement.js
-    │       └── ForecastDashboard.js
+    │       ├── ForecastDashboard.js
+    │       └── TransferOwnership.js
     └── utils/
       └── api.js
 ```
@@ -222,12 +224,15 @@ Student-Advising-Portal/
 | PUT | `/reset-password/:token` | Public | Reset password |
 | GET | `/activate/:token` | Public | Activate account via email link |
 | GET | `/me` | Auth | Get current user |
+| PUT | `/change-password` | Auth | Change password (requires old password) |
+| PATCH | `/transfer-ownership` | admin | Transfer Program Chair role to adviser |
 | POST | `/refresh-token` | Public | Refresh access token |
 | POST | `/google` | Public | Google OAuth sign-in |
 
 ### Users — `/api/users`
 | Method | Route | Access | Description |
 |--------|-------|--------|-------------|
+| GET | `/` | admin | List all users (used by ownership transfer flow) |
 | GET | `/:id` | Auth | Get user profile |
 | PUT | `/:id/profile` | Auth | Update profile (name, contact, picture) |
 | PATCH | `/update-student-id` | Auth | Set own student ID |

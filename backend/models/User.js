@@ -58,6 +58,10 @@ const User = sequelize.define('User', {
     type: DataTypes.BOOLEAN,
     defaultValue: false
   },
+  mustChangePassword: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
   refreshToken: {
     type: DataTypes.STRING(500)
   },

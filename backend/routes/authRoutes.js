@@ -10,9 +10,11 @@ const {
   resendCode,
   forgotPassword,
   resetPassword,
-  refreshToken
+  refreshToken,
+  changePassword,
+  transferOwnership
 } = require('../controllers/authController');
-const { protect } = require('../middleware/auth');
+const { protect, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -43,5 +45,7 @@ router.put('/reset-password/:token', strictLimiter, resetPassword);
 router.post('/logout', logout);
 router.get('/activate/:token', activateAccount);
 router.get('/me', protect, getMe);
+router.put('/change-password', protect, changePassword);
+router.patch('/transfer-ownership', protect, requireRole('admin'), transferOwnership);
 
 module.exports = router;

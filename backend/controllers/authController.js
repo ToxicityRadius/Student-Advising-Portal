@@ -1,6 +1,7 @@
 const { User } = require('../models');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const { sendTokenResponse } = require('../utils/jwt');
 const { sendActivationEmail, sendVerificationCode } = require('../utils/email');
@@ -9,6 +10,18 @@ const { linkStudentAccountToSar } = require('../utils/sarLinking');
 // Helper: generate a cryptographically secure 6-digit verification code
 function generateVerificationCode() {
   return crypto.randomInt(100000, 1000000).toString();
+}
+
+function generatePasswordChangeToken(user) {
+  return jwt.sign(
+    {
+      id: user.id,
+      role: user.role,
+      purpose: 'password_change'
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '15m' }
+  );
 }
 
 // Helper: strip sensitive fields from a user plain object
@@ -31,7 +44,9 @@ function sanitizeUser(user) {
 exports.register = async (req, res, next) => {
   try {
     const { studentId, firstName, lastName, email, password, role: requestedRole } = req.body;
-    const isFaculty = requestedRole === 'adviser';
+    const normalizedRequestedRole = requestedRole === 'adviser' ? 'adviser' : requestedRole === 'admin' ? 'admin' : 'student';
+    const isFaculty = normalizedRequestedRole === 'adviser';
+    const emailLower = (email || '').toLowerCase();
 
     // Validate required fields
     if (!firstName || !lastName || !email || !password) {
@@ -64,24 +79,37 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    // Check if email ends with @tip.edu.ph
-    if (!email.toLowerCase().endsWith('@tip.edu.ph')) {
+    if (normalizedRequestedRole === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin account creation is restricted.'
+      });
+    }
+
+    // Enforce role-specific email domain rules
+    if (!emailLower.endsWith('@tip.edu.ph')) {
       return res.status(400).json({
         success: false,
         message: 'Only T.I.P. email addresses (@tip.edu.ph) are allowed to register.'
       });
     }
 
-    // For faculty, validate .cpe@tip.edu.ph domain
-    if (isFaculty && !email.toLowerCase().endsWith('.cpe@tip.edu.ph')) {
+    if (isFaculty && !emailLower.endsWith('.cpe@tip.edu.ph')) {
       return res.status(400).json({
         success: false,
         message: 'Faculty email must end with .cpe@tip.edu.ph'
       });
     }
 
+    if (!isFaculty && emailLower.endsWith('.cpe@tip.edu.ph')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student registration does not allow faculty department email addresses.'
+      });
+    }
+
     // Check if user exists (case-insensitive)
-    const existingUser = await User.findOne({ where: { email: email.toLowerCase() } });
+    const existingUser = await User.findOne({ where: { email: emailLower } });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -104,7 +132,7 @@ exports.register = async (req, res, next) => {
       lastName,
       first_name: firstName || null,
       last_name: lastName || null,
-      email: email.toLowerCase(),
+      email: emailLower,
       password: hashedPassword,
       role: isFaculty ? 'adviser' : 'student',
       activationToken,
@@ -253,6 +281,14 @@ exports.login = async (req, res, next) => {
     }
 
     // Check if 2FA is enabled
+    if (user.mustChangePassword) {
+      return res.status(200).json({
+        success: true,
+        mustChangePassword: true,
+        token: generatePasswordChangeToken(user)
+      });
+    }
+
     if (process.env.ENABLE_2FA === 'true') {
       // Generate verification code
       const verificationCode = generateVerificationCode();
@@ -335,6 +371,15 @@ exports.verifyCode = async (req, res, next) => {
     }, { where: { id: user.id } });
 
     const updatedUser = await User.findByPk(user.id);
+
+    if (updatedUser.mustChangePassword) {
+      return res.status(200).json({
+        success: true,
+        mustChangePassword: true,
+        token: generatePasswordChangeToken(updatedUser)
+      });
+    }
+
     sendTokenResponse(updatedUser, 200, res);
   } catch (error) {
     next(error);
@@ -416,6 +461,123 @@ exports.getMe = async (req, res, next) => {
     res.status(200).json({
       success: true,
       user: sanitizeUser(user)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Change password for authenticated user
+// @route   PUT /api/auth/change-password
+// @access  Private
+exports.changePassword = async (req, res, next) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Old password and new password are required'
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters'
+      });
+    }
+
+    if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
+      });
+    }
+
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Old password is incorrect'
+      });
+    }
+
+    if (oldPassword === newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be different from old password'
+      });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    await User.update({
+      password: hashedPassword,
+      mustChangePassword: false,
+      passwordUpdatedAt: Date.now(),
+      updatedAt: Date.now()
+    }, { where: { id: user.id } });
+
+    const updatedUser = await User.findByPk(user.id);
+    sendTokenResponse(updatedUser, 200, res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Transfer program chair ownership to an adviser
+// @route   PATCH /api/auth/transfer-ownership
+// @access  Private/Admin
+exports.transferOwnership = async (req, res, next) => {
+  try {
+    const { targetUserId } = req.body;
+
+    if (!targetUserId) {
+      return res.status(400).json({
+        success: false,
+        message: 'targetUserId is required'
+      });
+    }
+
+    const requester = await User.findByPk(req.user.id);
+    if (!requester || requester.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only current Program Chair can transfer ownership'
+      });
+    }
+
+    const targetUser = await User.findByPk(targetUserId);
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Target user not found'
+      });
+    }
+
+    if (targetUser.role !== 'adviser') {
+      return res.status(400).json({
+        success: false,
+        message: 'Ownership can only be transferred to an adviser'
+      });
+    }
+
+    await User.update({ role: 'admin', updatedAt: Date.now() }, { where: { id: targetUser.id } });
+    await User.update({ role: 'adviser', updatedAt: Date.now() }, { where: { id: requester.id } });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Program Chair ownership transferred successfully'
     });
   } catch (error) {
     next(error);

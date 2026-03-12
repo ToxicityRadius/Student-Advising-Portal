@@ -104,6 +104,12 @@ const VerifyCode = () => {
       console.log('Response data:', data);
 
       if (data.success) {
+        if (data.mustChangePassword) {
+          sessionStorage.setItem('forcePasswordChangeToken', data.token);
+          navigate('/change-password');
+          return;
+        }
+
         console.log('Success! Storing token and redirecting...');
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));

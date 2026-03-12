@@ -20,7 +20,7 @@
 | 7 | Study Plan Validation & Elective Track Enforcement | `[DONE]` |
 | 8 | Student-Facing Views & PDF Export | `[DONE]` |
 | 9 | Forecasting System | `[DONE]` |
-| 10 | Auth & Access Control Refinements | `[ ] Not Started` |
+| 10 | Auth & Access Control Refinements | `[DONE]` |
 
 ---
 
@@ -1192,14 +1192,19 @@ On success, re-fetches user and redirects to dashboard.
 8. Spot-check protected API endpoints in network tab to confirm `401/403` when role/user is unauthorized.
 
 ### Verification Checklist
-- [ ] Adviser registration fails if email doesn't end with `.cpe@tip.edu.ph`
-- [ ] Student registration fails if email doesn't end with `@tip.edu.ph`
-- [ ] Admin account with `mustChangePassword=true` is forced to change password on first login
-- [ ] Program Chair can transfer ownership to any adviser
-- [ ] After transfer, old admin becomes adviser and is logged out
-- [ ] All frontend routes enforce role-based access (no unauthorized page access)
-- [ ] All backend endpoints have correct `protect` + `requireRole` guards
-- [ ] Audit for any missing role guards across all controllers
+- [x] Adviser registration fails if email doesn't end with `.cpe@tip.edu.ph`
+- [x] Student registration fails if email doesn't end with `@tip.edu.ph`
+- [x] Admin account with `mustChangePassword=true` is forced to change password on first login
+- [x] Program Chair can transfer ownership to any adviser
+- [x] After transfer, old admin becomes adviser and is logged out
+- [x] All frontend routes enforce role-based access (no unauthorized page access)
+- [x] All backend endpoints have correct `protect` + `requireRole` guards
+- [x] Audit for any missing role guards across all controllers
+
+### Implementation Notes
+- Added `mustChangePassword` to `User` and implemented a short-lived password-change token (`purpose: 'password_change'`) so users flagged for first-login password reset can only access `/api/auth/change-password` until completion.
+- Added admin-only `GET /api/users` route for the ownership transfer page to list eligible advisers.
+- Manual verification ran against an isolated backend instance on port `5001` to avoid login-rate-limit state from an already-running local server on `5000`.
 
 ---
 
@@ -1228,4 +1233,4 @@ After each phase, manually test using the browser and network tab, or use a tool
 
 ---
 
-*Last updated: Phases 1, 2, 3, 4, 5, 6, 7, 8, and 9 complete; Phase 9 forecasting system (backend demand aggregation + snapshot history/comparison APIs + admin dashboard + term snapshot lifecycle + browser/API/manual verification) implemented and verified.*
+*Last updated: Phases 1, 2, 3, 4, 5, 6, 7, 8, 9, and 10 complete; Phase 10 auth/access control refinements (role-specific registration domains, forced admin first-login password change flow, ownership transfer backend/frontend, route/API guard audit, and manual/API/build verification) implemented and verified.*

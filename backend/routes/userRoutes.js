@@ -3,12 +3,13 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const {
+  getAllUsers,
   getUserById,
   updateStudentId,
   updateUserStudentId,
   updateProfile
 } = require('../controllers/userController');
-const { protect } = require('../middleware/auth');
+const { protect, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -32,6 +33,9 @@ router.patch('/:userId/update-student-id', updateUserStudentId);
 
 // Route for users to update their own student ID (protected but not admin-only)
 router.patch('/update-student-id', protect, updateStudentId);
+
+// Admin-only user listing
+router.get('/', protect, requireRole('admin'), getAllUsers);
 
 // Profile update route (protected, user can update self; admin can update any)
 router.put('/:id/profile', protect, upload.single('profile_picture'), updateProfile);

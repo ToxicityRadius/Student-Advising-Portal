@@ -41,6 +41,23 @@ exports.protect = async (req, res, next) => {
         });
       }
 
+      const isChangePasswordRoute = req.baseUrl === '/api/auth' && req.path === '/change-password';
+      const isPasswordChangeToken = decoded.purpose === 'password_change';
+
+      if (isPasswordChangeToken && !isChangePasswordRoute) {
+        return res.status(403).json({
+          success: false,
+          message: 'Password change required before accessing this route'
+        });
+      }
+
+      if (!isPasswordChangeToken && user.mustChangePassword && !isChangePasswordRoute) {
+        return res.status(403).json({
+          success: false,
+          message: 'Password change required before accessing this route'
+        });
+      }
+
       // Store user and token info in request
       req.user = user;
       req.token = token;

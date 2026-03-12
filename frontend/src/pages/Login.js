@@ -76,6 +76,11 @@ const Login = () => {
             email: formData.email 
           } 
         });
+      } else if (data.mustChangePassword) {
+        sessionStorage.removeItem('loginRole');
+        sessionStorage.setItem('forcePasswordChangeToken', data.token);
+        sessionStorage.setItem('forcePasswordChangeOldPassword', formData.password);
+        navigate('/change-password');
       } else {
         sessionStorage.removeItem('loginRole');
         await login(data.token);
@@ -133,6 +138,10 @@ const Login = () => {
             email: decoded.email 
           } 
         });
+      } else if (data.mustChangePassword) {
+        sessionStorage.removeItem('loginRole');
+        sessionStorage.setItem('forcePasswordChangeToken', data.token);
+        setError('This account must change password via email/password sign-in before continuing.');
       } else if (data.user && data.user.role === 'student' && !data.user.studentId) {
         // Student without a Student Number — show the modal
         setPendingGoogleUser({ userId: data.user.id, email: decoded.email, token: data.token });

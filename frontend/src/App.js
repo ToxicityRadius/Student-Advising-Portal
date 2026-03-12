@@ -12,6 +12,7 @@ import ActivateAccount from './pages/ActivateAccount';
 import VerifyCode from './pages/VerifyCode';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import ChangePassword from './pages/ChangePassword';
 import CompleteProfile from './pages/CompleteProfile';
 import Profile from './pages/Profile';
 import AboutUs from './pages/AboutUs';
@@ -20,6 +21,7 @@ import CurriculumManagement from './pages/admin/CurriculumManagement';
 import CurriculumDetail from './pages/admin/CurriculumDetail';
 import TermManagement from './pages/admin/TermManagement';
 import ForecastDashboard from './pages/admin/ForecastDashboard';
+import TransferOwnership from './pages/admin/TransferOwnership';
 import StudentList from './pages/adviser/StudentList';
 import StudentDetail from './pages/adviser/StudentDetail';
 import StudyPlanView from './pages/adviser/StudyPlanView';
@@ -37,6 +39,7 @@ function AppContent() {
     location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-code' ||
+    location.pathname === '/change-password' ||
     location.pathname === '/forgot-password' ||
     location.pathname.startsWith('/reset-password') ||
     location.pathname.startsWith('/activate');
@@ -57,6 +60,7 @@ function AppContent() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password/:token" element={<ResetPassword />} />
           <Route path="/activate/:token" element={<ActivateAccount />} />
+          <Route path="/change-password" element={<ChangePassword />} />
           <Route
             path="/dashboard"
             element={
@@ -110,6 +114,14 @@ function AppContent() {
             element={
               <PrivateRoute roles={['admin']}>
                 <ForecastDashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/transfer-ownership"
+            element={
+              <PrivateRoute roles={['admin']}>
+                <TransferOwnership />
               </PrivateRoute>
             }
           />
