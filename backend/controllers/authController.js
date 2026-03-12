@@ -1,9 +1,9 @@
-const { User } = require('../models');
-const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
-const { Op } = require('sequelize');
-const { sendTokenResponse } = require('../utils/jwt');
-const { sendActivationEmail, sendVerificationCode } = require('../utils/email');
+const { User } = require("../models");
+const crypto = require("crypto");
+const bcrypt = require("bcryptjs");
+const { Op } = require("sequelize");
+const { sendTokenResponse } = require("../utils/jwt");
+const { sendActivationEmail, sendVerificationCode } = require("../utils/email");
 
 // Helper: generate a cryptographically secure 6-digit verification code
 function generateVerificationCode() {
@@ -29,14 +29,22 @@ function sanitizeUser(user) {
 // @access  Public
 exports.register = async (req, res, next) => {
   try {
-    const { studentId, firstName, lastName, email, password, role: requestedRole } = req.body;
-    const isFaculty = requestedRole === 'adviser';
+    const {
+      studentId,
+      firstName,
+      lastName,
+      email,
+      password,
+      role: requestedRole,
+      gender,
+    } = req.body;
+    const isFaculty = requestedRole === "adviser";
 
     // Validate required fields
     if (!firstName || !lastName || !email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all required fields'
+        message: "Please provide all required fields",
       });
     }
 
@@ -44,52 +52,60 @@ exports.register = async (req, res, next) => {
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 8 characters'
+        message: "Password must be at least 8 characters",
       });
     }
 
-    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+    if (
+      !/[A-Z]/.test(password) ||
+      !/[a-z]/.test(password) ||
+      !/[0-9]/.test(password)
+    ) {
       return res.status(400).json({
         success: false,
-        message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
+        message:
+          "Password must contain at least one uppercase letter, one lowercase letter, and one number",
       });
     }
 
     // Validate Student ID format (7 digits only) - only for students
-    if (!isFaculty && studentId && (!/^\d{7}$/.test(studentId))) {
+    if (!isFaculty && studentId && !/^\d{7}$/.test(studentId)) {
       return res.status(400).json({
         success: false,
-        message: 'Student ID must be exactly 7 digits'
+        message: "Student ID must be exactly 7 digits",
       });
     }
 
     // Check if email ends with @tip.edu.ph
-    if (!email.toLowerCase().endsWith('@tip.edu.ph')) {
+    if (!email.toLowerCase().endsWith("@tip.edu.ph")) {
       return res.status(400).json({
         success: false,
-        message: 'Only T.I.P. email addresses (@tip.edu.ph) are allowed to register.'
+        message:
+          "Only T.I.P. email addresses (@tip.edu.ph) are allowed to register.",
       });
     }
 
     // For faculty, validate .cpe@tip.edu.ph domain
-    if (isFaculty && !email.toLowerCase().endsWith('.cpe@tip.edu.ph')) {
+    if (isFaculty && !email.toLowerCase().endsWith(".cpe@tip.edu.ph")) {
       return res.status(400).json({
         success: false,
-        message: 'Faculty email must end with .cpe@tip.edu.ph'
+        message: "Faculty email must end with .cpe@tip.edu.ph",
       });
     }
 
     // Check if user exists (case-insensitive)
-    const existingUser = await User.findOne({ where: { email: email.toLowerCase() } });
+    const existingUser = await User.findOne({
+      where: { email: email.toLowerCase() },
+    });
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'Email already registered'
+        message: "Email already registered",
       });
     }
 
     // Generate activation token
-    const activationToken = crypto.randomBytes(32).toString('hex');
+    const activationToken = crypto.randomBytes(32).toString("hex");
     const activationTokenExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
 
     // Hash password
@@ -105,11 +121,12 @@ exports.register = async (req, res, next) => {
       last_name: lastName || null,
       email: email.toLowerCase(),
       password: hashedPassword,
-      role: isFaculty ? 'adviser' : 'student',
+      role: isFaculty ? "adviser" : "student",
+      gender: gender || null,
       activationToken,
       activationTokenExpires,
       createdAt: Date.now(),
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
     });
 
     // Send activation email
@@ -117,8 +134,9 @@ exports.register = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful! Please check your email to activate your account.',
-      userId: user.id
+      message:
+        "Registration successful! Please check your email to activate your account.",
+      userId: user.id,
     });
   } catch (error) {
     next(error);
@@ -136,23 +154,26 @@ exports.activateAccount = async (req, res, next) => {
     const user = await User.findOne({
       where: {
         activationToken: token,
-        activationTokenExpires: { [Op.gt]: now }
-      }
+        activationTokenExpires: { [Op.gt]: now },
+      },
     });
 
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid or expired activation token'
+        message: "Invalid or expired activation token",
       });
     }
 
-    await User.update({
-      isActive: true,
-      activationToken: null,
-      activationTokenExpires: null,
-      updatedAt: Date.now()
-    }, { where: { id: user.id } });
+    await User.update(
+      {
+        isActive: true,
+        activationToken: null,
+        activationTokenExpires: null,
+        updatedAt: Date.now(),
+      },
+      { where: { id: user.id } },
+    );
 
     const updatedUser = await User.findByPk(user.id);
     sendTokenResponse(updatedUser, 200, res);
@@ -172,23 +193,24 @@ exports.login = async (req, res, next) => {
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide email and password'
+        message: "Please provide email and password",
       });
     }
 
     const emailLower = email.toLowerCase();
 
     // Enforce email format matches selected role
-    if (selectedRole === 'faculty' && !emailLower.endsWith('.cpe@tip.edu.ph')) {
+    if (selectedRole === "faculty" && !emailLower.endsWith(".cpe@tip.edu.ph")) {
       return res.status(403).json({
         success: false,
-        message: 'Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).'
+        message:
+          "Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).",
       });
     }
-    if (selectedRole === 'student' && emailLower.endsWith('.cpe@tip.edu.ph')) {
+    if (selectedRole === "student" && emailLower.endsWith(".cpe@tip.edu.ph")) {
       return res.status(403).json({
         success: false,
-        message: 'Please use the Faculty login for department email addresses.'
+        message: "Please use the Faculty login for department email addresses.",
       });
     }
 
@@ -198,22 +220,22 @@ exports.login = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: "Invalid credentials",
       });
     }
 
     // Ensure the account role matches the selected login portal
-    const isFacultyRole = user.role === 'adviser' || user.role === 'admin';
-    if (selectedRole === 'faculty' && !isFacultyRole) {
+    const isFacultyRole = user.role === "adviser" || user.role === "admin";
+    if (selectedRole === "faculty" && !isFacultyRole) {
       return res.status(403).json({
         success: false,
-        message: 'This account is not registered as Faculty or Admin.'
+        message: "This account is not registered as Faculty or Admin.",
       });
     }
-    if (selectedRole === 'student' && isFacultyRole) {
+    if (selectedRole === "student" && isFacultyRole) {
       return res.status(403).json({
         success: false,
-        message: 'Please use the Faculty login for this account.'
+        message: "Please use the Faculty login for this account.",
       });
     }
 
@@ -223,7 +245,8 @@ exports.login = async (req, res, next) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials. If you signed up with Google, please use the "Sign in with Google" button.'
+        message:
+          'Invalid credentials. If you signed up with Google, please use the "Sign in with Google" button.',
       });
     }
 
@@ -231,23 +254,27 @@ exports.login = async (req, res, next) => {
     if (!user.isActive) {
       return res.status(401).json({
         success: false,
-        message: 'Please activate your account. Check your email for activation link.'
+        message:
+          "Please activate your account. Check your email for activation link.",
       });
     }
 
     // Check if 2FA is enabled
-    if (process.env.ENABLE_2FA === 'true') {
+    if (process.env.ENABLE_2FA === "true") {
       // Generate verification code
       const verificationCode = generateVerificationCode();
       const verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
       // Update user with verification code
-      await User.update({
-        verificationCode,
-        verificationCodeExpires,
-        isVerified: false,
-        updatedAt: Date.now()
-      }, { where: { id: user.id } });
+      await User.update(
+        {
+          verificationCode,
+          verificationCodeExpires,
+          isVerified: false,
+          updatedAt: Date.now(),
+        },
+        { where: { id: user.id } },
+      );
 
       // Send verification code email
       await sendVerificationCode(user.email, verificationCode, user.firstName);
@@ -255,13 +282,17 @@ exports.login = async (req, res, next) => {
       // Return success without token - user needs to verify first
       res.status(200).json({
         success: true,
-        message: 'Verification code sent to your email. Please check your inbox.',
+        message:
+          "Verification code sent to your email. Please check your inbox.",
         userId: user.id,
-        requiresVerification: true
+        requiresVerification: true,
       });
     } else {
       // 2FA disabled - log in directly
-      await User.update({ lastLogin: Date.now(), updatedAt: Date.now() }, { where: { id: user.id } });
+      await User.update(
+        { lastLogin: Date.now(), updatedAt: Date.now() },
+        { where: { id: user.id } },
+      );
       const updatedUser = await User.findByPk(user.id);
       sendTokenResponse(updatedUser, 200, res);
     }
@@ -280,7 +311,7 @@ exports.verifyCode = async (req, res, next) => {
     if (!userId || !code) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide user ID and verification code'
+        message: "Please provide user ID and verification code",
       });
     }
 
@@ -289,7 +320,7 @@ exports.verifyCode = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
@@ -297,25 +328,28 @@ exports.verifyCode = async (req, res, next) => {
     if (user.verificationCode !== code) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid verification code'
+        message: "Invalid verification code",
       });
     }
 
     if (Date.now() > user.verificationCodeExpires) {
       return res.status(400).json({
         success: false,
-        message: 'Verification code has expired. Please request a new one.'
+        message: "Verification code has expired. Please request a new one.",
       });
     }
 
     // Clear verification code and mark as verified
-    await User.update({
-      verificationCode: null,
-      verificationCodeExpires: null,
-      isVerified: true,
-      lastLogin: Date.now(),
-      updatedAt: Date.now()
-    }, { where: { id: user.id } });
+    await User.update(
+      {
+        verificationCode: null,
+        verificationCodeExpires: null,
+        isVerified: true,
+        lastLogin: Date.now(),
+        updatedAt: Date.now(),
+      },
+      { where: { id: user.id } },
+    );
 
     const updatedUser = await User.findByPk(user.id);
     sendTokenResponse(updatedUser, 200, res);
@@ -334,7 +368,7 @@ exports.resendCode = async (req, res, next) => {
     if (!userId) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide user ID'
+        message: "Please provide user ID",
       });
     }
 
@@ -343,7 +377,7 @@ exports.resendCode = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
@@ -352,18 +386,21 @@ exports.resendCode = async (req, res, next) => {
     const verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
     // Update user with new verification code
-    await User.update({
-      verificationCode,
-      verificationCodeExpires,
-      updatedAt: Date.now()
-    }, { where: { id: user.id } });
+    await User.update(
+      {
+        verificationCode,
+        verificationCodeExpires,
+        updatedAt: Date.now(),
+      },
+      { where: { id: user.id } },
+    );
 
     // Send verification code email
     await sendVerificationCode(user.email, verificationCode, user.firstName);
 
     res.status(200).json({
       success: true,
-      message: 'New verification code sent to your email'
+      message: "New verification code sent to your email",
     });
   } catch (error) {
     next(error);
@@ -375,14 +412,14 @@ exports.resendCode = async (req, res, next) => {
 // @access  Private
 exports.logout = async (req, res, next) => {
   try {
-    res.cookie('token', 'none', {
+    res.cookie("token", "none", {
       expires: new Date(Date.now() + 10 * 1000),
-      httpOnly: true
+      httpOnly: true,
     });
 
     res.status(200).json({
       success: true,
-      message: 'Logged out successfully'
+      message: "Logged out successfully",
     });
   } catch (error) {
     next(error);
@@ -398,7 +435,7 @@ exports.getMe = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      user: sanitizeUser(user)
+      user: sanitizeUser(user),
     });
   } catch (error) {
     next(error);
@@ -415,7 +452,7 @@ exports.forgotPassword = async (req, res, next) => {
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide an email address'
+        message: "Please provide an email address",
       });
     }
 
@@ -424,28 +461,34 @@ exports.forgotPassword = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'No account found with that email address.'
+        message: "No account found with that email address.",
       });
     }
 
     // Generate reset token
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetPasswordToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
     const resetPasswordExpires = Date.now() + 30 * 60 * 1000; // 30 minutes
 
-    await User.update({
-      resetPasswordToken,
-      resetPasswordExpires,
-      updatedAt: Date.now()
-    }, { where: { id: user.id } });
+    await User.update(
+      {
+        resetPasswordToken,
+        resetPasswordExpires,
+        updatedAt: Date.now(),
+      },
+      { where: { id: user.id } },
+    );
 
     // Send password reset email
-    const { sendPasswordResetEmail } = require('../utils/email');
+    const { sendPasswordResetEmail } = require("../utils/email");
     await sendPasswordResetEmail(user.email, resetToken, user.firstName);
 
     res.status(200).json({
       success: true,
-      message: 'Password reset link sent to your email'
+      message: "Password reset link sent to your email",
     });
   } catch (error) {
     next(error);
@@ -463,26 +506,29 @@ exports.resetPassword = async (req, res, next) => {
     if (!password || password.length < 6) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 6 characters'
+        message: "Password must be at least 6 characters",
       });
     }
 
     // Hash the token from URL to compare with database
-    const resetPasswordToken = crypto.createHash('sha256').update(token).digest('hex');
+    const resetPasswordToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
 
     // Find user by reset token and check if not expired
     const now = Date.now();
     const result = await User.findOne({
       where: {
         resetPasswordToken,
-        resetPasswordExpires: { [Op.gt]: now }
-      }
+        resetPasswordExpires: { [Op.gt]: now },
+      },
     });
 
     if (!result) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid or expired reset token'
+        message: "Invalid or expired reset token",
       });
     }
 
@@ -491,12 +537,15 @@ exports.resetPassword = async (req, res, next) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Update user password and clear reset token
-    await User.update({
-      password: hashedPassword,
-      resetPasswordToken: null,
-      resetPasswordExpires: null,
-      updatedAt: Date.now()
-    }, { where: { id: result.id } });
+    await User.update(
+      {
+        password: hashedPassword,
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+        updatedAt: Date.now(),
+      },
+      { where: { id: result.id } },
+    );
 
     const updatedUser = await User.findByPk(result.id);
     sendTokenResponse(updatedUser, 200, res);
@@ -515,17 +564,17 @@ exports.refreshToken = async (req, res, next) => {
     if (!refreshToken) {
       return res.status(400).json({
         success: false,
-        message: 'Refresh token is required'
+        message: "Refresh token is required",
       });
     }
 
-    const { verifyRefreshToken, generateToken } = require('../utils/jwt');
+    const { verifyRefreshToken, generateToken } = require("../utils/jwt");
     const decoded = verifyRefreshToken(refreshToken);
 
     if (!decoded) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid or expired refresh token'
+        message: "Invalid or expired refresh token",
       });
     }
 
@@ -533,7 +582,7 @@ exports.refreshToken = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
 
@@ -548,8 +597,8 @@ exports.refreshToken = async (req, res, next) => {
         lastName: user.lastName,
         email: user.email,
         role: user.role,
-        isActive: user.isActive
-      }
+        isActive: user.isActive,
+      },
     });
   } catch (error) {
     next(error);

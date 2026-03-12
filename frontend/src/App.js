@@ -35,7 +35,8 @@ function AppContent() {
     location.pathname === "/forgot-password" ||
     location.pathname.startsWith("/reset-password") ||
     location.pathname.startsWith("/activate") ||
-    location.pathname === "/dashboard";
+    location.pathname === "/dashboard" ||
+    location.pathname === "/profile";
 
   return (
     <>

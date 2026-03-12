@@ -357,6 +357,7 @@ exports.updateProfile = async (req, res, next) => {
       "program",
       "contact_number",
       "year_level",
+      "gender",
       "adviserId",
     ];
 
@@ -407,6 +408,8 @@ exports.updateProfile = async (req, res, next) => {
 
     if (req.file) {
       updatePayload.profile_picture = `/uploads/profiles/${req.file.filename}`;
+    } else if (req.body.remove_profile_picture === "true") {
+      updatePayload.profile_picture = null;
     }
 
     updatePayload.updatedAt = Date.now();
@@ -442,34 +445,28 @@ exports.assignAdviser = async (req, res, next) => {
     }
 
     if (student.role !== "student") {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Adviser can only be assigned to student users",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Adviser can only be assigned to student users",
+      });
     }
 
     let normalizedAdviserId = null;
     if (adviserId !== null && adviserId !== undefined && adviserId !== "") {
       normalizedAdviserId = Number(adviserId);
       if (Number.isNaN(normalizedAdviserId)) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "adviserId must be a valid number",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "adviserId must be a valid number",
+        });
       }
 
       const adviser = await User.findByPk(normalizedAdviserId);
       if (!adviser || adviser.role !== "adviser") {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Selected adviser does not exist or is not an adviser",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Selected adviser does not exist or is not an adviser",
+        });
       }
     }
 
