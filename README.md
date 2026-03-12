@@ -11,7 +11,7 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 
 - [README.md](README.md) — This file
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) — Phased development plan with per-phase status
-- [IMPLEMENTATION_PLAN_PART2.md](IMPLEMENTATION_PLAN_PART2.md) — Part 2 phased revamp plan (profiles, SAR enhancements, pagination, dashboards, UX/UI, PDF redesign)
+- [IMPLEMENTATION_PLAN_PART2.md](IMPLEMENTATION_PLAN_PART2.md) — Part 2 phased revamp plan (profiles, SAR enhancements, pagination, dashboards, UX/UI, curriculum CSV import/export, program chair first-login email/password rotation with verification, PDF redesign)
 - [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md) — Google OAuth configuration guide
 - [REQUIRED_EXTENSIONS.md](REQUIRED_EXTENSIONS.md) — Recommended VS Code extensions
 

@@ -19,6 +19,7 @@
 | 0 | Execution Protocol & Safety Guardrails | `[TODO]` |
 | 1 | Profile Domain Redesign (Schema + API Contract) | `[TODO]` |
 | 2 | Remove First-Login Complete Profile Flow | `[TODO]` |
+| 2A | Program Chair First-Login Email + Password Rotation | `[TODO]` |
 | 3 | Profile Images End-to-End | `[TODO]` |
 | 4 | SAR ↔ Profile Bi-Directional Sync | `[TODO]` |
 | 5 | SAR Creation UX (Email-First + Autofill) | `[TODO]` |
@@ -29,7 +30,7 @@
 | 10 | Role-Specific Home Dashboard Revamp | `[TODO]` |
 | 11 | Navbar Quicklinks Expansion | `[TODO]` |
 | 12 | Forecasting UX/Charts Upgrade | `[TODO]` |
-| 13 | Curriculum & Equivalency UX Upgrade | `[TODO]` |
+| 13 | Curriculum, Equivalency & CSV Import/Export UX Upgrade | `[TODO]` |
 | 14 | Professional SAR PDF Redesign | `[TODO]` |
 | 15 | Cross-Role UX Polish, Regression, and Rollout | `[TODO]` |
 
@@ -152,6 +153,55 @@ Remove mandatory “Complete Profile” interruption after first login while kee
 - [ ] No forced complete-profile redirect remains.
 - [ ] New and existing users can access dashboard immediately.
 - [ ] Profile page remains editable and stable.
+
+### Completion Note (fill when done)
+- **Date:**
+- **Executor:**
+- **Result:**
+- **Notes:**
+
+---
+
+## Phase 2A — Program Chair First-Login Email + Password Rotation
+
+**Depends on:** Phase 0  
+**Scope:** Authentication hardening, onboarding policy, email verification flow
+
+### Goal
+When the default/initial Program Chair credential is used for first login, require a secure credential rotation: change password and change email, with verification before full access is granted.
+
+### Implementation Instructions
+1. Add first-login enforcement flag/policy for Program Chair accounts created from seed/default credentials.
+2. On first successful login of Program Chair with flagged account:
+   - block normal dashboard access,
+   - redirect to a mandatory credential rotation flow.
+3. Credential rotation flow must require:
+   - new password (meets policy),
+   - new email (must be unique and valid institutional/policy-compliant format).
+4. Add email verification process for the new Program Chair email:
+   - send verification code/link,
+   - mark new email as pending until verified,
+   - activate new email only after successful verification.
+5. Define safe fallback behavior:
+   - if verification expires/fails, allow resend,
+   - keep account restricted until completion,
+   - prevent partial state that can lock out legitimate admin access.
+6. Add audit logging for this high-risk action (email change + password rotation).
+
+### Manual Testing Steps
+1. Login as initial/default Program Chair and verify forced credential rotation screen appears.
+2. Submit valid new password + new email and confirm verification is required before dashboard access.
+3. Try incorrect/expired verification code and verify clear retry/resend behavior.
+4. Complete verification and confirm normal admin access is restored.
+5. Re-login after completion and confirm flow does not trigger again.
+
+### Verification Checklist
+- [ ] First-login Program Chair accounts are forced into credential rotation.
+- [ ] Both password and email change are required before access.
+- [ ] New email requires successful verification before activation.
+- [ ] Account remains restricted until full completion.
+- [ ] Flow is one-time and does not repeat after successful completion.
+- [ ] Security/audit logging exists for rotation and verification events.
 
 ### Completion Note (fill when done)
 - **Date:**
@@ -547,13 +597,13 @@ Make forecasting pages intuitive and decision-friendly using charts and visual s
 
 ---
 
-## Phase 13 — Curriculum & Equivalency UX Upgrade
+## Phase 13 — Curriculum, Equivalency & CSV Import/Export UX Upgrade
 
 **Depends on:** Phase 7  
 **Scope:** Program chair workflows for curriculum and equivalency management
 
 ### Goal
-Improve curriculum management UX with better course list usability and a mapped view for course equivalencies.
+Improve curriculum management UX with better course list usability, a mapped view for course equivalencies, and CSV import/export workflows for faster bulk operations.
 
 ### Implementation Instructions
 1. Enhance course list view with better grouping/search/filter and pagination.
@@ -561,17 +611,32 @@ Improve curriculum management UX with better course list usability and a mapped 
    - list view (existing style),
    - mapped/connected view (relationship-focused editing).
 3. Implement interaction model for mapping equivalencies quickly (connect/edit/remove).
-4. Ensure edit operations are validated and auditable.
+4. Add curriculum CSV import workflow:
+   - upload CSV for course assignments and related structures,
+   - validate schema/header format before processing,
+   - support dry-run preview with row-level error reporting,
+   - apply import with transactional safety (all-or-nothing per import job when possible).
+5. Add curriculum CSV export workflow:
+   - export current curriculum structure and related mappings to CSV,
+   - ensure exported format is re-import compatible,
+   - include metadata columns/version markers where helpful.
+6. Ensure edit/import/export operations are validated, auditable, and role-restricted to authorized users.
 
 ### Manual Testing Steps
 1. Create/edit/remove equivalencies in list view.
 2. Switch to mapped view and perform connect/disconnect edits.
-3. Verify both views stay in sync after operations.
+3. Import a valid curriculum CSV and verify records are created/updated correctly.
+4. Import an invalid CSV and verify row-level errors are shown without partial corrupt writes.
+5. Export a curriculum to CSV, then re-import it in a test context and verify round-trip consistency.
+6. Verify both equivalency views stay in sync after operations.
 
 ### Verification Checklist
 - [ ] Program chair can use either list or mapped equivalency view.
 - [ ] Mapped edits persist correctly.
 - [ ] Course list is easier to scan/manage than prior version.
+- [ ] Curriculum CSV import supports validation and safe bulk updates.
+- [ ] Curriculum CSV export generates re-import compatible files.
+- [ ] Import/export is role-safe and produces clear success/error summaries.
 
 ### Completion Note (fill when done)
 - **Date:**
@@ -675,9 +740,9 @@ Validate all revamp work together, prevent regressions, and prepare safe rollout
 
 ## Suggested Execution Order for New Chat Sessions
 
-1. Phase 0 → 5 (foundation for profile/SAR behavior)
+1. Phase 0 → 2A → 5 (foundation for security, profile/SAR behavior)
 2. Phase 6 → 9 (student-centric SAR experience)
-3. Phase 7, 11, 13 (platform navigation/list UX and curriculum UX)
+3. Phase 7, 11, 13 (platform navigation/list UX, curriculum UX, and CSV import/export)
 4. Phase 12, 10 (analytics previews + role dashboards)
 5. Phase 14 → 15 (PDF finalization and hardening)
 
