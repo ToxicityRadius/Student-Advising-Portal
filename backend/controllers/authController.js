@@ -111,6 +111,26 @@ exports.register = async (req, res, next) => {
     // Check if user exists (case-insensitive)
     const existingUser = await User.findOne({ where: { email: emailLower } });
     if (existingUser) {
+      if (!existingUser.isActive) {
+        const activationToken = crypto.randomBytes(32).toString('hex');
+        const activationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
+
+        await User.update({
+          activationToken,
+          activationTokenExpires,
+          updatedAt: Date.now()
+        }, { where: { id: existingUser.id } });
+
+        await sendActivationEmail(existingUser.email, activationToken);
+
+        return res.status(200).json({
+          success: true,
+          message: 'Account already exists but is not activated. A new activation email has been sent.',
+          userId: existingUser.id,
+          alreadyRegistered: true
+        });
+      }
+
       return res.status(400).json({
         success: false,
         message: 'Email already registered'
@@ -158,6 +178,37 @@ exports.register = async (req, res, next) => {
       userId: user.id
     });
   } catch (error) {
+    if (error?.name === 'SequelizeUniqueConstraintError') {
+      const emailFromBody = (req.body?.email || '').toLowerCase();
+      if (emailFromBody) {
+        const existingUser = await User.findOne({ where: { email: emailFromBody } });
+        if (existingUser && !existingUser.isActive) {
+          const activationToken = crypto.randomBytes(32).toString('hex');
+          const activationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
+
+          await User.update({
+            activationToken,
+            activationTokenExpires,
+            updatedAt: Date.now()
+          }, { where: { id: existingUser.id } });
+
+          await sendActivationEmail(existingUser.email, activationToken);
+
+          return res.status(200).json({
+            success: true,
+            message: 'Account already exists but is not activated. A new activation email has been sent.',
+            userId: existingUser.id,
+            alreadyRegistered: true
+          });
+        }
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: 'Email already registered. If this is your account, activate it or use forgot password.'
+      });
+    }
+
     next(error);
   }
 };
@@ -192,6 +243,51 @@ exports.activateAccount = async (req, res, next) => {
     }, { where: { id: user.id } });
 
     const updatedUser = await User.findByPk(user.id);
+
+    const acceptsHtml = (req.headers.accept || '').includes('text/html');
+    const mobileScheme = process.env.MOBILE_APP_SCHEME || 'studentadvising';
+    const mobileDeepLink = `${mobileScheme}://login?activated=1`;
+    const webLoginUrl = `${(process.env.CLIENT_URL || 'http://localhost:3000').replace(/\/$/, '')}/login?activated=1`;
+
+    if (acceptsHtml) {
+      return res.status(200).send(`
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Account Activated</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #f7f7f7; color: #222; margin: 0; }
+      .wrap { max-width: 560px; margin: 48px auto; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+      h1 { margin: 0 0 12px; font-size: 24px; }
+      p { line-height: 1.5; }
+      .row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+      a.btn { text-decoration: none; background: #111; color: #fff; padding: 12px 16px; border-radius: 8px; display: inline-block; }
+      a.alt { background: #e9e9e9; color: #111; }
+      .small { margin-top: 16px; color: #555; font-size: 13px; word-break: break-all; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Account Activated</h1>
+      <p>Your account is now active. We will try to open the mobile app automatically. If it does not open, use one of the buttons below.</p>
+      <div class="row">
+        <a class="btn" href="${mobileDeepLink}">Open Mobile App</a>
+        <a class="btn alt" href="${webLoginUrl}">Open Web Login</a>
+      </div>
+      <p class="small">Mobile link: ${mobileDeepLink}</p>
+      <p class="small">Web link: ${webLoginUrl}</p>
+    </div>
+    <script>
+      setTimeout(function () { window.location.href = '${mobileDeepLink}'; }, 50);
+      setTimeout(function () { window.location.href = '${webLoginUrl}'; }, 1200);
+    </script>
+  </body>
+</html>
+      `);
+    }
+
     sendTokenResponse(updatedUser, 200, res);
   } catch (error) {
     next(error);
