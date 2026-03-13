@@ -33,7 +33,8 @@ const MyRecord = () => {
 
     try {
       const listResponse = await api.get('/sars');
-      const ownSar = Array.isArray(listResponse.data?.data) ? listResponse.data.data[0] : null;
+      const sarItems = listResponse.data?.items || listResponse.data?.data || [];
+      const ownSar = Array.isArray(sarItems) ? sarItems[0] : null;
 
       if (!ownSar) {
         setSar(null);

@@ -1,5 +1,7 @@
+const { Op } = require('sequelize');
 const { sequelize, AcademicTerm, StudyPlanVersion } = require('../models');
 const { storeForecastSnapshot } = require('./forecastController');
+const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
 
 const isValidSchoolYear = (value) => {
   if (!/^\d{4}-\d{4}$/.test(value || '')) {
@@ -62,11 +64,36 @@ exports.getCurrentTerm = async (req, res, next) => {
 // @access admin, adviser
 exports.getAllTerms = async (req, res, next) => {
   try {
-    const terms = await AcademicTerm.findAll({
-      order: [['schoolYear', 'DESC'], ['semester', 'DESC'], ['id', 'DESC']]
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
+      defaultSortBy: 'schoolYear',
+      allowedSortBy: ['schoolYear', 'semester', 'id']
     });
 
-    return res.status(200).json({ success: true, data: terms });
+    const semesterSearch = Number.parseInt(search, 10);
+    const searchFilters = [{ schoolYear: { [Op.iLike]: `%${search}%` } }];
+    if (Number.isInteger(semesterSearch)) {
+      searchFilters.push({ semester: semesterSearch });
+    }
+
+    const where = search
+      ? { [Op.or]: searchFilters }
+      : {};
+
+    const { rows, count } = await AcademicTerm.findAndCountAll({
+      where,
+      order: [[sortBy, sortOrder], ['semester', 'DESC'], ['id', 'DESC']],
+      offset,
+      limit
+    });
+
+    const payload = buildPaginatedPayload({
+      items: rows,
+      page,
+      pageSize,
+      totalItems: count
+    });
+
+    return res.status(200).json({ success: true, ...payload });
   } catch (error) {
     next(error);
   }

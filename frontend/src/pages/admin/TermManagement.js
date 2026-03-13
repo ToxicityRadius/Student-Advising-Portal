@@ -12,6 +12,7 @@ import {
   Table
 } from 'react-bootstrap';
 import api from '../../utils/api';
+import PaginationControls from '../../components/PaginationControls';
 
 const initialForm = {
   schoolYear: '',
@@ -33,6 +34,9 @@ const TermManagement = () => {
 
   const [currentTerm, setCurrentTerm] = useState(null);
   const [terms, setTerms] = useState([]);
+  const [allTerms, setAllTerms] = useState([]);
+  const [termsMeta, setTermsMeta] = useState({ page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
+  const [termsQuery, setTermsQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'schoolYear', sortOrder: 'desc' });
   const [form, setForm] = useState(initialForm);
 
   const [showActivateModal, setShowActivateModal] = useState(false);
@@ -42,11 +46,11 @@ const TermManagement = () => {
 
   const pastTerms = useMemo(() => {
     if (!currentTerm) {
-      return terms;
+      return allTerms;
     }
 
-    return terms.filter((term) => term.id !== currentTerm.id);
-  }, [terms, currentTerm]);
+    return allTerms.filter((term) => term.id !== currentTerm.id);
+  }, [allTerms, currentTerm]);
 
   const showFeedback = (variant, message) => setAlert({ variant, message });
 
@@ -55,19 +59,22 @@ const TermManagement = () => {
     setAlert({ variant: '', message: '' });
 
     try {
-      const [currentRes, termsRes] = await Promise.all([
+      const [currentRes, termsRes, allTermsRes] = await Promise.all([
         api.get('/terms/current'),
-        api.get('/terms')
+        api.get('/terms', { params: termsQuery }),
+        api.get('/terms', { params: { page: 1, pageSize: 200, sortBy: 'schoolYear', sortOrder: 'desc' } })
       ]);
 
       setCurrentTerm(currentRes.data?.data || null);
-      setTerms(termsRes.data?.data || []);
+      setTerms(termsRes.data?.items || termsRes.data?.data || []);
+      setTermsMeta(termsRes.data?.meta || { page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
+      setAllTerms(allTermsRes.data?.items || allTermsRes.data?.data || []);
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to load term data.'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [termsQuery]);
 
   useEffect(() => {
     loadData();
@@ -215,6 +222,30 @@ const TermManagement = () => {
               <Card>
                 <Card.Body>
                   <h5 className="mb-3">All Terms</h5>
+                  <div className="d-flex flex-column flex-md-row gap-2 mb-3">
+                    <Form.Control
+                      placeholder="Search school year or semester"
+                      value={termsQuery.search}
+                      onChange={(event) => setTermsQuery((prev) => ({ ...prev, page: 1, search: event.target.value }))}
+                    />
+                    <Form.Select
+                      value={termsQuery.sortBy}
+                      onChange={(event) => setTermsQuery((prev) => ({ ...prev, page: 1, sortBy: event.target.value }))}
+                      style={{ maxWidth: 220 }}
+                    >
+                      <option value="schoolYear">Sort by School Year</option>
+                      <option value="semester">Sort by Semester</option>
+                      <option value="id">Sort by ID</option>
+                    </Form.Select>
+                    <Form.Select
+                      value={termsQuery.sortOrder}
+                      onChange={(event) => setTermsQuery((prev) => ({ ...prev, page: 1, sortOrder: event.target.value }))}
+                      style={{ maxWidth: 180 }}
+                    >
+                      <option value="asc">Ascending</option>
+                      <option value="desc">Descending</option>
+                    </Form.Select>
+                  </div>
                   <Table striped bordered hover responsive>
                     <thead>
                       <tr>
@@ -252,6 +283,13 @@ const TermManagement = () => {
                       )}
                     </tbody>
                   </Table>
+                  <PaginationControls
+                    page={termsMeta.page}
+                    totalPages={termsMeta.totalPages}
+                    pageSize={termsMeta.pageSize}
+                    onPageChange={(nextPage) => setTermsQuery((prev) => ({ ...prev, page: nextPage }))}
+                    onPageSizeChange={(nextSize) => setTermsQuery((prev) => ({ ...prev, page: 1, pageSize: nextSize }))}
+                  />
                 </Card.Body>
               </Card>
             </Col>

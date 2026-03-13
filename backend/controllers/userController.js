@@ -1,6 +1,8 @@
+const { Op } = require('sequelize');
 const { User } = require('../models');
 const { generateToken } = require('../utils/jwt');
 const { linkStudentAccountToSar, syncProfileToSar } = require('../utils/sarLinking');
+const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
 const fs = require('fs');
 const path = require('path');
 const { imageSize } = require('image-size');
@@ -106,14 +108,48 @@ exports.completeOnboarding = async (req, res, next) => {
 // @access  Private/Admin
 exports.getAllUsers = async (req, res, next) => {
   try {
-    const users = await User.findAll({ order: [['createdAt', 'DESC']] });
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
+      defaultSortBy: 'createdAt',
+      allowedSortBy: ['createdAt', 'firstName', 'lastName', 'email', 'role']
+    });
 
-    const sanitized = users.map(u => sanitizeUser(u));
+    const roleFilter = String(req.query.role || '').trim();
+    const baseWhere = roleFilter ? { role: roleFilter } : {};
+    const searchWhere = search
+      ? {
+        [Op.or]: [
+          { firstName: { [Op.iLike]: `%${search}%` } },
+          { lastName: { [Op.iLike]: `%${search}%` } },
+          { email: { [Op.iLike]: `%${search}%` } },
+          { role: { [Op.iLike]: `%${search}%` } }
+        ]
+      }
+      : null;
+
+    const where = searchWhere
+      ? { [Op.and]: [baseWhere, searchWhere] }
+      : baseWhere;
+
+    const { rows, count } = await User.findAndCountAll({
+      where,
+      order: [[sortBy, sortOrder], ['id', 'DESC']],
+      offset,
+      limit
+    });
+
+    const sanitized = rows.map(u => sanitizeUser(u));
+    const payload = buildPaginatedPayload({
+      items: sanitized,
+      page,
+      pageSize,
+      totalItems: count
+    });
 
     res.status(200).json({
       success: true,
       count: sanitized.length,
-      users: sanitized
+      users: sanitized,
+      ...payload
     });
   } catch (error) {
     next(error);

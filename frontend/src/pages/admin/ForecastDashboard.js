@@ -5,6 +5,7 @@ import {
   Badge,
   Card,
   Col,
+  Form,
   Row,
   Spinner,
   Tab,
@@ -12,6 +13,7 @@ import {
   Tabs
 } from 'react-bootstrap';
 import api from '../../utils/api';
+import PaginationControls from '../../components/PaginationControls';
 
 const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
@@ -80,28 +82,63 @@ const ForecastDashboard = () => {
   const [comparison, setComparison] = useState([]);
   const [history, setHistory] = useState([]);
   const [meta, setMeta] = useState({ current: null, next: null, comparison: null });
+  const [currentMeta, setCurrentMeta] = useState({ page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
+  const [nextMeta, setNextMeta] = useState({ page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
+  const [comparisonMeta, setComparisonMeta] = useState({ page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
+  const [historyMeta, setHistoryMeta] = useState({ page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
+
+  const [currentQuery, setCurrentQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'courseCode', sortOrder: 'asc' });
+  const [nextQuery, setNextQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'courseCode', sortOrder: 'asc' });
+  const [comparisonQuery, setComparisonQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'courseCode', sortOrder: 'asc' });
+  const [historyQuery, setHistoryQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'createdAt', sortOrder: 'desc' });
+
+  const emptyMeta = { page: 1, pageSize: 12, totalPages: 1, totalItems: 0 };
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     setAlert({ variant: '', message: '' });
 
     try {
-      const [currentRes, nextRes, comparisonRes, historyRes] = await Promise.all([
-        api.get('/forecast/current'),
-        api.get('/forecast/next'),
-        api.get('/forecast/comparison'),
-        api.get('/forecast/history')
+      const [currentResult, nextResult, comparisonResult, historyResult] = await Promise.allSettled([
+        api.get('/forecast/current', { params: currentQuery }),
+        api.get('/forecast/next', { params: nextQuery }),
+        api.get('/forecast/comparison', { params: comparisonQuery }),
+        api.get('/forecast/history', { params: historyQuery })
       ]);
 
-      setCurrentDemand((currentRes.data?.data || []).slice().sort(sortByCourseCode));
-      setNextForecast((nextRes.data?.data || []).slice().sort(sortByCourseCode));
-      setComparison((comparisonRes.data?.data || []).slice().sort(sortByCourseCode));
-      setHistory(historyRes.data?.data || []);
+      const currentRes = currentResult.status === 'fulfilled' ? currentResult.value : null;
+      const nextRes = nextResult.status === 'fulfilled' ? nextResult.value : null;
+      const comparisonRes = comparisonResult.status === 'fulfilled' ? comparisonResult.value : null;
+      const historyRes = historyResult.status === 'fulfilled' ? historyResult.value : null;
+
+      setCurrentDemand((currentRes?.data?.items || currentRes?.data?.data || []).slice().sort(sortByCourseCode));
+      setNextForecast((nextRes?.data?.items || nextRes?.data?.data || []).slice().sort(sortByCourseCode));
+      setComparison((comparisonRes?.data?.items || comparisonRes?.data?.data || []).slice().sort(sortByCourseCode));
+      setHistory(historyRes?.data?.items || historyRes?.data?.data || []);
+
+      setCurrentMeta(currentRes?.data?.meta || emptyMeta);
+      setNextMeta(nextRes?.data?.meta || emptyMeta);
+      setComparisonMeta(comparisonRes?.data?.meta || emptyMeta);
+      setHistoryMeta(historyRes?.data?.meta || emptyMeta);
       setMeta({
-        current: currentRes.data?.meta || null,
-        next: nextRes.data?.meta || null,
-        comparison: comparisonRes.data?.meta || null
+        current: currentRes?.data?.meta || null,
+        next: nextRes?.data?.meta || null,
+        comparison: comparisonRes?.data?.meta || null
       });
+
+      if (currentResult.status === 'rejected' || nextResult.status === 'rejected' || comparisonResult.status === 'rejected') {
+        const firstError = [currentResult, nextResult, comparisonResult].find((result) => result.status === 'rejected');
+        if (firstError?.reason) {
+          setAlert({
+            variant: 'warning',
+            message: getErrorMessage(firstError.reason, 'Some forecast sections are unavailable right now.')
+          });
+        }
+      }
+
+      if (historyResult.status === 'rejected') {
+        throw historyResult.reason;
+      }
     } catch (error) {
       setAlert({
         variant: 'danger',
@@ -110,13 +147,13 @@ const ForecastDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentQuery, nextQuery, comparisonQuery, historyQuery]);
 
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
 
-  const historyCount = useMemo(() => history.length, [history]);
+  const historyCount = useMemo(() => historyMeta.totalItems || history.length, [historyMeta.totalItems, history.length]);
 
   return (
     <div className="container py-4">
@@ -179,10 +216,42 @@ const ForecastDashboard = () => {
                       </div>
                     </div>
                   </div>
+                  <div className="d-flex flex-column flex-md-row gap-2 mb-3">
+                    <Form.Control
+                      placeholder="Search course code or name"
+                      value={currentQuery.search}
+                      onChange={(event) => setCurrentQuery((prev) => ({ ...prev, page: 1, search: event.target.value }))}
+                    />
+                    <Form.Select
+                      value={currentQuery.sortBy}
+                      onChange={(event) => setCurrentQuery((prev) => ({ ...prev, page: 1, sortBy: event.target.value }))}
+                      style={{ maxWidth: 220 }}
+                    >
+                      <option value="courseCode">Sort by Course Code</option>
+                      <option value="courseName">Sort by Course Name</option>
+                      <option value="units">Sort by Units</option>
+                      <option value="studentCount">Sort by Students</option>
+                    </Form.Select>
+                    <Form.Select
+                      value={currentQuery.sortOrder}
+                      onChange={(event) => setCurrentQuery((prev) => ({ ...prev, page: 1, sortOrder: event.target.value }))}
+                      style={{ maxWidth: 180 }}
+                    >
+                      <option value="asc">Ascending</option>
+                      <option value="desc">Descending</option>
+                    </Form.Select>
+                  </div>
                   <DemandTable
                     rows={currentDemand}
                     emptyMessage="No pending demand found for the current semester."
                     countHeader="Students"
+                  />
+                  <PaginationControls
+                    page={currentMeta.page}
+                    totalPages={currentMeta.totalPages}
+                    pageSize={currentMeta.pageSize}
+                    onPageChange={(nextPage) => setCurrentQuery((prev) => ({ ...prev, page: nextPage }))}
+                    onPageSizeChange={(nextSize) => setCurrentQuery((prev) => ({ ...prev, page: 1, pageSize: nextSize }))}
                   />
                 </Card.Body>
               </Card>
@@ -197,10 +266,42 @@ const ForecastDashboard = () => {
                       Based on active study plans from the current term context.
                     </div>
                   </div>
+                  <div className="d-flex flex-column flex-md-row gap-2 mb-3">
+                    <Form.Control
+                      placeholder="Search course code or name"
+                      value={nextQuery.search}
+                      onChange={(event) => setNextQuery((prev) => ({ ...prev, page: 1, search: event.target.value }))}
+                    />
+                    <Form.Select
+                      value={nextQuery.sortBy}
+                      onChange={(event) => setNextQuery((prev) => ({ ...prev, page: 1, sortBy: event.target.value }))}
+                      style={{ maxWidth: 220 }}
+                    >
+                      <option value="courseCode">Sort by Course Code</option>
+                      <option value="courseName">Sort by Course Name</option>
+                      <option value="units">Sort by Units</option>
+                      <option value="studentCount">Sort by Forecasted Students</option>
+                    </Form.Select>
+                    <Form.Select
+                      value={nextQuery.sortOrder}
+                      onChange={(event) => setNextQuery((prev) => ({ ...prev, page: 1, sortOrder: event.target.value }))}
+                      style={{ maxWidth: 180 }}
+                    >
+                      <option value="asc">Ascending</option>
+                      <option value="desc">Descending</option>
+                    </Form.Select>
+                  </div>
                   <DemandTable
                     rows={nextForecast}
                     emptyMessage="No forecasted demand found for the next semester."
                     countHeader="Forecasted Students"
+                  />
+                  <PaginationControls
+                    page={nextMeta.page}
+                    totalPages={nextMeta.totalPages}
+                    pageSize={nextMeta.pageSize}
+                    onPageChange={(nextPage) => setNextQuery((prev) => ({ ...prev, page: nextPage }))}
+                    onPageSizeChange={(nextSize) => setNextQuery((prev) => ({ ...prev, page: 1, pageSize: nextSize }))}
                   />
                 </Card.Body>
               </Card>
@@ -249,6 +350,39 @@ const ForecastDashboard = () => {
                       )}
                     </tbody>
                   </Table>
+                  <div className="d-flex flex-column flex-md-row gap-2 mb-3">
+                    <Form.Control
+                      placeholder="Search course code or name"
+                      value={comparisonQuery.search}
+                      onChange={(event) => setComparisonQuery((prev) => ({ ...prev, page: 1, search: event.target.value }))}
+                    />
+                    <Form.Select
+                      value={comparisonQuery.sortBy}
+                      onChange={(event) => setComparisonQuery((prev) => ({ ...prev, page: 1, sortBy: event.target.value }))}
+                      style={{ maxWidth: 220 }}
+                    >
+                      <option value="courseCode">Sort by Course Code</option>
+                      <option value="courseName">Sort by Course Name</option>
+                      <option value="forecastedDemand">Sort by Forecasted</option>
+                      <option value="actualDemand">Sort by Actual</option>
+                      <option value="difference">Sort by Difference</option>
+                    </Form.Select>
+                    <Form.Select
+                      value={comparisonQuery.sortOrder}
+                      onChange={(event) => setComparisonQuery((prev) => ({ ...prev, page: 1, sortOrder: event.target.value }))}
+                      style={{ maxWidth: 180 }}
+                    >
+                      <option value="asc">Ascending</option>
+                      <option value="desc">Descending</option>
+                    </Form.Select>
+                  </div>
+                  <PaginationControls
+                    page={comparisonMeta.page}
+                    totalPages={comparisonMeta.totalPages}
+                    pageSize={comparisonMeta.pageSize}
+                    onPageChange={(nextPage) => setComparisonQuery((prev) => ({ ...prev, page: nextPage }))}
+                    onPageSizeChange={(nextSize) => setComparisonQuery((prev) => ({ ...prev, page: 1, pageSize: nextSize }))}
+                  />
                 </Card.Body>
               </Card>
             </Tab>
@@ -259,6 +393,30 @@ const ForecastDashboard = () => {
                   <div className="mb-3">
                     <h5 className="mb-1">Forecast Snapshot History</h5>
                     <div className="text-muted small">Expand any snapshot to inspect stored current-demand and next-semester forecast data.</div>
+                  </div>
+                  <div className="d-flex flex-column flex-md-row gap-2 mb-3">
+                    <Form.Control
+                      placeholder="Search snapshot school year"
+                      value={historyQuery.search}
+                      onChange={(event) => setHistoryQuery((prev) => ({ ...prev, page: 1, search: event.target.value }))}
+                    />
+                    <Form.Select
+                      value={historyQuery.sortBy}
+                      onChange={(event) => setHistoryQuery((prev) => ({ ...prev, page: 1, sortBy: event.target.value }))}
+                      style={{ maxWidth: 220 }}
+                    >
+                      <option value="createdAt">Sort by Stored Date</option>
+                      <option value="schoolYear">Sort by School Year</option>
+                      <option value="semester">Sort by Semester</option>
+                    </Form.Select>
+                    <Form.Select
+                      value={historyQuery.sortOrder}
+                      onChange={(event) => setHistoryQuery((prev) => ({ ...prev, page: 1, sortOrder: event.target.value }))}
+                      style={{ maxWidth: 180 }}
+                    >
+                      <option value="asc">Ascending</option>
+                      <option value="desc">Descending</option>
+                    </Form.Select>
                   </div>
 
                   {history.length > 0 ? (
@@ -304,6 +462,13 @@ const ForecastDashboard = () => {
                   ) : (
                     <div className="text-muted">No forecast snapshots stored yet.</div>
                   )}
+                  <PaginationControls
+                    page={historyMeta.page}
+                    totalPages={historyMeta.totalPages}
+                    pageSize={historyMeta.pageSize}
+                    onPageChange={(nextPage) => setHistoryQuery((prev) => ({ ...prev, page: nextPage }))}
+                    onPageSizeChange={(nextSize) => setHistoryQuery((prev) => ({ ...prev, page: 1, pageSize: nextSize }))}
+                  />
                 </Card.Body>
               </Card>
             </Tab>

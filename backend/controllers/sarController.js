@@ -12,6 +12,7 @@ const {
   User
 } = require('../models');
 const { syncSarToProfile } = require('../utils/sarLinking');
+const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
 
 const tipEmailPattern = /@tip\.edu\.ph$/i;
 
@@ -363,15 +364,43 @@ exports.createSAR = async (req, res, next) => {
 // @access adviser, admin, student (own only)
 exports.getSARs = async (req, res, next) => {
   try {
-    const where = req.user.role === 'student' ? buildStudentOwnershipWhere(req.user) : {};
-
-    const sars = await StudentAcademicRecord.findAll({
-      where,
-      include: buildSarIncludes(),
-      order: [['studentName', 'ASC'], ['studentNumber', 'ASC']]
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
+      defaultSortBy: 'studentName',
+      allowedSortBy: ['studentName', 'studentNumber', 'email', 'yearLevel', 'createdAt']
     });
 
-    return res.status(200).json({ success: true, data: sars.map(serializeSar) });
+    const baseWhere = req.user.role === 'student' ? buildStudentOwnershipWhere(req.user) : {};
+    const searchWhere = search
+      ? {
+        [Op.or]: [
+          { studentName: { [Op.iLike]: `%${search}%` } },
+          { studentNumber: { [Op.iLike]: `%${search}%` } },
+          { email: { [Op.iLike]: `%${search}%` } }
+        ]
+      }
+      : null;
+
+    const where = searchWhere
+      ? { [Op.and]: [baseWhere, searchWhere] }
+      : baseWhere;
+
+    const { rows, count } = await StudentAcademicRecord.findAndCountAll({
+      where,
+      include: buildSarIncludes(),
+      order: [[sortBy, sortOrder], ['studentNumber', 'ASC'], ['id', 'DESC']],
+      offset,
+      limit
+    });
+
+    const items = rows.map(serializeSar);
+    const payload = buildPaginatedPayload({
+      items,
+      page,
+      pageSize,
+      totalItems: count
+    });
+
+    return res.status(200).json({ success: true, ...payload });
   } catch (error) {
     next(error);
   }

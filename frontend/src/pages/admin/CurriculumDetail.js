@@ -82,19 +82,19 @@ const CurriculumDetail = () => {
     try {
       const [curriculumRes, coursesRes, ccRes, prereqRes, coreqRes, tracksRes] = await Promise.all([
         api.get(`/curriculums/${id}`),
-        api.get('/courses'),
-        api.get(`/curriculums/${id}/courses`),
-        api.get(`/curriculums/${id}/prerequisites`),
-        api.get(`/curriculums/${id}/corequisites`),
-        api.get(`/curriculums/${id}/elective-tracks`)
+        api.get('/courses', { params: { page: 1, pageSize: 200, sortBy: 'code', sortOrder: 'asc' } }),
+        api.get(`/curriculums/${id}/courses`, { params: { page: 1, pageSize: 200, sortBy: 'yearLevel', sortOrder: 'asc' } }),
+        api.get(`/curriculums/${id}/prerequisites`, { params: { page: 1, pageSize: 200, sortBy: 'id', sortOrder: 'desc' } }),
+        api.get(`/curriculums/${id}/corequisites`, { params: { page: 1, pageSize: 200, sortBy: 'id', sortOrder: 'desc' } }),
+        api.get(`/curriculums/${id}/elective-tracks`, { params: { page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' } })
       ]);
 
       setCurriculum(curriculumRes.data?.data || null);
-      setCourses(coursesRes.data?.data || []);
-      setCurriculumCourses(ccRes.data?.data || []);
-      setPrerequisites(prereqRes.data?.data || []);
-      setCorequisites(coreqRes.data?.data || []);
-      setTracks(tracksRes.data?.data || []);
+      setCourses(coursesRes.data?.items || coursesRes.data?.data || []);
+      setCurriculumCourses(ccRes.data?.items || ccRes.data?.data || []);
+      setPrerequisites(prereqRes.data?.items || prereqRes.data?.data || []);
+      setCorequisites(coreqRes.data?.items || coreqRes.data?.data || []);
+      setTracks(tracksRes.data?.items || tracksRes.data?.data || []);
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to load curriculum detail data.'));
     } finally {

@@ -11,6 +11,7 @@ const {
   StudyPlanCourse,
   User
 } = require('../models');
+const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
 
 // ─── Curriculum ───────────────────────────────────────────────────────────────
 
@@ -40,11 +41,36 @@ exports.createCurriculum = async (req, res, next) => {
 // @access admin, adviser
 exports.getCurriculums = async (req, res, next) => {
   try {
-    const curricula = await Curriculum.findAll({
-      include: [{ model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] }],
-      order: [['createdAt', 'DESC']]
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
+      defaultSortBy: 'createdAt',
+      allowedSortBy: ['createdAt', 'name', 'isActive']
     });
-    return res.status(200).json({ success: true, data: curricula });
+
+    const where = search
+      ? {
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${search}%` } },
+          { description: { [Op.iLike]: `%${search}%` } }
+        ]
+      }
+      : {};
+
+    const { rows, count } = await Curriculum.findAndCountAll({
+      where,
+      include: [{ model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] }],
+      order: [[sortBy, sortOrder], ['id', 'DESC']],
+      offset,
+      limit
+    });
+
+    const payload = buildPaginatedPayload({
+      items: rows,
+      page,
+      pageSize,
+      totalItems: count
+    });
+
+    return res.status(200).json({ success: true, ...payload });
   } catch (err) {
     next(err);
   }
@@ -170,8 +196,35 @@ exports.createCourse = async (req, res, next) => {
 // @access admin, adviser
 exports.getCourses = async (req, res, next) => {
   try {
-    const courses = await Course.findAll({ order: [['code', 'ASC']] });
-    return res.status(200).json({ success: true, data: courses });
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
+      defaultSortBy: 'code',
+      allowedSortBy: ['code', 'name', 'units', 'createdAt']
+    });
+
+    const where = search
+      ? {
+        [Op.or]: [
+          { code: { [Op.iLike]: `%${search}%` } },
+          { name: { [Op.iLike]: `%${search}%` } }
+        ]
+      }
+      : {};
+
+    const { rows, count } = await Course.findAndCountAll({
+      where,
+      order: [[sortBy, sortOrder], ['id', 'ASC']],
+      offset,
+      limit
+    });
+
+    const payload = buildPaginatedPayload({
+      items: rows,
+      page,
+      pageSize,
+      totalItems: count
+    });
+
+    return res.status(200).json({ success: true, ...payload });
   } catch (err) {
     next(err);
   }
@@ -308,12 +361,40 @@ exports.getCurriculumCourses = async (req, res, next) => {
     if (!curriculum) {
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
     }
-    const courses = await CurriculumCourse.findAll({
-      where: { curriculumId: req.params.id },
-      include: [{ model: Course }],
-      order: [['yearLevel', 'ASC'], ['semester', 'ASC']]
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
+      defaultSortBy: 'yearLevel',
+      allowedSortBy: ['yearLevel', 'semester', 'id']
     });
-    return res.status(200).json({ success: true, data: courses });
+
+    const where = {
+      curriculumId: req.params.id,
+      ...(search
+        ? {
+          [Op.or]: [
+            { '$Course.code$': { [Op.iLike]: `%${search}%` } },
+            { '$Course.name$': { [Op.iLike]: `%${search}%` } }
+          ]
+        }
+        : {})
+    };
+
+    const { rows, count } = await CurriculumCourse.findAndCountAll({
+      where,
+      include: [{ model: Course }],
+      order: [[sortBy, sortOrder], ['semester', 'ASC'], ['id', 'ASC']],
+      offset,
+      limit,
+      distinct: true
+    });
+
+    const payload = buildPaginatedPayload({
+      items: rows,
+      page,
+      pageSize,
+      totalItems: count
+    });
+
+    return res.status(200).json({ success: true, ...payload });
   } catch (err) {
     next(err);
   }
@@ -385,14 +466,45 @@ exports.getPrerequisites = async (req, res, next) => {
     if (!curriculum) {
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
     }
-    const prereqs = await Prerequisite.findAll({
-      where: { curriculumId: req.params.id },
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
+      defaultSortBy: 'id',
+      allowedSortBy: ['id']
+    });
+
+    const where = {
+      curriculumId: req.params.id,
+      ...(search
+        ? {
+          [Op.or]: [
+            { '$Course.code$': { [Op.iLike]: `%${search}%` } },
+            { '$Course.name$': { [Op.iLike]: `%${search}%` } },
+            { '$PrerequisiteCourse.code$': { [Op.iLike]: `%${search}%` } },
+            { '$PrerequisiteCourse.name$': { [Op.iLike]: `%${search}%` } }
+          ]
+        }
+        : {})
+    };
+
+    const { rows, count } = await Prerequisite.findAndCountAll({
+      where,
       include: [
         { model: Course, as: 'Course' },
         { model: Course, as: 'PrerequisiteCourse' }
-      ]
+      ],
+      order: [[sortBy, sortOrder], ['id', 'DESC']],
+      offset,
+      limit,
+      distinct: true
     });
-    return res.status(200).json({ success: true, data: prereqs });
+
+    const payload = buildPaginatedPayload({
+      items: rows,
+      page,
+      pageSize,
+      totalItems: count
+    });
+
+    return res.status(200).json({ success: true, ...payload });
   } catch (err) {
     next(err);
   }
@@ -464,14 +576,45 @@ exports.getCoRequisites = async (req, res, next) => {
     if (!curriculum) {
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
     }
-    const coreqs = await CoRequisite.findAll({
-      where: { curriculumId: req.params.id },
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
+      defaultSortBy: 'id',
+      allowedSortBy: ['id']
+    });
+
+    const where = {
+      curriculumId: req.params.id,
+      ...(search
+        ? {
+          [Op.or]: [
+            { '$Course.code$': { [Op.iLike]: `%${search}%` } },
+            { '$Course.name$': { [Op.iLike]: `%${search}%` } },
+            { '$CoRequisiteCourse.code$': { [Op.iLike]: `%${search}%` } },
+            { '$CoRequisiteCourse.name$': { [Op.iLike]: `%${search}%` } }
+          ]
+        }
+        : {})
+    };
+
+    const { rows, count } = await CoRequisite.findAndCountAll({
+      where,
       include: [
         { model: Course, as: 'Course' },
         { model: Course, as: 'CoRequisiteCourse' }
-      ]
+      ],
+      order: [[sortBy, sortOrder], ['id', 'DESC']],
+      offset,
+      limit,
+      distinct: true
     });
-    return res.status(200).json({ success: true, data: coreqs });
+
+    const payload = buildPaginatedPayload({
+      items: rows,
+      page,
+      pageSize,
+      totalItems: count
+    });
+
+    return res.status(200).json({ success: true, ...payload });
   } catch (err) {
     next(err);
   }
@@ -529,13 +672,43 @@ exports.removeEquivalency = async (req, res, next) => {
 // @access admin, adviser
 exports.getEquivalencies = async (req, res, next) => {
   try {
-    const equivs = await CourseEquivalency.findAll({
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
+      defaultSortBy: 'id',
+      allowedSortBy: ['id']
+    });
+
+    const where = search
+      ? {
+        [Op.or]: [
+          { '$Course.code$': { [Op.iLike]: `%${search}%` } },
+          { '$Course.name$': { [Op.iLike]: `%${search}%` } },
+          { '$EquivalentCourse.code$': { [Op.iLike]: `%${search}%` } },
+          { '$EquivalentCourse.name$': { [Op.iLike]: `%${search}%` } },
+          { notes: { [Op.iLike]: `%${search}%` } }
+        ]
+      }
+      : {};
+
+    const { rows, count } = await CourseEquivalency.findAndCountAll({
+      where,
       include: [
         { model: Course, as: 'Course' },
         { model: Course, as: 'EquivalentCourse' }
-      ]
+      ],
+      order: [[sortBy, sortOrder], ['id', 'DESC']],
+      offset,
+      limit,
+      distinct: true
     });
-    return res.status(200).json({ success: true, data: equivs });
+
+    const payload = buildPaginatedPayload({
+      items: rows,
+      page,
+      pageSize,
+      totalItems: count
+    });
+
+    return res.status(200).json({ success: true, ...payload });
   } catch (err) {
     next(err);
   }
@@ -576,16 +749,45 @@ exports.getElectiveTracks = async (req, res, next) => {
     if (!curriculum) {
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
     }
-    const tracks = await ElectiveTrack.findAll({
-      where: { curriculumId: req.params.id },
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
+      defaultSortBy: 'name',
+      allowedSortBy: ['name', 'id']
+    });
+
+    const where = {
+      curriculumId: req.params.id,
+      ...(search
+        ? {
+          [Op.or]: [
+            { name: { [Op.iLike]: `%${search}%` } },
+            { description: { [Op.iLike]: `%${search}%` } }
+          ]
+        }
+        : {})
+    };
+
+    const { rows, count } = await ElectiveTrack.findAndCountAll({
+      where,
       include: [
         {
           model: ElectiveTrackCourse,
           include: [{ model: Course }]
         }
-      ]
+      ],
+      order: [[sortBy, sortOrder], ['id', 'DESC']],
+      offset,
+      limit,
+      distinct: true
     });
-    return res.status(200).json({ success: true, data: tracks });
+
+    const payload = buildPaginatedPayload({
+      items: rows,
+      page,
+      pageSize,
+      totalItems: count
+    });
+
+    return res.status(200).json({ success: true, ...payload });
   } catch (err) {
     next(err);
   }

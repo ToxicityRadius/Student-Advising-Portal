@@ -1,11 +1,10 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Card, Form, Image, InputGroup, Pagination, Spinner, Table } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Form, Image, InputGroup, Spinner, Table } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import CreateSARModal from '../../components/adviser/CreateSARModal';
+import PaginationControls from '../../components/PaginationControls';
 import api from '../../utils/api';
 import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
-
-const pageSize = 10;
 
 const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
@@ -18,7 +17,11 @@ const StudentList = () => {
 
   const [sars, setSars] = useState([]);
   const [curriculums, setCurriculums] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
+  const [sortBy, setSortBy] = useState('studentName');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [meta, setMeta] = useState({ page: 1, pageSize: 12, totalItems: 0, totalPages: 1 });
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -27,42 +30,36 @@ const StudentList = () => {
 
     try {
       const [sarResponse, curriculumResponse] = await Promise.all([
-        api.get('/sars'),
-        api.get('/curriculums')
+        api.get('/sars', {
+          params: {
+            page,
+            pageSize,
+            search: deferredSearch.trim(),
+            sortBy,
+            sortOrder
+          }
+        }),
+        api.get('/curriculums', { params: { page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' } })
       ]);
 
-      setSars(sarResponse.data?.data || []);
-      setCurriculums(curriculumResponse.data?.data || []);
+      setSars(sarResponse.data?.items || sarResponse.data?.data || []);
+      setMeta(sarResponse.data?.meta || { page: 1, pageSize, totalItems: 0, totalPages: 1 });
+      setCurriculums(curriculumResponse.data?.items || curriculumResponse.data?.data || []);
     } catch (error) {
       setAlert({ variant: 'danger', message: getErrorMessage(error, 'Failed to load student records.') });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [deferredSearch, page, pageSize, sortBy, sortOrder]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  const filteredSars = useMemo(() => {
-    const query = deferredSearch.trim().toLowerCase();
-    if (!query) {
-      return sars;
-    }
-
-    return sars.filter((sar) => (
-      String(sar.studentName || '').toLowerCase().includes(query) ||
-      String(sar.studentNumber || '').toLowerCase().includes(query)
-    ));
-  }, [deferredSearch, sars]);
-
   useEffect(() => {
-    setCurrentPage(1);
+    setPage(1);
   }, [deferredSearch]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredSars.length / pageSize));
-  const pageStart = (currentPage - 1) * pageSize;
-  const paginatedSars = filteredSars.slice(pageStart, pageStart + pageSize);
   const activeCurriculum = curriculums.find((curriculum) => curriculum.isActive) || null;
 
   const handleCreateSar = async (payload) => {
@@ -108,6 +105,19 @@ const StudentList = () => {
               onChange={(event) => setSearch(event.target.value)}
             />
           </InputGroup>
+          <div className="d-flex flex-column flex-md-row gap-2 mt-3">
+            <Form.Select value={sortBy} onChange={(event) => setSortBy(event.target.value)} style={{ maxWidth: 220 }}>
+              <option value="studentName">Sort by Name</option>
+              <option value="studentNumber">Sort by Student Number</option>
+              <option value="email">Sort by Email</option>
+              <option value="yearLevel">Sort by Year Level</option>
+              <option value="createdAt">Sort by Created Date</option>
+            </Form.Select>
+            <Form.Select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} style={{ maxWidth: 180 }}>
+              <option value="asc">Ascending</option>
+              <option value="desc">Descending</option>
+            </Form.Select>
+          </div>
           <div className="text-muted small mt-2">
             {activeCurriculum ? `Active curriculum default: ${activeCurriculum.name}` : 'No active curriculum is currently set.'}
           </div>
@@ -135,7 +145,7 @@ const StudentList = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedSars.map((sar) => (
+                  {sars.map((sar) => (
                     <tr key={sar.id}>
                       <td>
                         <div className="d-flex align-items-center gap-2">
@@ -175,7 +185,7 @@ const StudentList = () => {
                     </tr>
                   ))}
 
-                  {paginatedSars.length === 0 && (
+                  {sars.length === 0 && (
                     <tr>
                       <td colSpan={7} className="text-center text-muted py-4">
                         No student academic records found.
@@ -185,27 +195,16 @@ const StudentList = () => {
                 </tbody>
               </Table>
 
-              {filteredSars.length > pageSize && (
-                <Pagination className="mb-0 justify-content-end">
-                  <Pagination.Prev
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                  />
-                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
-                    <Pagination.Item
-                      key={page}
-                      active={page === currentPage}
-                      onClick={() => setCurrentPage(page)}
-                    >
-                      {page}
-                    </Pagination.Item>
-                  ))}
-                  <Pagination.Next
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                  />
-                </Pagination>
-              )}
+              <PaginationControls
+                page={meta.page || page}
+                totalPages={meta.totalPages || 1}
+                pageSize={meta.pageSize || pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(nextSize) => {
+                  setPage(1);
+                  setPageSize(nextSize);
+                }}
+              />
             </>
           )}
         </Card.Body>

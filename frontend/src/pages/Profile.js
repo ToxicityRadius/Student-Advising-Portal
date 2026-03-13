@@ -59,14 +59,14 @@ const Profile = () => {
         let curriculaRes = { data: { curriculums: [] } };
         if (user?.role !== 'student') {
           try {
-            curriculaRes = await api.get('/curriculums');
+            curriculaRes = await api.get('/curriculums', { params: { page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' } });
           } catch {
             curriculaRes = { data: { curriculums: [] } };
           }
         }
 
         const profile = profileRes.data.user || {};
-        setCurricula(curriculaRes.data.curriculums || []);
+        setCurricula(curriculaRes.data?.items || curriculaRes.data?.data || curriculaRes.data?.curriculums || []);
 
         setFormData((prev) => ({
           ...prev,

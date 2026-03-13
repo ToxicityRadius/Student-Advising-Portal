@@ -9,6 +9,7 @@ const {
   StudentAcademicRecord,
   User
 } = require('../models');
+const { parsePaginationParams, buildPaginatedPayload, paginateArray } = require('../utils/pagination');
 
 const triggeredByAttributes = ['id', 'firstName', 'lastName', 'email'];
 
@@ -62,6 +63,21 @@ const sortDemandRows = (left, right) => {
 };
 
 const sortComparisonRows = (left, right) => String(left.courseCode || '').localeCompare(String(right.courseCode || ''));
+
+const sortRowsBy = ({ rows, sortBy, sortOrder }) => {
+  const direction = sortOrder === 'DESC' ? -1 : 1;
+
+  return rows.slice().sort((left, right) => {
+    const leftValue = left?.[sortBy];
+    const rightValue = right?.[sortBy];
+
+    if (typeof leftValue === 'number' || typeof rightValue === 'number') {
+      return (Number(leftValue || 0) - Number(rightValue || 0)) * direction;
+    }
+
+    return String(leftValue || '').localeCompare(String(rightValue || '')) * direction;
+  });
+};
 
 const getCurrentAcademicTerm = async (transaction) => AcademicTerm.findOne({
   where: { isCurrent: true },
@@ -235,7 +251,29 @@ const storeForecastSnapshot = async (termId, userId, options = {}) => {
 exports.getCurrentDemand = async (req, res, next) => {
   try {
     const response = await buildDemandResponse({ semesterOffset: 0 });
-    return res.status(200).json({ success: true, ...response });
+    const { page, pageSize, search, sortBy, sortOrder } = parsePaginationParams(req.query, {
+      defaultSortBy: 'courseCode',
+      allowedSortBy: ['courseCode', 'courseName', 'units', 'studentCount']
+    });
+
+    const filtered = (response.data || []).filter((row) => {
+      if (!search) return true;
+      const query = search.toLowerCase();
+      return String(row.courseCode || '').toLowerCase().includes(query)
+        || String(row.courseName || '').toLowerCase().includes(query);
+    });
+
+    const sorted = sortRowsBy({ rows: filtered, sortBy, sortOrder });
+    const paged = paginateArray({ items: sorted, page, pageSize });
+    const payload = buildPaginatedPayload({
+      items: paged.items,
+      page,
+      pageSize,
+      totalItems: paged.totalItems,
+      extraMeta: response.meta
+    });
+
+    return res.status(200).json({ success: true, ...payload });
   } catch (error) {
     next(error);
   }
@@ -247,7 +285,29 @@ exports.getCurrentDemand = async (req, res, next) => {
 exports.getNextSemesterForecast = async (req, res, next) => {
   try {
     const response = await buildDemandResponse({ semesterOffset: 1 });
-    return res.status(200).json({ success: true, ...response });
+    const { page, pageSize, search, sortBy, sortOrder } = parsePaginationParams(req.query, {
+      defaultSortBy: 'courseCode',
+      allowedSortBy: ['courseCode', 'courseName', 'units', 'studentCount']
+    });
+
+    const filtered = (response.data || []).filter((row) => {
+      if (!search) return true;
+      const query = search.toLowerCase();
+      return String(row.courseCode || '').toLowerCase().includes(query)
+        || String(row.courseName || '').toLowerCase().includes(query);
+    });
+
+    const sorted = sortRowsBy({ rows: filtered, sortBy, sortOrder });
+    const paged = paginateArray({ items: sorted, page, pageSize });
+    const payload = buildPaginatedPayload({
+      items: paged.items,
+      page,
+      pageSize,
+      totalItems: paged.totalItems,
+      extraMeta: response.meta
+    });
+
+    return res.status(200).json({ success: true, ...payload });
   } catch (error) {
     next(error);
   }
@@ -292,12 +352,30 @@ exports.getComparisonReport = async (req, res, next) => {
         actualDemand: actualDemandCount,
         difference: actualDemandCount - forecastedDemand
       };
-    }).sort(sortComparisonRows);
+    });
 
-    return res.status(200).json({
-      success: true,
-      data: comparison,
-      meta: {
+    const { page, pageSize, search, sortBy, sortOrder } = parsePaginationParams(req.query, {
+      defaultSortBy: 'courseCode',
+      allowedSortBy: ['courseCode', 'courseName', 'forecastedDemand', 'actualDemand', 'difference']
+    });
+
+    const filtered = comparison.filter((row) => {
+      if (!search) return true;
+      const query = search.toLowerCase();
+      return String(row.courseCode || '').toLowerCase().includes(query)
+        || String(row.courseName || '').toLowerCase().includes(query);
+    });
+
+    const sorted = sortBy === 'courseCode' && sortOrder === 'ASC'
+      ? filtered.slice().sort(sortComparisonRows)
+      : sortRowsBy({ rows: filtered, sortBy, sortOrder });
+    const paged = paginateArray({ items: sorted, page, pageSize });
+    const payload = buildPaginatedPayload({
+      items: paged.items,
+      page,
+      pageSize,
+      totalItems: paged.totalItems,
+      extraMeta: {
         currentTerm: buildTermMeta(currentTerm),
         previousSnapshot: previousSnapshot ? {
           id: previousSnapshot.id,
@@ -310,6 +388,11 @@ exports.getComparisonReport = async (req, res, next) => {
         } : null
       }
     });
+
+    return res.status(200).json({
+      success: true,
+      ...payload
+    });
   } catch (error) {
     next(error);
   }
@@ -320,12 +403,28 @@ exports.getComparisonReport = async (req, res, next) => {
 // @access admin, adviser
 exports.getForecastHistory = async (req, res, next) => {
   try {
-    const snapshots = await ForecastSnapshot.findAll({
-      include: [{ model: User, as: 'TriggeredBy', attributes: triggeredByAttributes }],
-      order: [['createdAt', 'DESC'], ['id', 'DESC']]
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
+      defaultSortBy: 'createdAt',
+      allowedSortBy: ['createdAt', 'schoolYear', 'semester']
     });
 
-    const data = snapshots.map((snapshot) => ({
+    const where = search
+      ? {
+        [Op.or]: [
+          { schoolYear: { [Op.iLike]: `%${search}%` } }
+        ]
+      }
+      : {};
+
+    const { rows, count } = await ForecastSnapshot.findAndCountAll({
+      where,
+      include: [{ model: User, as: 'TriggeredBy', attributes: triggeredByAttributes }],
+      order: [[sortBy, sortOrder], ['id', 'DESC']],
+      offset,
+      limit
+    });
+
+    const data = rows.map((snapshot) => ({
       id: snapshot.id,
       academicTermId: snapshot.academicTermId,
       schoolYear: snapshot.schoolYear,
@@ -346,7 +445,14 @@ exports.getForecastHistory = async (req, res, next) => {
         : 0
     }));
 
-    return res.status(200).json({ success: true, data });
+    const payload = buildPaginatedPayload({
+      items: data,
+      page,
+      pageSize,
+      totalItems: count
+    });
+
+    return res.status(200).json({ success: true, ...payload });
   } catch (error) {
     next(error);
   }

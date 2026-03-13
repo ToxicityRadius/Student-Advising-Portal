@@ -13,6 +13,7 @@ import {
   Tabs
 } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
+import PaginationControls from '../../components/PaginationControls';
 import api from '../../utils/api';
 
 const initialCurriculumForm = { name: '', description: '' };
@@ -33,7 +34,16 @@ const CurriculumManagement = () => {
 
   const [curricula, setCurricula] = useState([]);
   const [courses, setCourses] = useState([]);
+  const [courseOptions, setCourseOptions] = useState([]);
   const [equivalencies, setEquivalencies] = useState([]);
+
+  const [curriculaQuery, setCurriculaQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'createdAt', sortOrder: 'desc' });
+  const [coursesQuery, setCoursesQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'code', sortOrder: 'asc' });
+  const [equivsQuery, setEquivsQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'id', sortOrder: 'desc' });
+
+  const [curriculaMeta, setCurriculaMeta] = useState({ page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
+  const [coursesMeta, setCoursesMeta] = useState({ page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
+  const [equivsMeta, setEquivsMeta] = useState({ page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
 
   const [curriculumForm, setCurriculumForm] = useState(initialCurriculumForm);
   const [courseForm, setCourseForm] = useState(initialCourseForm);
@@ -59,21 +69,27 @@ const CurriculumManagement = () => {
     setLoading(true);
     setAlert({ variant: '', message: '' });
     try {
-      const [curriculaRes, coursesRes, equivalenciesRes] = await Promise.all([
-        api.get('/curriculums'),
-        api.get('/courses'),
-        api.get('/equivalencies')
+      const [curriculaRes, coursesRes, equivalenciesRes, courseOptionsRes] = await Promise.all([
+        api.get('/curriculums', { params: curriculaQuery }),
+        api.get('/courses', { params: coursesQuery }),
+        api.get('/equivalencies', { params: equivsQuery }),
+        api.get('/courses', { params: { page: 1, pageSize: 200, sortBy: 'code', sortOrder: 'asc' } })
       ]);
 
-      setCurricula(curriculaRes.data?.data || []);
-      setCourses(coursesRes.data?.data || []);
-      setEquivalencies(equivalenciesRes.data?.data || []);
+      setCurricula(curriculaRes.data?.items || curriculaRes.data?.data || []);
+      setCourses(coursesRes.data?.items || coursesRes.data?.data || []);
+      setEquivalencies(equivalenciesRes.data?.items || equivalenciesRes.data?.data || []);
+      setCourseOptions(courseOptionsRes.data?.items || courseOptionsRes.data?.data || []);
+
+      setCurriculaMeta(curriculaRes.data?.meta || { page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
+      setCoursesMeta(coursesRes.data?.meta || { page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
+      setEquivsMeta(equivalenciesRes.data?.meta || { page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to load curriculum management data.'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [curriculaQuery, coursesQuery, equivsQuery]);
 
   useEffect(() => {
     loadAll();
@@ -269,6 +285,30 @@ const CurriculumManagement = () => {
                 </div>
               </Col>
               <Col lg={8}>
+                <div className="d-flex flex-column flex-md-row gap-2 mb-3">
+                  <Form.Control
+                    placeholder="Search curricula"
+                    value={curriculaQuery.search}
+                    onChange={(event) => setCurriculaQuery((prev) => ({ ...prev, page: 1, search: event.target.value }))}
+                  />
+                  <Form.Select
+                    value={curriculaQuery.sortBy}
+                    onChange={(event) => setCurriculaQuery((prev) => ({ ...prev, page: 1, sortBy: event.target.value }))}
+                    style={{ maxWidth: 220 }}
+                  >
+                    <option value="createdAt">Sort by Created Date</option>
+                    <option value="name">Sort by Name</option>
+                    <option value="isActive">Sort by Status</option>
+                  </Form.Select>
+                  <Form.Select
+                    value={curriculaQuery.sortOrder}
+                    onChange={(event) => setCurriculaQuery((prev) => ({ ...prev, page: 1, sortOrder: event.target.value }))}
+                    style={{ maxWidth: 180 }}
+                  >
+                    <option value="asc">Ascending</option>
+                    <option value="desc">Descending</option>
+                  </Form.Select>
+                </div>
                 <Table striped bordered hover responsive>
                   <thead>
                     <tr>
@@ -315,6 +355,13 @@ const CurriculumManagement = () => {
                     )}
                   </tbody>
                 </Table>
+                <PaginationControls
+                  page={curriculaMeta.page}
+                  totalPages={curriculaMeta.totalPages}
+                  pageSize={curriculaMeta.pageSize}
+                  onPageChange={(nextPage) => setCurriculaQuery((prev) => ({ ...prev, page: nextPage }))}
+                  onPageSizeChange={(nextSize) => setCurriculaQuery((prev) => ({ ...prev, page: 1, pageSize: nextSize }))}
+                />
               </Col>
             </Row>
           </Tab>
@@ -357,6 +404,31 @@ const CurriculumManagement = () => {
                 </div>
               </Col>
               <Col lg={8}>
+                <div className="d-flex flex-column flex-md-row gap-2 mb-3">
+                  <Form.Control
+                    placeholder="Search courses"
+                    value={coursesQuery.search}
+                    onChange={(event) => setCoursesQuery((prev) => ({ ...prev, page: 1, search: event.target.value }))}
+                  />
+                  <Form.Select
+                    value={coursesQuery.sortBy}
+                    onChange={(event) => setCoursesQuery((prev) => ({ ...prev, page: 1, sortBy: event.target.value }))}
+                    style={{ maxWidth: 220 }}
+                  >
+                    <option value="code">Sort by Code</option>
+                    <option value="name">Sort by Name</option>
+                    <option value="units">Sort by Units</option>
+                    <option value="createdAt">Sort by Created Date</option>
+                  </Form.Select>
+                  <Form.Select
+                    value={coursesQuery.sortOrder}
+                    onChange={(event) => setCoursesQuery((prev) => ({ ...prev, page: 1, sortOrder: event.target.value }))}
+                    style={{ maxWidth: 180 }}
+                  >
+                    <option value="asc">Ascending</option>
+                    <option value="desc">Descending</option>
+                  </Form.Select>
+                </div>
                 <Table striped bordered hover responsive>
                   <thead>
                     <tr>
@@ -391,6 +463,13 @@ const CurriculumManagement = () => {
                     )}
                   </tbody>
                 </Table>
+                <PaginationControls
+                  page={coursesMeta.page}
+                  totalPages={coursesMeta.totalPages}
+                  pageSize={coursesMeta.pageSize}
+                  onPageChange={(nextPage) => setCoursesQuery((prev) => ({ ...prev, page: nextPage }))}
+                  onPageSizeChange={(nextSize) => setCoursesQuery((prev) => ({ ...prev, page: 1, pageSize: nextSize }))}
+                />
               </Col>
             </Row>
           </Tab>
@@ -409,7 +488,7 @@ const CurriculumManagement = () => {
                         required
                       >
                         <option value="">Select course</option>
-                        {courses.map((course) => (
+                        {courseOptions.map((course) => (
                           <option key={course.id} value={course.id}>
                             {course.code} - {course.name}
                           </option>
@@ -424,7 +503,7 @@ const CurriculumManagement = () => {
                         required
                       >
                         <option value="">Select equivalent course</option>
-                        {courses.map((course) => (
+                        {courseOptions.map((course) => (
                           <option key={course.id} value={course.id}>
                             {course.code} - {course.name}
                           </option>
@@ -445,6 +524,28 @@ const CurriculumManagement = () => {
                 </div>
               </Col>
               <Col lg={8}>
+                <div className="d-flex flex-column flex-md-row gap-2 mb-3">
+                  <Form.Control
+                    placeholder="Search equivalencies"
+                    value={equivsQuery.search}
+                    onChange={(event) => setEquivsQuery((prev) => ({ ...prev, page: 1, search: event.target.value }))}
+                  />
+                  <Form.Select
+                    value={equivsQuery.sortBy}
+                    onChange={(event) => setEquivsQuery((prev) => ({ ...prev, page: 1, sortBy: event.target.value }))}
+                    style={{ maxWidth: 220 }}
+                  >
+                    <option value="id">Sort by ID</option>
+                  </Form.Select>
+                  <Form.Select
+                    value={equivsQuery.sortOrder}
+                    onChange={(event) => setEquivsQuery((prev) => ({ ...prev, page: 1, sortOrder: event.target.value }))}
+                    style={{ maxWidth: 180 }}
+                  >
+                    <option value="asc">Ascending</option>
+                    <option value="desc">Descending</option>
+                  </Form.Select>
+                </div>
                 <Table striped bordered hover responsive>
                   <thead>
                     <tr>
@@ -480,6 +581,13 @@ const CurriculumManagement = () => {
                     )}
                   </tbody>
                 </Table>
+                <PaginationControls
+                  page={equivsMeta.page}
+                  totalPages={equivsMeta.totalPages}
+                  pageSize={equivsMeta.pageSize}
+                  onPageChange={(nextPage) => setEquivsQuery((prev) => ({ ...prev, page: nextPage }))}
+                  onPageSizeChange={(nextSize) => setEquivsQuery((prev) => ({ ...prev, page: 1, pageSize: nextSize }))}
+                />
               </Col>
             </Row>
           </Tab>
