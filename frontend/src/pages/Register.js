@@ -132,33 +132,7 @@ const Register = () => {
       }}
     >
       
-      {/* Yellow rectangle - left side, top overlap */}
-      <div 
-        className="position-absolute" 
-        style={{ 
-          left: 0,
-          top: '6%',
-          width: '550px',
-          height: '60px',
-          backgroundColor: '#FFC107',
-          zIndex: 2,
-          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
-        }}
-      />
-      
-      {/* Yellow rectangle - right side, bottom overlap */}
-      <div 
-        className="position-absolute" 
-        style={{ 
-          right: 0,
-          bottom: '10.5%',
-          width: '1500px',
-          height: '60px',
-          backgroundColor: '#FFC107',
-          zIndex: 1,
-          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
-        }}
-      />
+
       
       <Container className="position-relative" style={{ zIndex: 1 }}>
         <Row className="justify-content-center">
