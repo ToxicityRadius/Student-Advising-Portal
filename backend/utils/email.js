@@ -1,5 +1,20 @@
 const nodemailer = require('nodemailer');
 
+function buildActivationUrl(token) {
+  const explicitBase = (process.env.ACTIVATION_URL_BASE || '').trim();
+  if (explicitBase) {
+    return `${explicitBase.replace(/\/$/, '')}/${token}`;
+  }
+
+  const clientUrl = (process.env.CLIENT_URL || '').trim();
+  if (clientUrl) {
+    return `${clientUrl.replace(/\/$/, '')}/activate/${token}`;
+  }
+
+  const serverPublicUrl = (process.env.SERVER_PUBLIC_URL || `http://localhost:${process.env.PORT || 5000}`).trim();
+  return `${serverPublicUrl.replace(/\/$/, '')}/api/auth/activate/${token}`;
+}
+
 // Create transporter
 const createTransporter = () => {
   return nodemailer.createTransport({
@@ -16,8 +31,8 @@ const createTransporter = () => {
 // Send activation email
 exports.sendActivationEmail = async (email, token) => {
   const transporter = createTransporter();
-  
-  const activationUrl = `${process.env.CLIENT_URL}/activate/${token}`;
+
+  const activationUrl = buildActivationUrl(token);
 
   const mailOptions = {
     from: process.env.EMAIL_FROM,
