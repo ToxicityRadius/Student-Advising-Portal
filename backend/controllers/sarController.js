@@ -11,6 +11,7 @@ const {
   ElectiveTrack,
   User
 } = require('../models');
+const { syncSarToProfile } = require('../utils/sarLinking');
 
 const tipEmailPattern = /@tip\.edu\.ph$/i;
 
@@ -218,6 +219,15 @@ exports.createSAR = async (req, res, next) => {
       include: buildSarIncludes()
     });
 
+    // SAR → Profile sync: mirror identity fields to linked student profile
+    if (matchedStudent) {
+      try {
+        await syncSarToProfile(createdSar.get({ plain: true }));
+      } catch (syncError) {
+        console.error('[sarSync] createSAR sync error:', syncError.message);
+      }
+    }
+
     return res.status(201).json({ success: true, data: serializeSar(createdSar) });
   } catch (error) {
     next(error);
@@ -306,6 +316,31 @@ exports.updateSAR = async (req, res, next) => {
 
     const updates = {};
 
+    if (req.body.studentName !== undefined) {
+      const studentName = String(req.body.studentName || '').trim();
+      if (!studentName) {
+        return res.status(400).json({ success: false, message: 'studentName cannot be empty' });
+      }
+      updates.studentName = studentName;
+    }
+
+    if (req.body.studentNumber !== undefined) {
+      const studentNumber = String(req.body.studentNumber || '').trim();
+      if (!studentNumber) {
+        return res.status(400).json({ success: false, message: 'studentNumber cannot be empty' });
+      }
+      // Check uniqueness only when changing to a different value
+      if (studentNumber !== String(sar.studentNumber || '').trim()) {
+        const conflict = await StudentAcademicRecord.findOne({
+          where: { studentNumber, id: { [Op.ne]: sar.id } }
+        });
+        if (conflict) {
+          return res.status(409).json({ success: false, message: 'Another student academic record already uses that student number' });
+        }
+      }
+      updates.studentNumber = studentNumber;
+    }
+
     if (req.body.yearLevel !== undefined) {
       const yearLevel = parseYearLevel(req.body.yearLevel);
       if (!isValidYearLevel(yearLevel)) {
@@ -332,6 +367,16 @@ exports.updateSAR = async (req, res, next) => {
     const updatedSar = await StudentAcademicRecord.findByPk(sar.id, {
       include: buildSarIncludes()
     });
+
+    // SAR → Profile sync: mirror identity field changes to linked student profile
+    const identityChanged = updates.studentName !== undefined || updates.studentNumber !== undefined;
+    if (identityChanged && updatedSar.userId) {
+      try {
+        await syncSarToProfile(updatedSar.get({ plain: true }));
+      } catch (syncError) {
+        console.error('[sarSync] updateSAR sync error:', syncError.message);
+      }
+    }
 
     return res.status(200).json({ success: true, data: serializeSar(updatedSar) });
   } catch (error) {

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Badge, Button, Card, Col, Image, ListGroup, Row, Spinner, Table } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import EditSARModal from '../../components/adviser/EditSARModal';
 import api from '../../utils/api';
 import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
 
@@ -25,11 +26,15 @@ const StudentDetail = () => {
   const [alert, setAlert] = useState({ variant: '', message: '' });
   const [sar, setSar] = useState(null);
   const [versions, setVersions] = useState([]);
+  const [curriculums, setCurriculums] = useState([]);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   const isStudentView = user?.role === 'student' && !sarId;
   const canGeneratePlan = user?.role === 'adviser' || user?.role === 'admin';
   const canOpenPlanRoute = user?.role === 'adviser' || user?.role === 'admin';
   const canExportPdf = user?.role === 'adviser' || user?.role === 'admin';
+  const canEditSar = user?.role === 'adviser' || user?.role === 'admin';
 
   const loadSarData = useCallback(async () => {
     setLoading(true);
@@ -70,6 +75,26 @@ const StudentDetail = () => {
   useEffect(() => {
     loadSarData();
   }, [loadSarData]);
+
+  useEffect(() => {
+    api.get('/curriculums')
+      .then((res) => setCurriculums(res.data?.data || []))
+      .catch(() => setCurriculums([]));
+  }, []);
+
+  const handleEditSAR = async (payload) => {
+    setEditSubmitting(true);
+    setAlert({ variant: '', message: '' });
+    try {
+      await api.put(`/sars/${sar.id}`, payload);
+      await loadSarData();
+      setAlert({ variant: 'success', message: 'Student academic record updated successfully.' });
+    } catch (error) {
+      throw error;
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
 
   const handleExportPDF = async () => {
     if (!sar?.id) {
@@ -136,6 +161,11 @@ const StudentDetail = () => {
         </div>
         {!isStudentView && (
           <div className="d-flex gap-2">
+            {canEditSar && sar && (
+              <Button onClick={() => setShowEditModal(true)} variant="outline-primary" disabled={actionLoading}>
+                Edit Record
+              </Button>
+            )}
             {canExportPdf && (
               <Button onClick={handleExportPDF} disabled={!sar?.id || actionLoading} variant="primary">
                 {actionLoading ? 'Exporting...' : 'Export PDF'}
@@ -354,6 +384,15 @@ const StudentDetail = () => {
           </Card>
         </>
       )}
+
+      <EditSARModal
+        show={showEditModal}
+        onHide={() => setShowEditModal(false)}
+        onSubmit={handleEditSAR}
+        sar={sar}
+        curriculums={curriculums}
+        submitting={editSubmitting}
+      />
     </div>
   );
 };

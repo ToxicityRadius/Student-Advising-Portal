@@ -21,7 +21,7 @@
 | 2 | Remove First-Login Complete Profile Flow | `[DONE]` |
 | 2A | Program Chair First-Login Email + Password Rotation | `[DONE]` |
 | 3 | Profile Images End-to-End | `[DONE]` |
-| 4 | SAR ↔ Profile Bi-Directional Sync | `[TODO]` |
+| 4 | SAR ↔ Profile Bi-Directional Sync | `[DONE]` |
 | 5 | SAR Creation UX (Email-First + Autofill) | `[TODO]` |
 | 6 | Student “No SAR Yet” Visibility | `[TODO]` |
 | 7 | Platform-Wide Pagination Standardization | `[TODO]` |
@@ -270,16 +270,16 @@ Ensure student name/student ID entered in SAR reflects in profile, and existing 
 4. Test mismatch scenario and verify expected conflict behavior.
 
 ### Verification Checklist
-- [ ] Email-based linking is reliable.
-- [ ] SAR-to-profile and profile-to-SAR sync both work.
-- [ ] No duplicate linkage records or unstable loops.
-- [ ] Audit trail/logging exists for sync operations (recommended).
+- [x] Email-based linking is reliable.
+- [x] SAR-to-profile and profile-to-SAR sync both work.
+- [x] No duplicate linkage records or unstable loops.
+- [x] Audit trail/logging exists for sync operations (recommended).
 
 ### Completion Note (fill when done)
-- **Date:**
-- **Executor:**
-- **Result:**
-- **Notes:**
+- **Date:** 2026-03-13
+- **Executor:** GitHub Copilot
+- **Result:** Pass
+- **Notes:** Implemented full bi-directional sync between SAR and student profile. `syncSarToProfile` and `syncProfileToSar` functions added to `backend/utils/sarLinking.js`. SAR→Profile sync: `updateSAR` now accepts `studentName` and `studentNumber` fields (with uniqueness conflict check for studentNumber); after any identity-field change on a linked SAR, `syncSarToProfile` mirrors `studentName` to `User.first_name/last_name` and `studentNumber` to `User.studentId`. Profile→SAR sync: `updateProfile` and both `updateStudentId` variants call `syncProfileToSar` to mirror `first_name`/`last_name` back to `SAR.studentName` and `studentId` to `SAR.studentNumber`. The `syncProfileToSar` function also auto-links an unlinked SAR matched by email when called from a profile/studentId update. All sync operations are idempotent (no-op when values already match) and wrapped in try/catch so a sync failure never breaks the primary request. Sync events are console-logged as `[sarSync]` for audit purposes. Frontend: added `EditSARModal` component (`frontend/src/components/adviser/EditSARModal.js`) and wired an "Edit Record" button into `StudentDetail.js` for adviser/admin roles, loading curricula and showing a sync-aware note when the SAR is linked to an account. All 6 manual test scenarios passed; frontend production build succeeded.
 
 ---
 

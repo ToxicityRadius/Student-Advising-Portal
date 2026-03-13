@@ -1,6 +1,6 @@
 const { User } = require('../models');
 const { generateToken } = require('../utils/jwt');
-const { linkStudentAccountToSar } = require('../utils/sarLinking');
+const { linkStudentAccountToSar, syncProfileToSar } = require('../utils/sarLinking');
 const fs = require('fs');
 const path = require('path');
 const { imageSize } = require('image-size');
@@ -295,6 +295,19 @@ exports.updateStudentId = async (req, res, next) => {
       studentId: updatedUser.studentId
     });
 
+    // Profile → SAR sync: mirror studentId change to linked SAR studentNumber
+    try {
+      await syncProfileToSar({
+        userId: updatedUser.id,
+        email: updatedUser.email,
+        firstName: updatedUser.first_name || updatedUser.firstName,
+        lastName: updatedUser.last_name || updatedUser.lastName,
+        studentId: updatedUser.studentId
+      });
+    } catch (syncError) {
+      console.error('[sarSync] updateStudentId sync error:', syncError.message);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Student Number updated successfully',
@@ -351,6 +364,19 @@ exports.updateUserStudentId = async (req, res, next) => {
       email: finalUser.email,
       studentId: finalUser.studentId
     });
+
+    // Profile → SAR sync: mirror studentId change to linked SAR studentNumber
+    try {
+      await syncProfileToSar({
+        userId: finalUser.id,
+        email: finalUser.email,
+        firstName: finalUser.first_name || finalUser.firstName,
+        lastName: finalUser.last_name || finalUser.lastName,
+        studentId: finalUser.studentId
+      });
+    } catch (syncError) {
+      console.error('[sarSync] updateUserStudentId sync error:', syncError.message);
+    }
 
     // Generate token
     const token = generateToken(finalUser);
@@ -557,6 +583,24 @@ exports.updateProfile = async (req, res, next) => {
     }
 
     const token = generateToken(user);
+
+    // Profile → SAR sync: if name fields changed, mirror to linked SAR
+    const nameChanged =
+      Object.prototype.hasOwnProperty.call(updatePayload, 'first_name') ||
+      Object.prototype.hasOwnProperty.call(updatePayload, 'last_name');
+    if (nameChanged && user.role === 'student') {
+      try {
+        await syncProfileToSar({
+          userId: user.id,
+          email: user.email,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          studentId: user.studentId
+        });
+      } catch (syncError) {
+        console.error('[sarSync] updateProfile sync error:', syncError.message);
+      }
+    }
 
     res.status(200).json({
       message: 'Profile updated successfully',

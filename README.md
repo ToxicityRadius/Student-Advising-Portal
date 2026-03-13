@@ -6,6 +6,7 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 > - Revamp roadmap (Part 2): [IMPLEMENTATION_PLAN_PART2.md](IMPLEMENTATION_PLAN_PART2.md)
 
 ### Recent Part 2 Updates
+- **SAR ↔ Profile Bi-Directional Sync (Phase 4):** Adviser updates to SAR `studentName`/`studentNumber` are now automatically mirrored to the linked student's profile (`first_name`, `last_name`, `studentId`). Conversely, when a student updates their name or student number in their profile, the linked SAR is updated in kind. Sync is idempotent and audit-logged. An "Edit Record" button is now available on the `StudentDetail` page for adviser/admin roles.
 - Profile images are now supported end-to-end (upload, replace, remove) with backend validation.
 - Allowed profile image formats: JPEG, PNG, WEBP; max upload size: 5 MB; max dimensions: 2000x2000.
 - Profile avatars now appear across key UI surfaces (Profile, Dashboard identity card, and SAR cards).
