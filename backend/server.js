@@ -42,10 +42,22 @@ app.use(cors({
   origin: function (origin, callback) {
     // allow requests with no origin like mobile apps or curl
     if (!origin) return callback(null, true);
+
+    // In development, allow localhost/127.0.0.1 on any port (Expo/Web dev servers).
+    const isDevLocalOrigin = process.env.NODE_ENV !== 'production'
+      && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
+
+    if (isDevLocalOrigin) {
+      return callback(null, true);
+    }
+
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    return callback(new Error('Not allowed by CORS'));
+
+    const corsErr = new Error('Not allowed by CORS');
+    corsErr.statusCode = 403;
+    return callback(corsErr);
   },
   credentials: true
 }));
