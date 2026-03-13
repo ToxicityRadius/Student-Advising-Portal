@@ -35,7 +35,7 @@ const { sequelize, User } = require('../models');
       console.log('[seed:users-only] no tables found to truncate');
     }
 
-    const hash = await bcrypt.hash('password123', 10);
+    const hash = await bcrypt.hash('Password123!', 10);
     const now = Date.now();
 
     await User.bulkCreate([

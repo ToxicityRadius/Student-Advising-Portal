@@ -113,9 +113,9 @@ These are recreated by both seed scripts (`seed.js` and `seed_users_only.js`):
 
 | Role | Email | Password |
 |---|---|---|
-| Program Chair (`admin`) | admin.cpe@tip.edu.ph | password123 |
-| Student Adviser (`adviser`) | adviser.cpe@tip.edu.ph | password123 |
-| Student (`student`) | student@tip.edu.ph | password123 |
+| Program Chair (`admin`) | admin.cpe@tip.edu.ph | Password123! |
+| Student Adviser (`adviser`) | adviser.cpe@tip.edu.ph | Password123! |
+| Student (`student`) | student@tip.edu.ph | Password123! |
 
 Notes:
 - 👔 Program Chair account is seeded with first-login security rotation enabled (`mustChangePassword` and `mustChangeEmail`).

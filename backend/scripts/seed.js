@@ -113,7 +113,7 @@ const toIntOrNull = (value) => {
     }
 
     // ── 2. Default users ─────────────────────────────────────────────────────
-    const hash = await bcrypt.hash('password123', 10);
+    const hash = await bcrypt.hash('Password123!', 10);
     const now = Date.now();
 
     await User.bulkCreate([
