@@ -81,6 +81,11 @@ const StudentList = () => {
     }
   };
 
+  const handleLookupEmail = async (email) => {
+    const response = await api.get('/sars/autofill', { params: { email } });
+    return response.data?.data || null;
+  };
+
   return (
     <div className="container py-4">
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
@@ -210,6 +215,7 @@ const StudentList = () => {
         show={showCreateModal}
         onHide={() => setShowCreateModal(false)}
         onSubmit={handleCreateSar}
+        onLookupEmail={handleLookupEmail}
         curriculums={curriculums}
         defaultCurriculumId={activeCurriculum?.id}
         submitting={submitting}

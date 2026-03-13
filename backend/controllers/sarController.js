@@ -32,6 +32,22 @@ const parseYearLevel = (value) => Number(value);
 
 const isValidYearLevel = (value) => Number.isInteger(value) && value >= 1 && value <= 4;
 
+const composeStudentDisplayName = (studentUser) => {
+  if (!studentUser) {
+    return '';
+  }
+
+  const firstName = String(studentUser.first_name || studentUser.firstName || '').trim();
+  const lastName = String(studentUser.last_name || studentUser.lastName || '').trim();
+  const fallback = [firstName, lastName].filter(Boolean).join(' ').trim();
+
+  if (fallback) {
+    return fallback;
+  }
+
+  return String(studentUser.preferred_name || '').trim();
+};
+
 const buildStudentOwnershipWhere = (user) => {
   const ownershipChecks = [];
 
@@ -82,6 +98,114 @@ const getAssignedCurriculum = async (curriculumId) => {
   }
 
   return Curriculum.findOne({ where: { isActive: true } });
+};
+
+// @desc   Get SAR create-form autofill values by student email
+// @route  GET /api/sars/autofill?email=
+// @access adviser, admin
+exports.getSarAutofillByEmail = async (req, res, next) => {
+  try {
+    const email = normalizeEmail(req.query.email);
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'email query parameter is required' });
+    }
+
+    if (!tipEmailPattern.test(email)) {
+      return res.status(400).json({ success: false, message: 'Student email must end in @tip.edu.ph' });
+    }
+
+    const matchedStudent = await User.findOne({
+      where: { email, role: 'student' },
+      attributes: [
+        'id',
+        'email',
+        'studentId',
+        'current_year_level',
+        'curriculum_id',
+        'preferred_name',
+        'first_name',
+        'last_name',
+        'firstName',
+        'lastName'
+      ]
+    });
+
+    if (!matchedStudent) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          foundStudentAccount: false,
+          linkStatus: 'unlinked',
+          email,
+          message: 'No registered student account found. You can still create an unlinked SAR manually.',
+          autofill: {
+            studentName: '',
+            studentNumber: '',
+            yearLevel: null,
+            curriculumId: null
+          },
+          autoFilledFields: []
+        }
+      });
+    }
+
+    const existingSar = await StudentAcademicRecord.findOne({
+      where: {
+        [Op.or]: [
+          { userId: matchedStudent.id },
+          { email }
+        ]
+      },
+      attributes: ['id']
+    });
+
+    const studentName = composeStudentDisplayName(matchedStudent);
+    const studentNumber = String(matchedStudent.studentId || '').trim();
+    const resolvedYearLevel = isValidYearLevel(parseYearLevel(matchedStudent.current_year_level))
+      ? parseYearLevel(matchedStudent.current_year_level)
+      : 1;
+
+    const curriculum = await getAssignedCurriculum(matchedStudent.curriculum_id || null);
+
+    const autoFilledFields = [];
+    if (studentName) {
+      autoFilledFields.push('studentName');
+    }
+    if (studentNumber) {
+      autoFilledFields.push('studentNumber');
+    }
+    if (resolvedYearLevel) {
+      autoFilledFields.push('yearLevel');
+    }
+    if (curriculum?.id) {
+      autoFilledFields.push('curriculumId');
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        foundStudentAccount: true,
+        linkStatus: 'linked',
+        email,
+        studentId: matchedStudent.id,
+        hasExistingSar: Boolean(existingSar),
+        existingSarId: existingSar?.id || null,
+        message: existingSar
+          ? 'Student account found, but this account is already linked to an existing SAR.'
+          : 'Student account found. Fields were auto-populated from the student profile.',
+        autofill: {
+          studentName,
+          studentNumber,
+          yearLevel: resolvedYearLevel,
+          curriculumId: curriculum?.id || null
+        },
+        autoFilledFields
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 const resolveMatchedStudent = async ({ email, studentNumber }) => {

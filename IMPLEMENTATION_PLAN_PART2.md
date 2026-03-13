@@ -22,7 +22,7 @@
 | 2A | Program Chair First-Login Email + Password Rotation | `[DONE]` |
 | 3 | Profile Images End-to-End | `[DONE]` |
 | 4 | SAR ↔ Profile Bi-Directional Sync | `[DONE]` |
-| 5 | SAR Creation UX (Email-First + Autofill) | `[TODO]` |
+| 5 | SAR Creation UX (Email-First + Autofill) | `[DONE]` |
 | 6 | Student “No SAR Yet” Visibility | `[TODO]` |
 | 7 | Platform-Wide Pagination Standardization | `[TODO]` |
 | 8 | SAR Academic Intelligence Engine | `[TODO]` |
@@ -308,16 +308,16 @@ Make student email the first field in SAR creation and drive smart autofill of r
 3. Save SAR and ensure linkage state is accurate.
 
 ### Verification Checklist
-- [ ] Email field is first and primary trigger.
-- [ ] Autofill works for existing students.
-- [ ] Manual flow works for unregistered students.
-- [ ] Adviser/program chair UX clearly communicates linked vs unlinked state.
+- [x] Email field is first and primary trigger.
+- [x] Autofill works for existing students.
+- [x] Manual flow works for unregistered students.
+- [x] Adviser/program chair UX clearly communicates linked vs unlinked state.
 
 ### Completion Note (fill when done)
-- **Date:**
-- **Executor:**
-- **Result:**
-- **Notes:**
+- **Date:** 2026-03-13
+- **Executor:** GitHub Copilot
+- **Result:** Pass
+- **Notes:** Implemented an email-first SAR creation flow with backend autofill lookup and explicit linked/unlinked UX feedback. Added adviser/admin-only endpoint `GET /api/sars/autofill?email=...` in `sarController` + `sarRoutes` to fetch student-profile-based defaults (student name, student number, year level, curriculum) and return clear messages for `foundStudentAccount`, `hasExistingSar`, and unregistered email cases. Updated `CreateSARModal` so email is the first field and primary trigger (search button + blur trigger), with auto-population indicators per field while keeping manual overrides fully editable. Updated `StudentList` to wire the lookup call into the modal. Manual tests passed in live UI: (1) existing student email autofilled fields, (2) unknown email allowed manual unlinked creation, (3) save results reflected accurate linkage badges (`linked` for profile-matched account and `unlinked` for manual/unregistered case).
 
 ---
 

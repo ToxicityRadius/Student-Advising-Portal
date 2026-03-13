@@ -13,12 +13,20 @@ const CreateSARModal = ({
   show,
   onHide,
   onSubmit,
+  onLookupEmail,
   curriculums = [],
   defaultCurriculumId,
   submitting = false
 }) => {
   const [form, setForm] = useState(initialFormState);
   const [error, setError] = useState('');
+  const [lookupState, setLookupState] = useState({
+    loading: false,
+    variant: '',
+    message: '',
+    autoFilledFields: [],
+    hasExistingSar: false
+  });
 
   const hasCurriculumOptions = curriculums.length > 0;
 
@@ -41,6 +49,13 @@ const CreateSARModal = ({
       curriculumId: resolvedDefaultCurriculumId
     });
     setError('');
+    setLookupState({
+      loading: false,
+      variant: '',
+      message: '',
+      autoFilledFields: [],
+      hasExistingSar: false
+    });
   }, [resolvedDefaultCurriculumId, show]);
 
   const handleClose = () => {
@@ -50,7 +65,73 @@ const CreateSARModal = ({
 
   const handleChange = (event) => {
     const { name, value } = event.target;
+    if (name === 'email') {
+      setLookupState((previous) => ({
+        ...previous,
+        variant: '',
+        message: '',
+        autoFilledFields: [],
+        hasExistingSar: false
+      }));
+    }
     setForm((previous) => ({ ...previous, [name]: value }));
+  };
+
+  const handleLookup = async () => {
+    if (!onLookupEmail) {
+      return;
+    }
+
+    const normalizedEmail = form.email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return;
+    }
+
+    if (!normalizedEmail.endsWith('@tip.edu.ph')) {
+      setLookupState({
+        loading: false,
+        variant: 'warning',
+        message: 'Enter a valid T.I.P. email to search for a student profile.',
+        autoFilledFields: [],
+        hasExistingSar: false
+      });
+      return;
+    }
+
+    setLookupState((previous) => ({ ...previous, loading: true }));
+
+    try {
+      const result = await onLookupEmail(normalizedEmail);
+      const autofill = result?.autofill || {};
+      const autoFilledFields = Array.isArray(result?.autoFilledFields) ? result.autoFilledFields : [];
+
+      setForm((previous) => ({
+        ...previous,
+        email: normalizedEmail,
+        studentName: autofill.studentName ?? previous.studentName,
+        studentNumber: autofill.studentNumber ?? previous.studentNumber,
+        yearLevel: autofill.yearLevel ? String(autofill.yearLevel) : previous.yearLevel,
+        curriculumId: autofill.curriculumId ? String(autofill.curriculumId) : previous.curriculumId
+      }));
+
+      const variant = result?.foundStudentAccount ? (result?.hasExistingSar ? 'warning' : 'success') : 'secondary';
+
+      setLookupState({
+        loading: false,
+        variant,
+        message: result?.message || 'Lookup complete.',
+        autoFilledFields,
+        hasExistingSar: Boolean(result?.hasExistingSar)
+      });
+    } catch (lookupError) {
+      setLookupState({
+        loading: false,
+        variant: 'danger',
+        message: lookupError?.response?.data?.message || 'Unable to fetch student profile by email.',
+        autoFilledFields: [],
+        hasExistingSar: false
+      });
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -96,6 +177,41 @@ const CreateSARModal = ({
             </Alert>
           )}
 
+          {lookupState.message && (
+            <Alert variant={lookupState.variant || 'info'} className="mb-3">
+              {lookupState.message}
+              {lookupState.autoFilledFields.length > 0 && (
+                <div className="small mt-2">
+                  Auto-populated fields: {lookupState.autoFilledFields.join(', ')}
+                </div>
+              )}
+            </Alert>
+          )}
+
+          <Form.Group className="mb-3">
+            <Form.Label>Email</Form.Label>
+            <div className="d-flex gap-2">
+              <Form.Control
+                type="email"
+                name="email"
+                value={form.email}
+                onChange={handleChange}
+                onBlur={handleLookup}
+                placeholder="student@tip.edu.ph"
+                required
+              />
+              <Button
+                type="button"
+                variant="outline-primary"
+                onClick={handleLookup}
+                disabled={lookupState.loading || submitting}
+              >
+                {lookupState.loading ? 'Searching...' : 'Search'}
+              </Button>
+            </div>
+            <Form.Text muted>Email is the primary lookup field for SAR autofill.</Form.Text>
+          </Form.Group>
+
           <Form.Group className="mb-3">
             <Form.Label>Student Name</Form.Label>
             <Form.Control
@@ -105,6 +221,9 @@ const CreateSARModal = ({
               placeholder="Enter full name"
               required
             />
+            {lookupState.autoFilledFields.includes('studentName') && (
+              <Form.Text className="text-success">Auto-filled from student profile (editable).</Form.Text>
+            )}
           </Form.Group>
 
           <Form.Group className="mb-3">
@@ -116,19 +235,9 @@ const CreateSARModal = ({
               placeholder="e.g. 1234567"
               required
             />
-          </Form.Group>
-
-          <Form.Group className="mb-3">
-            <Form.Label>Email</Form.Label>
-            <Form.Control
-              type="email"
-              name="email"
-              value={form.email}
-              onChange={handleChange}
-              placeholder="student@tip.edu.ph"
-              required
-            />
-            <Form.Text muted>Only T.I.P. student emails are allowed.</Form.Text>
+            {lookupState.autoFilledFields.includes('studentNumber') && (
+              <Form.Text className="text-success">Auto-filled from student profile (editable).</Form.Text>
+            )}
           </Form.Group>
 
           <Form.Group className="mb-3">
@@ -139,6 +248,9 @@ const CreateSARModal = ({
               <option value="3">Year 3</option>
               <option value="4">Year 4</option>
             </Form.Select>
+            {lookupState.autoFilledFields.includes('yearLevel') && (
+              <Form.Text className="text-success">Defaulted from student profile.</Form.Text>
+            )}
           </Form.Group>
 
           <Form.Group>
@@ -157,6 +269,12 @@ const CreateSARModal = ({
                 </option>
               ))}
             </Form.Select>
+            {lookupState.autoFilledFields.includes('curriculumId') && (
+              <Form.Text className="text-success">Defaulted using student/active curriculum.</Form.Text>
+            )}
+            {!lookupState.loading && lookupState.variant === 'secondary' && !lookupState.hasExistingSar && (
+              <Form.Text className="text-muted">No account match found — this record will be created as unlinked.</Form.Text>
+            )}
           </Form.Group>
         </Modal.Body>
         <Modal.Footer>

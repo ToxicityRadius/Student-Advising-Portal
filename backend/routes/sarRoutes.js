@@ -8,6 +8,7 @@ const adviserOrAdmin = [protect, requireRole('adviser', 'admin')];
 const anyRole = [protect, requireRole('adviser', 'admin', 'student')];
 
 router.post('/', adviserOrAdmin, ctrl.createSAR);
+router.get('/autofill', adviserOrAdmin, ctrl.getSarAutofillByEmail);
 router.get('/', anyRole, ctrl.getSARs);
 router.post('/:id/study-plan/generate', adviserOrAdmin, ctrl.generateInitialStudyPlan);
 router.get('/:id/study-plan/versions', anyRole, ctrl.getStudyPlanVersions);
