@@ -1,4 +1,5 @@
 const express = require('express');
+const multer = require('multer');
 const { protect, requireRole } = require('../middleware/auth');
 const ctrl = require('../controllers/curriculumController');
 
@@ -6,6 +7,18 @@ const router = express.Router();
 
 const adminOnly = [protect, requireRole('admin')];
 const adminOrAdviser = [protect, requireRole('admin', 'adviser')];
+const csvUpload = multer({
+	storage: multer.memoryStorage(),
+	limits: { fileSize: 3 * 1024 * 1024 },
+	fileFilter: (req, file, callback) => {
+		const fileName = String(file.originalname || '').toLowerCase();
+		if (fileName.endsWith('.csv') || file.mimetype === 'text/csv' || file.mimetype === 'application/vnd.ms-excel') {
+			callback(null, true);
+			return;
+		}
+		callback(new Error('Only CSV files are allowed for import.'));
+	}
+});
 
 // ─── Curriculums ──────────────────────────────────────────────────────────────
 router.post('/curriculums', adminOnly, ctrl.createCurriculum);
@@ -13,6 +26,9 @@ router.get('/curriculums', adminOrAdviser, ctrl.getCurriculums);
 router.get('/curriculums/:id', adminOrAdviser, ctrl.getCurriculumById);
 router.put('/curriculums/:id', adminOnly, ctrl.updateCurriculum);
 router.patch('/curriculums/:id/activate', adminOnly, ctrl.setActiveCurriculum);
+router.get('/curriculums/:id/export/csv', adminOnly, ctrl.exportCurriculumCsv);
+router.post('/curriculums/:id/import/csv/preview', adminOnly, csvUpload.single('file'), ctrl.previewCurriculumImportCsv);
+router.post('/curriculums/:id/import/csv/apply', adminOnly, csvUpload.single('file'), ctrl.applyCurriculumImportCsv);
 
 // ─── Courses ──────────────────────────────────────────────────────────────────
 router.post('/courses', adminOnly, ctrl.createCourse);

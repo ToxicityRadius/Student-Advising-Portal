@@ -29,8 +29,8 @@
 | 9 | Unified SAR Experience (Student + Adviser + Program Chair) | `[DONE]` |
 | 10 | Role-Specific Home Dashboard Revamp | `[TODO]` |
 | 11 | Navbar Quicklinks Expansion | `[TODO]` |
-| 12 | Forecasting UX/Charts Upgrade | `[TODO]` |
-| 13 | Curriculum, Equivalency & CSV Import/Export UX Upgrade | `[TODO]` |
+| 12 | Forecasting UX/Charts Upgrade | `[DONE]` |
+| 13 | Curriculum, Equivalency & CSV Import/Export UX Upgrade | `[DONE]` |
 | 14 | Professional SAR PDF Redesign | `[TODO]` |
 | 15 | Cross-Role UX Polish, Regression, and Rollout | `[TODO]` |
 
@@ -585,15 +585,15 @@ Make forecasting pages intuitive and decision-friendly using charts and visual s
 3. Compare chart totals with underlying table numbers.
 
 ### Verification Checklist
-- [ ] Forecast pages show clear visual insights.
-- [ ] No-current-term scenario is user-friendly.
-- [ ] Chart values match source data.
+- [x] Forecast pages show clear visual insights.
+- [x] No-current-term scenario is user-friendly.
+- [x] Chart values match source data.
 
 ### Completion Note (fill when done)
-- **Date:**
-- **Executor:**
-- **Result:**
-- **Notes:**
+- **Date:** 2026-03-13
+- **Executor:** GitHub Copilot
+- **Result:** Pass
+- **Notes:** Upgraded `ForecastDashboard` with chart-first visual summaries using `recharts` while preserving existing API contracts and paginated tables. Added chart views for current demand, next-term forecast, comparison deltas, and history trends; introduced shared chart controls/legends with explicit axis labels; and added current-vs-projected summary cards (`current total`, `projected total`, `delta`). Implemented graceful no-current-term UX by detecting `404` forecast responses and surfacing a clear actionable info message (activate a term in Term Management). Manual verification covered both states: (1) no-current-term (`/forecast/current|next|comparison` return 404 and UI fallback path is triggered), and (2) active-term (`/forecast/current` success with term meta, `/forecast/next` success with non-empty rows). Data parity check used the same endpoint data powering tables/charts/cards (active-term sample totals: current=0, next=2, delta=+2). Frontend production build succeeded.
 
 ---
 
@@ -631,18 +631,18 @@ Improve curriculum management UX with better course list usability, a mapped vie
 6. Verify both equivalency views stay in sync after operations.
 
 ### Verification Checklist
-- [ ] Program chair can use either list or mapped equivalency view.
-- [ ] Mapped edits persist correctly.
-- [ ] Course list is easier to scan/manage than prior version.
-- [ ] Curriculum CSV import supports validation and safe bulk updates.
-- [ ] Curriculum CSV export generates re-import compatible files.
-- [ ] Import/export is role-safe and produces clear success/error summaries.
+- [x] Program chair can use either list or mapped equivalency view.
+- [x] Mapped edits persist correctly.
+- [x] Course list is easier to scan/manage than prior version.
+- [x] Curriculum CSV import supports validation and safe bulk updates.
+- [x] Curriculum CSV export generates re-import compatible files.
+- [x] Import/export is role-safe and produces clear success/error summaries.
 
 ### Completion Note (fill when done)
-- **Date:**
-- **Executor:**
-- **Result:**
-- **Notes:**
+- **Date:** 2026-03-13
+- **Executor:** GitHub Copilot
+- **Result:** Pass
+- **Notes:** Implemented Phase 13 backend + frontend upgrade. Backend: added admin-only CSV endpoints in curriculum routes (`GET /api/curriculums/:id/export/csv`, `POST /api/curriculums/:id/import/csv/preview`, `POST /api/curriculums/:id/import/csv/apply`) with CSV upload validation, header/schema checks, row-level error reporting, and transactional apply semantics (all-or-nothing for curriculum structure/prerequisite/corequisite/elective-track updates). Added audit-style import logging (`[curriculumImport]`) and re-import-compatible export format with row types (`metadata`, `structure`, `prerequisite`, `corequisite`, `elective_track`, `elective_track_course`, `equivalency`). Frontend: upgraded `CurriculumManagement` with (a) CSV Import/Export panel (select curriculum, export, preview, apply, row error table), (b) enhanced course list scanability (unit/prefix filters + grouped unit summary cards), and (c) dual equivalency modes (List View + Mapped View connect/disconnect editor) that stay synchronized through shared API-backed state.
 
 ---
 
@@ -726,6 +726,30 @@ Validate all revamp work together, prevent regressions, and prepare safe rollout
 ## Work Log (Update During Implementation)
 
 > Add one entry per completed phase.
+
+### Phase 13 — Curriculum, Equivalency & CSV Import/Export UX Upgrade
+- **Phase:** 13
+- **Date:** 2026-03-13
+- **Implemented By:** GitHub Copilot
+- **Summary of Changes:**
+   - `backend/controllers/curriculumController.js`: Added CSV parsing/serialization helpers, dry-run validation pipeline, row-level error reporting, CSV export generation, and transactional import apply handlers.
+   - `backend/routes/curriculumRoutes.js`: Added admin-only CSV import/export routes with `multer` memory upload and CSV file guardrails.
+   - `frontend/src/pages/admin/CurriculumManagement.js`: Added CSV Import/Export panel with preview/apply and response summaries; added list/mapped equivalency dual view with connect/disconnect interactions; added course list filters and grouped unit-summary cards.
+- **Manual Test Result:** Pass
+- **Verification Checklist Result:** Pass
+- **Follow-up Actions:** Proceed to Phase 10 (Role-Specific Home Dashboard Revamp) after dependency gate check.
+
+### Phase 12 — Forecasting UX/Charts Upgrade
+- **Phase:** 12
+- **Date:** 2026-03-13
+- **Implemented By:** GitHub Copilot
+- **Summary of Changes:**
+   - `frontend/src/pages/admin/ForecastDashboard.js`: Reworked forecast dashboard to chart-led UX using `recharts` for current demand, next-term forecast, comparison delta, and history trend views with clear legends/axis labels.
+   - Added consistent chart controls (`Top 5/10/15`), comparison summary cards (current/projected/delta), and retained existing paginated table workflows per tab.
+   - Added explicit no-current-term fallback messaging when forecast endpoints return 404, including term-management guidance.
+- **Manual Test Result:** Pass
+- **Verification Checklist Result:** Pass
+- **Follow-up Actions:** Proceed to Phase 13 (Curriculum, Equivalency & CSV Import/Export UX Upgrade).
 
 ### Phase 9 — Unified SAR Experience (Student + Adviser + Program Chair)
 - **Phase:** 9

@@ -1,5 +1,6 @@
 const { Op } = require('sequelize');
 const {
+  sequelize,
   Curriculum,
   Course,
   CurriculumCourse,
@@ -12,6 +13,251 @@ const {
   User
 } = require('../models');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
+
+const CURRICULUM_CSV_COLUMNS = [
+  'exportVersion',
+  'rowType',
+  'curriculumId',
+  'curriculumName',
+  'courseCode',
+  'courseName',
+  'units',
+  'yearLevel',
+  'semester',
+  'isElective',
+  'relatedCourseCode',
+  'trackName',
+  'notes'
+];
+
+const ALLOWED_ROW_TYPES = new Set([
+  'metadata',
+  'structure',
+  'prerequisite',
+  'corequisite',
+  'equivalency',
+  'elective_track',
+  'elective_track_course'
+]);
+
+const parseBoolean = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'y';
+};
+
+const toIntegerOrNull = (value) => {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  if (!Number.isInteger(parsed)) return null;
+  return parsed;
+};
+
+const escapeCsvValue = (value) => {
+  const raw = value === null || value === undefined ? '' : String(value);
+  if (raw.includes(',') || raw.includes('"') || raw.includes('\n')) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+};
+
+const serializeCsv = (rows) => {
+  const header = CURRICULUM_CSV_COLUMNS.join(',');
+  const lines = rows.map((row) => CURRICULUM_CSV_COLUMNS.map((column) => escapeCsvValue(row[column])).join(','));
+  return [header, ...lines].join('\n');
+};
+
+const parseCsvText = (text) => {
+  const rows = [];
+  let current = '';
+  let row = [];
+  let inQuotes = false;
+
+  const pushCell = () => {
+    row.push(current);
+    current = '';
+  };
+
+  const pushRow = () => {
+    if (row.length > 1 || (row.length === 1 && row[0] !== '')) {
+      rows.push(row);
+    }
+    row = [];
+  };
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const nextChar = text[index + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      pushCell();
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && nextChar === '\n') {
+        index += 1;
+      }
+      pushCell();
+      pushRow();
+      continue;
+    }
+
+    current += char;
+  }
+
+  pushCell();
+  pushRow();
+  return rows;
+};
+
+const validateAndNormalizeCsvRows = ({ csvRows, expectedCurriculumId }) => {
+  if (!Array.isArray(csvRows) || csvRows.length === 0) {
+    return {
+      errors: [{ rowNumber: 1, message: 'CSV file is empty.' }],
+      normalizedRows: []
+    };
+  }
+
+  const headers = csvRows[0].map((cell) => String(cell || '').trim());
+  const missingColumns = CURRICULUM_CSV_COLUMNS.filter((column) => !headers.includes(column));
+  if (missingColumns.length > 0) {
+    return {
+      errors: [{ rowNumber: 1, message: `CSV header is missing required columns: ${missingColumns.join(', ')}` }],
+      normalizedRows: []
+    };
+  }
+
+  const headerIndex = headers.reduce((acc, column, index) => {
+    acc[column] = index;
+    return acc;
+  }, {});
+
+  const normalizedRows = [];
+  const errors = [];
+
+  for (let index = 1; index < csvRows.length; index += 1) {
+    const rawRow = csvRows[index];
+    const rowNumber = index + 1;
+    const pick = (column) => String(rawRow[headerIndex[column]] || '').trim();
+
+    const normalized = {
+      rowNumber,
+      exportVersion: pick('exportVersion') || '1',
+      rowType: pick('rowType').toLowerCase(),
+      curriculumId: toIntegerOrNull(pick('curriculumId')),
+      curriculumName: pick('curriculumName'),
+      courseCode: pick('courseCode').toUpperCase(),
+      courseName: pick('courseName'),
+      units: toIntegerOrNull(pick('units')),
+      yearLevel: toIntegerOrNull(pick('yearLevel')),
+      semester: toIntegerOrNull(pick('semester')),
+      isElective: parseBoolean(pick('isElective')),
+      relatedCourseCode: pick('relatedCourseCode').toUpperCase(),
+      trackName: pick('trackName'),
+      notes: pick('notes')
+    };
+
+    if (!normalized.rowType || !ALLOWED_ROW_TYPES.has(normalized.rowType)) {
+      errors.push({ rowNumber, rowType: normalized.rowType || null, message: 'Invalid rowType.' });
+      continue;
+    }
+
+    if (normalized.curriculumId && Number(normalized.curriculumId) !== Number(expectedCurriculumId)) {
+      errors.push({
+        rowNumber,
+        rowType: normalized.rowType,
+        message: `curriculumId ${normalized.curriculumId} does not match selected curriculum ${expectedCurriculumId}.`
+      });
+      continue;
+    }
+
+    if (normalized.rowType === 'structure') {
+      if (!normalized.courseCode) errors.push({ rowNumber, rowType: normalized.rowType, message: 'courseCode is required for structure rows.' });
+      if (!normalized.courseName) errors.push({ rowNumber, rowType: normalized.rowType, message: 'courseName is required for structure rows.' });
+      if (!normalized.units || normalized.units < 1 || normalized.units > 9) errors.push({ rowNumber, rowType: normalized.rowType, message: 'units must be 1-9 for structure rows.' });
+      if (!normalized.yearLevel || normalized.yearLevel < 1 || normalized.yearLevel > 5) errors.push({ rowNumber, rowType: normalized.rowType, message: 'yearLevel is required for structure rows.' });
+      if (!normalized.semester || ![1, 2, 3].includes(normalized.semester)) errors.push({ rowNumber, rowType: normalized.rowType, message: 'semester must be 1, 2, or 3 for structure rows.' });
+    }
+
+    if (normalized.rowType === 'prerequisite' || normalized.rowType === 'corequisite' || normalized.rowType === 'equivalency') {
+      if (!normalized.courseCode) errors.push({ rowNumber, rowType: normalized.rowType, message: 'courseCode is required.' });
+      if (!normalized.relatedCourseCode) errors.push({ rowNumber, rowType: normalized.rowType, message: 'relatedCourseCode is required.' });
+      if (normalized.courseCode && normalized.relatedCourseCode && normalized.courseCode === normalized.relatedCourseCode) {
+        errors.push({ rowNumber, rowType: normalized.rowType, message: 'courseCode and relatedCourseCode cannot be the same.' });
+      }
+    }
+
+    if (normalized.rowType === 'elective_track' && !normalized.trackName) {
+      errors.push({ rowNumber, rowType: normalized.rowType, message: 'trackName is required for elective_track rows.' });
+    }
+
+    if (normalized.rowType === 'elective_track_course') {
+      if (!normalized.trackName) errors.push({ rowNumber, rowType: normalized.rowType, message: 'trackName is required for elective_track_course rows.' });
+      if (!normalized.courseCode) errors.push({ rowNumber, rowType: normalized.rowType, message: 'courseCode is required for elective_track_course rows.' });
+      if (normalized.yearLevel && (normalized.yearLevel < 1 || normalized.yearLevel > 5)) {
+        errors.push({ rowNumber, rowType: normalized.rowType, message: 'yearLevel must be between 1 and 5.' });
+      }
+      if (normalized.semester && ![1, 2, 3].includes(normalized.semester)) {
+        errors.push({ rowNumber, rowType: normalized.rowType, message: 'semester must be 1, 2, or 3 when provided.' });
+      }
+    }
+
+    normalizedRows.push(normalized);
+  }
+
+  return { errors, normalizedRows };
+};
+
+const summarizeRows = (rows) => rows.reduce((acc, row) => {
+  acc.totalRows += 1;
+  acc.byType[row.rowType] = (acc.byType[row.rowType] || 0) + 1;
+  return acc;
+}, { totalRows: 0, byType: {} });
+
+const resolveCourseByCodeMap = async ({ rows, transaction }) => {
+  const courseCodes = [...new Set(
+    rows
+      .flatMap((row) => [row.courseCode, row.relatedCourseCode])
+      .filter(Boolean)
+      .map((value) => value.toUpperCase())
+  )];
+
+  const existingCourses = await Course.findAll({
+    where: { code: { [Op.in]: courseCodes } },
+    transaction
+  });
+
+  const map = new Map(existingCourses.map((course) => [course.code.toUpperCase(), course]));
+
+  const createRows = rows.filter((row) => row.rowType === 'structure');
+  for (const row of createRows) {
+    if (!row.courseCode || map.has(row.courseCode)) {
+      continue;
+    }
+
+    const created = await Course.create({
+      code: row.courseCode,
+      name: row.courseName,
+      units: row.units
+    }, { transaction });
+
+    map.set(created.code.toUpperCase(), created);
+  }
+
+  return map;
+};
 
 // ─── Curriculum ───────────────────────────────────────────────────────────────
 
@@ -880,6 +1126,409 @@ exports.removeCourseFromTrack = async (req, res, next) => {
     await etc.destroy();
     return res.status(204).send();
   } catch (err) {
+    next(err);
+  }
+};
+
+// ─── Curriculum CSV Import/Export ────────────────────────────────────────────
+
+// @desc   Export curriculum structure and mappings to CSV
+// @route  GET /api/curriculums/:id/export/csv
+// @access admin
+exports.exportCurriculumCsv = async (req, res, next) => {
+  try {
+    const curriculumId = Number(req.params.id);
+    const curriculum = await Curriculum.findByPk(curriculumId);
+    if (!curriculum) {
+      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+    }
+
+    const [structureRows, prereqRows, coreqRows, trackRows, equivalencies] = await Promise.all([
+      CurriculumCourse.findAll({
+        where: { curriculumId },
+        include: [{ model: Course }],
+        order: [['yearLevel', 'ASC'], ['semester', 'ASC'], ['id', 'ASC']]
+      }),
+      Prerequisite.findAll({
+        where: { curriculumId },
+        include: [{ model: Course, as: 'Course' }, { model: Course, as: 'PrerequisiteCourse' }],
+        order: [['id', 'ASC']]
+      }),
+      CoRequisite.findAll({
+        where: { curriculumId },
+        include: [{ model: Course, as: 'Course' }, { model: Course, as: 'CoRequisiteCourse' }],
+        order: [['id', 'ASC']]
+      }),
+      ElectiveTrack.findAll({
+        where: { curriculumId },
+        include: [{
+          model: ElectiveTrackCourse,
+          include: [{ model: Course }],
+          required: false
+        }],
+        order: [['name', 'ASC']]
+      }),
+      CourseEquivalency.findAll({
+        include: [{ model: Course, as: 'Course' }, { model: Course, as: 'EquivalentCourse' }],
+        order: [['id', 'ASC']]
+      })
+    ]);
+
+    const curriculumCourseCodes = new Set(structureRows.map((row) => row.Course?.code).filter(Boolean));
+    const relevantEquivalencies = equivalencies.filter((row) => {
+      const left = row.Course?.code;
+      const right = row.EquivalentCourse?.code;
+      return curriculumCourseCodes.has(left) || curriculumCourseCodes.has(right);
+    });
+
+    const rows = [
+      {
+        exportVersion: '1',
+        rowType: 'metadata',
+        curriculumId,
+        curriculumName: curriculum.name,
+        courseCode: '',
+        courseName: '',
+        units: '',
+        yearLevel: '',
+        semester: '',
+        isElective: '',
+        relatedCourseCode: '',
+        trackName: '',
+        notes: `generatedAt=${Date.now()}`
+      },
+      ...structureRows.map((row) => ({
+        exportVersion: '1',
+        rowType: 'structure',
+        curriculumId,
+        curriculumName: curriculum.name,
+        courseCode: row.Course?.code || '',
+        courseName: row.Course?.name || '',
+        units: row.Course?.units ?? '',
+        yearLevel: row.yearLevel ?? '',
+        semester: row.semester ?? '',
+        isElective: row.isElective ? 'true' : 'false',
+        relatedCourseCode: '',
+        trackName: '',
+        notes: ''
+      })),
+      ...prereqRows.map((row) => ({
+        exportVersion: '1',
+        rowType: 'prerequisite',
+        curriculumId,
+        curriculumName: curriculum.name,
+        courseCode: row.Course?.code || '',
+        courseName: row.Course?.name || '',
+        units: row.Course?.units ?? '',
+        yearLevel: '',
+        semester: '',
+        isElective: '',
+        relatedCourseCode: row.PrerequisiteCourse?.code || '',
+        trackName: '',
+        notes: ''
+      })),
+      ...coreqRows.map((row) => ({
+        exportVersion: '1',
+        rowType: 'corequisite',
+        curriculumId,
+        curriculumName: curriculum.name,
+        courseCode: row.Course?.code || '',
+        courseName: row.Course?.name || '',
+        units: row.Course?.units ?? '',
+        yearLevel: '',
+        semester: '',
+        isElective: '',
+        relatedCourseCode: row.CoRequisiteCourse?.code || '',
+        trackName: '',
+        notes: ''
+      })),
+      ...trackRows.flatMap((track) => {
+        const trackHeaderRow = {
+          exportVersion: '1',
+          rowType: 'elective_track',
+          curriculumId,
+          curriculumName: curriculum.name,
+          courseCode: '',
+          courseName: '',
+          units: '',
+          yearLevel: '',
+          semester: '',
+          isElective: '',
+          relatedCourseCode: '',
+          trackName: track.name,
+          notes: track.description || ''
+        };
+
+        const trackCourseRows = (track.ElectiveTrackCourses || []).map((entry) => ({
+          exportVersion: '1',
+          rowType: 'elective_track_course',
+          curriculumId,
+          curriculumName: curriculum.name,
+          courseCode: entry.Course?.code || '',
+          courseName: entry.Course?.name || '',
+          units: entry.Course?.units ?? '',
+          yearLevel: entry.yearLevel ?? '',
+          semester: entry.semester ?? '',
+          isElective: '',
+          relatedCourseCode: '',
+          trackName: track.name,
+          notes: ''
+        }));
+
+        return [trackHeaderRow, ...trackCourseRows];
+      }),
+      ...relevantEquivalencies.map((row) => ({
+        exportVersion: '1',
+        rowType: 'equivalency',
+        curriculumId,
+        curriculumName: curriculum.name,
+        courseCode: row.Course?.code || '',
+        courseName: row.Course?.name || '',
+        units: row.Course?.units ?? '',
+        yearLevel: '',
+        semester: '',
+        isElective: '',
+        relatedCourseCode: row.EquivalentCourse?.code || '',
+        trackName: '',
+        notes: row.notes || ''
+      }))
+    ];
+
+    const csv = serializeCsv(rows);
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const safeName = String(curriculum.name || 'curriculum').replace(/[^a-zA-Z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const fileName = `${safeName || 'curriculum'}-${curriculumId}-${timestamp}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    return res.status(200).send(csv);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const parseImportRowsFromRequest = (req, curriculumId) => {
+  if (!req.file || !req.file.buffer) {
+    return {
+      errors: [{ rowNumber: 0, message: 'CSV file is required. Upload with form-data field name "file".' }],
+      normalizedRows: []
+    };
+  }
+
+  const text = req.file.buffer.toString('utf8');
+  const csvRows = parseCsvText(text);
+  return validateAndNormalizeCsvRows({ csvRows, expectedCurriculumId: curriculumId });
+};
+
+// @desc   Preview curriculum CSV import (dry run)
+// @route  POST /api/curriculums/:id/import/csv/preview
+// @access admin
+exports.previewCurriculumImportCsv = async (req, res, next) => {
+  try {
+    const curriculumId = Number(req.params.id);
+    const curriculum = await Curriculum.findByPk(curriculumId);
+    if (!curriculum) {
+      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+    }
+
+    const { errors, normalizedRows } = parseImportRowsFromRequest(req, curriculumId);
+    const summary = summarizeRows(normalizedRows);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        dryRun: true,
+        curriculumId,
+        curriculumName: curriculum.name,
+        summary,
+        hasErrors: errors.length > 0,
+        rowErrors: errors
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc   Apply curriculum CSV import
+// @route  POST /api/curriculums/:id/import/csv/apply
+// @access admin
+exports.applyCurriculumImportCsv = async (req, res, next) => {
+  const tx = await sequelize.transaction();
+
+  try {
+    const curriculumId = Number(req.params.id);
+    const curriculum = await Curriculum.findByPk(curriculumId, { transaction: tx });
+    if (!curriculum) {
+      await tx.rollback();
+      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+    }
+
+    const { errors, normalizedRows } = parseImportRowsFromRequest(req, curriculumId);
+    if (errors.length > 0) {
+      await tx.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'CSV validation failed. Fix row-level errors and retry.',
+        data: {
+          dryRun: false,
+          hasErrors: true,
+          rowErrors: errors,
+          summary: summarizeRows(normalizedRows)
+        }
+      });
+    }
+
+    const courseByCode = await resolveCourseByCodeMap({ rows: normalizedRows, transaction: tx });
+
+    const unresolvedCourseErrors = [];
+    normalizedRows.forEach((row) => {
+      if (row.courseCode && !courseByCode.has(row.courseCode)) {
+        unresolvedCourseErrors.push({ rowNumber: row.rowNumber, rowType: row.rowType, message: `Unknown courseCode: ${row.courseCode}` });
+      }
+      if (row.relatedCourseCode && !courseByCode.has(row.relatedCourseCode)) {
+        unresolvedCourseErrors.push({ rowNumber: row.rowNumber, rowType: row.rowType, message: `Unknown relatedCourseCode: ${row.relatedCourseCode}` });
+      }
+    });
+
+    if (unresolvedCourseErrors.length > 0) {
+      await tx.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'CSV references unknown course codes.',
+        data: {
+          dryRun: false,
+          hasErrors: true,
+          rowErrors: unresolvedCourseErrors,
+          summary: summarizeRows(normalizedRows)
+        }
+      });
+    }
+
+    const structureRows = normalizedRows.filter((row) => row.rowType === 'structure');
+    const prereqRows = normalizedRows.filter((row) => row.rowType === 'prerequisite');
+    const coreqRows = normalizedRows.filter((row) => row.rowType === 'corequisite');
+    const equivRows = normalizedRows.filter((row) => row.rowType === 'equivalency');
+    const trackHeaderRows = normalizedRows.filter((row) => row.rowType === 'elective_track');
+    const trackCourseRows = normalizedRows.filter((row) => row.rowType === 'elective_track_course');
+
+    await CurriculumCourse.destroy({ where: { curriculumId }, transaction: tx });
+    if (structureRows.length > 0) {
+      const structurePayload = structureRows.map((row) => ({
+        curriculumId,
+        courseId: courseByCode.get(row.courseCode).id,
+        yearLevel: row.yearLevel,
+        semester: row.semester,
+        isElective: row.isElective
+      }));
+      await CurriculumCourse.bulkCreate(structurePayload, { transaction: tx });
+    }
+
+    await Prerequisite.destroy({ where: { curriculumId }, transaction: tx });
+    if (prereqRows.length > 0) {
+      await Prerequisite.bulkCreate(prereqRows.map((row) => ({
+        curriculumId,
+        courseId: courseByCode.get(row.courseCode).id,
+        prerequisiteCourseId: courseByCode.get(row.relatedCourseCode).id
+      })), { transaction: tx });
+    }
+
+    await CoRequisite.destroy({ where: { curriculumId }, transaction: tx });
+    if (coreqRows.length > 0) {
+      await CoRequisite.bulkCreate(coreqRows.map((row) => ({
+        curriculumId,
+        courseId: courseByCode.get(row.courseCode).id,
+        coRequisiteCourseId: courseByCode.get(row.relatedCourseCode).id
+      })), { transaction: tx });
+    }
+
+    const existingTracks = await ElectiveTrack.findAll({ where: { curriculumId }, transaction: tx });
+    const existingTrackIds = existingTracks.map((track) => track.id);
+    if (existingTrackIds.length > 0) {
+      await ElectiveTrackCourse.destroy({ where: { electiveTrackId: { [Op.in]: existingTrackIds } }, transaction: tx });
+    }
+    await ElectiveTrack.destroy({ where: { curriculumId }, transaction: tx });
+
+    const trackByName = new Map();
+    const trackNames = new Set([
+      ...trackHeaderRows.map((row) => row.trackName),
+      ...trackCourseRows.map((row) => row.trackName)
+    ].filter(Boolean));
+
+    for (const name of trackNames) {
+      const fromHeader = trackHeaderRows.find((row) => row.trackName === name);
+      const createdTrack = await ElectiveTrack.create({
+        curriculumId,
+        name,
+        description: fromHeader?.notes || null
+      }, { transaction: tx });
+      trackByName.set(name, createdTrack);
+    }
+
+    if (trackCourseRows.length > 0) {
+      const missingTrackRows = trackCourseRows.filter((row) => !trackByName.has(row.trackName));
+      if (missingTrackRows.length > 0) {
+        await tx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: 'CSV track-course rows reference unknown track names.',
+          data: {
+            dryRun: false,
+            hasErrors: true,
+            rowErrors: missingTrackRows.map((row) => ({
+              rowNumber: row.rowNumber,
+              rowType: row.rowType,
+              message: `Unknown trackName: ${row.trackName}`
+            }))
+          }
+        });
+      }
+
+      await ElectiveTrackCourse.bulkCreate(trackCourseRows.map((row) => ({
+        electiveTrackId: trackByName.get(row.trackName).id,
+        courseId: courseByCode.get(row.courseCode).id,
+        yearLevel: row.yearLevel,
+        semester: row.semester
+      })), { transaction: tx });
+    }
+
+    for (const row of equivRows) {
+      const courseId = courseByCode.get(row.courseCode).id;
+      const equivalentCourseId = courseByCode.get(row.relatedCourseCode).id;
+      const [record] = await CourseEquivalency.findOrCreate({
+        where: { courseId, equivalentCourseId },
+        defaults: { notes: row.notes || null },
+        transaction: tx
+      });
+
+      if (row.notes && record.notes !== row.notes) {
+        await record.update({ notes: row.notes }, { transaction: tx });
+      }
+    }
+
+    await tx.commit();
+
+    console.log('[curriculumImport]', {
+      action: 'apply',
+      curriculumId,
+      curriculumName: curriculum.name,
+      importedBy: req.user?.id,
+      summary: summarizeRows(normalizedRows)
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        curriculumId,
+        curriculumName: curriculum.name,
+        summary: summarizeRows(normalizedRows),
+        hasErrors: false,
+        rowErrors: []
+      },
+      message: 'Curriculum CSV import applied successfully.'
+    });
+  } catch (err) {
+    await tx.rollback();
     next(err);
   }
 };
