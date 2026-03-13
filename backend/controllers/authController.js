@@ -6,6 +6,10 @@ const { Op } = require('sequelize');
 const { sendTokenResponse } = require('../utils/jwt');
 const { sendActivationEmail, sendVerificationCode, sendEmailChangeVerificationCode } = require('../utils/email');
 const { linkStudentAccountToSar } = require('../utils/sarLinking');
+const {
+  shouldBypassAdminFirstLoginEnforcement,
+  maskUserFirstLoginFlags
+} = require('../utils/featureFlags');
 
 // Helper: generate a cryptographically secure 6-digit verification code
 function generateVerificationCode() {
@@ -27,7 +31,7 @@ function generatePasswordChangeToken(user) {
 // Helper: strip sensitive fields from a user plain object
 function sanitizeUser(user) {
   if (!user) return null;
-  const plain = user.get ? user.get({ plain: true }) : { ...user };
+  const plain = maskUserFirstLoginFlags(user);
   delete plain.password;
   delete plain.activationToken;
   delete plain.activationTokenExpires;
@@ -392,7 +396,7 @@ exports.login = async (req, res, next) => {
     }
 
     // Check if 2FA is enabled
-    if (user.mustChangePassword) {
+    if (user.mustChangePassword && !shouldBypassAdminFirstLoginEnforcement(user)) {
       return res.status(200).json({
         success: true,
         mustChangePassword: true,
@@ -401,7 +405,7 @@ exports.login = async (req, res, next) => {
     }
 
     // Phase 2A: if email change is pending, return restricted response
-    if (user.mustChangeEmail) {
+    if (user.mustChangeEmail && !shouldBypassAdminFirstLoginEnforcement(user)) {
       const { generateToken } = require('../utils/jwt');
       const token = generateToken(user);
       console.log(`[AUDIT] login with mustChangeEmail: user=${user.id} role=${user.role}`);
@@ -496,7 +500,7 @@ exports.verifyCode = async (req, res, next) => {
 
     const updatedUser = await User.findByPk(user.id);
 
-    if (updatedUser.mustChangePassword) {
+    if (updatedUser.mustChangePassword && !shouldBypassAdminFirstLoginEnforcement(updatedUser)) {
       return res.status(200).json({
         success: true,
         mustChangePassword: true,
@@ -655,7 +659,7 @@ exports.changePassword = async (req, res, next) => {
     const updatedUser = await User.findByPk(user.id);
 
     // Phase 2A: if email change is still required, return restricted response
-    if (updatedUser.mustChangeEmail) {
+    if (updatedUser.mustChangeEmail && !shouldBypassAdminFirstLoginEnforcement(updatedUser)) {
       const { generateToken } = require('../utils/jwt');
       const token = generateToken(updatedUser);
       console.log(`[AUDIT] password rotated for user=${updatedUser.id} role=${updatedUser.role}, email change still required`);

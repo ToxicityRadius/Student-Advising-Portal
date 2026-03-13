@@ -164,6 +164,18 @@ npm start
 node backend/scripts/seed.js
 ```
 
+### Users-Only Reset
+```bash
+node backend/scripts/seed_users_only.js
+```
+
+### Development Feature Flag
+To temporarily bypass the seeded Program Chair first-login password/email rotation in local development:
+
+```env
+DISABLE_ADMIN_FIRST_LOGIN_ENFORCEMENT=true
+```
+
 ## Security and Operational Notes
 
 - JWT-based protected routes with role guards.

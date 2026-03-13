@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { User } = require('../models');
+const { shouldBypassAdminFirstLoginEnforcement } = require('../utils/featureFlags');
 
 // Protect routes - verify JWT token
 exports.protect = async (req, res, next) => {
@@ -51,7 +52,7 @@ exports.protect = async (req, res, next) => {
         });
       }
 
-      if (!isPasswordChangeToken && user.mustChangePassword && !isChangePasswordRoute) {
+      if (!isPasswordChangeToken && user.mustChangePassword && !isChangePasswordRoute && !shouldBypassAdminFirstLoginEnforcement(user)) {
         return res.status(403).json({
           success: false,
           message: 'Password change required before accessing this route'
@@ -59,7 +60,7 @@ exports.protect = async (req, res, next) => {
       }
 
       // Block all non-auth routes when email change is still required (Phase 2A)
-      if (user.mustChangeEmail) {
+      if (user.mustChangeEmail && !shouldBypassAdminFirstLoginEnforcement(user)) {
         const isAuthRoute = req.baseUrl === '/api/auth';
         if (!isAuthRoute) {
           return res.status(403).json({

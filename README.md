@@ -107,6 +107,15 @@ node backend/scripts/seed.js
 node backend/scripts/seed_users_only.js
 ```
 
+### Optional Admin Access Bypass for Local Development
+If you want to access the seeded Program Chair account without the forced first-login password/email rotation, set this in `backend/.env`:
+
+```env
+DISABLE_ADMIN_FIRST_LOGIN_ENFORCEMENT=true
+```
+
+Set it back to `false` when you want the normal security flow again.
+
 ## 🔑 Default User Credentials
 
 These are recreated by both seed scripts (`seed.js` and `seed_users_only.js`):
@@ -120,3 +129,4 @@ These are recreated by both seed scripts (`seed.js` and `seed_users_only.js`):
 Notes:
 - 👔 Program Chair account is seeded with first-login security rotation enabled (`mustChangePassword` and `mustChangeEmail`).
 - 🧭 Use the correct login portal selection by role in the frontend (faculty for admin/adviser, student for student).
+- 🛠️ For local development only, you can temporarily bypass the seeded Program Chair first-login enforcement with `DISABLE_ADMIN_FIRST_LOGIN_ENFORCEMENT=true` in `backend/.env`.
