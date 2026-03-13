@@ -25,7 +25,7 @@
 | 5 | SAR Creation UX (Email-First + Autofill) | `[DONE]` |
 | 6 | Student “No SAR Yet” Visibility | `[DONE]` |
 | 7 | Platform-Wide Pagination Standardization | `[DONE]` |
-| 8 | SAR Academic Intelligence Engine | `[TODO]` |
+| 8 | SAR Academic Intelligence Engine | `[DONE]` |
 | 9 | Unified SAR Experience (Student + Adviser + Program Chair) | `[TODO]` |
 | 10 | Role-Specific Home Dashboard Revamp | `[TODO]` |
 | 11 | Navbar Quicklinks Expansion | `[TODO]` |
@@ -433,16 +433,16 @@ Add advanced SAR metrics and indicators requested for academic progress intellig
 4. Validate estimated graduation output for at least 3 profile scenarios.
 
 ### Verification Checklist
-- [ ] All requested indicators are present in API response.
-- [ ] Core metrics match manual calculations.
-- [ ] Prerequisite checks are accurate and explainable.
-- [ ] Output is reusable by dashboard, SAR page, and PDF generator.
+- [x] All requested indicators are present in API response.
+- [x] Core metrics match manual calculations.
+- [x] Prerequisite checks are accurate and explainable.
+- [x] Output is reusable by dashboard, SAR page, and PDF generator.
 
 ### Completion Note (fill when done)
-- **Date:**
-- **Executor:**
-- **Result:**
-- **Notes:**
+- **Date:** 2026-03-13
+- **Executor:** GitHub Copilot
+- **Result:** Pass
+- **Notes:** Implemented a centralized SAR analytics engine in `backend/utils/sarAnalytics.js` and wired it into both `GET /api/sars/:id` and SAR PDF export, eliminating duplicated computations across controllers. The analytics payload now includes all requested indicators: units/progress KPIs, status counters, subject status indicators (`completed`, `failed`, `pending`, `not yet taken`, `credited`), curriculum checklist overview, prerequisite eligibility with explicit unmet prerequisites, GPA/GWA monitoring, semester summaries, adviser review workflow state, priority subject indicators, remaining semesters, and estimated graduation with configurable assumptions. Frontend integration was added to student/adviser SAR surfaces and student dashboard summaries (`MyRecord`, `StudentDetail`, `Dashboard`) to consume and display the new payload. Manual tests were executed using controlled seeded scenarios (`pass/fail/pending`) and live API checks: completion/remaining metrics matched manual calculations (e.g., scenario 1 expected 1.06% = actual 1.06%), prerequisite met/unmet scenarios returned `eligible` vs `not-eligible` with correct unmet counts, estimated graduation produced outputs across 3 distinct profiles, `/api/sars/:id` returned populated analytics groups, and `/api/sars/:id/export/pdf` succeeded (`200`, non-zero PDF size).
 
 ---
 
@@ -726,6 +726,21 @@ Validate all revamp work together, prevent regressions, and prepare safe rollout
 ## Work Log (Update During Implementation)
 
 > Add one entry per completed phase.
+
+### Phase 8 — SAR Academic Intelligence Engine
+- **Phase:** 8
+- **Date:** 2026-03-13
+- **Implemented By:** GitHub Copilot
+- **Summary of Changes:**
+   - `backend/utils/sarAnalytics.js`: Added centralized SAR computation service for progress KPIs, grade/status mapping, curriculum checklist and subject indicators, prerequisite eligibility checks, status counters, GPA/GWA, semester summaries, review workflow state, priority subjects, remaining semesters, and graduation estimates.
+   - `backend/controllers/sarController.js`: `GET /api/sars/:id` now aggregates curriculum courses, prerequisite graph, and current term, then returns `data.analytics` from the shared service.
+   - `backend/controllers/exportController.js`: PDF export now consumes the same analytics engine and includes core intelligence fields (completion, units, GWA, prerequisite summary, review state, graduation estimate).
+   - `frontend/src/pages/student/MyRecord.js`: Added Academic Intelligence section with completion, GWA, prerequisite summary, remaining semesters, graduation estimate, and priority subjects.
+   - `frontend/src/pages/adviser/StudentDetail.js`: Added adviser-facing intelligence panel with completion/GWA/workflow KPIs, prerequisite eligibility table, and priority subjects.
+   - `frontend/src/pages/Dashboard.js`: Student SAR status panel now shows completion, remaining units, and estimated graduation.
+- **Manual Test Result:** Pass
+- **Verification Checklist Result:** Pass
+- **Follow-up Actions:** Proceed to Phase 9 (Unified SAR Experience) which can now consume the stable analytics DTO.
 
 ### Phase 7 — Platform-Wide Pagination Standardization
 - **Phase:** 7

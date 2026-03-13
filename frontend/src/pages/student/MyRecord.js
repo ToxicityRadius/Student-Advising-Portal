@@ -19,6 +19,8 @@ const formatDateTime = (value) => {
   return new Date(Number(value)).toLocaleString();
 };
 
+const formatPercent = (value) => `${Number(value || 0).toFixed(2)}%`;
+
 const getYearSemesterKey = (course) => `${course.yearLevel}-${course.semester}`;
 
 const MyRecord = () => {
@@ -56,6 +58,7 @@ const MyRecord = () => {
   }, [loadMyRecord]);
 
   const activeVersion = sar?.activeStudyPlanVersion || null;
+  const analytics = sar?.analytics || null;
   const profileImageUrl = buildProfileImageUrl(sar?.Student?.profile_picture);
 
   const groupedCourses = useMemo(() => {
@@ -258,6 +261,74 @@ const MyRecord = () => {
               )}
             </Card.Body>
           </Card>
+
+          {analytics && (
+            <Card className="shadow-sm mt-4">
+              <Card.Body>
+                <h5 className="mb-3">Academic Intelligence</h5>
+                <Row className="g-3 mb-3">
+                  <Col md={4}>
+                    <Card bg="light" className="h-100">
+                      <Card.Body>
+                        <div className="text-muted small">Program Completion</div>
+                        <div className="fw-semibold fs-5">{formatPercent(analytics.progress?.completionPercentage)}</div>
+                        <div className="small text-muted">{analytics.progress?.unitsCompletedVsTotal || '0 / 0'} units</div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  <Col md={4}>
+                    <Card bg="light" className="h-100">
+                      <Card.Body>
+                        <div className="text-muted small">GWA Monitoring</div>
+                        <div className="fw-semibold fs-5">{analytics.gpaMonitoring?.gwa ?? 'N/A'}</div>
+                        <div className="small text-muted">{analytics.gpaMonitoring?.gradedSubjects || 0} graded subjects</div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  <Col md={4}>
+                    <Card bg="light" className="h-100">
+                      <Card.Body>
+                        <div className="text-muted small">Estimated Remaining Semesters</div>
+                        <div className="fw-semibold fs-5">{analytics.remainingSemestersTracking?.estimatedRemainingSemesters ?? 0}</div>
+                        <div className="small text-muted">Est. graduation: {analytics.estimatedGraduationDate?.label || 'N/A'}</div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                </Row>
+
+                <Row className="g-3">
+                  <Col lg={6}>
+                    <h6 className="mb-2">Prerequisite Check</h6>
+                    <ListGroup variant="flush">
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Subjects with prerequisites met</span>
+                        <strong>{analytics.prerequisiteChecking?.metSubjects ?? 0}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Subjects with unmet prerequisites</span>
+                        <strong>{analytics.prerequisiteChecking?.unmetSubjects ?? 0}</strong>
+                      </ListGroup.Item>
+                    </ListGroup>
+                  </Col>
+                  <Col lg={6}>
+                    <h6 className="mb-2">Priority Subjects</h6>
+                    {Array.isArray(analytics.prioritySubjectIndicators) && analytics.prioritySubjectIndicators.length > 0 ? (
+                      <ListGroup variant="flush">
+                        {analytics.prioritySubjectIndicators.slice(0, 5).map((subject) => (
+                          <ListGroup.Item key={subject.courseId} className="px-0 d-flex justify-content-between align-items-center">
+                            <span>{subject.code} - {subject.name}</span>
+                            <Badge bg="warning" text="dark">Y{subject.yearLevel} S{subject.semester}</Badge>
+                          </ListGroup.Item>
+                        ))}
+                      </ListGroup>
+                    ) : (
+                      <p className="text-muted mb-0">No priority subjects flagged at this time.</p>
+                    )}
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
+          )}
         </>
       )}
     </div>

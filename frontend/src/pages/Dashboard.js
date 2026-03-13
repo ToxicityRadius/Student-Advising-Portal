@@ -220,6 +220,26 @@ const Dashboard = () => {
                       </span>
                     </div>
                   </Col>
+                  <Col md={6}>
+                    <div>
+                      <small className="text-muted fw-semibold d-block">Completion</small>
+                      <span className="fw-medium">
+                        {Number(studentSar.analytics?.progress?.completionPercentage || 0).toFixed(2)}%
+                      </span>
+                    </div>
+                  </Col>
+                  <Col md={6}>
+                    <div>
+                      <small className="text-muted fw-semibold d-block">Remaining Units</small>
+                      <span className="fw-medium">{studentSar.analytics?.progress?.remainingUnits ?? 'N/A'}</span>
+                    </div>
+                  </Col>
+                  <Col md={6}>
+                    <div>
+                      <small className="text-muted fw-semibold d-block">Estimated Graduation</small>
+                      <span className="fw-medium">{studentSar.analytics?.estimatedGraduationDate?.label || 'N/A'}</span>
+                    </div>
+                  </Col>
                 </Row>
                 <Alert variant="light" className="mb-0">
                   View full details in <Alert.Link as={Link} to="/my-record">My Academic Record</Alert.Link>.

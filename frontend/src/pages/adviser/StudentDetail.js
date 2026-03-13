@@ -147,6 +147,7 @@ const StudentDetail = () => {
   };
 
   const activeVersion = versions.find((version) => version.status === 'active') || sar?.activeStudyPlanVersion || null;
+  const analytics = sar?.analytics || null;
   const latestDraftVersion = versions
     .filter((version) => version.status === 'draft')
     .sort((left, right) => Number(right.versionNumber) - Number(left.versionNumber))[0] || null;
@@ -383,6 +384,96 @@ const StudentDetail = () => {
               </Table>
             </Card.Body>
           </Card>
+
+          {analytics && (
+            <Card className="shadow-sm mt-4">
+              <Card.Body>
+                <h5 className="mb-3">Academic Intelligence</h5>
+                <Row className="g-3 mb-3">
+                  <Col md={3}>
+                    <div className="border rounded p-3 bg-light h-100">
+                      <div className="text-muted small">Completion</div>
+                      <div className="fw-semibold fs-5">{Number(analytics.progress?.completionPercentage || 0).toFixed(2)}%</div>
+                      <div className="small text-muted">{analytics.progress?.unitsCompletedVsTotal || '0 / 0'} units</div>
+                    </div>
+                  </Col>
+                  <Col md={3}>
+                    <div className="border rounded p-3 bg-light h-100">
+                      <div className="text-muted small">GWA</div>
+                      <div className="fw-semibold fs-5">{analytics.gpaMonitoring?.gwa ?? 'N/A'}</div>
+                      <div className="small text-muted">{analytics.gpaMonitoring?.gradedUnits || 0} graded units</div>
+                    </div>
+                  </Col>
+                  <Col md={3}>
+                    <div className="border rounded p-3 bg-light h-100">
+                      <div className="text-muted small">Remaining Units</div>
+                      <div className="fw-semibold fs-5">{analytics.progress?.remainingUnits ?? 0}</div>
+                      <div className="small text-muted">{analytics.remainingSemestersTracking?.estimatedRemainingSemesters ?? 0} est. semesters</div>
+                    </div>
+                  </Col>
+                  <Col md={3}>
+                    <div className="border rounded p-3 bg-light h-100">
+                      <div className="text-muted small">Review Workflow</div>
+                      <div className="fw-semibold text-uppercase">{analytics.adviserReviewWorkflow?.reviewStatus || 'N/A'}</div>
+                      <div className="small text-muted">{analytics.adviserReviewWorkflow?.latestVersionStatus || 'No version'}</div>
+                    </div>
+                  </Col>
+                </Row>
+
+                <Row className="g-3">
+                  <Col lg={8}>
+                    <h6 className="mb-2">Prerequisite Eligibility</h6>
+                    <Table responsive hover size="sm">
+                      <thead>
+                        <tr>
+                          <th>Subject</th>
+                          <th className="text-center">Eligibility</th>
+                          <th>Unmet Prerequisites</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(analytics.prerequisiteChecking?.subjects || []).slice(0, 8).map((item) => (
+                          <tr key={item.courseId}>
+                            <td>{item.code} - {item.name}</td>
+                            <td className="text-center">
+                              <Badge bg={item.isPrerequisiteMet ? 'success' : 'danger'} className="text-uppercase">
+                                {item.eligibility}
+                              </Badge>
+                            </td>
+                            <td>
+                              {item.unmetPrerequisites?.length
+                                ? item.unmetPrerequisites.map((pr) => pr.code || pr.courseId).join(', ')
+                                : 'None'}
+                            </td>
+                          </tr>
+                        ))}
+                        {(analytics.prerequisiteChecking?.subjects || []).length === 0 && (
+                          <tr>
+                            <td colSpan={3} className="text-center text-muted py-3">No prerequisite rules defined for this curriculum.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </Table>
+                  </Col>
+                  <Col lg={4}>
+                    <h6 className="mb-2">Priority Subjects</h6>
+                    {Array.isArray(analytics.prioritySubjectIndicators) && analytics.prioritySubjectIndicators.length > 0 ? (
+                      <ListGroup variant="flush">
+                        {analytics.prioritySubjectIndicators.slice(0, 6).map((subject) => (
+                          <ListGroup.Item key={subject.courseId} className="px-0 d-flex justify-content-between align-items-center">
+                            <span>{subject.code}</span>
+                            <Badge bg="warning" text="dark">Y{subject.yearLevel} S{subject.semester}</Badge>
+                          </ListGroup.Item>
+                        ))}
+                      </ListGroup>
+                    ) : (
+                      <p className="text-muted mb-0">No priority subjects identified.</p>
+                    )}
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
+          )}
         </>
       )}
 

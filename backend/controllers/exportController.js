@@ -7,10 +7,14 @@ const {
   StudyPlanVersion,
   StudyPlanCourse,
   Curriculum,
+  CurriculumCourse,
+  Prerequisite,
+  AcademicTerm,
   Course,
   ElectiveTrack,
   User
 } = require('../models');
+const { computeSarAnalytics } = require('../utils/sarAnalytics');
 
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 
@@ -181,6 +185,43 @@ exports.exportSARPDF = async (req, res, next) => {
       ? sar.StudyPlan.StudyPlanVersions[0] || null
       : null;
 
+    const allVersions = sar.StudyPlan?.id
+      ? await StudyPlanVersion.findAll({
+        where: { studyPlanId: sar.StudyPlan.id },
+        include: [
+          { model: User, as: 'GeneratedByAdviser', attributes: ['id', 'firstName', 'lastName', 'email'] },
+          { model: User, as: 'ValidatedByAdviser', attributes: ['id', 'firstName', 'lastName', 'email'] },
+          {
+            model: StudyPlanCourse,
+            include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
+          }
+        ],
+        order: [['versionNumber', 'DESC'], ['createdAt', 'DESC']]
+      })
+      : [];
+
+    const [curriculumCourses, prerequisites, currentTerm] = await Promise.all([
+      CurriculumCourse.findAll({
+        where: { curriculumId: sar.curriculumId },
+        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+        order: [['yearLevel', 'ASC'], ['semester', 'ASC'], [Course, 'code', 'ASC']]
+      }),
+      Prerequisite.findAll({
+        where: { curriculumId: sar.curriculumId },
+        include: [{ model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] }]
+      }),
+      AcademicTerm.findOne({ where: { isCurrent: true }, attributes: ['id', 'schoolYear', 'semester'] })
+    ]);
+
+    const analytics = computeSarAnalytics({
+      sar,
+      studyPlanVersions: allVersions,
+      activeStudyPlanVersion: activeVersion,
+      curriculumCourses,
+      prerequisites,
+      currentTerm
+    });
+
     const validatingAdviserName = activeVersion?.ValidatedByAdviser
       ? `${activeVersion.ValidatedByAdviser.firstName} ${activeVersion.ValidatedByAdviser.lastName}`
       : 'N/A';
@@ -206,6 +247,32 @@ exports.exportSARPDF = async (req, res, next) => {
 
     drawSectionTitle(doc, 'Section 2: Curriculum Information');
     drawInfoRow(doc, 'Curriculum', sar.Curriculum?.name || 'N/A');
+    drawInfoRow(doc, 'Program Completion', `${analytics.progress?.completionPercentage ?? 0}%`);
+    drawInfoRow(doc, 'Units Completed / Total', analytics.progress?.unitsCompletedVsTotal || 'N/A');
+    drawInfoRow(doc, 'Remaining Units', String(analytics.progress?.remainingUnits ?? 'N/A'));
+
+    drawSectionTitle(doc, 'Section 2A: Academic Intelligence');
+    drawInfoRow(doc, 'GWA', analytics.gpaMonitoring?.gwa != null ? String(analytics.gpaMonitoring.gwa) : 'N/A');
+    drawInfoRow(
+      doc,
+      'Subjects Taken (Passed / Failed)',
+      `${analytics.subjectsTakenSummary?.passed ?? 0} / ${analytics.subjectsTakenSummary?.failed ?? 0}`
+    );
+    drawInfoRow(
+      doc,
+      'Prerequisite Eligibility (Met / Unmet)',
+      `${analytics.prerequisiteChecking?.metSubjects ?? 0} / ${analytics.prerequisiteChecking?.unmetSubjects ?? 0}`
+    );
+    drawInfoRow(
+      doc,
+      'Estimated Remaining Semesters',
+      String(analytics.remainingSemestersTracking?.estimatedRemainingSemesters ?? 0)
+    );
+    drawInfoRow(
+      doc,
+      'Estimated Graduation',
+      analytics.estimatedGraduationDate?.label || 'N/A'
+    );
 
     drawSectionTitle(doc, 'Section 3: Selected Elective Track');
     drawInfoRow(doc, 'Track', sar.ElectiveTrack?.name || 'Not selected');
@@ -216,6 +283,7 @@ exports.exportSARPDF = async (req, res, next) => {
     drawSectionTitle(doc, 'Section 5: Validation Information');
     drawInfoRow(doc, 'Validating Adviser', validatingAdviserName);
     drawInfoRow(doc, 'Validated At', formatTimestamp(activeVersion?.validatedAt));
+    drawInfoRow(doc, 'Review Workflow Status', analytics.adviserReviewWorkflow?.reviewStatus || 'N/A');
 
     doc.moveDown(1.2);
     doc.fontSize(9).font('Helvetica').text(`Generated on: ${new Date().toLocaleString()}`, { align: 'left' });

@@ -7,12 +7,15 @@ const {
   StudyPlanCourse,
   Curriculum,
   CurriculumCourse,
+  Prerequisite,
+  AcademicTerm,
   Course,
   ElectiveTrack,
   User
 } = require('../models');
 const { syncSarToProfile } = require('../utils/sarLinking');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
+const { computeSarAnalytics } = require('../utils/sarAnalytics');
 
 const tipEmailPattern = /@tip\.edu\.ph$/i;
 
@@ -436,6 +439,27 @@ exports.getSARById = async (req, res, next) => {
 
     const activeStudyPlanVersion = versions.find((version) => version.status === 'active') || null;
     const latestStudyPlanVersion = versions[0] || null;
+    const [curriculumCourses, prerequisites, currentTerm] = await Promise.all([
+      CurriculumCourse.findAll({
+        where: { curriculumId: sarData.curriculumId },
+        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+        order: [['yearLevel', 'ASC'], ['semester', 'ASC'], [Course, 'code', 'ASC']]
+      }),
+      Prerequisite.findAll({
+        where: { curriculumId: sarData.curriculumId },
+        include: [{ model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] }]
+      }),
+      AcademicTerm.findOne({ where: { isCurrent: true }, attributes: ['id', 'schoolYear', 'semester'] })
+    ]);
+
+    const analytics = computeSarAnalytics({
+      sar: sarData,
+      studyPlanVersions: versions,
+      activeStudyPlanVersion,
+      curriculumCourses,
+      prerequisites,
+      currentTerm
+    });
 
     return res.status(200).json({
       success: true,
@@ -443,6 +467,7 @@ exports.getSARById = async (req, res, next) => {
         ...sarData,
         activeStudyPlanVersion,
         latestStudyPlanVersion,
+        analytics,
         studyPlanVersions: versions.map((version) => ({
           id: version.id,
           versionNumber: version.versionNumber,
