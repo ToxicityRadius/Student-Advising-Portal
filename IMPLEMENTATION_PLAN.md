@@ -4,11 +4,13 @@
 > - At the start of a session, read this file to determine which phase to work on.
 > - When a phase is fully complete, mark it with `[DONE]` and update the status table.
 > - Each phase is self-contained. Never skip prerequisites — each phase lists its dependencies.
-> - For the next major revamp (profiles, SAR UX, pagination, dashboards, PDF redesign), continue with [IMPLEMENTATION_PLAN_PART2.md](IMPLEMENTATION_PLAN_PART2.md).
+> - This file now includes both the original core build phases and the former Part 2 revamp phases.
 
 ---
 
 ## Status Overview
+
+### Core Build Phases
 
 | Phase | Title | Status |
 |-------|-------|--------|
@@ -22,6 +24,28 @@
 | 8 | Student-Facing Views & PDF Export | `[DONE]` |
 | 9 | Forecasting System | `[DONE]` |
 | 10 | Auth & Access Control Refinements | `[DONE]` |
+
+### Revamp Phases (Merged from former Part 2)
+
+| Phase | Title | Status |
+|---|---|---|
+| 0 | Execution Protocol & Safety Guardrails | `[DONE]` |
+| 1 | Profile Domain Redesign (Schema + API Contract) | `[DONE]` |
+| 2 | Remove First-Login Complete Profile Flow | `[DONE]` |
+| 2A | Program Chair First-Login Email + Password Rotation | `[DONE]` |
+| 3 | Profile Images End-to-End | `[DONE]` |
+| 4 | SAR ↔ Profile Bi-Directional Sync | `[DONE]` |
+| 5 | SAR Creation UX (Email-First + Autofill) | `[DONE]` |
+| 6 | Student “No SAR Yet” Visibility | `[DONE]` |
+| 7 | Platform-Wide Pagination Standardization | `[DONE]` |
+| 8 | SAR Academic Intelligence Engine | `[DONE]` |
+| 9 | Unified SAR Experience (Student + Adviser + Program Chair) | `[DONE]` |
+| 10 | Role-Specific Home Dashboard Revamp | `[DONE]` |
+| 11 | Navbar Quicklinks Expansion | `[DONE]` |
+| 12 | Forecasting UX/Charts Upgrade | `[DONE]` |
+| 13 | Curriculum, Equivalency & CSV Import/Export UX Upgrade | `[DONE]` |
+| 14 | Professional SAR PDF Redesign | `[DONE]` |
+| 15 | Cross-Role UX Polish, Regression, and Rollout | `[DONE]` |
 
 ---
 
@@ -1235,3 +1259,31 @@ After each phase, manually test using the browser and network tab, or use a tool
 ---
 
 *Last updated: Phases 1, 2, 3, 4, 5, 6, 7, 8, 9, and 10 complete; Phase 10 auth/access control refinements (role-specific registration domains, forced admin first-login password change flow, ownership transfer backend/frontend, route/API guard audit, and manual/API/build verification) implemented and verified.*
+
+---
+
+## Merged Revamp Summary (Former IMPLEMENTATION_PLAN_PART2)
+
+This section preserves the crucial implementation outcomes from the former Part 2 execution plan so the project can be tracked from a single source document.
+
+### Global Revamp Principles Applied
+- Backward compatibility for existing records was preserved wherever possible.
+- Additive schema changes were prioritized over destructive changes.
+- List APIs and list UIs were standardized around `page`, `pageSize`, `search`, `sortBy`, and `sortOrder` (default page size `12`).
+- Role safety (`admin`, `adviser`, `student`) was maintained across backend guards and frontend route/UI behavior.
+- Phases were not marked complete without manual verification and checklist confirmation.
+
+### Revamp Completion Highlights
+- **Security + onboarding hardening:** Program Chair first-login credential rotation (password + verified email change) implemented and validated.
+- **Profile domain redesign:** Expanded profile schema, stronger validation, completion scoring, and profile image upload/replace/remove with safe constraints.
+- **SAR data integrity + UX:** Email-first SAR creation with autofill, SAR↔Profile bi-directional sync, shared SAR layout across roles, and improved student no-SAR visibility.
+- **Academic workflow improvements:** Study plan generation/validation flows and SAR analytics outputs integrated into role experiences.
+- **Platform consistency:** Pagination standardized across high-volume pages and APIs.
+- **Dashboards + navigation:** Role-specific dashboard summaries and role-aware navbar quicklinks delivered.
+- **Forecast + curriculum tooling:** Forecast charts/summary UX improved; curriculum/equivalency screens and CSV workflows upgraded.
+- **Reporting output quality:** SAR PDF export redesigned for professional, structured academic reporting.
+- **Rollout readiness:** Cross-role regression checks and cleanup completed.
+
+### Revamp Final State
+- All revamp phases `0` through `15` are marked `[DONE]` and verified.
+- This file is now the canonical implementation plan for both original and revamp tracks.

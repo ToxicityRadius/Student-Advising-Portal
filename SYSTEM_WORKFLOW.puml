@@ -1,0 +1,123 @@
+@startuml
+title Student Advising System — Current End-to-End Workflow
+
+start
+
+group Authentication & Account Security {
+  :User opens portal and selects role path;
+
+  if (Sign-in method?) then (Email/Password)
+    :Submit credentials;
+  else (Google OAuth)
+    :Authenticate with Google;
+    if (Allowed domain + role rules?) then (Yes)
+    else (No)
+      :Reject sign-in;
+      stop
+    endif
+  endif
+
+  if (Program Chair first-login security flags active?) then (Yes)
+    :Complete mandatory password + email rotation
+with verification;
+    if (Verification succeeds?) then (Yes)
+      :Grant full admin access;
+    else (No)
+      :Keep account restricted;
+      stop
+    endif
+  endif
+
+  :Load role-based dashboard;
+}
+
+group Curriculum & Term Governance {
+  :Configure curriculum structure
+(courses, pre/co-reqs, equivalencies, elective tracks);
+
+  if (Bulk update needed?) then (Yes)
+    :Preview CSV import (dry-run + row errors);
+    if (Validation passes?) then (Yes)
+      :Apply transactional import;
+    else (No)
+      :Fix CSV and retry;
+    endif
+  endif
+
+  :Export CSV when needed and set active curriculum;
+
+  :Create or activate academic term;
+  if (Term activated?) then (Yes)
+    :Mark active study plans for revalidation;
+  endif
+}
+
+repeat
+
+group Advising & Study Plan Management {
+  :Open Student Records;
+
+  if (SAR exists?) then (No)
+    :Create SAR via email-first flow
+(autofill if linked, manual if unlinked);
+    :Generate initial draft study plan;
+  else (Yes)
+    :Open SAR versions and review profile,
+checklist, prerequisites, grades, and analytics;
+  endif
+
+  :Enter or update grades;
+
+  if (Year 2, Semester 2 reached?) then (Yes)
+    if (Elective track selected?) then (No)
+      :Select elective track (immutable once set);
+    endif
+    :Ensure elective subjects follow selected track;
+  endif
+
+  if (Failures / INC / unresolved subjects?) then (Yes)
+    :Regenerate next draft study plan;
+    note right
+    Regeneration keeps passed courses completed,
+    reschedules unresolved courses, and respects
+    prerequisites/co-requisites and load constraints.
+    end note
+  endif
+
+  :Review/adjust draft and validate selected version
+as new active plan;
+}
+
+group Forecasting & Capacity Planning {
+  :Read active validated plans and compute
+current demand, next-term forecast, and variance;
+  :Show forecast dashboards/charts to Program Chair;
+
+  if (No active term?) then (Yes)
+    :Show guided empty-state to activate a term;
+  endif
+}
+
+group Student Self-Service Experience {
+  :Open student dashboard;
+
+  if (SAR exists?) then (No)
+    :Show clear "No SAR yet" status
+with adviser guidance;
+  else (Yes)
+    :View SAR snapshot/KPIs, open unified read-only SAR,
+and export SAR PDF;
+  endif
+
+  :Update profile and manage profile photo anytime;
+}
+
+group Term Closeout & Rollover {
+  :End current term, save forecast snapshot,
+activate next term, and trigger required revalidation;
+}
+
+repeat while (Next term?)
+
+stop
+@enduml
