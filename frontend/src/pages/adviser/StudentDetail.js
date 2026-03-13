@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Badge, Button, Card, Col, ListGroup, Row, Spinner, Table } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Col, Image, ListGroup, Row, Spinner, Table } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
+import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
 
 const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
@@ -124,6 +125,7 @@ const StudentDetail = () => {
     .filter((version) => version.status === 'draft')
     .sort((left, right) => Number(right.versionNumber) - Number(left.versionNumber))[0] || null;
   const hasStudyPlan = Boolean(sar?.StudyPlan?.id || versions.length > 0);
+  const profileImageUrl = buildProfileImageUrl(sar?.Student?.profile_picture);
 
   return (
     <div className="container py-4">
@@ -169,9 +171,21 @@ const StudentDetail = () => {
               <Card className="shadow-sm h-100">
                 <Card.Body>
                   <div className="d-flex justify-content-between align-items-start gap-3 mb-3">
-                    <div>
+                    <div className="d-flex align-items-center gap-3">
+                      {profileImageUrl ? (
+                        <Image src={profileImageUrl} roundedCircle width={56} height={56} style={{ objectFit: 'cover' }} />
+                      ) : (
+                        <div
+                          className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center"
+                          style={{ width: 56, height: 56, fontWeight: 700 }}
+                        >
+                          {getInitials(sar.studentName)}
+                        </div>
+                      )}
+                      <div>
                       <h4 className="mb-1">{sar.studentName}</h4>
                       <div className="text-muted">{sar.email}</div>
+                      </div>
                     </div>
                     <Badge bg="primary">Year {sar.yearLevel}</Badge>
                   </div>

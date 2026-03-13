@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Container, Card, Form, Button, Alert, Image, ProgressBar, Row, Col } from 'react-bootstrap';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { buildProfileImageUrl, getInitials } from '../utils/profileImage';
 
 const programOptions = ['BSCpE', 'BSCS', 'BSIT', 'BSCE', 'BSEE', 'BSME'];
 const sexOptions = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
@@ -46,16 +47,23 @@ const Profile = () => {
   const [preview, setPreview] = useState('');
   const [completionScore, setCompletionScore] = useState(0);
   const [curricula, setCurricula] = useState([]);
+  const [removeProfilePicture, setRemoveProfilePicture] = useState(false);
   const [formData, setFormData] = useState(EMPTY_FORM);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [profileRes, curriculaRes] = await Promise.all([
-          api.get(`/users/${user.id}`),
-          api.get('/curriculums')
-        ]);
+        const profileRes = await api.get(`/users/${user.id}`);
+
+        let curriculaRes = { data: { curriculums: [] } };
+        if (user?.role !== 'student') {
+          try {
+            curriculaRes = await api.get('/curriculums');
+          } catch {
+            curriculaRes = { data: { curriculums: [] } };
+          }
+        }
 
         const profile = profileRes.data.user || {};
         setCurricula(curriculaRes.data.curriculums || []);
@@ -84,10 +92,7 @@ const Profile = () => {
 
         setCompletionScore(profile.profileCompletionScore ?? 0);
 
-        if (profile.profile_picture) {
-          const apiRoot = (process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
-          setPreview(`${apiRoot}${profile.profile_picture}`);
-        }
+        setPreview(buildProfileImageUrl(profile.profile_picture));
       } catch (err) {
         setError(err.response?.data?.message || 'Failed to load profile');
       } finally {
@@ -109,7 +114,16 @@ const Profile = () => {
   const handleFileChange = (e) => {
     const file = e.target.files?.[0] || null;
     setFormData((prev) => ({ ...prev, profile_picture: file }));
-    if (file) setPreview(URL.createObjectURL(file));
+    if (file) {
+      setPreview(URL.createObjectURL(file));
+      setRemoveProfilePicture(false);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setFormData((prev) => ({ ...prev, profile_picture: null }));
+    setPreview('');
+    setRemoveProfilePicture(true);
   };
 
   const handleSubmit = async (e) => {
@@ -141,12 +155,15 @@ const Profile = () => {
       if (formData.profile_picture) {
         payload.append('profile_picture', formData.profile_picture);
       }
+      payload.append('remove_profile_picture', removeProfilePicture ? 'true' : 'false');
 
       const response = await api.put(`/users/${user.id}/profile`, payload, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
       setCompletionScore(response.data.user?.profileCompletionScore ?? completionScore);
+      setPreview(buildProfileImageUrl(response.data.user?.profile_picture));
+      setRemoveProfilePicture(false);
 
       const freshToken = response.data.token;
       if (freshToken) {
@@ -433,13 +450,23 @@ const Profile = () => {
             {/* ── Profile Picture ── */}
             <h6 className="text-uppercase text-muted mb-2" style={{ letterSpacing: '0.08em' }}>Profile Photo</h6>
             <div className="d-flex align-items-center gap-3 mb-4">
-              {preview && (
-                <Image src={preview} rounded width={80} height={80} style={{ objectFit: 'cover', flexShrink: 0 }} />
+              {preview ? (
+                <Image src={preview} roundedCircle width={80} height={80} style={{ objectFit: 'cover', flexShrink: 0 }} />
+              ) : (
+                <div
+                  className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center"
+                  style={{ width: 80, height: 80, flexShrink: 0, fontWeight: 700 }}
+                >
+                  {getInitials(`${formData.first_name} ${formData.last_name}`)}
+                </div>
               )}
               <Form.Group className="flex-grow-1">
                 <Form.Control type="file" accept="image/*" onChange={handleFileChange} />
-                <Form.Text className="text-muted">JPEG or PNG, max 5 MB.</Form.Text>
+                <Form.Text className="text-muted">JPEG, PNG, or WEBP. Max 5 MB. Recommended square image up to 2000x2000.</Form.Text>
               </Form.Group>
+              <Button type="button" variant="outline-secondary" onClick={handleRemovePhoto} disabled={!preview && !formData.profile_picture}>
+                Remove
+              </Button>
             </div>
 
             <Button type="submit" variant="warning" disabled={saving}>

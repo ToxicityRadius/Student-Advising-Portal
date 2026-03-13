@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Card, Col, ListGroup, Row, Spinner, Table } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Col, Image, ListGroup, Row, Spinner, Table } from 'react-bootstrap';
 import api from '../../utils/api';
+import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
 
 const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
@@ -54,6 +55,7 @@ const MyRecord = () => {
   }, [loadMyRecord]);
 
   const activeVersion = sar?.activeStudyPlanVersion || null;
+  const profileImageUrl = buildProfileImageUrl(sar?.Student?.profile_picture);
 
   const groupedCourses = useMemo(() => {
     const courses = Array.isArray(activeVersion?.StudyPlanCourses) ? [...activeVersion.StudyPlanCourses] : [];
@@ -150,18 +152,26 @@ const MyRecord = () => {
               <Card className="shadow-sm h-100">
                 <Card.Body>
                   <h5 className="mb-3">Student Information</h5>
+                  <div className="d-flex align-items-center gap-3 mb-3">
+                    {profileImageUrl ? (
+                      <Image src={profileImageUrl} roundedCircle width={56} height={56} style={{ objectFit: 'cover' }} />
+                    ) : (
+                      <div
+                        className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center"
+                        style={{ width: 56, height: 56, fontWeight: 700 }}
+                      >
+                        {getInitials(sar.studentName)}
+                      </div>
+                    )}
+                    <div>
+                      <div className="fw-semibold">{sar.studentName}</div>
+                      <div className="text-muted small">{sar.email}</div>
+                    </div>
+                  </div>
                   <ListGroup variant="flush">
-                    <ListGroup.Item className="px-0 d-flex justify-content-between">
-                      <span className="text-muted">Name</span>
-                      <strong>{sar.studentName}</strong>
-                    </ListGroup.Item>
                     <ListGroup.Item className="px-0 d-flex justify-content-between">
                       <span className="text-muted">Student Number</span>
                       <strong>{sar.studentNumber}</strong>
-                    </ListGroup.Item>
-                    <ListGroup.Item className="px-0 d-flex justify-content-between">
-                      <span className="text-muted">Email</span>
-                      <strong>{sar.email}</strong>
                     </ListGroup.Item>
                     <ListGroup.Item className="px-0 d-flex justify-content-between">
                       <span className="text-muted">Year Level</span>

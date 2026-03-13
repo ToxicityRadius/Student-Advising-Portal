@@ -1,4 +1,6 @@
 const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const path = require('path');
 const {
   StudentAcademicRecord,
   StudyPlan,
@@ -59,6 +61,35 @@ const drawInfoRow = (doc, label, value) => {
   doc.font('Helvetica').text(value || 'N/A');
 };
 
+const resolveUploadPathFromPublicPath = (publicPath) => {
+  if (!publicPath || !String(publicPath).startsWith('/uploads/')) {
+    return null;
+  }
+
+  const normalized = String(publicPath).replace(/\\/g, '/');
+  const relative = normalized.replace(/^\/uploads\//, '');
+  return path.join(__dirname, '../uploads', relative);
+};
+
+const drawProfilePhoto = (doc, profilePicturePath) => {
+  const localImagePath = resolveUploadPathFromPublicPath(profilePicturePath);
+
+  if (!localImagePath || !fs.existsSync(localImagePath)) {
+    return;
+  }
+
+  try {
+    const photoSize = 72;
+    doc.image(localImagePath, doc.page.width - doc.page.margins.right - photoSize, 45, {
+      fit: [photoSize, photoSize],
+      align: 'center',
+      valign: 'center'
+    });
+  } catch {
+    // Skip photo rendering if PDFKit cannot parse the image.
+  }
+};
+
 const drawStudyPlanRows = (doc, courses) => {
   if (!Array.isArray(courses) || courses.length === 0) {
     doc.text('No courses in active study plan version.');
@@ -115,6 +146,7 @@ exports.exportSARPDF = async (req, res, next) => {
       include: [
         { model: Curriculum, attributes: ['id', 'name'] },
         { model: ElectiveTrack, attributes: ['id', 'name'] },
+        { model: User, as: 'Student', attributes: ['id', 'profile_picture'] },
         { model: User, as: 'CreatedByAdviser', attributes: ['id', 'firstName', 'lastName', 'email'] },
         {
           model: StudyPlan,
@@ -160,6 +192,8 @@ exports.exportSARPDF = async (req, res, next) => {
 
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
     doc.pipe(res);
+
+    drawProfilePhoto(doc, sar.Student?.profile_picture);
 
     doc.fontSize(16).font('Helvetica-Bold').text('Technological Institute of the Philippines', { align: 'center' });
     doc.fontSize(15).font('Helvetica-Bold').text('Student Academic Record', { align: 'center' });

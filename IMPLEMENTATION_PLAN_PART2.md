@@ -20,7 +20,7 @@
 | 1 | Profile Domain Redesign (Schema + API Contract) | `[DONE]` |
 | 2 | Remove First-Login Complete Profile Flow | `[DONE]` |
 | 2A | Program Chair First-Login Email + Password Rotation | `[DONE]` |
-| 3 | Profile Images End-to-End | `[TODO]` |
+| 3 | Profile Images End-to-End | `[DONE]` |
 | 4 | SAR ↔ Profile Bi-Directional Sync | `[TODO]` |
 | 5 | SAR Creation UX (Email-First + Autofill) | `[TODO]` |
 | 6 | Student “No SAR Yet” Visibility | `[TODO]` |
@@ -232,15 +232,15 @@ Add profile photo upload/display for all users and reuse the photo in SAR surfac
 3. Replace and remove photos; verify fallback image behavior.
 
 ### Verification Checklist
-- [ ] Upload, replace, remove flows all work.
-- [ ] Images render in profile + SAR-related UI.
-- [ ] Invalid uploads are blocked with clear messages.
+- [x] Upload, replace, remove flows all work.
+- [x] Images render in profile + SAR-related UI.
+- [x] Invalid uploads are blocked with clear messages.
 
 ### Completion Note (fill when done)
-- **Date:**
-- **Executor:**
-- **Result:**
-- **Notes:**
+- **Date:** 2026-03-13
+- **Executor:** GitHub Copilot
+- **Result:** Pass
+- **Notes:** Implemented end-to-end profile image support with strict validation and role-safe rendering. Backend now enforces MIME/type and size constraints (JPEG/PNG/WEBP, max 5 MB), validates max dimensions (2000x2000), uses safe generated filenames, and supports both replace and remove flows with old-file cleanup. Backend static file handling was adjusted so uploaded profile images can be rendered by the frontend app origin during normal browser usage. Frontend now supports upload preview + remove in `Profile.js` and fallback initials avatars when no image is present. Profile images are rendered in dashboard identity card and SAR surfaces (`StudentList`, `StudentDetail`, `MyRecord`) via shared image utilities. SAR API now includes linked student `profile_picture` in payloads, and SAR PDF export supports embedding the student photo when available. Manual tests passed for valid uploads (admin/adviser/student), invalid type/oversize rejections, replace path change, remove-to-null fallback trigger, live-browser rendering checks, and successful frontend production build.
 
 ---
 
@@ -726,6 +726,27 @@ Validate all revamp work together, prevent regressions, and prepare safe rollout
 ## Work Log (Update During Implementation)
 
 > Add one entry per completed phase.
+
+### Phase 3 — Profile Images End-to-End
+- **Phase:** 3
+- **Date:** 2026-03-13
+- **Implemented By:** GitHub Copilot
+- **Summary of Changes:**
+   - `backend/server.js`: Updated security/static upload handling so profile image URLs are browser-loadable from the frontend origin.
+   - `backend/routes/userRoutes.js`: Added upload constraints and middleware-level validation responses for profile image type/size.
+   - `backend/controllers/userController.js`: Added image dimension checks, replace/remove handling, and old-file cleanup for profile image updates.
+   - `backend/controllers/sarController.js`: Included `profile_picture` in SAR-linked student attributes.
+   - `backend/controllers/exportController.js`: Added optional SAR PDF profile-photo rendering when image exists.
+   - `frontend/src/utils/profileImage.js`: Added shared profile image URL + initials helpers.
+   - `frontend/src/pages/Profile.js`: Added remove-photo action, fallback avatar, and updated upload guidance.
+   - `frontend/src/pages/Dashboard.js`: Added identity-card profile avatar with fallback initials.
+   - `frontend/src/pages/adviser/StudentList.js`: Added SAR list avatar rendering.
+   - `frontend/src/pages/adviser/StudentDetail.js`: Added SAR detail avatar rendering.
+   - `frontend/src/pages/student/MyRecord.js`: Added student SAR avatar rendering.
+   - `backend/package.json` / `backend/package-lock.json`: Added `image-size` dependency.
+- **Manual Test Result:** Pass
+- **Verification Checklist Result:** Pass
+- **Follow-up Actions:** Proceed to Phase 4 (SAR ↔ Profile Bi-Directional Sync).
 
 ### Phase 2A — Program Chair First-Login Email + Password Rotation
 - **Phase:** 2A

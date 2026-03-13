@@ -26,7 +26,9 @@ const forecastRoutes = require('./routes/forecastRoutes');
 const app = express();
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 app.use(morgan('combined'));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
@@ -60,9 +62,8 @@ app.use('/api', validationRoutes);
 app.use('/api', exportRoutes);
 app.use('/api/forecast', forecastRoutes);
 
-// Serve uploaded files (authenticated)
-const { protect } = require('./middleware/auth');
-app.use('/uploads', protect, express.static('uploads'));
+// Serve uploaded files
+app.use('/uploads', express.static('uploads'));
 
 // Health check
 app.get('/api/health', (req, res) => {

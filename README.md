@@ -5,6 +5,12 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 > - Core build roadmap: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 > - Revamp roadmap (Part 2): [IMPLEMENTATION_PLAN_PART2.md](IMPLEMENTATION_PLAN_PART2.md)
 
+### Recent Part 2 Updates
+- Profile images are now supported end-to-end (upload, replace, remove) with backend validation.
+- Allowed profile image formats: JPEG, PNG, WEBP; max upload size: 5 MB; max dimensions: 2000x2000.
+- Profile avatars now appear across key UI surfaces (Profile, Dashboard identity card, and SAR cards).
+- SAR export now supports embedding student profile photos when available.
+
 ---
 
 ## 📚 Documentation

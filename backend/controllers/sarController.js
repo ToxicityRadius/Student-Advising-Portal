@@ -14,7 +14,7 @@ const {
 
 const tipEmailPattern = /@tip\.edu\.ph$/i;
 
-const personAttributes = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId'];
+const personAttributes = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId', 'profile_picture'];
 const curriculumAttributes = ['id', 'name', 'description', 'isActive'];
 const electiveTrackAttributes = ['id', 'name', 'description'];
 

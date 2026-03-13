@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Container, Card, Row, Col, Badge, ListGroup, Spinner, Alert } from 'react-bootstrap';
+import { Container, Card, Row, Col, Badge, ListGroup, Spinner, Alert, Image } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
+import { buildProfileImageUrl, getInitials } from '../utils/profileImage';
 
 const semesterLabel = {
   1: '1st Semester',
@@ -24,6 +25,8 @@ const Dashboard = () => {
       : !user?.contact_number;
 
   const showProfileReminder = profileIncomplete && !profileReminderDismissed;
+  const displayName = `${user?.firstName || user?.first_name || ''} ${user?.lastName || user?.last_name || ''}`.trim();
+  const profileImageUrl = buildProfileImageUrl(user?.profile_picture);
 
   const handleDismissProfileReminder = () => {
     sessionStorage.setItem('profileReminderDismissed', 'true');
@@ -82,9 +85,21 @@ const Dashboard = () => {
       
       <Card className="mb-4 border-start border-warning border-5 shadow-sm">
         <Card.Body className="p-4">
-          <h2 className="mb-4" style={{ fontSize: '1.75rem' }}>
-            Welcome, {user?.firstName} {user?.lastName}!
-          </h2>
+          <div className="d-flex align-items-center gap-3 mb-4">
+            {profileImageUrl ? (
+              <Image src={profileImageUrl} roundedCircle width={72} height={72} style={{ objectFit: 'cover' }} />
+            ) : (
+              <div
+                className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center"
+                style={{ width: 72, height: 72, fontWeight: 700, fontSize: '1.1rem' }}
+              >
+                {getInitials(displayName)}
+              </div>
+            )}
+            <h2 className="mb-0" style={{ fontSize: '1.75rem' }}>
+              Welcome, {displayName || 'User'}!
+            </h2>
+          </div>
           
           <Row className="g-4">
             <Col md={6}>

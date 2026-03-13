@@ -1,10 +1,37 @@
 const { User } = require('../models');
 const { generateToken } = require('../utils/jwt');
 const { linkStudentAccountToSar } = require('../utils/sarLinking');
+const fs = require('fs');
+const path = require('path');
+const { imageSize } = require('image-size');
 
 // Allowed enum values for validated fields
 const ALLOWED_SEX = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
 const ALLOWED_STUDENT_TYPES = ['regular', 'irregular', 'transferee', 'ladderized'];
+const MAX_PROFILE_IMAGE_WIDTH = 2000;
+const MAX_PROFILE_IMAGE_HEIGHT = 2000;
+
+const removeLocalFile = async (filePath) => {
+  if (!filePath) {
+    return;
+  }
+
+  try {
+    await fs.promises.unlink(filePath);
+  } catch {
+    // Ignore cleanup failures to avoid blocking the main request flow.
+  }
+};
+
+const resolveUploadPathFromPublicPath = (publicPath) => {
+  if (!publicPath || !String(publicPath).startsWith('/uploads/')) {
+    return null;
+  }
+
+  const normalized = String(publicPath).replace(/\\/g, '/');
+  const relative = normalized.replace(/^\/uploads\//, '');
+  return path.join(__dirname, '../uploads', relative);
+};
 
 // Compute profile completion score (0-100) for a user object/plain object
 function computeProfileCompletionScore(user) {
@@ -352,9 +379,11 @@ exports.updateUserStudentId = async (req, res, next) => {
 exports.updateProfile = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const uploadedFilePath = req.file?.path || null;
 
     const requestingOwnProfile = req.user && req.user.id.toString() === id.toString();
     if (!requestingOwnProfile && req.user.role !== 'admin') {
+      await removeLocalFile(uploadedFilePath);
       return res.status(403).json({
         success: false,
         message: 'You are not authorized to update this profile'
@@ -363,6 +392,7 @@ exports.updateProfile = async (req, res, next) => {
 
     const user = await User.findByPk(id);
     if (!user) {
+      await removeLocalFile(uploadedFilePath);
       return res.status(404).json({
         success: false,
         message: 'User not found'
@@ -474,6 +504,7 @@ exports.updateProfile = async (req, res, next) => {
 
     // Final check after all field-level validations (adviserId / year_level may have added errors)
     if (Object.keys(validationErrors).length > 0) {
+      await removeLocalFile(uploadedFilePath);
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -481,8 +512,33 @@ exports.updateProfile = async (req, res, next) => {
       });
     }
 
+    const removeProfilePicture = String(req.body.remove_profile_picture || '').toLowerCase() === 'true';
+    const existingProfilePicturePath = user.profile_picture;
+
     if (req.file) {
+      const dimensions = imageSize(fs.readFileSync(req.file.path));
+      const width = Number(dimensions?.width || 0);
+      const height = Number(dimensions?.height || 0);
+
+      if (
+        !width ||
+        !height ||
+        width > MAX_PROFILE_IMAGE_WIDTH ||
+        height > MAX_PROFILE_IMAGE_HEIGHT
+      ) {
+        await removeLocalFile(req.file.path);
+        return res.status(400).json({
+          success: false,
+          message: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.',
+          errors: {
+            profile_picture: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.'
+          }
+        });
+      }
+
       updatePayload.profile_picture = `/uploads/profiles/${req.file.filename}`;
+    } else if (removeProfilePicture) {
+      updatePayload.profile_picture = null;
     }
 
     const now = Date.now();
@@ -491,6 +547,14 @@ exports.updateProfile = async (req, res, next) => {
 
     Object.assign(user, updatePayload);
     await user.save();
+
+    if (
+      Object.prototype.hasOwnProperty.call(updatePayload, 'profile_picture') &&
+      existingProfilePicturePath &&
+      existingProfilePicturePath !== updatePayload.profile_picture
+    ) {
+      await removeLocalFile(resolveUploadPathFromPublicPath(existingProfilePicturePath));
+    }
 
     const token = generateToken(user);
 

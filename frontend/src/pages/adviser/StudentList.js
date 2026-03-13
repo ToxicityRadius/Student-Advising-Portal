@@ -1,8 +1,9 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Card, Form, InputGroup, Pagination, Spinner, Table } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Form, Image, InputGroup, Pagination, Spinner, Table } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import CreateSARModal from '../../components/adviser/CreateSARModal';
 import api from '../../utils/api';
+import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
 
 const pageSize = 10;
 
@@ -131,7 +132,27 @@ const StudentList = () => {
                 <tbody>
                   {paginatedSars.map((sar) => (
                     <tr key={sar.id}>
-                      <td>{sar.studentName}</td>
+                      <td>
+                        <div className="d-flex align-items-center gap-2">
+                          {buildProfileImageUrl(sar.Student?.profile_picture) ? (
+                            <Image
+                              src={buildProfileImageUrl(sar.Student?.profile_picture)}
+                              roundedCircle
+                              width={32}
+                              height={32}
+                              style={{ objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <div
+                              className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center"
+                              style={{ width: 32, height: 32, fontSize: '0.75rem', fontWeight: 700 }}
+                            >
+                              {getInitials(sar.studentName)}
+                            </div>
+                          )}
+                          <span>{sar.studentName}</span>
+                        </div>
+                      </td>
                       <td>{sar.studentNumber}</td>
                       <td>{sar.email}</td>
                       <td>
