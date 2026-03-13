@@ -132,20 +132,6 @@ const SARLayout = ({
 
   return (
     <>
-      {/* ── Section jump links ── */}
-      <div className="d-flex flex-wrap gap-2 mb-3">
-        {TABS.map((tab) => (
-          <Button
-            key={tab.key}
-            size="sm"
-            variant={activeTab === tab.key ? 'primary' : 'outline-secondary'}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            {tab.label}
-          </Button>
-        ))}
-      </div>
-
       <Tab.Container activeKey={activeTab} onSelect={(k) => k && setActiveTab(k)}>
         <Nav variant="tabs" className="mb-3">
           {TABS.map((tab) => (

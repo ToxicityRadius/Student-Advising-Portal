@@ -129,8 +129,17 @@ const normalizeCourseCode = (value) =>
     .toUpperCase();
 
 /**
+ * Tokens in the prerequisites column that represent standing requirements rather
+ * than real course codes. The import system validates that relatedCourseCode
+ * exists as a course record, so standing strings must be stripped out.
+ */
+const STANDING_PATTERN = /\b(?:\d+(?:ST|ND|RD|TH)\s+YEAR\s+STANDING|GRADUATING|GRADUATE)\b/i;
+
+/**
  * Parses the prerequisites column: semicolon-separated list.
- * Filters out "See Track" placeholders (elective slots, not real prereqs).
+ * Filters out:
+ *  - "See Track" placeholders (elective slots, not real prereqs)
+ *  - Standing-based requirements (e.g. "3RD YEAR STANDING", "GRADUATING")
  */
 const parsePrerequisiteTokens = (value) => {
   if (!value) return [];
@@ -138,7 +147,8 @@ const parsePrerequisiteTokens = (value) => {
     .split(';')
     .map((t) => t.trim())
     .filter(Boolean)
-    .filter((t) => !/see\s*track/i.test(t));
+    .filter((t) => !/see\s*track/i.test(t))
+    .filter((t) => !STANDING_PATTERN.test(t));
 };
 
 const parseSemester = (raw) => {
@@ -197,6 +207,15 @@ const processCurriculum = (def) => {
   const seenTracks = new Set();
   const prereqDedup = new Set();
 
+  // Track which course codes are placed as regular structure courses.
+  // Only these courses (plus courses already in the DB) can be referenced
+  // in prerequisite rows, because resolveCourseByCodeMap only creates courses
+  // from structure rows. Elective-track-only courses would be "unknown".
+  const structureCodes = new Set();
+
+  // First pass: collect all rows, build structureCodes and raw track data
+  const rawStructureRows = [];
+
   for (const line of lines) {
     const cells = parseCsvLine(line);
     if (cells.length < 9) continue;
@@ -234,22 +253,10 @@ const processCurriculum = (def) => {
         units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
         trackName
       }));
-
-      // ── Prerequisites for elective track courses ──
-      for (const token of parsePrerequisiteTokens(prerequisites)) {
-        const prereqCode = normalizeCourseCode(token);
-        if (!prereqCode) continue;
-        const key = `${courseCode}|${prereqCode}`;
-        if (!prereqDedup.has(key)) {
-          prereqDedup.add(key);
-          prerequisiteRows.push(makeRow(def.curriculumName, 'prerequisite', {
-            courseCode,
-            courseName,
-            units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
-            relatedCourseCode: prereqCode
-          }));
-        }
-      }
+      // Note: prerequisites for elective track courses are omitted here.
+      // These courses are not placed in structure rows, so the import system
+      // cannot resolve them as course records during the same import.
+      // Add their prerequisites manually in the admin UI after importing.
     } else {
       // ── Regular curriculum placement (structure row) ──
       const yearLevel = parseYearLevel(yearRaw);
@@ -261,6 +268,7 @@ const processCurriculum = (def) => {
       const isElective =
         /see\s*track/i.test(prerequisites) || /^CPEC\b/i.test(courseCode);
 
+      structureCodes.add(courseCode);
       structureRows.push(makeRow(def.curriculumName, 'structure', {
         courseCode,
         courseName,
@@ -270,22 +278,30 @@ const processCurriculum = (def) => {
         isElective: isElective ? 'true' : 'false'
       }));
 
-      // ── Prerequisites for regular courses (skip elective-slot placeholders) ──
       if (!isElective) {
-        for (const token of parsePrerequisiteTokens(prerequisites)) {
-          const prereqCode = normalizeCourseCode(token);
-          if (!prereqCode) continue;
-          const key = `${courseCode}|${prereqCode}`;
-          if (!prereqDedup.has(key)) {
-            prereqDedup.add(key);
-            prerequisiteRows.push(makeRow(def.curriculumName, 'prerequisite', {
-              courseCode,
-              courseName,
-              units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
-              relatedCourseCode: prereqCode
-            }));
-          }
-        }
+        rawStructureRows.push({ courseCode, courseName, creditUnits, prerequisites });
+      }
+    }
+  }
+
+  // Second pass: emit prerequisite rows now that structureCodes is fully populated.
+  // This ensures forward-references (e.g. a course listing a same-semester prereq
+  // that appeared later in the source file) are handled correctly.
+  for (const { courseCode, courseName, creditUnits, prerequisites } of rawStructureRows) {
+    for (const token of parsePrerequisiteTokens(prerequisites)) {
+      const prereqCode = normalizeCourseCode(token);
+      if (!prereqCode) continue;
+      // relatedCourseCode must also be a structure course so it can be resolved
+      if (!structureCodes.has(prereqCode)) continue;
+      const key = `${courseCode}|${prereqCode}`;
+      if (!prereqDedup.has(key)) {
+        prereqDedup.add(key);
+        prerequisiteRows.push(makeRow(def.curriculumName, 'prerequisite', {
+          courseCode,
+          courseName,
+          units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
+          relatedCourseCode: prereqCode
+        }));
       }
     }
   }

@@ -241,7 +241,9 @@ const resolveCourseByCodeMap = async ({ rows, transaction }) => {
 
   const map = new Map(existingCourses.map((course) => [course.code.toUpperCase(), course]));
 
-  const createRows = rows.filter((row) => row.rowType === 'structure');
+  const createRows = rows.filter((row) =>
+    row.rowType === 'structure' || row.rowType === 'elective_track_course'
+  );
   for (const row of createRows) {
     if (!row.courseCode || map.has(row.courseCode)) {
       continue;

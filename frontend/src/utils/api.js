@@ -17,6 +17,11 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Let the browser set Content-Type automatically for FormData uploads
+    // (it must include the multipart boundary which axios cannot generate)
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
     return config;
   },
   (error) => {

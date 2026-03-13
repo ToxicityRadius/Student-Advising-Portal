@@ -6,6 +6,7 @@ import {
   Card,
   Col,
   Form,
+  ListGroup,
   Row,
   Spinner,
   Tab,
@@ -61,6 +62,8 @@ const CurriculumDetail = () => {
   const [trackForm, setTrackForm] = useState(emptyTrackForm);
   const [trackSlotById, setTrackSlotById] = useState({});
 
+  const [structureAddSlot, setStructureAddSlot] = useState({ yearLevel: '1', semester: '1' });
+
   const structureBySlot = useMemo(() => {
     const map = {};
     for (const entry of curriculumCourses) {
@@ -71,6 +74,16 @@ const CurriculumDetail = () => {
       map[key].push(entry);
     }
     return map;
+  }, [curriculumCourses]);
+
+  const semesterLabel = (s) => s === 3 ? 'Summer' : `Semester ${s}`;
+
+  const sortedStructure = useMemo(() => {
+    return [...curriculumCourses].sort((a, b) =>
+      a.yearLevel - b.yearLevel ||
+      a.semester - b.semester ||
+      (a.Course?.code || '').localeCompare(b.Course?.code || '')
+    );
   }, [curriculumCourses]);
 
   const showFeedback = (variant, message) => setAlert({ variant, message });
@@ -135,13 +148,6 @@ const CurriculumDetail = () => {
         });
         setAddStructureAsElective(false);
         await loadData();
-        showFeedback('success', 'Course added to curriculum structure.');
-      } else if (pickerState.mode === 'prereq') {
-        if (pickerState.target === 'course') {
-          setSelectedPrereq((prev) => ({ ...prev, course }));
-        } else {
-          setSelectedPrereq((prev) => ({ ...prev, prerequisite: course }));
-        }
       } else if (pickerState.mode === 'coreq') {
         if (pickerState.target === 'course') {
           setSelectedCoreq((prev) => ({ ...prev, course }));
@@ -351,73 +357,107 @@ const CurriculumDetail = () => {
 
       <Tabs activeKey={tabKey} onSelect={(key) => setTabKey(key || 'structure')} className="mb-3">
         <Tab eventKey="structure" title="Structure">
-          <div className="d-flex align-items-center justify-content-between mb-3">
-            <div className="text-muted">Rows are year levels and columns are semester slots.</div>
-            {busy && <Spinner size="sm" animation="border" />}
+          {/* ── Add Course ─────────────────────────────────────────────── */}
+          <Card className="mb-3">
+            <Card.Body>
+              <h6 className="mb-2">Add Course to Structure</h6>
+              <Row className="g-2 align-items-end">
+                <Col xs={6} md={3}>
+                  <Form.Label className="small mb-1">Year Level</Form.Label>
+                  <Form.Select
+                    size="sm"
+                    value={structureAddSlot.yearLevel}
+                    onChange={(e) => setStructureAddSlot((prev) => ({ ...prev, yearLevel: e.target.value }))}
+                  >
+                    {YEARS.map((y) => <option key={y} value={y}>Year {y}</option>)}
+                  </Form.Select>
+                </Col>
+                <Col xs={6} md={3}>
+                  <Form.Label className="small mb-1">Semester</Form.Label>
+                  <Form.Select
+                    size="sm"
+                    value={structureAddSlot.semester}
+                    onChange={(e) => setStructureAddSlot((prev) => ({ ...prev, semester: e.target.value }))}
+                  >
+                    {SEMESTERS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </Form.Select>
+                </Col>
+                <Col xs={12} md={4} className="d-flex align-items-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline-primary"
+                    onClick={() => openPicker({
+                      mode: 'structure',
+                      title: `Add Course — Year ${structureAddSlot.yearLevel} ${semesterLabel(Number(structureAddSlot.semester))}`,
+                      yearLevel: Number(structureAddSlot.yearLevel),
+                      semester: Number(structureAddSlot.semester)
+                    })}
+                  >
+                    Pick Course
+                  </Button>
+                  <Form.Check
+                    type="checkbox"
+                    label="Mark as Elective"
+                    className="small"
+                    checked={addStructureAsElective}
+                    onChange={(e) => setAddStructureAsElective(e.target.checked)}
+                  />
+                </Col>
+                {busy && <Col xs="auto"><Spinner size="sm" animation="border" /></Col>}
+              </Row>
+            </Card.Body>
+          </Card>
+
+          {/* ── Course list ─────────────────────────────────────────────── */}
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <span className="text-muted small">{sortedStructure.length} course{sortedStructure.length !== 1 ? 's' : ''} in curriculum</span>
           </div>
 
-          <Table bordered responsive>
-            <thead>
-              <tr>
-                <th style={{ width: 140 }}>Year Level</th>
-                {SEMESTERS.map((sem) => (
-                  <th key={sem.value}>{sem.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {YEARS.map((year) => (
-                <tr key={year}>
-                  <td className="fw-semibold">Year {year}</td>
-                  {SEMESTERS.map((sem) => {
-                    const slotKey = `${year}-${sem.value}`;
-                    const slotCourses = structureBySlot[slotKey] || [];
+          <ListGroup variant="flush" className="border rounded">
+            {sortedStructure.length === 0 && (
+              <ListGroup.Item className="text-center text-muted py-4">No courses in curriculum structure yet.</ListGroup.Item>
+            )}
+            {sortedStructure.map((entry, idx) => {
+              const isFirstOnPage = idx === 0;
+              const prevEntry = sortedStructure[idx - 1];
+              const isNewGroup = isFirstOnPage ||
+                prevEntry?.yearLevel !== entry.yearLevel ||
+                prevEntry?.semester !== entry.semester;
 
-                    return (
-                      <td key={slotKey}>
-                        <div className="d-flex flex-wrap gap-2 mb-2">
-                          {slotCourses.map((entry) => (
-                            <Badge
-                              pill
-                              bg={entry.isElective ? 'warning' : 'primary'}
-                              text={entry.isElective ? 'dark' : 'light'}
-                              key={entry.id}
-                              style={{ cursor: 'pointer' }}
-                              onClick={() => removeFromStructure(entry.id)}
-                              title="Click to remove"
-                            >
-                              {entry.Course?.code} ({entry.Course?.units}u)
-                            </Badge>
-                          ))}
-                          {slotCourses.length === 0 && <span className="text-muted small">No courses</span>}
+              return (
+                <React.Fragment key={entry.id}>
+                  {isNewGroup && (
+                    <ListGroup.Item className="bg-light py-1 px-3" style={{ borderBottom: '1px solid #dee2e6' }}>
+                      <span className="fw-semibold small text-secondary">
+                        Year {entry.yearLevel} — {semesterLabel(entry.semester)}
+                      </span>
+                    </ListGroup.Item>
+                  )}
+                  <ListGroup.Item className="py-2 px-3">
+                    <Row className="g-2 align-items-center">
+                      <Col xs={12} md={9}>
+                        <div className="d-flex flex-wrap align-items-center gap-2">
+                          <span className="fw-semibold" style={{ minWidth: 90 }}>{entry.Course?.code}</span>
+                          <span className="text-muted small">{entry.Course?.name}</span>
+                          <Badge bg="secondary">{entry.Course?.units}u</Badge>
+                          {entry.isElective && <Badge bg="warning" text="dark">Elective</Badge>}
                         </div>
-                        <div className="d-flex align-items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline-primary"
-                            onClick={() => openPicker({
-                              mode: 'structure',
-                              title: `Add Course: Year ${year} ${sem.label}`,
-                              yearLevel: year,
-                              semester: sem.value
-                            })}
-                          >
-                            Add Course
-                          </Button>
-                          <Form.Check
-                            type="checkbox"
-                            label="Elective"
-                            checked={addStructureAsElective}
-                            onChange={(e) => setAddStructureAsElective(e.target.checked)}
-                          />
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+                      </Col>
+                      <Col xs={12} md={3} className="text-md-end">
+                        <Button
+                          size="sm"
+                          variant="outline-danger"
+                          onClick={() => removeFromStructure(entry.id)}
+                        >
+                          Remove
+                        </Button>
+                      </Col>
+                    </Row>
+                  </ListGroup.Item>
+                </React.Fragment>
+              );
+            })}
+          </ListGroup>
         </Tab>
 
         <Tab eventKey="prerequisites" title="Prerequisites">
@@ -579,26 +619,34 @@ const CurriculumDetail = () => {
             </Card.Body>
           </Card>
 
-          <Row className="g-3">
-            {tracks.map((track) => {
-              const slot = trackSlotById[track.id] || { yearLevel: '', semester: '' };
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <span className="text-muted small">{tracks.length} elective track{tracks.length !== 1 ? 's' : ''}</span>
+          </div>
 
-              return (
-                <Col key={track.id} lg={6}>
-                  <Card>
-                    <Card.Body>
-                      <div className="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                          <h5 className="mb-1">{track.name}</h5>
-                          <div className="text-muted small">{track.description || 'No description'}</div>
-                        </div>
+          {tracks.length === 0 ? (
+            <div className="text-muted">No elective tracks yet.</div>
+          ) : (
+            <ListGroup className="mb-3">
+              {tracks.map((track) => {
+                const slot = trackSlotById[track.id] || { yearLevel: '', semester: '' };
+                return (
+                  <ListGroup.Item key={track.id} className="p-3">
+                    <Row className="g-2 align-items-start mb-2">
+                      <Col xs={12} md={9}>
+                        <strong>{track.name}</strong>
+                        <div className="text-muted small">{track.description || 'No description'}</div>
+                      </Col>
+                      <Col xs={12} md={3} className="text-md-end">
                         <Button size="sm" variant="outline-danger" onClick={() => deleteTrack(track.id)}>
                           Delete
                         </Button>
-                      </div>
+                      </Col>
+                    </Row>
 
-                      <div className="d-flex gap-2 mb-2">
+                    <Row className="g-2 align-items-end mb-2">
+                      <Col xs={12} sm={4} md={3}>
                         <Form.Select
+                          size="sm"
                           value={slot.yearLevel}
                           onChange={(e) => {
                             const value = e.target.value;
@@ -610,7 +658,10 @@ const CurriculumDetail = () => {
                             <option key={year} value={year}>Year {year}</option>
                           ))}
                         </Form.Select>
+                      </Col>
+                      <Col xs={12} sm={5} md={3}>
                         <Form.Select
+                          size="sm"
                           value={slot.semester}
                           onChange={(e) => {
                             const value = e.target.value;
@@ -622,42 +673,41 @@ const CurriculumDetail = () => {
                             <option key={sem.value} value={sem.value}>{sem.label}</option>
                           ))}
                         </Form.Select>
+                      </Col>
+                      <Col xs={12} sm={3} md={3}>
                         <Button
+                          size="sm"
                           variant="outline-primary"
                           onClick={() => openPicker({ mode: 'track', trackId: track.id, title: `Add Course to ${track.name}` })}
                         >
                           Add Course
                         </Button>
-                      </div>
+                      </Col>
+                    </Row>
 
-                      <div className="d-flex flex-wrap gap-2">
-                        {(track.ElectiveTrackCourses || []).map((entry) => (
-                          <Badge
-                            key={entry.id}
-                            bg="info"
-                            text="dark"
-                            style={{ cursor: 'pointer' }}
-                            title="Click to remove"
-                            onClick={() => removeTrackCourse(track.id, entry.id)}
-                          >
-                            {entry.Course?.code}
-                            {entry.yearLevel ? ` Y${entry.yearLevel}` : ''}
-                            {entry.semester ? ` S${entry.semester}` : ''}
-                          </Badge>
-                        ))}
-                        {(track.ElectiveTrackCourses || []).length === 0 && (
-                          <span className="text-muted small">No courses assigned.</span>
-                        )}
-                      </div>
-                    </Card.Body>
-                  </Card>
-                </Col>
-              );
-            })}
-          </Row>
-
-          {tracks.length === 0 && (
-            <div className="text-muted">No elective tracks yet.</div>
+                    <div className="d-flex flex-wrap gap-2">
+                      {(track.ElectiveTrackCourses || []).map((entry) => (
+                        <Badge
+                          key={entry.id}
+                          bg="info"
+                          text="dark"
+                          style={{ cursor: 'pointer' }}
+                          title="Click to remove"
+                          onClick={() => removeTrackCourse(track.id, entry.id)}
+                        >
+                          {entry.Course?.code} - {entry.Course?.name || 'Unnamed Course'}
+                          {entry.yearLevel ? ` • Y${entry.yearLevel}` : ''}
+                          {entry.semester ? ` • S${entry.semester}` : ''}
+                        </Badge>
+                      ))}
+                      {(track.ElectiveTrackCourses || []).length === 0 && (
+                        <span className="text-muted small">No courses assigned.</span>
+                      )}
+                    </div>
+                  </ListGroup.Item>
+                );
+              })}
+            </ListGroup>
           )}
         </Tab>
       </Tabs>

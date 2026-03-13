@@ -53,14 +53,19 @@ const semesterLabel = (semester) => {
   return `Semester ${semester}`;
 };
 
+const PAGE_PADDING_BOTTOM = 24;
+
 const ensureSpace = (doc, minHeight = 40) => {
   const maxY = doc.page.height - doc.page.margins.bottom;
   if (doc.y + minHeight > maxY) {
     doc.addPage();
+    doc.x = doc.page.margins.left;
+    doc.y = doc.page.margins.top;
   }
 };
 
 const drawSectionTitle = (doc, title, subtitle = '') => {
+  doc.x = doc.page.margins.left;
   ensureSpace(doc, 36);
   doc.moveDown(0.7);
   doc.fontSize(11.5).font('Helvetica-Bold').fillColor('#111111').text(title);
@@ -76,6 +81,7 @@ const drawSectionTitle = (doc, title, subtitle = '') => {
     .strokeColor('#D1D5DB')
     .stroke();
   doc.moveDown(0.5);
+  doc.x = doc.page.margins.left;
   doc.fillColor('#111111').fontSize(9.5).font('Helvetica');
 };
 
@@ -242,54 +248,135 @@ const drawStudyPlanRows = (doc, courses) => {
     return String(left.Course?.code || '').localeCompare(String(right.Course?.code || ''));
   });
 
+  const tableX = doc.page.margins.left;
+  const tableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const fixedColumnsWidth = 82 + 44 + 54 + 74;
+  const courseNameWidth = Math.max(140, tableWidth - fixedColumnsWidth);
   const columns = [
-    { label: 'Year / Sem', x: 52, width: 90 },
-    { label: 'Code', x: 142, width: 70 },
-    { label: 'Course Name', x: 212, width: 170 },
-    { label: 'Units', x: 382, width: 45, align: 'right' },
-    { label: 'Grade', x: 427, width: 50, align: 'right' },
-    { label: 'Status', x: 477, width: 78, align: 'right' }
+    { key: 'code', label: 'Code', width: 82, align: 'left' },
+    { key: 'name', label: 'Course Name', width: courseNameWidth, align: 'left' },
+    { key: 'units', label: 'Units', width: 44, align: 'right' },
+    { key: 'grade', label: 'Grade', width: 54, align: 'right' },
+    { key: 'status', label: 'Status', width: 74, align: 'right' }
   ];
+
+  let cursorX = tableX;
+  columns.forEach((column) => {
+    column.x = cursorX;
+    cursorX += column.width;
+  });
+
+  const groupedCourses = sortedCourses.reduce((acc, course) => {
+    const groupKey = `${Number(course.yearLevel)}-${Number(course.semester)}`;
+    if (!acc[groupKey]) {
+      acc[groupKey] = [];
+    }
+    acc[groupKey].push(course);
+    return acc;
+  }, {});
+
+  const sortedGroupKeys = Object.keys(groupedCourses).sort((left, right) => {
+    const [leftYear, leftSemester] = left.split('-').map(Number);
+    const [rightYear, rightSemester] = right.split('-').map(Number);
+    if (leftYear !== rightYear) {
+      return leftYear - rightYear;
+    }
+    return leftSemester - rightSemester;
+  });
+
+  const drawGroupHeader = (y, groupLabel, isContinued = false) => {
+    const label = isContinued ? `${groupLabel} (continued)` : groupLabel;
+    doc.save();
+    doc.roundedRect(tableX, y, tableWidth, 16, 4).fillAndStroke('#EEF2FF', '#C7D2FE');
+    doc.font('Helvetica-Bold').fontSize(8.6).fillColor('#1F2937').text(label, tableX + 8, y + 4, {
+      width: tableWidth - 16,
+      align: 'left'
+    });
+    doc.restore();
+  };
 
   ensureSpace(doc, 44);
   let currentY = doc.y;
-  drawTableHeader(doc, columns, currentY);
-  currentY += 22;
 
-  sortedCourses.forEach((course) => {
-    if (currentY > doc.page.height - doc.page.margins.bottom - 20) {
-      doc.addPage();
-      currentY = doc.page.margins.top;
-      drawTableHeader(doc, columns, currentY);
-      currentY += 22;
-    }
+  sortedGroupKeys.forEach((groupKey) => {
+    const [yearLevel, semester] = groupKey.split('-').map(Number);
+    const groupLabel = `Year ${yearLevel} — ${semesterLabel(semester)}`;
+    const groupItems = groupedCourses[groupKey] || [];
 
-    const rowY = currentY;
-    const yearSem = `Y${course.yearLevel} ${semesterLabel(course.semester)}`;
-    const isFailStatus = String(course.status || '').toLowerCase() === 'failed';
-    const rowHeight = 17;
+    ensureSpace(doc, 40);
+    currentY = doc.y;
+    drawGroupHeader(currentY, groupLabel);
+    currentY += 20;
+    drawTableHeader(doc, columns, currentY);
+    currentY += 22;
 
-    doc.save();
-    if (isFailStatus) {
-      doc.roundedRect(doc.page.margins.left, rowY - 1, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight, 3)
-        .fill('#FEF2F2');
-    }
-    doc.restore();
+    groupItems.forEach((course, rowIndex) => {
+      const rowValues = {
+        code: String(course.Course?.code || 'N/A'),
+        name: String(course.Course?.name || 'N/A'),
+        units: String(course.Course?.units ?? ''),
+        grade: String(course.grade || 'Pending'),
+        status: String((course.status || 'pending').toUpperCase())
+      };
 
-    doc.font('Helvetica').fontSize(8.9).fillColor('#111111').text(yearSem, 52, rowY + 3, { width: 90 });
-    doc.text(course.Course?.code || 'N/A', 142, rowY + 3, { width: 70 });
-    doc.text(course.Course?.name || 'N/A', 212, rowY + 3, { width: 170, ellipsis: true });
-    doc.text(String(course.Course?.units ?? ''), 382, rowY + 3, { width: 45, align: 'right' });
-    doc.text(course.grade || 'Pending', 427, rowY + 3, { width: 50, align: 'right' });
-    doc.font('Helvetica-Bold').text((course.status || 'pending').toUpperCase(), 477, rowY + 3, {
-      width: 78,
-      align: 'right'
+      const nameHeight = doc.heightOfString(rowValues.name, {
+        width: columns[1].width,
+        lineGap: 1
+      });
+      const rowHeight = Math.max(18, nameHeight + 6);
+
+      if (currentY + rowHeight > doc.page.height - doc.page.margins.bottom - PAGE_PADDING_BOTTOM) {
+        doc.addPage();
+        currentY = doc.page.margins.top;
+        drawGroupHeader(currentY, groupLabel, true);
+        currentY += 20;
+        drawTableHeader(doc, columns, currentY);
+        currentY += 22;
+      }
+
+      const rowY = currentY;
+      const isFailStatus = String(course.status || '').toLowerCase() === 'failed';
+
+      doc.save();
+      if (rowIndex % 2 === 1 && !isFailStatus) {
+        doc.rect(tableX, rowY - 1, tableWidth, rowHeight).fill('#FAFAFB');
+      }
+      if (isFailStatus) {
+        doc.roundedRect(tableX, rowY - 1, tableWidth, rowHeight, 3).fill('#FEF2F2');
+      }
+      doc.restore();
+
+      doc.font('Helvetica').fontSize(8.6).fillColor('#111111');
+      doc.text(rowValues.code, columns[0].x, rowY + 3, { width: columns[0].width, align: columns[0].align, lineBreak: false });
+      doc.text(rowValues.name, columns[1].x, rowY + 3, {
+        width: columns[1].width,
+        align: columns[1].align,
+        lineGap: 1
+      });
+      doc.text(rowValues.units, columns[2].x, rowY + 3, { width: columns[2].width, align: columns[2].align, lineBreak: false });
+      doc.text(rowValues.grade, columns[3].x, rowY + 3, { width: columns[3].width, align: columns[3].align, lineBreak: false });
+      doc.font('Helvetica-Bold').text(rowValues.status, columns[4].x, rowY + 3, {
+        width: columns[4].width,
+        align: columns[4].align,
+        lineBreak: false
+      });
+
+      doc.save();
+      doc.moveTo(tableX, rowY + rowHeight)
+        .lineTo(tableX + tableWidth, rowY + rowHeight)
+        .lineWidth(0.4)
+        .strokeColor('#E5E7EB')
+        .stroke();
+      doc.restore();
+
+      currentY += rowHeight;
     });
 
-    currentY += rowHeight;
+    doc.y = currentY + 8;
   });
 
-  doc.y = currentY + 2;
+  doc.x = doc.page.margins.left;
+  doc.y = Math.max(doc.y, currentY + 2);
 };
 
 const drawPrerequisiteHighlights = (doc, analytics) => {
