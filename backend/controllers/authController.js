@@ -325,8 +325,23 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Check for user (case-insensitive)
-    const user = await User.findOne({ where: { email: emailLower } });
+    // Check for user (case-insensitive).
+    let user;
+    try {
+      user = await User.findOne({ where: { email: emailLower } });
+    } catch (queryError) {
+      const dbErr = queryError?.original || queryError?.parent || queryError;
+      const missingColumn = dbErr?.code === '42703' || /column .* does not exist/i.test(dbErr?.message || '');
+
+      if (!missingColumn) {
+        throw queryError;
+      }
+
+      user = await User.findOne({
+        where: { email: emailLower },
+        attributes: ['id', 'email', 'password', 'role', 'studentId', 'isActive']
+      });
+    }
 
     if (!user) {
       return res.status(401).json({
