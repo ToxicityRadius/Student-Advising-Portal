@@ -15,6 +15,9 @@ const Dashboard = () => {
   const { user } = useAuth();
   const [currentTerm, setCurrentTerm] = useState(null);
   const [termLoading, setTermLoading] = useState(true);
+  const [studentSar, setStudentSar] = useState(null);
+  const [studentSarLoading, setStudentSarLoading] = useState(false);
+  const [studentSarError, setStudentSarError] = useState('');
   const [profileReminderDismissed, setProfileReminderDismissed] = useState(
     () => sessionStorage.getItem('profileReminderDismissed') === 'true'
   );
@@ -34,19 +37,45 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    const loadCurrentTerm = async () => {
+    const loadDashboardData = async () => {
+      const isStudent = user?.role === 'student';
+
+      setTermLoading(true);
+      setStudentSarLoading(isStudent);
+      setStudentSarError('');
+
       try {
-        const response = await api.get('/terms/current');
-        setCurrentTerm(response.data?.data || null);
+        const termResponse = await api.get('/terms/current');
+        setCurrentTerm(termResponse.data?.data || null);
+
+        if (isStudent) {
+          const listResponse = await api.get('/sars');
+          const ownSar = Array.isArray(listResponse.data?.data) ? listResponse.data.data[0] : null;
+
+          if (!ownSar?.id) {
+            setStudentSar(null);
+          } else {
+            const sarResponse = await api.get(`/sars/${ownSar.id}`);
+            setStudentSar(sarResponse.data?.data || ownSar);
+          }
+        } else {
+          setStudentSar(null);
+        }
       } catch (error) {
         setCurrentTerm(null);
+
+        if (isStudent) {
+          setStudentSar(null);
+          setStudentSarError(error?.response?.data?.message || 'Unable to load your student academic record status right now.');
+        }
       } finally {
         setTermLoading(false);
+        setStudentSarLoading(false);
       }
     };
 
-    loadCurrentTerm();
-  }, []);
+    loadDashboardData();
+  }, [user?.role]);
 
   return (
     <Container className="py-4">
@@ -134,6 +163,71 @@ const Dashboard = () => {
           </Row>
         </Card.Body>
       </Card>
+
+      {user?.role === 'student' && (
+        <Card className="mb-4 border-start border-info border-5 shadow-sm">
+          <Card.Body className="p-4">
+            <h5 className="mb-3">Student Academic Record Status</h5>
+
+            {studentSarLoading ? (
+              <div className="d-flex align-items-center gap-2 text-muted">
+                <Spinner animation="border" size="sm" />
+                <span>Checking your academic record status...</span>
+              </div>
+            ) : studentSarError ? (
+              <Alert variant="warning" className="mb-0">
+                {studentSarError}
+              </Alert>
+            ) : !studentSar ? (
+              <>
+                <Badge bg="secondary" className="mb-3 text-uppercase">
+                  No Student Academic Record yet
+                </Badge>
+                <p className="text-muted mb-0">
+                  Your adviser or Program Chair has not created your Student Academic Record yet. Please contact your adviser or Program Chair for assistance.
+                </p>
+              </>
+            ) : (
+              <>
+                <Badge bg="success" className="mb-3 text-uppercase">Student Academic Record Available</Badge>
+                <Row className="g-3 mb-3">
+                  <Col md={6}>
+                    <div>
+                      <small className="text-muted fw-semibold d-block">Student Number</small>
+                      <span className="fw-medium">{studentSar.studentNumber || 'N/A'}</span>
+                    </div>
+                  </Col>
+                  <Col md={6}>
+                    <div>
+                      <small className="text-muted fw-semibold d-block">Year Level</small>
+                      <span className="fw-medium">Year {studentSar.yearLevel || 'N/A'}</span>
+                    </div>
+                  </Col>
+                  <Col md={6}>
+                    <div>
+                      <small className="text-muted fw-semibold d-block">Curriculum</small>
+                      <span className="fw-medium">{studentSar.Curriculum?.name || 'N/A'}</span>
+                    </div>
+                  </Col>
+                  <Col md={6}>
+                    <div>
+                      <small className="text-muted fw-semibold d-block">Active Plan</small>
+                      <span className="fw-medium">
+                        {studentSar.activeStudyPlanVersion
+                          ? `Version ${studentSar.activeStudyPlanVersion.versionNumber}`
+                          : 'No active version'}
+                      </span>
+                    </div>
+                  </Col>
+                </Row>
+                <Alert variant="light" className="mb-0">
+                  View full details in <Alert.Link as={Link} to="/my-record">My Academic Record</Alert.Link>.
+                </Alert>
+              </>
+            )}
+          </Card.Body>
+        </Card>
+      )}
       
       <Card className="shadow-sm border-3" style={{ borderColor: '#FFC107' }}>
         <Card.Header className="bg-warning fw-bold text-dark" style={{ fontSize: '1.25rem' }}>

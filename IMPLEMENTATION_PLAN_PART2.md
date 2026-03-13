@@ -23,7 +23,7 @@
 | 3 | Profile Images End-to-End | `[DONE]` |
 | 4 | SAR ↔ Profile Bi-Directional Sync | `[DONE]` |
 | 5 | SAR Creation UX (Email-First + Autofill) | `[DONE]` |
-| 6 | Student “No SAR Yet” Visibility | `[TODO]` |
+| 6 | Student “No SAR Yet” Visibility | `[DONE]` |
 | 7 | Platform-Wide Pagination Standardization | `[TODO]` |
 | 8 | SAR Academic Intelligence Engine | `[TODO]` |
 | 9 | Unified SAR Experience (Student + Adviser + Program Chair) | `[TODO]` |
@@ -342,15 +342,15 @@ If a student has no SAR yet, show clear dashboard status and next steps.
 2. Create SAR for same student, reload dashboard, verify SAR overview replaces empty state.
 
 ### Verification Checklist
-- [ ] No-SAR students get informative dashboard state.
-- [ ] SAR-present students get SAR overview view.
-- [ ] No false-positive missing-SAR state for linked students.
+- [x] No-SAR students get informative dashboard state.
+- [x] SAR-present students get SAR overview view.
+- [x] No false-positive missing-SAR state for linked students.
 
 ### Completion Note (fill when done)
-- **Date:**
-- **Executor:**
-- **Result:**
-- **Notes:**
+- **Date:** 2026-03-13
+- **Executor:** GitHub Copilot
+- **Result:** Pass
+- **Notes:** Added a student-specific SAR status loader and dashboard panel in `frontend/src/pages/Dashboard.js`. For student role only, dashboard now checks SAR existence via `/api/sars` and loads SAR summary via `/api/sars/:id` when available. If no SAR exists, dashboard renders a clear empty-state panel with status badge “No Student Academic Record yet”, explanation text, and guidance to contact adviser/Program Chair. If SAR exists, the same panel renders a compact SAR overview (student number, year level, curriculum, and active plan status) with quick link to `My Academic Record`. Manual testing passed: (1) login as student with no SAR shows empty-state panel, (2) after SAR exists for same student, reload dashboard shows SAR overview instead of empty state.
 
 ---
 
@@ -726,6 +726,19 @@ Validate all revamp work together, prevent regressions, and prepare safe rollout
 ## Work Log (Update During Implementation)
 
 > Add one entry per completed phase.
+
+### Phase 6 — Student “No SAR Yet” Visibility
+- **Phase:** 6
+- **Date:** 2026-03-13
+- **Implemented By:** GitHub Copilot
+- **Summary of Changes:**
+   - `frontend/src/pages/Dashboard.js`: Added student-only SAR state loader (`studentSar`, `studentSarLoading`, `studentSarError`) integrated into dashboard data fetch flow.
+   - `frontend/src/pages/Dashboard.js`: Added role-scoped `Student Academic Record Status` panel with explicit empty state badge/message/guidance for no-SAR students.
+   - `frontend/src/pages/Dashboard.js`: Added SAR-present compact overview state (student number, year level, curriculum, active plan version) with link to `/my-record`.
+   - Preserved existing dashboard behavior for `admin` and `adviser` roles.
+- **Manual Test Result:** Pass
+- **Verification Checklist Result:** Pass
+- **Follow-up Actions:** Proceed to Phase 7 (Platform-Wide Pagination Standardization).
 
 ### Phase 3 — Profile Images End-to-End
 - **Phase:** 3

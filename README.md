@@ -6,6 +6,7 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 > - Revamp roadmap (Part 2): [IMPLEMENTATION_PLAN_PART2.md](IMPLEMENTATION_PLAN_PART2.md)
 
 ### Recent Part 2 Updates
+- **Student Dashboard SAR Visibility (Phase 6):** Student dashboard now includes a dedicated “Student Academic Record Status” panel. Students without SAR see a clear empty state badge (“No Student Academic Record yet”), explanation, and guidance to contact adviser/Program Chair. Once SAR exists, the same panel automatically switches to a compact SAR overview (student number, year level, curriculum, active plan status) with a direct link to My Academic Record.
 - **SAR Creation UX (Phase 5):** The SAR create flow is now email-first. Advisers/Program Chair can search by student email to auto-populate student name, student number, year level, and curriculum defaults from an existing student profile. The form clearly indicates linked vs unlinked outcomes and still supports manual entry for not-yet-registered students.
 - **SAR ↔ Profile Bi-Directional Sync (Phase 4):** Adviser updates to SAR `studentName`/`studentNumber` are now automatically mirrored to the linked student's profile (`first_name`, `last_name`, `studentId`). Conversely, when a student updates their name or student number in their profile, the linked SAR is updated in kind. Sync is idempotent and audit-logged. An "Edit Record" button is now available on the `StudentDetail` page for adviser/admin roles.
 - Profile images are now supported end-to-end (upload, replace, remove) with backend validation.
