@@ -1,0 +1,341 @@
+/**
+ * generate_import_csvs.js
+ *
+ * Reads the three raw curriculum CSV files and produces one import-ready CSV
+ * per curriculum, matching the format expected by:
+ *   POST /api/curriculums/:id/import/csv/preview
+ *   POST /api/curriculums/:id/import/csv/apply
+ *
+ * Output: data/curriculum_import_ready/
+ *   bs_cpe_curriculum_2018_import.csv
+ *   bs_cpe_curriculum_2023_import.csv
+ *   bs_cpe_curriculum_2025_import.csv
+ *
+ * Usage:
+ *   node backend/scripts/generate_import_csvs.js
+ *   npm run generate:import-csvs   (from backend/)
+ *
+ * NOTE: Leave curriculumId blank in the generated files.
+ * The admin creates the curriculum first, then imports the file into it.
+ * The import endpoint fills in curriculumId from its own URL parameter.
+ */
+
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+// ─── Paths ────────────────────────────────────────────────────────────────────
+
+const rootDir = path.resolve(__dirname, '..', '..');
+const outputDir = path.join(rootDir, 'data', 'curriculum_import_ready');
+
+const CURRICULUM_DEFINITIONS = [
+  {
+    sourceFile: 'bs_cpe_curriculum_2018_full.csv',
+    curriculumName: 'BS CPE Curriculum 2018',
+    outputFile: 'bs_cpe_curriculum_2018_import.csv'
+  },
+  {
+    sourceFile: 'bs_cpe_curriculum_2023_full.csv',
+    curriculumName: 'BS CPE Curriculum 2023',
+    outputFile: 'bs_cpe_curriculum_2023_import.csv'
+  },
+  {
+    sourceFile: 'bs_cpe_curriculum_2025_full.csv',
+    curriculumName: 'BS CPE Curriculum 2025',
+    outputFile: 'bs_cpe_curriculum_2025_import.csv'
+  }
+];
+
+// ─── Import CSV columns (must match CURRICULUM_CSV_COLUMNS in curriculumController.js) ─
+
+const IMPORT_HEADERS = [
+  'exportVersion',
+  'rowType',
+  'curriculumId',
+  'curriculumName',
+  'courseCode',
+  'courseName',
+  'units',
+  'yearLevel',
+  'semester',
+  'isElective',
+  'relatedCourseCode',
+  'trackName',
+  'notes'
+];
+
+// ─── CSV helpers ──────────────────────────────────────────────────────────────
+
+const escapeCsvValue = (value) => {
+  const str = value === null || value === undefined ? '' : String(value);
+  if (/[",\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+};
+
+/**
+ * Minimal RFC-4180-compliant CSV line parser.
+ * Handles quoted fields (including embedded commas and doubled quotes).
+ */
+const parseCsvLine = (line) => {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const next = line[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  result.push(current);
+  return result;
+};
+
+const writeCsv = (filePath, rows) => {
+  const lines = [IMPORT_HEADERS.join(',')];
+  for (const row of rows) {
+    lines.push(IMPORT_HEADERS.map((h) => escapeCsvValue(row[h] ?? '')).join(','));
+  }
+  fs.writeFileSync(filePath, `${lines.join('\n')}\n`, 'utf8');
+};
+
+// ─── Source CSV helpers ───────────────────────────────────────────────────────
+
+const normalizeCourseCode = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
+
+/**
+ * Parses the prerequisites column: semicolon-separated list.
+ * Filters out "See Track" placeholders (elective slots, not real prereqs).
+ */
+const parsePrerequisiteTokens = (value) => {
+  if (!value) return [];
+  return String(value)
+    .split(';')
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .filter((t) => !/see\s*track/i.test(t));
+};
+
+const parseSemester = (raw) => {
+  const v = String(raw || '').trim().toLowerCase();
+  if (v === '1') return 1;
+  if (v === '2') return 2;
+  if (v === '3' || v === 'summer') return 3;
+  return null;
+};
+
+const parseYearLevel = (raw) => {
+  const n = parseInt(String(raw || '').trim(), 10);
+  return Number.isInteger(n) && n >= 1 && n <= 8 ? n : null;
+};
+
+// ─── Row builder ──────────────────────────────────────────────────────────────
+
+const makeRow = (curriculumName, rowType, overrides = {}) => ({
+  exportVersion: '1',
+  rowType,
+  curriculumId: '',         // left blank — matched by URL param during import
+  curriculumName,
+  courseCode: '',
+  courseName: '',
+  units: '',
+  yearLevel: '',
+  semester: '',
+  isElective: '',
+  relatedCourseCode: '',
+  trackName: '',
+  notes: '',
+  ...overrides
+});
+
+// ─── Per-curriculum processing ────────────────────────────────────────────────
+
+const processCurriculum = (def) => {
+  const sourcePath = path.join(rootDir, def.sourceFile);
+
+  if (!fs.existsSync(sourcePath)) {
+    console.error(`[error] Source file not found: ${sourcePath}`);
+    return null;
+  }
+
+  const raw = fs.readFileSync(sourcePath, 'utf8');
+  const lines = raw
+    .split(/\r?\n/)
+    .filter((l) => l.trim().length > 0)
+    .slice(1); // skip header row
+
+  const structureRows = [];
+  const prerequisiteRows = [];
+  const electiveTrackRows = [];
+  const electiveTrackCourseRows = [];
+
+  const seenTracks = new Set();
+  const prereqDedup = new Set();
+
+  for (const line of lines) {
+    const cells = parseCsvLine(line);
+    if (cells.length < 9) continue;
+
+    const courseCode = normalizeCourseCode(cells[0]);
+    const courseName = String(cells[1] || '').trim();
+    const creditUnits = Number(cells[4]);
+    const prerequisites = String(cells[5] || '').trim();
+    const yearRaw = String(cells[6] || '').trim().toLowerCase();
+    const semRaw = String(cells[7] || '').trim().toLowerCase();
+
+    if (!courseCode || !courseName) continue;
+
+    const isElectiveTrackRow = yearRaw === 'elective' && semRaw === 'track';
+
+    // The track name lives in the 9th column (cells[8], the "category" column) for elective rows.
+    // Some versions of the CSV also have a 10th column (cells[9]) — prefer that if present.
+    const trackName = isElectiveTrackRow
+      ? (cells.length >= 10 ? String(cells[9] || '').trim() : '') || String(cells[8] || '').trim()
+      : '';
+
+    if (isElectiveTrackRow) {
+      // ── Elective track header (one per unique track name) ──
+      if (trackName && !seenTracks.has(trackName)) {
+        seenTracks.add(trackName);
+        electiveTrackRows.push(makeRow(def.curriculumName, 'elective_track', {
+          trackName
+        }));
+      }
+
+      // ── Elective track course row ──
+      electiveTrackCourseRows.push(makeRow(def.curriculumName, 'elective_track_course', {
+        courseCode,
+        courseName,
+        units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
+        trackName
+      }));
+
+      // ── Prerequisites for elective track courses ──
+      for (const token of parsePrerequisiteTokens(prerequisites)) {
+        const prereqCode = normalizeCourseCode(token);
+        if (!prereqCode) continue;
+        const key = `${courseCode}|${prereqCode}`;
+        if (!prereqDedup.has(key)) {
+          prereqDedup.add(key);
+          prerequisiteRows.push(makeRow(def.curriculumName, 'prerequisite', {
+            courseCode,
+            courseName,
+            units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
+            relatedCourseCode: prereqCode
+          }));
+        }
+      }
+    } else {
+      // ── Regular curriculum placement (structure row) ──
+      const yearLevel = parseYearLevel(yearRaw);
+      const semester = parseSemester(semRaw);
+
+      if (!yearLevel || !semester) continue;
+
+      // CPEC placeholder courses (elective slots) are marked isElective=true
+      const isElective =
+        /see\s*track/i.test(prerequisites) || /^CPEC\b/i.test(courseCode);
+
+      structureRows.push(makeRow(def.curriculumName, 'structure', {
+        courseCode,
+        courseName,
+        units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
+        yearLevel: String(yearLevel),
+        semester: String(semester),
+        isElective: isElective ? 'true' : 'false'
+      }));
+
+      // ── Prerequisites for regular courses (skip elective-slot placeholders) ──
+      if (!isElective) {
+        for (const token of parsePrerequisiteTokens(prerequisites)) {
+          const prereqCode = normalizeCourseCode(token);
+          if (!prereqCode) continue;
+          const key = `${courseCode}|${prereqCode}`;
+          if (!prereqDedup.has(key)) {
+            prereqDedup.add(key);
+            prerequisiteRows.push(makeRow(def.curriculumName, 'prerequisite', {
+              courseCode,
+              courseName,
+              units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
+              relatedCourseCode: prereqCode
+            }));
+          }
+        }
+      }
+    }
+  }
+
+  // ── Assemble final row order ──
+  const allRows = [
+    makeRow(def.curriculumName, 'metadata', {
+      notes: `generatedAt=${Date.now()}`
+    }),
+    ...structureRows,
+    ...prerequisiteRows,
+    ...electiveTrackRows,
+    ...electiveTrackCourseRows
+  ];
+
+  const outputPath = path.join(outputDir, def.outputFile);
+  writeCsv(outputPath, allRows);
+
+  return {
+    file: def.outputFile,
+    counts: {
+      structure: structureRows.length,
+      prerequisites: prerequisiteRows.length,
+      electiveTracks: electiveTrackRows.length,
+      electiveTrackCourses: electiveTrackCourseRows.length,
+      totalRows: allRows.length
+    }
+  };
+};
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+fs.mkdirSync(outputDir, { recursive: true });
+
+const results = [];
+for (const def of CURRICULUM_DEFINITIONS) {
+  const result = processCurriculum(def);
+  if (result) {
+    results.push(result);
+  }
+}
+
+console.log(
+  JSON.stringify(
+    {
+      outputDir,
+      note: 'curriculumId is intentionally blank — fill it by importing into an existing curriculum via the admin UI.',
+      results
+    },
+    null,
+    2
+  )
+);
