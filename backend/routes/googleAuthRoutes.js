@@ -12,6 +12,19 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const crypto = require('crypto');
 
+function getGoogleAudiences() {
+  const multi = (process.env.GOOGLE_CLIENT_IDS || '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  if (multi.length > 0) {
+    return multi;
+  }
+
+  return [process.env.GOOGLE_CLIENT_ID].filter(Boolean);
+}
+
 // Helper: generate a cryptographically secure 6-digit verification code
 function generateVerificationCode() {
   return crypto.randomInt(100000, 1000000).toString();
@@ -23,9 +36,17 @@ router.post('/google', async (req, res) => {
     const { token, email, name, selectedRole } = req.body;
 
     // Verify the Google token
+    const audiences = getGoogleAudiences();
+
+    if (!audiences.length) {
+      return res.status(500).json({
+        message: 'Google OAuth is not configured on the server.'
+      });
+    }
+
     const ticket = await client.verifyIdToken({
       idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: audiences,
     });
 
     const payload = ticket.getPayload();
