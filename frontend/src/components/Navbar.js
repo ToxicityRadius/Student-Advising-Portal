@@ -2,6 +2,21 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+const roleQuickLinks = {
+  student: [
+    { to: '/my-record', label: 'My Academic Record' }
+  ],
+  adviser: [
+    { to: '/adviser/students', label: 'Student Records' }
+  ],
+  admin: [
+    { to: '/adviser/students', label: 'Student Records' },
+    { to: '/admin/curriculum', label: 'Curriculum' },
+    { to: '/admin/forecast', label: 'Forecasting' },
+    { to: '/admin/terms', label: 'Terms' }
+  ]
+};
+
 const Navbar = () => {
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -12,6 +27,7 @@ const Navbar = () => {
   };
 
   const isActive = (path) => location.pathname === path;
+  const quickLinks = user?.role ? (roleQuickLinks[user.role] || []) : [];
 
   // Determine if we're on a public page (home, about, purpose) or authenticated page
   const isPublicPage = ['/', '/about', '/purpose'].includes(location.pathname);
@@ -115,6 +131,25 @@ const Navbar = () => {
                 Profile
               </AppNavLink>
 
+              {quickLinks.length > 0 && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  marginLeft: '2px',
+                  flexWrap: 'wrap'
+                }}>
+                  <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                    Quicklinks:
+                  </span>
+                  {quickLinks.map((item) => (
+                    <AppNavLink key={item.to} to={item.to} active={isActive(item.to)}>
+                      {item.label}
+                    </AppNavLink>
+                  ))}
+                </div>
+              )}
+
               <button
                 onClick={handleLogout}
                 style={{
@@ -193,6 +228,7 @@ const Navbar = () => {
             border-bottom: 3px solid #FFC107;
             border-radius: 0 0 12px 12px;
             gap: 12px !important;
+            align-items: flex-start !important;
           }
           .navbar-links-container.open {
             display: flex !important;

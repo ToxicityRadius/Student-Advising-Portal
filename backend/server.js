@@ -22,6 +22,7 @@ const gradeRoutes = require('./routes/gradeRoutes');
 const validationRoutes = require('./routes/validationRoutes');
 const exportRoutes = require('./routes/exportRoutes');
 const forecastRoutes = require('./routes/forecastRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 const app = express();
 
@@ -73,6 +74,7 @@ app.use('/api', gradeRoutes);
 app.use('/api', validationRoutes);
 app.use('/api', exportRoutes);
 app.use('/api/forecast', forecastRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Serve uploaded files
 app.use('/uploads', express.static('uploads'));

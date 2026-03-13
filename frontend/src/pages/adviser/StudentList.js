@@ -1,4 +1,4 @@
-import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useState } from 'react';
 import { Alert, Badge, Button, Card, Form, Image, InputGroup, Spinner, Table } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import CreateSARModal from '../../components/adviser/CreateSARModal';

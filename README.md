@@ -6,6 +6,10 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 > - Revamp roadmap (Part 2): [IMPLEMENTATION_PLAN_PART2.md](IMPLEMENTATION_PLAN_PART2.md)
 
 ### Recent Part 2 Updates
+- **Cross-Role Regression + Rollout Readiness (Phase 15):** Completed end-to-end regression checks across authentication, role-scoped dashboard summaries, SAR list access, and PDF export flows. Verified role safety for student/adviser/program chair API paths and confirmed frontend production build integrity after the latest dashboard/navbar/PDF changes.
+- **Professional SAR PDF Redesign (Phase 14):** SAR export now generates a cleaner academic report layout with stronger section hierarchy: branded header + metadata tags, student profile block, KPI progress snapshot, prerequisite/eligibility highlights, improved study-plan table readability, adviser validation metadata, and safer page-break handling for dense records.
+- **Navbar Quicklinks Expansion (Phase 11):** Authenticated navbar now includes compact role-based quicklinks for faster navigation (student: My Academic Record; adviser: Student Records; program chair: Student Records, Curriculum, Forecasting, Terms) while preserving existing primary links and responsive behavior.
+- **Role-Specific Home Dashboard Revamp (Phase 10):** The home dashboard is now role-tailored instead of quicklink-first. Students get an SAR snapshot with KPI cards (completion, remaining units, GWA, prerequisite risk) plus profile/export shortcuts; advisers get assigned-student/review/risk summaries and student-record quick actions; Program Chair gets forecast preview, curriculum/equivalency health, term-management actions, and adviser workload overview. A new backend summary endpoint (`GET /api/dashboard/summary`) powers these views while keeping Quick Links available as secondary navigation.
 - **Curriculum + Equivalency UX & CSV Workflows (Phase 13):** Program Chair curriculum tooling now includes a re-import-compatible CSV export and a guarded CSV import flow with dry-run preview and row-level error reporting before apply. Imports are role-restricted and applied transactionally for curriculum structure, prerequisite/corequisite, and elective-track mappings to avoid partial writes. Curriculum management now also provides a dual equivalency editor (List View + Mapped View) and improved course scanning controls (unit/prefix filters + grouped summaries).
 - **Forecasting UX/Charts Upgrade (Phase 12):** Forecast Dashboard now includes chart-based insights for current demand, next-semester forecast, forecast-vs-actual deltas, and snapshot history trends using clear legends and axis labels. It also adds comparison summary cards (current total, projected total, delta) and a user-friendly no-current-term fallback message that directs users to activate a term.
 - **Unified SAR Experience (Phase 9):** Student, adviser, and program chair now all use the same `SARLayout` component to view Student Academic Records. The layout is organized into six tabbed sections with jump links: Profile & Identity, Progress Summary, Checklist, Prerequisites, Grades & Performance, and Study Plan. Role-based controls are enforced: students see a read-only view + Export PDF; advisers/program chair see Edit Record, Export PDF, study plan version management, and plan action buttons (Generate, Enter Grades, Validate Draft). SAR list search remains available for adviser/program chair via the Student Records page.
@@ -45,6 +49,14 @@ A full-stack academic advising portal for the Computer Engineering program. Supp
 | 8 | Student-Facing Views & PDF Export | ✅ Done |
 | 9 | Forecasting System | ✅ Done |
 | 10 | Auth & Access Control Refinements | ✅ Done |
+
+---
+
+## Rollout Notes (Part 2)
+
+- Regression smoke checks completed for `admin`, `adviser`, and `student` roles on login, dashboard summary, SAR access, and export routes.
+- Sample redesigned SAR PDFs were generated successfully under `backend/uploads/proofs/phase14_pdf_checks/` for multi-record validation.
+- Frontend production build and full frontend lint sweep both pass after post-phase cleanup (`Profile.js` dependency warning and `StudentList.js` unused import warning were resolved).
 
 ---
 

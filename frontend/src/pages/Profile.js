@@ -101,7 +101,7 @@ const Profile = () => {
     };
 
     if (user?.id) fetchData();
-  }, [user?.id]);
+  }, [user?.id, user?.role]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
