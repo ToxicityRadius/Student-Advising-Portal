@@ -26,7 +26,7 @@
 | 6 | Student “No SAR Yet” Visibility | `[DONE]` |
 | 7 | Platform-Wide Pagination Standardization | `[DONE]` |
 | 8 | SAR Academic Intelligence Engine | `[DONE]` |
-| 9 | Unified SAR Experience (Student + Adviser + Program Chair) | `[TODO]` |
+| 9 | Unified SAR Experience (Student + Adviser + Program Chair) | `[DONE]` |
 | 10 | Role-Specific Home Dashboard Revamp | `[TODO]` |
 | 11 | Navbar Quicklinks Expansion | `[TODO]` |
 | 12 | Forecasting UX/Charts Upgrade | `[TODO]` |
@@ -475,16 +475,16 @@ Show student SAR overview directly in student dashboard and provide the same cor
 4. Validate role-based action visibility (edit/review/export controls).
 
 ### Verification Checklist
-- [ ] One shared SAR layout used across roles.
-- [ ] Student dashboard contains SAR overview by default when SAR exists.
-- [ ] Adviser/program chair can discover and open SAR quickly.
-- [ ] Sections are readable and not visually cluttered.
+- [x] One shared SAR layout used across roles.
+- [x] Student dashboard contains SAR overview by default when SAR exists.
+- [x] Adviser/program chair can discover and open SAR quickly.
+- [x] Sections are readable and not visually cluttered.
 
 ### Completion Note (fill when done)
-- **Date:**
-- **Executor:**
-- **Result:**
-- **Notes:**
+- **Date:** 2026-03-13
+- **Executor:** GitHub Copilot
+- **Result:** Pass
+- **Notes:** Created a shared `SARLayout` component (`frontend/src/components/sar/SARLayout.js`) consumed by both `MyRecord.js` (student) and `StudentDetail.js` (adviser/admin). The layout is organized into 6 tabbed sections: Profile & Identity, Progress Summary, Checklist, Prerequisites, Grades & Performance, and Study Plan. Section jump links (quick-button row) allow one-click navigation between tabs. Role-based actions are split: the student header shows only Export PDF; the adviser/admin header shows Edit Record, Export PDF, and Back to Records; the Study Plan tab surfaces adviser-only actions (Generate Plan, View Active Plan, Enter Grades, Validate Draft, Study Plan Versions table). Student dashboard SAR overview was already in place from Phase 6. Adviser/admin student discovery flow is unchanged (StudentList → search/filter → View Record → StudentDetail using SARLayout). Frontend build succeeded with zero new errors. Manual API tests confirmed all 6 tab sections have correct data: 74 checklist items, 41 prerequisite subjects, 9 semester summaries, correct analytics payload for both student and adviser tokens.
 
 ---
 
@@ -726,6 +726,18 @@ Validate all revamp work together, prevent regressions, and prepare safe rollout
 ## Work Log (Update During Implementation)
 
 > Add one entry per completed phase.
+
+### Phase 9 — Unified SAR Experience (Student + Adviser + Program Chair)
+- **Phase:** 9
+- **Date:** 2026-03-13
+- **Implemented By:** GitHub Copilot
+- **Summary of Changes:**
+   - `frontend/src/components/sar/SARLayout.js` (new): Shared SAR detail layout component with 6 tabbed sections (Profile & Identity, Progress Summary, Checklist, Prerequisites, Grades & Performance, Study Plan), section jump links, and role-aware rendering (`canManagePlan` gates adviser/admin action buttons and Study Plan Versions table).
+   - `frontend/src/pages/student/MyRecord.js`: Refactored — removed all inline section rendering; now renders the page header (title + Export PDF button) and delegates all SAR content to `<SARLayout sar={sar} versions={[]} role="student" />`.
+   - `frontend/src/pages/adviser/StudentDetail.js`: Refactored — removed all inline section rendering; now renders the page header (title + Edit Record + Export PDF + Back to Records buttons) and delegates all SAR content to `<SARLayout sar={sar} versions={versions} role={user?.role} sarId={sarId} onGeneratePlan={...} isActionLoading={...} />`; `EditSARModal` remains outside `SARLayout` in this page.
+- **Manual Test Result:** Pass
+- **Verification Checklist Result:** Pass
+- **Follow-up Actions:** Proceed to Phase 10 (Role-Specific Home Dashboard Revamp).
 
 ### Phase 8 — SAR Academic Intelligence Engine
 - **Phase:** 8

@@ -1,27 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Card, Col, Image, ListGroup, Row, Spinner, Table } from 'react-bootstrap';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, Button, Spinner } from 'react-bootstrap';
 import api from '../../utils/api';
-import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
+import SARLayout from '../../components/sar/SARLayout';
 
 const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
-
-const semesterLabels = {
-  1: '1st Semester',
-  2: '2nd Semester',
-  3: 'Summer'
-};
-
-const formatDateTime = (value) => {
-  if (!value) {
-    return 'N/A';
-  }
-
-  return new Date(Number(value)).toLocaleString();
-};
-
-const formatPercent = (value) => `${Number(value || 0).toFixed(2)}%`;
-
-const getYearSemesterKey = (course) => `${course.yearLevel}-${course.semester}`;
 
 const MyRecord = () => {
   const [loading, setLoading] = useState(true);
@@ -32,17 +14,14 @@ const MyRecord = () => {
   const loadMyRecord = useCallback(async () => {
     setLoading(true);
     setAlert({ variant: '', message: '' });
-
     try {
       const listResponse = await api.get('/sars');
       const sarItems = listResponse.data?.items || listResponse.data?.data || [];
       const ownSar = Array.isArray(sarItems) ? sarItems[0] : null;
-
       if (!ownSar) {
         setSar(null);
         return;
       }
-
       const sarResponse = await api.get(`/sars/${ownSar.id}`);
       setSar(sarResponse.data?.data || null);
     } catch (error) {
@@ -57,56 +36,10 @@ const MyRecord = () => {
     loadMyRecord();
   }, [loadMyRecord]);
 
-  const activeVersion = sar?.activeStudyPlanVersion || null;
-  const analytics = sar?.analytics || null;
-  const profileImageUrl = buildProfileImageUrl(sar?.Student?.profile_picture);
-
-  const groupedCourses = useMemo(() => {
-    const courses = Array.isArray(activeVersion?.StudyPlanCourses) ? [...activeVersion.StudyPlanCourses] : [];
-
-    courses.sort((left, right) => {
-      if (Number(left.yearLevel) !== Number(right.yearLevel)) {
-        return Number(left.yearLevel) - Number(right.yearLevel);
-      }
-
-      if (Number(left.semester) !== Number(right.semester)) {
-        return Number(left.semester) - Number(right.semester);
-      }
-
-      return String(left.Course?.code || '').localeCompare(String(right.Course?.code || ''));
-    });
-
-    return courses.reduce((accumulator, course) => {
-      const key = getYearSemesterKey(course);
-      if (!accumulator[key]) {
-        accumulator[key] = [];
-      }
-      accumulator[key].push(course);
-      return accumulator;
-    }, {});
-  }, [activeVersion]);
-
-  const sortedYearSemesterKeys = useMemo(() => {
-    return Object.keys(groupedCourses).sort((left, right) => {
-      const [leftYear, leftSemester] = left.split('-').map(Number);
-      const [rightYear, rightSemester] = right.split('-').map(Number);
-
-      if (leftYear !== rightYear) {
-        return leftYear - rightYear;
-      }
-
-      return leftSemester - rightSemester;
-    });
-  }, [groupedCourses]);
-
   const handleExportPDF = async () => {
-    if (!sar?.id) {
-      return;
-    }
-
+    if (!sar?.id) return;
     setExporting(true);
     setAlert({ variant: '', message: '' });
-
     try {
       const response = await api.get(`/sars/${sar.id}/export/pdf`, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'application/pdf' });
@@ -130,7 +63,7 @@ const MyRecord = () => {
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
           <h2 className="mb-1">My Academic Record</h2>
-          <p className="text-muted mb-0">View your student record and active study plan details.</p>
+          <p className="text-muted mb-0">View your student record and academic progress details.</p>
         </div>
         <Button onClick={handleExportPDF} disabled={!sar?.id || exporting}>
           {exporting ? 'Exporting...' : 'Export as PDF'}
@@ -143,193 +76,8 @@ const MyRecord = () => {
         <div className="text-center py-5">
           <Spinner animation="border" />
         </div>
-      ) : !sar ? (
-        <Card className="shadow-sm">
-          <Card.Body>
-            <p className="text-muted mb-0">No academic record is linked to your account yet.</p>
-          </Card.Body>
-        </Card>
       ) : (
-        <>
-          <Row className="g-4 mb-4">
-            <Col lg={6}>
-              <Card className="shadow-sm h-100">
-                <Card.Body>
-                  <h5 className="mb-3">Student Information</h5>
-                  <div className="d-flex align-items-center gap-3 mb-3">
-                    {profileImageUrl ? (
-                      <Image src={profileImageUrl} roundedCircle width={56} height={56} style={{ objectFit: 'cover' }} />
-                    ) : (
-                      <div
-                        className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center"
-                        style={{ width: 56, height: 56, fontWeight: 700 }}
-                      >
-                        {getInitials(sar.studentName)}
-                      </div>
-                    )}
-                    <div>
-                      <div className="fw-semibold">{sar.studentName}</div>
-                      <div className="text-muted small">{sar.email}</div>
-                    </div>
-                  </div>
-                  <ListGroup variant="flush">
-                    <ListGroup.Item className="px-0 d-flex justify-content-between">
-                      <span className="text-muted">Student Number</span>
-                      <strong>{sar.studentNumber}</strong>
-                    </ListGroup.Item>
-                    <ListGroup.Item className="px-0 d-flex justify-content-between">
-                      <span className="text-muted">Year Level</span>
-                      <strong>Year {sar.yearLevel}</strong>
-                    </ListGroup.Item>
-                  </ListGroup>
-                </Card.Body>
-              </Card>
-            </Col>
-
-            <Col lg={6}>
-              <Card className="shadow-sm h-100">
-                <Card.Body>
-                  <h5 className="mb-3">Program Information</h5>
-                  <ListGroup variant="flush">
-                    <ListGroup.Item className="px-0 d-flex justify-content-between">
-                      <span className="text-muted">Curriculum</span>
-                      <strong>{sar.Curriculum?.name || 'N/A'}</strong>
-                    </ListGroup.Item>
-                    <ListGroup.Item className="px-0 d-flex justify-content-between">
-                      <span className="text-muted">Elective Track</span>
-                      <strong>{sar.ElectiveTrack?.name || 'Not selected'}</strong>
-                    </ListGroup.Item>
-                    <ListGroup.Item className="px-0 d-flex justify-content-between align-items-center">
-                      <span className="text-muted">Active Plan</span>
-                      {activeVersion ? (
-                        <Badge bg="success">Version {activeVersion.versionNumber}</Badge>
-                      ) : (
-                        <Badge bg="secondary">No active version</Badge>
-                      )}
-                    </ListGroup.Item>
-                    <ListGroup.Item className="px-0 d-flex justify-content-between">
-                      <span className="text-muted">Validated At</span>
-                      <strong>{formatDateTime(activeVersion?.validatedAt)}</strong>
-                    </ListGroup.Item>
-                  </ListGroup>
-                </Card.Body>
-              </Card>
-            </Col>
-          </Row>
-
-          <Card className="shadow-sm">
-            <Card.Body>
-              <h5 className="mb-3">Active Study Plan</h5>
-
-              {!activeVersion ? (
-                <p className="text-muted mb-0">No active study plan version is available yet.</p>
-              ) : sortedYearSemesterKeys.length === 0 ? (
-                <p className="text-muted mb-0">The active study plan has no scheduled courses.</p>
-              ) : (
-                sortedYearSemesterKeys.map((key) => {
-                  const [yearLevel, semester] = key.split('-').map(Number);
-                  const courses = groupedCourses[key] || [];
-
-                  return (
-                    <div key={key} className="mb-4">
-                      <h6 className="mb-2">Year {yearLevel} - {semesterLabels[semester] || `Semester ${semester}`}</h6>
-                      <Table responsive hover size="sm">
-                        <thead>
-                          <tr>
-                            <th>Course Code</th>
-                            <th>Course Name</th>
-                            <th className="text-end">Units</th>
-                            <th className="text-end">Grade</th>
-                            <th className="text-end">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {courses.map((course) => (
-                            <tr key={course.id}>
-                              <td>{course.Course?.code || 'N/A'}</td>
-                              <td>{course.Course?.name || 'N/A'}</td>
-                              <td className="text-end">{course.Course?.units ?? '-'}</td>
-                              <td className="text-end">{course.grade || 'Pending'}</td>
-                              <td className="text-end text-uppercase">{course.status || 'pending'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </Table>
-                    </div>
-                  );
-                })
-              )}
-            </Card.Body>
-          </Card>
-
-          {analytics && (
-            <Card className="shadow-sm mt-4">
-              <Card.Body>
-                <h5 className="mb-3">Academic Intelligence</h5>
-                <Row className="g-3 mb-3">
-                  <Col md={4}>
-                    <Card bg="light" className="h-100">
-                      <Card.Body>
-                        <div className="text-muted small">Program Completion</div>
-                        <div className="fw-semibold fs-5">{formatPercent(analytics.progress?.completionPercentage)}</div>
-                        <div className="small text-muted">{analytics.progress?.unitsCompletedVsTotal || '0 / 0'} units</div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                  <Col md={4}>
-                    <Card bg="light" className="h-100">
-                      <Card.Body>
-                        <div className="text-muted small">GWA Monitoring</div>
-                        <div className="fw-semibold fs-5">{analytics.gpaMonitoring?.gwa ?? 'N/A'}</div>
-                        <div className="small text-muted">{analytics.gpaMonitoring?.gradedSubjects || 0} graded subjects</div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                  <Col md={4}>
-                    <Card bg="light" className="h-100">
-                      <Card.Body>
-                        <div className="text-muted small">Estimated Remaining Semesters</div>
-                        <div className="fw-semibold fs-5">{analytics.remainingSemestersTracking?.estimatedRemainingSemesters ?? 0}</div>
-                        <div className="small text-muted">Est. graduation: {analytics.estimatedGraduationDate?.label || 'N/A'}</div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                </Row>
-
-                <Row className="g-3">
-                  <Col lg={6}>
-                    <h6 className="mb-2">Prerequisite Check</h6>
-                    <ListGroup variant="flush">
-                      <ListGroup.Item className="px-0 d-flex justify-content-between">
-                        <span className="text-muted">Subjects with prerequisites met</span>
-                        <strong>{analytics.prerequisiteChecking?.metSubjects ?? 0}</strong>
-                      </ListGroup.Item>
-                      <ListGroup.Item className="px-0 d-flex justify-content-between">
-                        <span className="text-muted">Subjects with unmet prerequisites</span>
-                        <strong>{analytics.prerequisiteChecking?.unmetSubjects ?? 0}</strong>
-                      </ListGroup.Item>
-                    </ListGroup>
-                  </Col>
-                  <Col lg={6}>
-                    <h6 className="mb-2">Priority Subjects</h6>
-                    {Array.isArray(analytics.prioritySubjectIndicators) && analytics.prioritySubjectIndicators.length > 0 ? (
-                      <ListGroup variant="flush">
-                        {analytics.prioritySubjectIndicators.slice(0, 5).map((subject) => (
-                          <ListGroup.Item key={subject.courseId} className="px-0 d-flex justify-content-between align-items-center">
-                            <span>{subject.code} - {subject.name}</span>
-                            <Badge bg="warning" text="dark">Y{subject.yearLevel} S{subject.semester}</Badge>
-                          </ListGroup.Item>
-                        ))}
-                      </ListGroup>
-                    ) : (
-                      <p className="text-muted mb-0">No priority subjects flagged at this time.</p>
-                    )}
-                  </Col>
-                </Row>
-              </Card.Body>
-            </Card>
-          )}
-        </>
+        <SARLayout sar={sar} versions={[]} role="student" />
       )}
     </div>
   );
