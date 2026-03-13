@@ -17,6 +17,20 @@ const sequelize = new Sequelize(connectionString, {
       rejectUnauthorized: isProduction
     }
   },
+  retry: {
+    // Retries transient connection/query failures that can occur with managed DB poolers.
+    max: 3,
+    match: [
+      /SequelizeConnectionError/i,
+      /SequelizeConnectionRefusedError/i,
+      /SequelizeConnectionTimedOutError/i,
+      /SequelizeHostNotReachableError/i,
+      /SequelizeHostNotFoundError/i,
+      /Connection terminated unexpectedly/i,
+      /ECONNRESET/i,
+      /ETIMEDOUT/i
+    ]
+  },
   logging: false,
   pool: {
     max: 10,

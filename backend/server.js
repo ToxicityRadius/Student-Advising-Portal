@@ -72,7 +72,36 @@ app.get('/api/health', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  const errorPayload = {
+    name: err.name,
+    message: err.message,
+    code: err.code,
+    statusCode: err.statusCode,
+    stack: err.stack
+  };
+
+  // Include useful DB diagnostics when available.
+  if (err.original || err.parent) {
+    const dbErr = err.original || err.parent;
+    errorPayload.database = {
+      code: dbErr.code,
+      severity: dbErr.severity,
+      detail: dbErr.detail,
+      hint: dbErr.hint,
+      table: dbErr.table,
+      column: dbErr.column,
+      constraint: dbErr.constraint,
+      schema: dbErr.schema,
+      routine: dbErr.routine,
+      sql: err.sql
+    };
+  }
+
+  console.error('Request failed', {
+    method: req.method,
+    path: req.originalUrl,
+    ...errorPayload
+  });
   res.status(err.statusCode || 500).json({
     success: false,
     message: err.message || 'Internal Server Error'
