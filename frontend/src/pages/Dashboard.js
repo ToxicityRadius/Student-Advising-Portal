@@ -5,9 +5,6 @@ import api from "../utils/api";
 
 import logo from "../assets/images/STUDENT ADVISING LOGO 1.png";
 import bellIconImg from "../assets/images/Bell White Gradient.png";
-import bookWhiteImg from "../assets/images/Book mobile.png";
-import gradesWhiteImg from "../assets/images/Grades White.png";
-import planWhiteImg from "../assets/images/Plan of Study White.png";
 import goldLogoutImg from "../assets/images/Gold Logout.png";
 // Gold sidebar icons
 import goldHomePageImg from "../assets/images/Gold HomePage.png";
@@ -114,44 +111,6 @@ const SideNavItem = ({ icon, label, to, active, badge }) => (
         {badge}
       </span>
     )}
-  </Link>
-);
-
-/* ── Action course button ── */
-const ActionButton = ({ to, icon, label }) => (
-  <Link
-    to={to}
-    className="dashboard-action-btn"
-    style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 16,
-      padding: "0 20px",
-      minHeight: 80,
-      background: YELLOW,
-      color: "#fff",
-      textDecoration: "none",
-      borderRadius: 12,
-      fontSize: "0.95rem",
-      fontWeight: 700,
-      transition: "background-color 0.15s, transform 0.1s",
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.backgroundColor = "#e0a800";
-      e.currentTarget.style.transform = "translateY(-2px)";
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.backgroundColor = YELLOW;
-      e.currentTarget.style.transform = "translateY(0)";
-    }}
-  >
-    <span
-      className="dashboard-action-icon"
-      style={{ flexShrink: 0, display: "flex", alignItems: "center" }}
-    >
-      {icon}
-    </span>
-    <span className="dashboard-action-label">{label}</span>
   </Link>
 );
 
@@ -447,12 +406,6 @@ const Dashboard = () => {
             to="/profile"
           />
           <SideNavItem
-            icon={imgIcon(goldBellImg)}
-            label="Notifications"
-            to="/notifications"
-            badge={notifCount > 0 ? notifCount : undefined}
-          />
-          <SideNavItem
             icon={imgIcon(goldSettingsImg)}
             label="Settings"
             to="/settings"
@@ -646,6 +599,7 @@ const Dashboard = () => {
                   width: 32,
                   height: 32,
                   objectFit: "contain",
+                  filter: "brightness(0)",
                   display: "block",
                 }}
               />
@@ -1004,61 +958,6 @@ const Dashboard = () => {
               }}
             >
               {progressPercent}% Complete
-            </div>
-          </div>
-
-          {/* Actions Course */}
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 16,
-              padding: "28px 32px",
-              boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
-              marginBottom: 24,
-            }}
-          >
-            <h2 className="dashboard-actions-h2">
-              Actions Course
-            </h2>
-            <div className="dashboard-actions-grid">
-              <ActionButton
-                to="/subjects"
-                icon={
-                  <img
-                    src={bookWhiteImg}
-                    alt=""
-                    style={{ width: 40, height: 40, objectFit: "contain" }}
-                  />
-                }
-                label="Available Subjects"
-              />
-              <ActionButton
-                to="/plan-of-study"
-                icon={
-                  <img
-                    src={planWhiteImg}
-                    alt=""
-                    style={{ width: 40, height: 40, objectFit: "contain" }}
-                  />
-                }
-                label="Plan of Study"
-              />
-              <ActionButton
-                to="/grades"
-                icon={
-                  <img
-                    src={gradesWhiteImg}
-                    alt=""
-                    style={{ width: 40, height: 40, objectFit: "contain" }}
-                  />
-                }
-                label="View Grades"
-              />
-              <ActionButton
-                to="/checklist"
-                icon={<ChecklistWhiteIcon size={40} />}
-                label="Checklist"
-              />
             </div>
           </div>
 

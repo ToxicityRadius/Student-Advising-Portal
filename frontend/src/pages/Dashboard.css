@@ -1,18 +1,6 @@
 /* Dashboard Responsive Styles */
 
 /* Default / Desktop */
-.dashboard-actions-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-}
-
-.dashboard-actions-h2 {
-  font-size: 1.4rem;
-  font-weight: 800;
-  color: #111;
-  margin-bottom: 20px;
-}
 
 .dashboard-mobile-menu-btn {
   display: none;
@@ -31,29 +19,8 @@
   display: none;
 }
 
-.dashboard-action-btn {
-  width: 100%;
-}
-
-.dashboard-action-label {
-  line-height: 1.2;
-}
-
 /* Tablet: 1024px and below */
 @media (max-width: 1024px) {
-  .dashboard-actions-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .dashboard-actions-h2 {
-    font-size: 1.2rem;
-  }
-
-  .dashboard-action-btn {
-    min-height: 74px !important;
-    padding: 0 16px !important;
-    font-size: 0.9rem !important;
-  }
 }
 
 /* Mobile: 780px and below */
@@ -109,49 +76,8 @@
     cursor: pointer;
   }
 
-  .dashboard-actions-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .dashboard-actions-h2 {
-    font-size: 1.1rem;
-    margin-bottom: 16px;
-  }
-
-  .dashboard-action-btn {
-    min-height: 68px !important;
-    gap: 12px !important;
-    padding: 0 14px !important;
-    font-size: 0.86rem !important;
-  }
-
-  .dashboard-action-icon img,
-  .dashboard-action-icon svg {
-    width: 30px !important;
-    height: 30px !important;
-  }
 }
 
 /* Small mobile: 480px and below */
 @media (max-width: 480px) {
-  .dashboard-actions-grid {
-    gap: 10px;
-  }
-
-  .dashboard-actions-h2 {
-    font-size: 1rem;
-    margin-bottom: 12px;
-  }
-
-  .dashboard-action-btn {
-    min-height: 62px !important;
-    font-size: 0.82rem !important;
-  }
-
-  .dashboard-action-icon img,
-  .dashboard-action-icon svg {
-    width: 26px !important;
-    height: 26px !important;
-  }
 }
