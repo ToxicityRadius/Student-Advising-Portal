@@ -1,11 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import {
-  Container,
-  Card,
   Form,
   Button,
-  Alert,
   Row,
   Col,
 } from "react-bootstrap";
@@ -13,6 +10,8 @@ import { GoogleLogin } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
 import { useAuth } from "../context/AuthContext";
 import api from "../utils/api";
+import AuthBackgroundShell from "../components/auth/AuthBackgroundShell";
+import { AuthCenteredCard, AuthFeedback, AuthInput } from "../components/auth/AuthFormPrimitives";
 import backgroundImage from "../assets/images/bg.png";
 import studentAdvisingLogo from "../assets/images/STUDENT ADVISING LOGO 1.png";
 
@@ -143,139 +142,56 @@ const Register = () => {
   };
 
   return (
-    <div
-      className="min-vh-100 d-flex align-items-center justify-content-center position-relative py-5"
-      style={{
-        backgroundImage: `url(${backgroundImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }}
-    >
-      {/* Yellow rectangle - left side, top overlap */}
-      <div
-        className="position-absolute"
-        style={{
-          left: 0,
-          top: "6%",
-          width: "550px",
-          height: "60px",
-          backgroundColor: "#FFC107",
-          zIndex: 2,
-          boxShadow: "0 8px 16px rgba(0, 0, 0, 0.3)",
-        }}
-      />
+    <AuthBackgroundShell backgroundImage={backgroundImage} topBarTop="6%" contentClassName="py-5">
+      <AuthCenteredCard
+        logo={studentAdvisingLogo}
+        heading={isFaculty ? "Faculty Registration" : "Create an Account"}
+        colProps={{ xs: 12, sm: 9, md: 7, lg: 6, xl: 5, style: { maxWidth: "380px" } }}
+      >
+        <AuthFeedback
+          error={error}
+          setError={setError}
+          success={success}
+          setSuccess={setSuccess}
+        />
 
-      {/* Yellow rectangle - right side, bottom overlap */}
-      <div
-        className="position-absolute"
-        style={{
-          right: 0,
-          bottom: "10.5%",
-          width: "1500px",
-          height: "60px",
-          backgroundColor: "#FFC107",
-          zIndex: 1,
-          boxShadow: "0 8px 16px rgba(0, 0, 0, 0.3)",
-        }}
-      />
+        <Form onSubmit={handleSubmit}>
+          {!isFaculty && (
+            <AuthInput
+              type="text"
+              name="studentId"
+              value={formData.studentId}
+              onChange={handleChange}
+              required
+              placeholder="Student Number (7 digits)"
+              pattern="\d{7}"
+              maxLength="7"
+              title="Student Number must be exactly 7 digits"
+            />
+          )}
 
-      <Container className="position-relative" style={{ zIndex: 1 }}>
-        <Row className="justify-content-center">
-          <Col
-            xs={12}
-            sm={9}
-            md={7}
-            lg={6}
-            xl={5}
-            style={{ maxWidth: "380px" }}
-          >
-            <Card
-              className="shadow-lg border-0"
-              style={{
-                position: "relative",
-                zIndex: 3,
-                borderRadius: "20px",
-                overflow: "hidden",
-              }}
-            >
-              <Card.Body className="p-3 p-md-4">
-                <div className="text-center mb-3">
-                  <img
-                    src={studentAdvisingLogo}
-                    alt="Student Advising Logo"
-                    style={{ maxWidth: "220px", height: "auto" }}
-                  />
-                </div>
-
-                <h2 className="mb-3 text-start" style={{ fontSize: "1.3rem" }}>
-                  {isFaculty ? "Faculty Registration" : "Create an Account"}
-                </h2>
-
-                {error && (
-                  <Alert
-                    variant="danger"
-                    dismissible
-                    onClose={() => setError("")}
-                  >
-                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
-                    {error}
-                  </Alert>
-                )}
-
-                {success && (
-                  <Alert
-                    variant="success"
-                    dismissible
-                    onClose={() => setSuccess("")}
-                  >
-                    <i className="bi bi-check-circle-fill me-2"></i>
-                    {success}
-                  </Alert>
-                )}
-
-                <Form onSubmit={handleSubmit}>
-                  {!isFaculty && (
-                    <Form.Group className="mb-3">
-                      <Form.Control
-                        type="text"
-                        name="studentId"
-                        value={formData.studentId}
-                        onChange={handleChange}
-                        required
-                        placeholder="Student Number (7 digits)"
-                        pattern="\d{7}"
-                        maxLength="7"
-                        title="Student Number must be exactly 7 digits"
-                      />
-                    </Form.Group>
-                  )}
-
-                  <Row>
-                    <Col md={6}>
-                      <Form.Group className="mb-3">
-                        <Form.Control
-                          type="text"
-                          name="firstName"
-                          value={formData.firstName}
-                          onChange={handleChange}
-                          required
-                          placeholder="First Name"
-                        />
-                      </Form.Group>
-                    </Col>
-                    <Col md={6}>
-                      <Form.Group className="mb-3">
-                        <Form.Control
-                          type="text"
-                          name="lastName"
-                          value={formData.lastName}
-                          onChange={handleChange}
-                          required
-                          placeholder="Last Name"
-                        />
-                      </Form.Group>
-                    </Col>
-                  </Row>
+          <Row>
+            <Col md={6}>
+              <AuthInput
+                type="text"
+                name="firstName"
+                value={formData.firstName}
+                onChange={handleChange}
+                required
+                placeholder="First Name"
+              />
+            </Col>
+            <Col md={6}>
+              <AuthInput
+                type="text"
+                name="lastName"
+                value={formData.lastName}
+                onChange={handleChange}
+                required
+                placeholder="Last Name"
+              />
+            </Col>
+          </Row>
 
                   <Form.Group className="mb-3">
                     <Form.Select
@@ -290,38 +206,32 @@ const Register = () => {
                     </Form.Select>
                   </Form.Group>
 
-                  <Form.Group className="mb-3">
-                    <Form.Control
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      required
-                      placeholder="Email Address"
-                    />
-                  </Form.Group>
+          <AuthInput
+            type="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            required
+            placeholder="Email Address"
+          />
 
-                  <Form.Group className="mb-3">
-                    <Form.Control
-                      type="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      required
-                      placeholder="Password"
-                    />
-                  </Form.Group>
+          <AuthInput
+            type="password"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            required
+            placeholder="Password"
+          />
 
-                  <Form.Group className="mb-3">
-                    <Form.Control
-                      type="password"
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      required
-                      placeholder="Confirm Password"
-                    />
-                  </Form.Group>
+          <AuthInput
+            type="password"
+            name="confirmPassword"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            required
+            placeholder="Confirm Password"
+          />
 
                   <Button
                     type="submit"
@@ -363,13 +273,9 @@ const Register = () => {
                       Sign in
                     </Link>
                   </div>
-                </Form>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
-      </Container>
-    </div>
+        </Form>
+      </AuthCenteredCard>
+    </AuthBackgroundShell>
   );
 };
 

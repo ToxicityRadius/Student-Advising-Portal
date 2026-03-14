@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
+import AuthBackgroundShell from '../components/auth/AuthBackgroundShell';
+import AuthPopupOverlay from '../components/auth/AuthPopupOverlay';
 import backgroundImage from '../assets/images/bg.png';
 import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 
@@ -150,64 +152,19 @@ const VerifyCode = () => {
   };
 
   return (
-    <div 
-      className="min-vh-100 d-flex align-items-center justify-content-center position-relative" 
-      style={{ 
-        backgroundImage: `url(${backgroundImage})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center'
-      }}
-    >
-      
-      {/* Yellow rectangle - left side, top overlap */}
-      <div 
-        className="position-absolute" 
-        style={{ 
-          left: 0,
-          top: '10.5%',
-          width: '550px',
-          height: '60px',
-          backgroundColor: '#FFC107',
-          zIndex: 2,
-          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
-        }}
-      />
-      
-      {/* Yellow rectangle - right side, bottom overlap */}
-      <div 
-        className="position-absolute" 
-        style={{ 
-          right: 0,
-          bottom: '10.5%',
-          width: '1500px',
-          height: '60px',
-          backgroundColor: '#FFC107',
-          zIndex: 1,
-          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
-        }}
-      />
-    <div className="login-container" style={{ position: 'relative', zIndex: 3 }}>
+    <AuthBackgroundShell backgroundImage={backgroundImage}>
+    <div className="login-container">
       {error && (
-        <div className="error-popup-overlay">
-          <div className="error-popup">
-            <div className="error-popup-content">
-              <span className="error-icon">⚠️</span>
-              <p>{error}</p>
-            </div>
-            <button className="error-close-btn" onClick={() => setError('')}>×</button>
-          </div>
-        </div>
+        <AuthPopupOverlay message={error} onClose={() => setError('')} />
       )}
       {successCountdown !== null && (
-        <div className="error-popup-overlay">
-          <div className="error-popup" style={{ borderColor: '#4CAF50' }}>
-            <div className="error-popup-content">
-              <span className="error-icon" style={{ fontSize: '48px' }}>✓</span>
-              <h3 style={{ color: '#4CAF50', marginBottom: '10px' }}>Login Successful!</h3>
-              <p>Redirecting to Dashboard in {successCountdown}...</p>
-            </div>
-          </div>
-        </div>
+        <AuthPopupOverlay
+          icon="✓"
+          iconStyle={{ fontSize: '48px' }}
+          title="Login Successful!"
+          message={`Redirecting to Dashboard in ${successCountdown}...`}
+          borderColor="#4CAF50"
+        />
       )}
       <div className="login-card">
         <div className="login-logo">
@@ -262,7 +219,7 @@ const VerifyCode = () => {
         </form>
       </div>
     </div>
-    </div>
+    </AuthBackgroundShell>
   );
 };
 
