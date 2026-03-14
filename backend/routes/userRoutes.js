@@ -1,6 +1,4 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const multer = require('multer');
 const {
   getAllUsers,
@@ -15,26 +13,8 @@ const router = express.Router();
 const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
-const profileUploadDir = path.join(__dirname, '../uploads/profiles');
-if (!fs.existsSync(profileUploadDir)) {
-  fs.mkdirSync(profileUploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, profileUploadDir),
-  filename: (req, file, cb) => {
-    const extensionByMimeType = {
-      'image/jpeg': '.jpg',
-      'image/png': '.png',
-      'image/webp': '.webp'
-    };
-    const ext = extensionByMimeType[file.mimetype] || path.extname(file.originalname) || '.img';
-    cb(null, `profile-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
-  }
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: MAX_PROFILE_IMAGE_SIZE_BYTES
   },

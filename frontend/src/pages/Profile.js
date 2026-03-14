@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
+import { buildProfileImageUrl } from "../utils/profileImage";
 
 import logo from "../assets/images/STUDENT ADVISING LOGO 1.png";
 import bellIconImg from "../assets/images/Bell White Gradient.png";
@@ -231,12 +232,7 @@ const Profile = () => {
           gender: p.gender || "",
           profile_picture: null,
         });
-        if (p.profile_picture) {
-          const apiRoot = (
-            process.env.REACT_APP_API_URL || "http://localhost:5000/api"
-          ).replace(/\/api\/?$/, "");
-          setPreview(`${apiRoot}${p.profile_picture}`);
-        }
+        setPreview(buildProfileImageUrl(p.profile_picture));
       } catch (err) {
         setError(err.response?.data?.message || "Failed to load profile");
       } finally {
@@ -281,12 +277,7 @@ const Profile = () => {
       const refreshed = await api.get(`/users/${user.id}`);
       const p = refreshed.data.user || {};
       setProfile(p);
-      if (p.profile_picture) {
-        const apiRoot = (
-          process.env.REACT_APP_API_URL || "http://localhost:5000/api"
-        ).replace(/\/api\/?$/, "");
-        setPreview(`${apiRoot}${p.profile_picture}`);
-      }
+      setPreview(buildProfileImageUrl(p.profile_picture));
       setSuccess("Photo updated successfully");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to upload photo");
@@ -352,12 +343,7 @@ const Profile = () => {
       const refreshed = await api.get(`/users/${user.id}`);
       const p = refreshed.data.user || {};
       setProfile(p);
-      if (p.profile_picture) {
-        const apiRoot = (
-          process.env.REACT_APP_API_URL || "http://localhost:5000/api"
-        ).replace(/\/api\/?$/, "");
-        setPreview(`${apiRoot}${p.profile_picture}`);
-      }
+      setPreview(buildProfileImageUrl(p.profile_picture));
       setSuccess("Profile updated successfully");
       setEditMode(false);
     } catch (err) {

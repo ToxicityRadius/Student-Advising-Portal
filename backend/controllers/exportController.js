@@ -1,6 +1,8 @@
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const https = require('https');
 const {
   StudentAcademicRecord,
   StudyPlan,
@@ -196,22 +198,57 @@ const resolveUploadPathFromPublicPath = (publicPath) => {
   return path.join(__dirname, '../uploads', relative);
 };
 
-const drawProfilePhoto = (doc, profilePicturePath) => {
+const downloadImageBuffer = (url) => new Promise((resolve, reject) => {
+  const client = url.startsWith('https://') ? https : http;
+
+  const request = client.get(url, (response) => {
+    if (response.statusCode && response.statusCode >= 400) {
+      response.resume();
+      reject(new Error(`Image request failed with status ${response.statusCode}`));
+      return;
+    }
+
+    const chunks = [];
+    response.on('data', (chunk) => chunks.push(chunk));
+    response.on('end', () => resolve(Buffer.concat(chunks)));
+  });
+
+  request.on('error', reject);
+});
+
+const drawProfilePhoto = async (doc, profilePicturePath) => {
+  const photoSize = 72;
+  const drawX = doc.page.width - doc.page.margins.right - photoSize;
+  const drawY = 45;
   const localImagePath = resolveUploadPathFromPublicPath(profilePicturePath);
 
-  if (!localImagePath || !fs.existsSync(localImagePath)) {
+  if (localImagePath && fs.existsSync(localImagePath)) {
+    try {
+      doc.image(localImagePath, drawX, drawY, {
+        fit: [photoSize, photoSize],
+        align: 'center',
+        valign: 'center'
+      });
+    } catch {
+      // Skip photo rendering if PDFKit cannot parse the image.
+    }
+
+    return;
+  }
+
+  if (!/^https?:\/\//i.test(String(profilePicturePath || ''))) {
     return;
   }
 
   try {
-    const photoSize = 72;
-    doc.image(localImagePath, doc.page.width - doc.page.margins.right - photoSize, 45, {
+    const remoteBuffer = await downloadImageBuffer(profilePicturePath);
+    doc.image(remoteBuffer, drawX, drawY, {
       fit: [photoSize, photoSize],
       align: 'center',
       valign: 'center'
     });
   } catch {
-    // Skip photo rendering if PDFKit cannot parse the image.
+    // Skip photo rendering if remote image cannot be downloaded or parsed.
   }
 };
 
@@ -519,7 +556,7 @@ exports.exportSARPDF = async (req, res, next) => {
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
     doc.pipe(res);
 
-    drawProfilePhoto(doc, sar.Student?.profile_picture);
+    await drawProfilePhoto(doc, sar.Student?.profile_picture);
 
     doc.fontSize(17).font('Helvetica-Bold').fillColor('#111111').text('Technological Institute of the Philippines', {
       align: 'center'
