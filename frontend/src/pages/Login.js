@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Form, Button, Alert } from 'react-bootstrap';
+import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import StudentIdModal from '../components/StudentIdModal';
-import AuthBackgroundShell from '../components/auth/AuthBackgroundShell';
-import { AuthCenteredCard, AuthInput } from '../components/auth/AuthFormPrimitives';
 import backgroundImage from '../assets/images/bg.png';
 import studentIcon from '../assets/images/student yellow.png';
 import teacherIcon from '../assets/images/teacher yellow.png';
@@ -257,7 +255,14 @@ const Login = () => {
 
 
   return (
-    <AuthBackgroundShell backgroundImage={backgroundImage}>
+    <div 
+      className="min-vh-100 d-flex align-items-center justify-content-center position-relative" 
+      style={{ 
+        backgroundImage: `url(${backgroundImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      }}
+    >
       
       {showStudentIdModal && pendingGoogleUser && (
         <StudentIdModal
@@ -266,97 +271,110 @@ const Login = () => {
         />
       )}
 
-      <AuthCenteredCard
-        logo={studentAdvisingLogo}
-        logoStyle={{ maxWidth: '300px', height: 'auto', display: 'block', margin: '0 auto' }}
-        colProps={{ xs: 13, sm: 10, md: 8, lg: 6, xl: 5, style: { maxWidth: '380px' } }}
-      >
-        <div className="text-start mb-2">
-          <span
-            onClick={() => clearRole()}
-            style={{ cursor: 'pointer', color: '#666', fontSize: '0.8rem' }}
-          >
-            ← Back
-          </span>
-        </div>
-        <h2 className="mb-3 text-start" style={{ fontSize: '1.3rem' }}>Sign in{selectedRole === 'faculty' ? ' as Instructor' : ' as Student'}</h2>
-
-        {error && (
-          <Alert variant="danger" dismissible onClose={() => setError('')}>
-            <i className="bi bi-exclamation-triangle-fill me-2"></i>
-            {error}
-          </Alert>
-        )}
-
-        <Form onSubmit={handleSubmit}>
-          <AuthInput
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-            placeholder="Email Address"
-          />
-
-          <AuthInput
-            type="password"
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
-            required
-            placeholder="Password"
-          />
-
-          <div className="text-end mb-3">
-            <Link to="/forgot-password" className="text-decoration-none" style={{ fontSize: '0.82rem' }}>
-              Forgot your password?
-            </Link>
-          </div>
-
-          <Button
-            type="submit"
-            variant="warning"
-            size="lg"
-            className="w-100 fw-bold mb-3 login-button"
-            disabled={loading}
-            style={{
-              backgroundColor: '#FFC107',
-              borderColor: '#FFC107',
-              color: '#000'
-            }}
-          >
-            {loading ? 'Logging in...' : 'Login'}
-          </Button>
-
-          <div className="position-relative text-center mb-3">
-            <hr />
-            <span
-              className="position-absolute top-50 start-50 translate-middle bg-white px-3"
-              style={{ color: '#666' }}
-            >
-              or
-            </span>
-          </div>
-
-          <div className="d-flex justify-content-center">
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={handleGoogleError}
-              text="signin_with"
-              theme="outline"
-              size="large"
-            />
-          </div>
-
-          <div className="text-center mt-3" style={{ fontSize: '0.82rem' }}>
-            <span className="text-muted">New to Student Advising Portal? </span>
-            <Link to="/register" state={{ role: selectedRole }} className="text-decoration-none fw-bold">
-              Create an Account
-            </Link>
-          </div>
-        </Form>
-      </AuthCenteredCard>
-    </AuthBackgroundShell>
+      
+      <Container className="position-relative" style={{ zIndex: 1 }}>
+        <Row className="justify-content-center">
+          <Col xs={13} sm={10} md={8} lg={6} xl={5} style={{ maxWidth: '380px' }}>
+            <Card className="shadow-lg border-0" style={{ position: 'relative', zIndex: 3, borderRadius: '20px', overflow: 'hidden' }}>
+              <Card.Body className="p-3 p-md-4">
+                <div className="text-center mb-3" style={{ marginTop: '30px', marginBottom: '30px' }}>
+                  <img src={studentAdvisingLogo} alt="Student Advising Logo" style={{ maxWidth: '300px', height: 'auto', display: 'block', margin: '0 auto' }} />
+                </div>
+                
+                <div className="text-start mb-2">
+                  <span 
+                    onClick={() => clearRole()} 
+                    style={{ cursor: 'pointer', color: '#666', fontSize: '0.8rem' }}
+                  >
+                    ← Back
+                  </span>
+                </div>
+                <h2 className="mb-3 text-start" style={{ fontSize: '1.3rem' }}>Sign in{selectedRole === 'faculty' ? ' as Instructor' : ' as Student'}</h2>
+                
+                {error && (
+                  <Alert variant="danger" dismissible onClose={() => setError('')}>
+                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                    {error}
+                  </Alert>
+                )}
+                
+                <Form onSubmit={handleSubmit}>
+                  <Form.Group className="mb-3">
+                    <Form.Control
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      required
+                      placeholder="Email Address"
+                    />
+                  </Form.Group>
+                  
+                  <Form.Group className="mb-3">
+                    <Form.Control
+                      type="password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      required
+                      placeholder="Password"
+                    />
+                  </Form.Group>
+                  
+                  <div className="text-end mb-3">
+                    <Link to="/forgot-password" className="text-decoration-none" style={{ fontSize: '0.82rem' }}>
+                      Forgot your password?
+                    </Link>
+                  </div>
+                  
+                  <Button
+                    type="submit"
+                    variant="warning"
+                    size="lg"
+                    className="w-100 fw-bold mb-3 login-button"
+                    disabled={loading}
+                    style={{
+                      backgroundColor: '#FFC107',
+                      borderColor: '#FFC107',
+                      color: '#000'
+                    }}
+                  >
+                    {loading ? 'Logging in...' : 'Login'}
+                  </Button>
+                  
+                  <div className="position-relative text-center mb-3">
+                    <hr />
+                    <span 
+                      className="position-absolute top-50 start-50 translate-middle bg-white px-3"
+                      style={{ color: '#666' }}
+                    >
+                      or
+                    </span>
+                  </div>
+                  
+                  <div className="d-flex justify-content-center">
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={handleGoogleError}
+                      text="signin_with"
+                      theme="outline"
+                      size="large"
+                    />
+                  </div>
+                  
+                  <div className="text-center mt-3" style={{ fontSize: '0.82rem' }}>
+                    <span className="text-muted">New to Student Advising Portal? </span>
+                    <Link to="/register" state={{ role: selectedRole }} className="text-decoration-none fw-bold">
+                      Create an Account
+                    </Link>
+                  </div>
+                </Form>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      </Container>
+    </div>
   );
 };
 
