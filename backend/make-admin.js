@@ -1,13 +1,15 @@
-const User = require('./models/User');
+require("dotenv").config();
+
+const User = require("./models/User");
 
 async function promoteToAdmin() {
   try {
     // Replace this with the email you registered with!
-    const targetEmail = 'mcadelacruz@tip.edu.ph'; 
+    const targetEmail = "mjsoriano1@tip.edu.ph";
 
     const [updatedRows] = await User.update(
-      { role: 'admin' },
-      { where: { email: targetEmail } }
+      { role: "admin" },
+      { where: { email: targetEmail } },
     );
 
     if (updatedRows > 0) {
@@ -16,7 +18,7 @@ async function promoteToAdmin() {
       console.log(`User with email ${targetEmail} not found.`);
     }
   } catch (error) {
-    console.error('Error updating user:', error);
+    console.error("Error updating user:", error);
   } finally {
     process.exit();
   }

@@ -1,62 +1,74 @@
-import React, { useState } from 'react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap';
-import { GoogleLogin } from '@react-oauth/google';
-import { jwtDecode } from 'jwt-decode';
-import { useAuth } from '../context/AuthContext';
-import api from '../utils/api';
-import backgroundImage from '../assets/images/bg.png';
-import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
+import React, { useState } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
+import {
+  Container,
+  Card,
+  Form,
+  Button,
+  Alert,
+  Row,
+  Col,
+} from "react-bootstrap";
+import { GoogleLogin } from "@react-oauth/google";
+import { jwtDecode } from "jwt-decode";
+import { useAuth } from "../context/AuthContext";
+import api from "../utils/api";
+import backgroundImage from "../assets/images/bg.png";
+import studentAdvisingLogo from "../assets/images/STUDENT ADVISING LOGO 1.png";
 
 const Register = () => {
   const [formData, setFormData] = useState({
-    studentId: '',
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    confirmPassword: ''
+    studentId: "",
+    firstName: "",
+    lastName: "",
+    gender: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
   });
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const role = location.state?.role || 'student';
-  const isFaculty = role === 'faculty';
+  const role = location.state?.role || "student";
+  const isFaculty = role === "faculty";
   const { register } = useAuth();
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     // Validation
     if (!isFaculty && !/^\d{7}$/.test(formData.studentId)) {
-      setError('Student Number must be exactly 7 digits');
+      setError("Student Number must be exactly 7 digits");
       return;
     }
 
     // Faculty email validation
-    if (isFaculty && !formData.email.toLowerCase().endsWith('.cpe@tip.edu.ph')) {
-      setError('Faculty email must end with .cpe@tip.edu.ph');
+    if (
+      isFaculty &&
+      !formData.email.toLowerCase().endsWith(".cpe@tip.edu.ph")
+    ) {
+      setError("Faculty email must end with .cpe@tip.edu.ph");
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      setError("Passwords do not match");
       return;
     }
 
     if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError("Password must be at least 6 characters");
       return;
     }
 
@@ -67,17 +79,20 @@ const Register = () => {
         studentId: isFaculty ? null : formData.studentId,
         firstName: formData.firstName,
         lastName: formData.lastName,
+        gender: formData.gender || null,
         email: formData.email,
         password: formData.password,
-        role: isFaculty ? 'adviser' : 'student'
+        role: isFaculty ? "adviser" : "student",
       });
 
       setSuccess(response.message);
       setTimeout(() => {
-        navigate('/login');
+        navigate("/login");
       }, 3000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+      setError(
+        err.response?.data?.message || "Registration failed. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -88,77 +103,136 @@ const Register = () => {
       setLoading(true);
       // Decode the JWT token from Google
       const decoded = jwtDecode(credentialResponse.credential);
-      
+
       // Check if email ends with @tip.edu.ph
-      if (!decoded.email.toLowerCase().endsWith('@tip.edu.ph')) {
-        setError('Only TIP email addresses (@tip.edu.ph) are allowed to sign in.');
+      if (!decoded.email.toLowerCase().endsWith("@tip.edu.ph")) {
+        setError(
+          "Only TIP email addresses (@tip.edu.ph) are allowed to sign in.",
+        );
         setLoading(false);
         return;
       }
 
       // Send the Google token to your backend for verification and login
-      const { data } = await api.post('/auth/google', {
+      const { data } = await api.post("/auth/google", {
         token: credentialResponse.credential,
         email: decoded.email,
         name: decoded.name,
       });
 
       // Store the token and user data
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
       // Navigate to dashboard
-      navigate('/dashboard');
+      navigate("/dashboard");
       window.location.reload();
     } catch (err) {
-      console.error('Google Sign-In error:', err);
-      setError(err.response?.data?.message || 'An error occurred during Google Sign-In. Please try again.');
+      console.error("Google Sign-In error:", err);
+      setError(
+        err.response?.data?.message ||
+          "An error occurred during Google Sign-In. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleError = () => {
-    setError('Google Sign-In failed. Please try again.');
+    setError("Google Sign-In failed. Please try again.");
   };
 
   return (
-    <div 
-      className="min-vh-100 d-flex align-items-center justify-content-center position-relative py-5" 
-      style={{ 
+    <div
+      className="min-vh-100 d-flex align-items-center justify-content-center position-relative py-5"
+      style={{
         backgroundImage: `url(${backgroundImage})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center'
+        backgroundSize: "cover",
+        backgroundPosition: "center",
       }}
     >
-      
+      {/* Yellow rectangle - left side, top overlap */}
+      <div
+        className="position-absolute"
+        style={{
+          left: 0,
+          top: "6%",
+          width: "550px",
+          height: "60px",
+          backgroundColor: "#FFC107",
+          zIndex: 2,
+          boxShadow: "0 8px 16px rgba(0, 0, 0, 0.3)",
+        }}
+      />
 
-      
+      {/* Yellow rectangle - right side, bottom overlap */}
+      <div
+        className="position-absolute"
+        style={{
+          right: 0,
+          bottom: "10.5%",
+          width: "1500px",
+          height: "60px",
+          backgroundColor: "#FFC107",
+          zIndex: 1,
+          boxShadow: "0 8px 16px rgba(0, 0, 0, 0.3)",
+        }}
+      />
+
       <Container className="position-relative" style={{ zIndex: 1 }}>
         <Row className="justify-content-center">
-          <Col xs={12} sm={9} md={7} lg={6} xl={5} style={{ maxWidth: '380px' }}>
-            <Card className="shadow-lg border-0" style={{ position: 'relative', zIndex: 3, borderRadius: '20px', overflow: 'hidden' }}>
+          <Col
+            xs={12}
+            sm={9}
+            md={7}
+            lg={6}
+            xl={5}
+            style={{ maxWidth: "380px" }}
+          >
+            <Card
+              className="shadow-lg border-0"
+              style={{
+                position: "relative",
+                zIndex: 3,
+                borderRadius: "20px",
+                overflow: "hidden",
+              }}
+            >
               <Card.Body className="p-3 p-md-4">
                 <div className="text-center mb-3">
-                  <img src={studentAdvisingLogo} alt="Student Advising Logo" style={{ maxWidth: '220px', height: 'auto' }} />
+                  <img
+                    src={studentAdvisingLogo}
+                    alt="Student Advising Logo"
+                    style={{ maxWidth: "220px", height: "auto" }}
+                  />
                 </div>
-                
-                <h2 className="mb-3 text-start" style={{ fontSize: '1.3rem' }}>{isFaculty ? 'Faculty Registration' : 'Create an Account'}</h2>
-                
+
+                <h2 className="mb-3 text-start" style={{ fontSize: "1.3rem" }}>
+                  {isFaculty ? "Faculty Registration" : "Create an Account"}
+                </h2>
+
                 {error && (
-                  <Alert variant="danger" dismissible onClose={() => setError('')}>
+                  <Alert
+                    variant="danger"
+                    dismissible
+                    onClose={() => setError("")}
+                  >
                     <i className="bi bi-exclamation-triangle-fill me-2"></i>
                     {error}
                   </Alert>
                 )}
-                
+
                 {success && (
-                  <Alert variant="success" dismissible onClose={() => setSuccess('')}>
+                  <Alert
+                    variant="success"
+                    dismissible
+                    onClose={() => setSuccess("")}
+                  >
                     <i className="bi bi-check-circle-fill me-2"></i>
                     {success}
                   </Alert>
                 )}
-                
+
                 <Form onSubmit={handleSubmit}>
                   {!isFaculty && (
                     <Form.Group className="mb-3">
@@ -175,7 +249,7 @@ const Register = () => {
                       />
                     </Form.Group>
                   )}
-                  
+
                   <Row>
                     <Col md={6}>
                       <Form.Group className="mb-3">
@@ -202,7 +276,20 @@ const Register = () => {
                       </Form.Group>
                     </Col>
                   </Row>
-                  
+
+                  <Form.Group className="mb-3">
+                    <Form.Select
+                      name="gender"
+                      value={formData.gender}
+                      onChange={handleChange}
+                    >
+                      <option value="">Gender (Optional)</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </Form.Select>
+                  </Form.Group>
+
                   <Form.Group className="mb-3">
                     <Form.Control
                       type="email"
@@ -213,7 +300,7 @@ const Register = () => {
                       placeholder="Email Address"
                     />
                   </Form.Group>
-                  
+
                   <Form.Group className="mb-3">
                     <Form.Control
                       type="password"
@@ -224,7 +311,7 @@ const Register = () => {
                       placeholder="Password"
                     />
                   </Form.Group>
-                  
+
                   <Form.Group className="mb-3">
                     <Form.Control
                       type="password"
@@ -235,26 +322,26 @@ const Register = () => {
                       placeholder="Confirm Password"
                     />
                   </Form.Group>
-                  
-                  <Button 
-                    type="submit" 
-                    variant="warning" 
+
+                  <Button
+                    type="submit"
+                    variant="warning"
                     className="w-100 fw-bold text-dark mb-3"
                     disabled={loading}
                   >
-                    {loading ? 'Creating Account...' : 'Register'}
+                    {loading ? "Creating Account..." : "Register"}
                   </Button>
-                  
+
                   <div className="position-relative text-center mb-3">
                     <hr />
-                    <span 
+                    <span
                       className="position-absolute top-50 start-50 translate-middle bg-white px-3"
-                      style={{ color: '#666' }}
+                      style={{ color: "#666" }}
                     >
                       or
                     </span>
                   </div>
-                  
+
                   <div className="d-flex justify-content-center">
                     <GoogleLogin
                       onSuccess={handleGoogleSuccess}
@@ -264,9 +351,14 @@ const Register = () => {
                       size="large"
                     />
                   </div>
-                  
-                  <div className="text-center mt-3" style={{ fontSize: '0.82rem' }}>
-                    <span className="text-muted">Already have an account? </span>
+
+                  <div
+                    className="text-center mt-3"
+                    style={{ fontSize: "0.82rem" }}
+                  >
+                    <span className="text-muted">
+                      Already have an account?{" "}
+                    </span>
                     <Link to="/login" className="text-decoration-none fw-bold">
                       Sign in
                     </Link>
