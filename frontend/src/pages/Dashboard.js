@@ -40,9 +40,10 @@ const Dashboard = () => {
   /* Progress data — from API */
   const [dashData, setDashData] = useState(null);
   const [dashError, setDashError] = useState('');
+  const [currentTerm, setCurrentTerm] = useState(null);
   const [semPage, setSemPage] = useState(0);
   const unitsCredited = dashData ? dashData.unitsCredited : 0;
-  const totalUnits = dashData ? dashData.totalUnits || 195 : 195;
+  const totalUnits = dashData ? dashData.totalUnits || 0 : 0;
   const progressPercent =
     totalUnits > 0 ? Math.round((unitsCredited / totalUnits) * 100) : 0;
 
@@ -59,12 +60,13 @@ const Dashboard = () => {
         const payload = r.data.data;
         const kpis = payload?.sar?.kpis || {};
 
+        setCurrentTerm(payload?.currentTerm || null);
         setDashData({
-          unitsCredited: Number(kpis.completionPercentage || 0),
-          totalUnits: 100,
+          unitsCredited: Number(kpis.completedUnits || 0),
+          totalUnits: Number(kpis.totalUnits || 0),
           gwa: kpis.gwa,
-          subjectsCompleted: 0,
-          subjectsPending: Number(kpis.remainingUnits || 0)
+          subjectsCompleted: Number(kpis.completedSubjects || 0),
+          subjectsPending: Number(kpis.remainingSubjects || 0)
         });
       })
       .catch((err) => {
@@ -74,9 +76,14 @@ const Dashboard = () => {
       });
   }, []);
 
-  const semesterLabel = yearLevel
-    ? `${formatYearLevel(yearLevel)}, 1st Semester`
-    : "1st Semester";
+  const semesterLabel = (() => {
+    const termLabel = currentTerm
+      ? ({ 1: '1st Semester', 2: '2nd Semester', 3: 'Summer' }[currentTerm.semester] || `Semester ${currentTerm.semester}`)
+      : null;
+    if (yearLevel && termLabel) return `${formatYearLevel(yearLevel)}, ${termLabel}`;
+    if (yearLevel) return formatYearLevel(yearLevel);
+    return termLabel || '';
+  })();
 
   // Redirect non-student roles to their own home page
   if (user?.role && user.role !== 'student') {

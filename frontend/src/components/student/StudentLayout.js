@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import useNotifications from "../../utils/useNotifications";
 import LogoutConfirmModal from "../LogoutConfirmModal";
 import { buildProfileImageUrl } from "../../utils/profileImage";
+import api from "../../utils/api";
 
 import logo from "../../assets/images/STUDENT ADVISING LOGO 1.png";
 import bellIconImg from "../../assets/images/Bell White Gradient.png";
@@ -135,7 +136,19 @@ const StudentLayout = ({
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [allRead, setAllRead] = useState(false);
+  const [currentTermLabel, setCurrentTermLabel] = useState("—");
   const notifRef = useRef(null);
+
+  // Fetch current term label
+  useEffect(() => {
+    api.get("/terms/current")
+      .then((r) => {
+        const t = r.data?.data || r.data;
+        const labels = { 1: "1st Semester", 2: "2nd Semester", 3: "Summer" };
+        if (t?.semester) setCurrentTermLabel(labels[t.semester] || `Semester ${t.semester}`);
+      })
+      .catch(() => {});
+  }, []);
 
   // Close notif dropdown on outside click
   useEffect(() => {
@@ -288,7 +301,7 @@ const StudentLayout = ({
             ) : (
               <Tag label="—" />
             )}
-            <Tag label="1st Semester" />
+            <Tag label={currentTermLabel} />
             {row2Left ? <Tag label={row2Left} /> : <span />}
             {row2Right ? <Tag label={row2Right} /> : <span />}
           </div>
@@ -325,7 +338,7 @@ const StudentLayout = ({
           <SideNavItem
             active={activePage === "plan-of-study"}
             icon={imgIcon(goldPlanImg)}
-            label="Plan of Study"
+            label="Study Plan"
             to="/plan-of-study"
           />
           <SideNavItem

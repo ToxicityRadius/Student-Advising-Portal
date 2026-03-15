@@ -39,7 +39,7 @@ const semesterLabel = (yearLevel, semester) => {
   const semesterNames = {
     1: "1st Semester",
     2: "2nd Semester",
-    3: "Midyear",
+    3: "Summer",
   };
 
   const yearText = ordinals[yearLevel]
@@ -52,11 +52,13 @@ const semesterLabel = (yearLevel, semester) => {
 const normalizeStatus = (course) => {
   const raw = String(course.status || "").toLowerCase();
 
-  if (raw === "passed") return "Passed";
+  if (raw === "completed" || raw === "passed") return "Completed";
+  if (raw === "credited") return "Completed";
   if (raw === "failed") return "Failed";
-  if (raw === "pending") return "Available";
-  if (raw === "incomplete") return "In Progress";
+  if (raw === "ongoing") return "In Progress";
+  if (raw === "incomplete") return "Incomplete";
   if (raw === "dropped" || raw === "drop") return "Dropped";
+  if (raw === "not yet taken") return "Not Yet Taken";
   return "Available";
 };
 
@@ -134,6 +136,7 @@ const AvailableSubjects = () => {
   const [semesterFilter, setSemesterFilter] = useState("All");
   const [notifOpen, setNotifOpen] = useState(false);
   const [allRead, setAllRead] = useState(false);
+  const [currentTermLabel, setCurrentTermLabel] = useState("—");
   const notifRef = useRef(null);
 
   const firstName = user?.firstName || user?.first_name || "";
@@ -145,6 +148,16 @@ const AvailableSubjects = () => {
   const yearLevel = user?.year_level || user?.yearLevel || "";
   const program = user?.program || "";
   const studentType = user?.student_type || user?.studentType || "";
+
+  useEffect(() => {
+    api.get("/terms/current")
+      .then((r) => {
+        const t = r.data?.data || r.data;
+        const labels = { 1: "1st Semester", 2: "2nd Semester", 3: "Summer" };
+        if (t?.semester) setCurrentTermLabel(labels[t.semester] || `Semester ${t.semester}`);
+      })
+      .catch(() => {});
+  }, []);
 
   const { notifications, notifCount } = useNotifications();
 
@@ -419,7 +432,7 @@ const AvailableSubjects = () => {
                 ) : (
                   <Tag label="—" />
                 )}
-                <Tag label="1st Semester" />
+                <Tag label={currentTermLabel} />
                 {row2Left ? <Tag label={row2Left} /> : <span />}
                 {row2Right ? <Tag label={row2Right} /> : <span />}
               </div>
@@ -457,7 +470,7 @@ const AvailableSubjects = () => {
           />
           <SideNavItem
             icon={imgIcon(goldPlanImg)}
-            label="Plan of Study"
+            label="Study Plan"
             to="/plan-of-study"
           />
           <SideNavItem
@@ -941,7 +954,7 @@ const AvailableSubjects = () => {
                         {option === "All"
                           ? "All Semesters"
                           : option === "3"
-                            ? "Midyear"
+                            ? "Summer"
                             : option === "1"
                               ? "1st Semester"
                               : "2nd Semester"}

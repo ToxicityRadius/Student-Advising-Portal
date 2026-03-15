@@ -235,6 +235,10 @@
   margin-bottom: 8px;
 }
 
+.pos-course-row--greyed {
+  opacity: 0.45;
+}
+
 .pos-course-code {
   background: #dbdde3;
   color: #2d3348;
@@ -271,6 +275,12 @@
 .pos-course-badge--in-progress {
   background: #f6ecc8;
   color: #9c7700;
+}
+
+.pos-course-badge--pending,
+.pos-course-badge--not-yet-taken {
+  background: #e9ecf4;
+  color: #4c5264;
 }
 
 .pos-course-badge--failed,

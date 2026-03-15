@@ -41,7 +41,7 @@ const semesterLabel = (yearLevel, semester) => {
   const semesterNames = {
     1: "1st Semester",
     2: "2nd Semester",
-    3: "Midyear",
+    3: "Summer",
   };
 
   const yearText = ordinals[yearLevel]
@@ -54,18 +54,20 @@ const semesterLabel = (yearLevel, semester) => {
 const normalizeStatus = (course) => {
   const raw = String(course.status || "").toLowerCase();
 
-  if (raw === "passed") return "Completed";
+  if (raw === "completed" || raw === "passed") return "Completed";
+  if (raw === "credited") return "Completed";
   if (raw === "failed") return "Failed";
-  if (raw === "pending") return "In Progress";
-  if (raw === "incomplete") return "In Progress";
+  if (raw === "ongoing") return "In Progress";
+  if (raw === "incomplete") return "Incomplete";
   if (raw === "dropped" || raw === "drop") return "Failed";
+  if (raw === "not yet taken") return "Not Yet Taken";
 
   const gradeNumber = Number.parseFloat(course.grade);
   if (Number.isFinite(gradeNumber)) {
     return gradeNumber <= 3 ? "Completed" : "Failed";
   }
 
-  return "Not Yet Taken";
+  return "Pending";
 };
 
 const SideNavItem = ({ icon, label, to, active, badge }) => (
@@ -154,6 +156,7 @@ const Checklist = () => {
   const [expanded, setExpanded] = useState({});
   const [notifOpen, setNotifOpen] = useState(false);
   const [allRead, setAllRead] = useState(false);
+  const [currentTermLabel, setCurrentTermLabel] = useState("—");
   const notifRef = useRef(null);
 
   const firstName = user?.firstName || user?.first_name || "";
@@ -168,6 +171,16 @@ const Checklist = () => {
 
   const { notifications, notifCount } = useNotifications();
   const availableSubjectsCount = 0;
+
+  useEffect(() => {
+    api.get("/terms/current")
+      .then((r) => {
+        const t = r.data?.data || r.data;
+        const labels = { 1: "1st Semester", 2: "2nd Semester", 3: "Summer" };
+        if (t?.semester) setCurrentTermLabel(labels[t.semester] || `Semester ${t.semester}`);
+      })
+      .catch(() => {});
+  }, []);
 
   const imgIcon = (src, size = 22) => (
     <img
@@ -284,7 +297,13 @@ const Checklist = () => {
 
     const total = courses.length;
     const remaining = Math.max(0, total - completed - failed - inProgress);
-    const completionPercent = total ? Math.round((completed / total) * 100) : 0;
+
+    const completedUnits = courses
+      .filter((course) => course.normalizedStatus === "Completed")
+      .reduce((sum, course) => sum + Number(course.units || 0), 0);
+    const totalUnits = courses.reduce(
+      (sum, course) => sum + Number(course.units || 0), 0);
+    const completionPercent = totalUnits > 0 ? Math.round((completedUnits / totalUnits) * 100) : 0;
 
     return {
       completed,
@@ -474,7 +493,7 @@ const Checklist = () => {
                 ) : (
                   <Tag label="—" />
                 )}
-                <Tag label="1st Semester" />
+                <Tag label={currentTermLabel} />
                 {row2Left ? <Tag label={row2Left} /> : <span />}
                 {row2Right ? <Tag label={row2Right} /> : <span />}
               </div>
@@ -509,7 +528,7 @@ const Checklist = () => {
           />
           <SideNavItem
             icon={imgIcon(goldPlanImg)}
-            label="Plan of Study"
+            label="Study Plan"
             to="/plan-of-study"
           />
           <SideNavItem
@@ -1025,7 +1044,7 @@ const Checklist = () => {
                             {(semester.courses || []).map((course, idx) => (
                               <div
                                 key={`${semester.key}-${course.code}-${idx}`}
-                                className="checklist-course-row"
+                                className={`checklist-course-row${course.normalizedStatus === "Not Yet Taken" || course.normalizedStatus === "Pending" ? " checklist-course-row--greyed" : ""}`}
                               >
                                 <div>
                                   <strong>{course.code || "COURSE"}</strong>
@@ -1084,7 +1103,7 @@ const Checklist = () => {
                     {expanded[majorCard.key] && (
                       <div className="checklist-courses">
                         {majorCard.courses.length === 0 && (
-                          <div className="checklist-course-row">
+                          <div className="checklist-course-row checklist-course-row--greyed">
                             <div>
                               <strong>No major subjects yet</strong>
                               <span>
@@ -1102,7 +1121,7 @@ const Checklist = () => {
                         {majorCard.courses.map((course, idx) => (
                           <div
                             key={`${majorCard.key}-${course.code}-${idx}`}
-                            className="checklist-course-row"
+                            className={`checklist-course-row${course.normalizedStatus === "Not Yet Taken" || course.normalizedStatus === "Pending" ? " checklist-course-row--greyed" : ""}`}
                           >
                             <div>
                               <strong>{course.code || "COURSE"}</strong>

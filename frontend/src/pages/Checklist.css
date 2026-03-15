@@ -246,6 +246,10 @@
   margin-bottom: 8px;
 }
 
+.checklist-course-row--greyed {
+  opacity: 0.45;
+}
+
 .checklist-course-row strong {
   display: block;
   color: #22283f;

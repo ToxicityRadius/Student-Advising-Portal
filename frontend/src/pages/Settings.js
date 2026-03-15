@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { buildProfileImageUrl } from "../utils/profileImage";
 import useNotifications from "../utils/useNotifications";
@@ -150,6 +151,15 @@ const Settings = () => {
   }, []);
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [currentTermLabel, setCurrentTermLabel] = useState("—");
+
+  useEffect(() => {
+    api.get("/terms/current").then(({ data }) => {
+      const sem = data?.semester ?? data?.term?.semester;
+      const map = { 1: "1st Semester", 2: "2nd Semester", 3: "Summer" };
+      if (sem && map[sem]) setCurrentTermLabel(map[sem]);
+    }).catch(() => {});
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -262,7 +272,7 @@ const Settings = () => {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, width: "100%" }}>
             {[
               yearLevel ? formatYearLevel(yearLevel) : "—",
-              "1st Semester",
+              currentTermLabel,
               studentType || roleLabel || null,
               program || null,
             ].map((tag, i) =>
@@ -280,7 +290,7 @@ const Settings = () => {
           <div style={{ padding: "10px 16px 6px", fontSize: "0.68rem", fontWeight: 700, color: "#bbb", letterSpacing: 1.5 }}>MAIN</div>
           <SideNavItem icon={imgIcon(goldHomePageImg)} label="Dashboard" to="/dashboard" />
           <SideNavItem icon={imgIcon(goldBookImg)} label="Available Subjects" to="/subjects" />
-          <SideNavItem icon={imgIcon(goldPlanImg)} label="Plan of Study" to="/plan-of-study" />
+          <SideNavItem icon={imgIcon(goldPlanImg)} label="Study Plan" to="/plan-of-study" />
           <SideNavItem icon={imgIcon(goldGradesImg)} label="View Grades" to="/grades" />
           <SideNavItem icon={imgIcon(goldChecklistImg)} label="Checklist" to="/checklist" />
 

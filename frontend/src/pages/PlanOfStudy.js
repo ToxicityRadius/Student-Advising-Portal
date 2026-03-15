@@ -39,7 +39,7 @@ const semesterLabel = (yearLevel, semester) => {
   const semesterNames = {
     1: "1st Semester",
     2: "2nd Semester",
-    3: "Midyear",
+    3: "Summer",
   };
 
   const yearText = ordinals[yearLevel]
@@ -52,12 +52,14 @@ const semesterLabel = (yearLevel, semester) => {
 const normalizeStatus = (course) => {
   const raw = String(course.status || "").toLowerCase();
 
-  if (raw === "passed") return "Completed";
+  if (raw === "completed" || raw === "passed") return "Completed";
+  if (raw === "credited") return "Completed";
   if (raw === "failed") return "Failed";
-  if (raw === "pending") return "In Progress";
-  if (raw === "incomplete") return "In Progress";
+  if (raw === "ongoing") return "In Progress";
+  if (raw === "incomplete") return "Incomplete";
   if (raw === "dropped" || raw === "drop") return "Dropped";
-  return "In Progress";
+  if (raw === "not yet taken") return "Not Yet Taken";
+  return "Pending";
 };
 
 const SideNavItem = ({ icon, label, to, active, badge }) => (
@@ -129,6 +131,7 @@ const PlanOfStudy = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [currentTerm, setCurrentTerm] = useState(null);
   const [expanded, setExpanded] = useState({});
   const [notifOpen, setNotifOpen] = useState(false);
   const [allRead, setAllRead] = useState(false);
@@ -177,6 +180,12 @@ const PlanOfStudy = () => {
   }, []);
 
   useEffect(() => {
+    api.get('/terms/current')
+      .then((res) => setCurrentTerm(res.data?.data || null))
+      .catch(() => setCurrentTerm(null));
+  }, []);
+
+  useEffect(() => {
     api
       .get("/users/me/dashboard")
       .then((response) => {
@@ -192,11 +201,11 @@ const PlanOfStudy = () => {
             },
           );
         } else {
-          setError("Unable to load plan of study right now.");
+          setError("Unable to load study plan right now.");
         }
       })
       .catch(() => {
-        setError("Unable to load plan of study right now.");
+        setError("Unable to load study plan right now.");
       })
       .finally(() => {
         setLoading(false);
@@ -392,7 +401,11 @@ const PlanOfStudy = () => {
                 ) : (
                   <Tag label="—" />
                 )}
-                <Tag label="1st Semester" />
+                <Tag label={currentTerm ? ({
+                  1: '1st Semester',
+                  2: '2nd Semester',
+                  3: 'Summer',
+                }[currentTerm.semester] || `Sem ${currentTerm.semester}`) : '—'} />
                 {row2Left ? <Tag label={row2Left} /> : <span />}
                 {row2Right ? <Tag label={row2Right} /> : <span />}
               </div>
@@ -428,7 +441,7 @@ const PlanOfStudy = () => {
           <SideNavItem
             active
             icon={imgIcon(goldPlanImg)}
-            label="Plan of Study"
+            label="Study Plan"
             to="/plan-of-study"
           />
           <SideNavItem
@@ -617,7 +630,7 @@ const PlanOfStudy = () => {
                 ›
               </span>
               <span style={{ color: "#111", fontWeight: 800 }}>
-                PLAN OF STUDY
+                STUDY PLAN
               </span>
             </div>
           </div>
@@ -831,13 +844,13 @@ const PlanOfStudy = () => {
         >
           <div className="pos-page">
             <section className="pos-hero">
-              <h1>Plan of Study</h1>
+              <h1>Study Plan</h1>
               <p>Your personalized roadmap to graduation</p>
             </section>
 
             {loading ? (
               <section className="pos-panel pos-loading">
-                Loading plan of study...
+                Loading study plan...
               </section>
             ) : error ? (
               <section className="pos-panel pos-error">{error}</section>
@@ -884,7 +897,6 @@ const PlanOfStudy = () => {
                         >
                           <div>
                             <h3>{semester.title}</h3>
-                            <p>{semester.subtitle}</p>
                           </div>
                           <div className="pos-semester-kpi">
                             <span>Total Units</span>
@@ -892,23 +904,12 @@ const PlanOfStudy = () => {
                           </div>
                         </button>
 
-                        <div className="pos-current-strip">
-                          <div>
-                            <strong>Current Semester</strong>
-                            <p>
-                              Input your Prelim and Midterm grades to get
-                              predictions and adjust your future plan
-                            </p>
-                          </div>
-                          <button type="button">Input Grades</button>
-                        </div>
-
                         {isOpen && (
                           <div className="pos-courses">
                             {(semester.courses || []).map((course, i) => (
                               <div
                                 key={`${semester.key}-${course.code}-${i}`}
-                                className="pos-course-row"
+                                className={`pos-course-row${course.normalizedStatus === "Not Yet Taken" || course.normalizedStatus === "Pending" ? " pos-course-row--greyed" : ""}`}
                               >
                                 <span className="pos-course-code">
                                   {course.code || "CPE 000"}

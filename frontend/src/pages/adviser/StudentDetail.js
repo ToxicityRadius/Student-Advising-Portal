@@ -119,7 +119,7 @@ const StudentDetail = () => {
         </div>
         <div className="d-flex gap-2 flex-wrap">
           {canEditSar && sar && (
-            <Button onClick={() => setShowEditModal(true)} variant="outline-primary" disabled={actionLoading}>
+            <Button onClick={() => setShowEditModal(true)} variant="light" className="border border-dark" disabled={actionLoading}>
               Edit Record
             </Button>
           )}
@@ -128,7 +128,7 @@ const StudentDetail = () => {
               {actionLoading ? 'Working...' : 'Export PDF'}
             </Button>
           )}
-          <Button as={Link} to="/adviser/students" variant="outline-secondary">
+          <Button as={Link} to="/adviser/students" variant="light" className="border border-dark">
             Back to Records
           </Button>
         </div>
@@ -148,6 +148,7 @@ const StudentDetail = () => {
           sarId={sarId}
           onGeneratePlan={handleGenerateInitialStudyPlan}
           isActionLoading={actionLoading}
+          onTermChange={loadSarData}
         />
       )}
 

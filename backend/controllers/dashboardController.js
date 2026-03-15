@@ -137,7 +137,11 @@ const buildStudentSummary = async (user) => {
       activeVersionNumber: activeVersion?.versionNumber || null,
       kpis: {
         completionPercentage: Number(analytics?.progress?.completionPercentage || 0),
+        completedUnits: analytics?.progress?.completedUnits ?? 0,
+        totalUnits: analytics?.progress?.totalUnits ?? 0,
         remainingUnits: analytics?.progress?.remainingUnits ?? null,
+        completedSubjects: analytics?.progress?.completedSubjects ?? 0,
+        remainingSubjects: analytics?.progress?.remainingSubjects ?? 0,
         gwa: analytics?.gpaMonitoring?.gwa ?? null,
         prerequisiteRiskSubjects: Array.isArray(analytics?.prerequisiteChecking?.subjects)
           ? analytics.prerequisiteChecking.subjects.filter((subject) => (subject.unmetPrerequisites || []).length > 0).length
@@ -366,6 +370,86 @@ exports.getDashboardSummary = async (req, res, next) => {
 
     const adminSummary = await buildAdminSummary();
     return res.status(200).json({ success: true, data: { role: 'admin', currentTerm, ...adminSummary } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc   Student-specific dashboard for legacy pages (Checklist, ViewGrades, AvailableSubjects, PlanOfStudy)
+// @route  GET /api/users/me/dashboard
+// @access student
+exports.getStudentDashboard = async (req, res, next) => {
+  try {
+    const sar = await StudentAcademicRecord.findOne({
+      where: buildStudentOwnershipWhere(req.user),
+      include: [
+        { model: Curriculum, attributes: ['id', 'name'] },
+        { model: StudyPlan, attributes: ['id'] }
+      ],
+      order: [['updatedAt', 'DESC'], ['id', 'DESC']]
+    });
+
+    if (!sar) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          gwa: null,
+          unitsCredited: 0,
+          totalUnits: 0,
+          subjectsCompleted: 0,
+          subjectsPending: 0,
+          semesterSummary: []
+        }
+      });
+    }
+
+    const plainSar = sar.get({ plain: true });
+    const analytics = await getSarAnalyticsPayload(plainSar);
+
+    if (!analytics) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          gwa: null,
+          unitsCredited: 0,
+          totalUnits: 0,
+          subjectsCompleted: 0,
+          subjectsPending: 0,
+          semesterSummary: []
+        }
+      });
+    }
+
+    // Group subjects by year/semester for the semesterSummary
+    const groupMap = new Map();
+    (analytics.curriculumChecklistOverview?.items || []).forEach((subject) => {
+      const key = `${subject.yearLevel}-${subject.semester}`;
+      if (!groupMap.has(key)) {
+        groupMap.set(key, { yearLevel: subject.yearLevel, semester: subject.semester, courses: [] });
+      }
+      groupMap.get(key).courses.push({
+        code: subject.code,
+        name: subject.name,
+        units: subject.units,
+        status: subject.status,
+        grade: subject.grade
+      });
+    });
+
+    const semesterSummary = Array.from(groupMap.values())
+      .sort((a, b) => a.yearLevel !== b.yearLevel ? a.yearLevel - b.yearLevel : a.semester - b.semester);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        gwa: analytics.gpaMonitoring?.gwa ?? null,
+        unitsCredited: analytics.progress?.completedUnits ?? 0,
+        totalUnits: analytics.progress?.totalUnits ?? 0,
+        subjectsCompleted: analytics.progress?.completedSubjects ?? 0,
+        subjectsPending: analytics.progress?.remainingSubjects ?? 0,
+        semesterSummary
+      }
+    });
   } catch (error) {
     next(error);
   }

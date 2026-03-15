@@ -97,7 +97,7 @@ const semesterLabel = (yearLevel, semester) => {
   const semesterNames = {
     1: "1st Semester",
     2: "2nd Semester",
-    3: "Midyear",
+    3: "Summer",
   };
 
   const yearText = ordinals[yearLevel]
@@ -110,11 +110,13 @@ const semesterLabel = (yearLevel, semester) => {
 const normalizeStatus = (course) => {
   const raw = String(course.status || "").toLowerCase();
 
-  if (raw === "passed") return "Passed";
+  if (raw === "completed" || raw === "passed") return "Passed";
+  if (raw === "credited") return "Passed";
   if (raw === "failed") return "Failed";
-  if (raw === "pending") return "In Progress";
+  if (raw === "ongoing") return "In Progress";
   if (raw === "incomplete") return "INC";
   if (raw === "dropped" || raw === "drop") return "DRP";
+  if (raw === "not yet taken") return "Not Yet Taken";
 
   const gradeNumber = Number.parseFloat(course.grade);
   if (Number.isFinite(gradeNumber)) {
@@ -156,6 +158,7 @@ const ViewGrades = () => {
   const [expanded, setExpanded] = useState({});
   const [notifOpen, setNotifOpen] = useState(false);
   const [allRead, setAllRead] = useState(false);
+  const [currentTermLabel, setCurrentTermLabel] = useState("—");
   const notifRef = useRef(null);
 
   const firstName = user?.firstName || user?.first_name || "";
@@ -170,6 +173,16 @@ const ViewGrades = () => {
 
   const { notifications, notifCount } = useNotifications();
   const availableSubjectsCount = 0;
+
+  useEffect(() => {
+    api.get("/terms/current")
+      .then((r) => {
+        const t = r.data?.data || r.data;
+        const labels = { 1: "1st Semester", 2: "2nd Semester", 3: "Summer" };
+        if (t?.semester) setCurrentTermLabel(labels[t.semester] || `Semester ${t.semester}`);
+      })
+      .catch(() => {});
+  }, []);
 
   const imgIcon = (src, size = 22) => (
     <img
@@ -451,7 +464,7 @@ const ViewGrades = () => {
                 ) : (
                   <Tag label="—" />
                 )}
-                <Tag label="1st Semester" />
+                <Tag label={currentTermLabel} />
                 {row2Left ? <Tag label={row2Left} /> : <span />}
                 {row2Right ? <Tag label={row2Right} /> : <span />}
               </div>
@@ -486,7 +499,7 @@ const ViewGrades = () => {
           />
           <SideNavItem
             icon={imgIcon(goldPlanImg)}
-            label="Plan of Study"
+            label="Study Plan"
             to="/plan-of-study"
           />
           <SideNavItem

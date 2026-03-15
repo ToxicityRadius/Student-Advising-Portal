@@ -70,6 +70,10 @@ router.post('/onboard', protect, completeOnboarding);
 // Notifications for current authenticated user
 router.get('/me/notifications', protect, getMyNotifications);
 
+// Student dashboard for legacy pages (Checklist, ViewGrades, AvailableSubjects, PlanOfStudy)
+const { getStudentDashboard } = require('../controllers/dashboardController');
+router.get('/me/dashboard', protect, getStudentDashboard);
+
 // Admin-only user listing
 router.get('/', protect, requireRole('admin'), getAllUsers);
 

@@ -178,6 +178,15 @@ const Profile = () => {
   }, []);
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [currentTermLabel, setCurrentTermLabel] = useState("—");
+
+  useEffect(() => {
+    api.get("/terms/current").then(({ data }) => {
+      const sem = data?.semester ?? data?.term?.semester;
+      const map = { 1: "1st Semester", 2: "2nd Semester", 3: "Summer" };
+      if (sem && map[sem]) setCurrentTermLabel(map[sem]);
+    }).catch(() => {});
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -211,7 +220,7 @@ const Profile = () => {
   // Build academic tags
   const academicTags = [
     yearLevel ? formatYearLevel(yearLevel) : null,
-    "1st Semester",
+    currentTermLabel,
     studentType || null,
     curriculumYear
       ? `${program || ""} ${curriculumYear}`.trim()
@@ -405,7 +414,7 @@ const Profile = () => {
           >
             {[
               sidebarYearLevel ? formatYearLevel(sidebarYearLevel) : "—",
-              "1st Semester",
+              currentTermLabel,
               sidebarStudentType || roleLabel || null,
               sidebarProgram || null,
             ].map((tag, i) =>
@@ -457,7 +466,7 @@ const Profile = () => {
           />
           <SideNavItem
             icon={imgIcon(goldPlanImg)}
-            label="Plan of Study"
+            label="Study Plan"
             to="/plan-of-study"
           />
           <SideNavItem
