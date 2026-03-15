@@ -34,7 +34,7 @@ const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 
 const parseYearLevel = (value) => Number(value);
 
-const isValidYearLevel = (value) => Number.isInteger(value) && value >= 1 && value <= 4;
+const isValidYearLevel = (value) => Number.isInteger(value) && value >= 1 && value <= 5;
 
 const composeStudentDisplayName = (studentUser) => {
   if (!studentUser) {

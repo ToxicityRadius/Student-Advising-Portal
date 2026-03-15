@@ -150,4 +150,5 @@ Tip 💡:
 
 - [README.md](README.md) — Project overview and setup
 - [SYSTEM_REFERENCE.md](SYSTEM_REFERENCE.md) — Detailed technical reference
+- [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md) — Google OAuth configuration
 - [SYSTEM_WORKFLOW.puml](SYSTEM_WORKFLOW.puml) — Visual workflow map

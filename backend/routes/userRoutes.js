@@ -6,7 +6,12 @@ const {
   getMyNotifications,
   updateStudentId,
   updateUserStudentId,
-  updateProfile
+  updateProfile,
+  updateUser,
+  deleteUser,
+  toggleUserStatus,
+  assignAdviser,
+  completeOnboarding
 } = require('../controllers/userController');
 const { protect, requireRole } = require('../middleware/auth');
 
@@ -53,11 +58,14 @@ const uploadProfilePicture = (req, res, next) => {
   });
 };
 
-// Public route for Google OAuth users to update student ID
-router.patch('/:userId/update-student-id', updateUserStudentId);
+// Admin-only: update any user's student ID by specifying userId
+router.patch('/:userId/update-student-id', protect, requireRole('admin'), updateUserStudentId);
 
 // Route for users to update their own student ID (protected but not admin-only)
 router.patch('/update-student-id', protect, updateStudentId);
+
+// Complete student onboarding (set year level)
+router.post('/onboard', protect, completeOnboarding);
 
 // Notifications for current authenticated user
 router.get('/me/notifications', protect, getMyNotifications);
@@ -67,6 +75,18 @@ router.get('/', protect, requireRole('admin'), getAllUsers);
 
 // Profile update route (protected, user can update self; admin can update any)
 router.put('/:id/profile', protect, uploadProfilePicture, updateProfile);
+
+// Admin-only: update a user's core fields (role, active status, etc.)
+router.put('/:id', protect, requireRole('admin'), updateUser);
+
+// Admin-only: toggle user active/inactive status
+router.patch('/:id/toggle-status', protect, requireRole('admin'), toggleUserStatus);
+
+// Admin-only: assign adviser to a student
+router.put('/:id/assign-adviser', protect, requireRole('admin'), assignAdviser);
+
+// Admin-only: delete a user
+router.delete('/:id', protect, requireRole('admin'), deleteUser);
 
 // Profile read route (protected, user can view self; admin can view any)
 router.get('/:id', protect, getUserById);

@@ -46,6 +46,7 @@ function sanitizeUser(user) {
   delete plain.verificationCode;
   delete plain.verificationCodeExpires;
   plain.profileCompletionScore = computeProfileCompletionScore(plain);
+  plain.gender = plain.sex ?? null;
   return plain;
 }
 
@@ -460,9 +461,8 @@ exports.updateProfile = async (req, res, next) => {
       'emergency_contact_name',
       'emergency_contact_relationship',
       'emergency_contact_number',
-      // Legacy/admin fields
-      'year_level',
-      'adviserId'
+      // User-adjustable during onboarding
+      'year_level'
     ];
 
     const updatePayload = {};
@@ -472,6 +472,16 @@ exports.updateProfile = async (req, res, next) => {
       if (Object.prototype.hasOwnProperty.call(req.body, field)) {
         updatePayload[field] = req.body[field];
       }
+    }
+
+    // adviserId may only be changed by an admin; ignore it from non-admin requests
+    if (req.user.role === 'admin' && Object.prototype.hasOwnProperty.call(req.body, 'adviserId')) {
+      updatePayload.adviserId = req.body.adviserId;
+    }
+
+    // Accept 'gender' as alias for 'sex' for frontend compatibility
+    if (!Object.prototype.hasOwnProperty.call(req.body, 'sex') && Object.prototype.hasOwnProperty.call(req.body, 'gender')) {
+      updatePayload.sex = req.body.gender;
     }
 
     // Validate: sex enum
@@ -593,6 +603,14 @@ exports.updateProfile = async (req, res, next) => {
     const now = Date.now();
     updatePayload.updatedAt = now;
     updatePayload.profile_updated_at = now;
+
+    // Keep camelCase columns in sync with snake_case columns
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'first_name')) {
+      updatePayload.firstName = updatePayload.first_name;
+    }
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'last_name')) {
+      updatePayload.lastName = updatePayload.last_name;
+    }
 
     Object.assign(user, updatePayload);
     await user.save();

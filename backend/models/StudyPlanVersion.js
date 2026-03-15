@@ -52,7 +52,10 @@ const StudyPlanVersion = sequelize.define('StudyPlanVersion', {
   }
 }, {
   tableName: 'study_plan_versions',
-  timestamps: false
+  timestamps: false,
+  indexes: [
+    { fields: ['studyPlanId', 'status'], name: 'study_plan_versions_plan_status' }
+  ]
 });
 
 module.exports = StudyPlanVersion;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Accordion,
   Alert,
@@ -26,6 +26,7 @@ import {
 } from 'recharts';
 import api from '../../utils/api';
 import PaginationControls from '../../components/PaginationControls';
+import AdminLayout from '../../components/admin/AdminLayout';
 
 const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 const EMPTY_META = { page: 1, pageSize: 12, totalPages: 1, totalItems: 0 };
@@ -42,7 +43,7 @@ const formatTimestamp = (value) => {
   }
 };
 
-const sortByCourseCode = (left, right) => String(left.courseCode || '').localeCompare(String(right.courseCode || ''));
+const sortByCourseCode = (a, b) => (a.courseCode || '').localeCompare(b.courseCode || '');
 
 const DemandTable = ({ rows, emptyMessage, countHeader }) => (
   <Table striped bordered hover responsive>
@@ -98,7 +99,7 @@ const ChartContainer = ({ title, subtitle, children, emptyMessage, hasData }) =>
 );
 
 const ForecastDashboard = () => {
-  const [loading, setLoading] = useState(true);
+  const [tabLoading, setTabLoading] = useState({ current: true, next: false, comparison: false, history: false });
   const [tabKey, setTabKey] = useState('current');
   const [alert, setAlert] = useState({ variant: '', message: '' });
   const [noCurrentTerm, setNoCurrentTerm] = useState(false);
@@ -119,72 +120,90 @@ const ForecastDashboard = () => {
   const [historyQuery, setHistoryQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'createdAt', sortOrder: 'desc' });
   const [chartLimit, setChartLimit] = useState(10);
 
-  const loadDashboard = useCallback(async () => {
-    setLoading(true);
-    setAlert({ variant: '', message: '' });
-    setNoCurrentTerm(false);
-
-    try {
-      const [currentResult, nextResult, comparisonResult, historyResult] = await Promise.allSettled([
-        api.get('/forecast/current', { params: currentQuery }),
-        api.get('/forecast/next', { params: nextQuery }),
-        api.get('/forecast/comparison', { params: comparisonQuery }),
-        api.get('/forecast/history', { params: historyQuery })
-      ]);
-
-      const currentRes = currentResult.status === 'fulfilled' ? currentResult.value : null;
-      const nextRes = nextResult.status === 'fulfilled' ? nextResult.value : null;
-      const comparisonRes = comparisonResult.status === 'fulfilled' ? comparisonResult.value : null;
-      const historyRes = historyResult.status === 'fulfilled' ? historyResult.value : null;
-
-      setCurrentDemand((currentRes?.data?.items || currentRes?.data?.data || []).slice().sort(sortByCourseCode));
-      setNextForecast((nextRes?.data?.items || nextRes?.data?.data || []).slice().sort(sortByCourseCode));
-      setComparison((comparisonRes?.data?.items || comparisonRes?.data?.data || []).slice().sort(sortByCourseCode));
-      setHistory(historyRes?.data?.items || historyRes?.data?.data || []);
-
-      setCurrentMeta(currentRes?.data?.meta || EMPTY_META);
-      setNextMeta(nextRes?.data?.meta || EMPTY_META);
-      setComparisonMeta(comparisonRes?.data?.meta || EMPTY_META);
-      setHistoryMeta(historyRes?.data?.meta || EMPTY_META);
-      setMeta({
-        current: currentRes?.data?.meta || null,
-        next: nextRes?.data?.meta || null,
-        comparison: comparisonRes?.data?.meta || null
-      });
-
-      const failedSections = [currentResult, nextResult, comparisonResult].filter((result) => result.status === 'rejected');
-      const has404CurrentTerm = failedSections.some((result) => result?.reason?.response?.status === 404);
-
-      if (has404CurrentTerm) {
-        setNoCurrentTerm(true);
-        setAlert({
-          variant: 'info',
-          message: 'No active current term is set. Activate a term in Term Management to generate current and next-term forecast visuals.'
-        });
-      } else if (failedSections.length > 0) {
-        const firstError = failedSections[0]?.reason;
-        setAlert({
-          variant: 'warning',
-          message: getErrorMessage(firstError, 'Some forecast sections are unavailable right now.')
-        });
-      }
-
-      if (historyResult.status === 'rejected') {
-        throw historyResult.reason;
-      }
-    } catch (error) {
-      setAlert({
-        variant: 'danger',
-        message: getErrorMessage(error, 'Failed to load forecasting data.')
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [currentQuery, nextQuery, comparisonQuery, historyQuery]);
-
+  // ── Current tab ──────────────────────────────────────────────────────────
   useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
+    if (tabKey !== 'current') return;
+    let cancelled = false;
+    setTabLoading((prev) => ({ ...prev, current: true }));
+    setNoCurrentTerm(false);
+    api.get('/forecast/current', { params: currentQuery })
+      .then((res) => {
+        if (cancelled) return;
+        setCurrentDemand(res.data.items || res.data.data || []);
+        setCurrentMeta(res.data.meta || EMPTY_META);
+        setMeta((prev) => ({ ...prev, current: res.data.meta || null }));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        if (err?.response?.status === 404) {
+          setNoCurrentTerm(true);
+          setAlert({ variant: 'info', message: 'No active current term is set. Activate a term in Term Management to generate current and next-term forecast visuals.' });
+        } else {
+          setAlert({ variant: 'danger', message: getErrorMessage(err, 'Failed to load current demand.') });
+        }
+      })
+      .finally(() => { if (!cancelled) setTabLoading((prev) => ({ ...prev, current: false })); });
+    return () => { cancelled = true; };
+  }, [tabKey, currentQuery]);
+
+  // ── Next tab ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (tabKey !== 'next') return;
+    let cancelled = false;
+    setTabLoading((prev) => ({ ...prev, next: true }));
+    api.get('/forecast/next', { params: nextQuery })
+      .then((res) => {
+        if (cancelled) return;
+        setNextForecast(res.data.items || res.data.data || []);
+        setNextMeta(res.data.meta || EMPTY_META);
+        setMeta((prev) => ({ ...prev, next: res.data.meta || null }));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setAlert({ variant: 'danger', message: getErrorMessage(err, 'Failed to load next-term forecast.') });
+      })
+      .finally(() => { if (!cancelled) setTabLoading((prev) => ({ ...prev, next: false })); });
+    return () => { cancelled = true; };
+  }, [tabKey, nextQuery]);
+
+  // ── Comparison tab ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (tabKey !== 'comparison') return;
+    let cancelled = false;
+    setTabLoading((prev) => ({ ...prev, comparison: true }));
+    api.get('/forecast/comparison', { params: comparisonQuery })
+      .then((res) => {
+        if (cancelled) return;
+        setComparison(res.data.items || res.data.data || []);
+        setComparisonMeta(res.data.meta || EMPTY_META);
+        setMeta((prev) => ({ ...prev, comparison: res.data.meta || null }));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setAlert({ variant: 'danger', message: getErrorMessage(err, 'Failed to load comparison data.') });
+      })
+      .finally(() => { if (!cancelled) setTabLoading((prev) => ({ ...prev, comparison: false })); });
+    return () => { cancelled = true; };
+  }, [tabKey, comparisonQuery]);
+
+  // ── History tab ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (tabKey !== 'history') return;
+    let cancelled = false;
+    setTabLoading((prev) => ({ ...prev, history: true }));
+    api.get('/forecast/history', { params: historyQuery })
+      .then((res) => {
+        if (cancelled) return;
+        setHistory(res.data.items || res.data.data || []);
+        setHistoryMeta(res.data.meta || EMPTY_META);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setAlert({ variant: 'danger', message: getErrorMessage(err, 'Failed to load forecast history.') });
+      })
+      .finally(() => { if (!cancelled) setTabLoading((prev) => ({ ...prev, history: false })); });
+    return () => { cancelled = true; };
+  }, [tabKey, historyQuery]);
 
   const historyCount = useMemo(() => historyMeta.totalItems || history.length, [historyMeta.totalItems, history.length]);
 
@@ -220,7 +239,7 @@ const ForecastDashboard = () => {
   );
 
   return (
-    <div className="container py-4">
+    <AdminLayout activePage="forecast" pageTitle="Forecast Dashboard">
       <div className="d-flex justify-content-between align-items-start mb-3">
         <div>
           <h2 className="mb-1">Forecast Dashboard</h2>
@@ -230,7 +249,7 @@ const ForecastDashboard = () => {
 
       {alert.message && <Alert variant={alert.variant}>{alert.message}</Alert>}
 
-      {loading ? (
+      {tabLoading.current ? (
         <div className="text-center py-5">
           <Spinner animation="border" />
         </div>
@@ -296,7 +315,7 @@ const ForecastDashboard = () => {
             </Card.Body>
           </Card>
 
-          <Tabs activeKey={tabKey} onSelect={(key) => setTabKey(key || 'current')} className="mb-3">
+          <Tabs activeKey={tabKey} onSelect={(key) => { setTabKey(key || 'current'); setAlert({ variant: '', message: '' }); }} className="mb-3">
             <Tab eventKey="current" title="Current Demand">
               <ChartContainer
                 title="Current Demand Distribution"
@@ -370,6 +389,7 @@ const ForecastDashboard = () => {
             </Tab>
 
             <Tab eventKey="next" title="Next Semester Forecast">
+              {tabLoading.next && <div className="text-center py-5"><Spinner animation="border" /></div>}
               <ChartContainer
                 title="Next-Semester Forecast Distribution"
                 subtitle="X-axis: Course code · Y-axis: Forecasted student count"
@@ -436,6 +456,7 @@ const ForecastDashboard = () => {
             </Tab>
 
             <Tab eventKey="comparison" title="Comparison Report">
+              {tabLoading.comparison && <div className="text-center py-5"><Spinner animation="border" /></div>}
               <Row className="g-3 mb-3">
                 <Col md={4}>
                   <Card className="h-100 border-start border-primary border-4">
@@ -493,6 +514,32 @@ const ForecastDashboard = () => {
                     )}
                   </div>
 
+                  <div className="d-flex flex-column flex-md-row gap-2 mb-3">
+                    <Form.Control
+                      placeholder="Search course code or name"
+                      value={comparisonQuery.search}
+                      onChange={(event) => setComparisonQuery((prev) => ({ ...prev, page: 1, search: event.target.value }))}
+                    />
+                    <Form.Select
+                      value={comparisonQuery.sortBy}
+                      onChange={(event) => setComparisonQuery((prev) => ({ ...prev, page: 1, sortBy: event.target.value }))}
+                      style={{ maxWidth: 220 }}
+                    >
+                      <option value="courseCode">Sort by Course Code</option>
+                      <option value="courseName">Sort by Course Name</option>
+                      <option value="forecastedDemand">Sort by Forecasted</option>
+                      <option value="actualDemand">Sort by Actual</option>
+                      <option value="difference">Sort by Difference</option>
+                    </Form.Select>
+                    <Form.Select
+                      value={comparisonQuery.sortOrder}
+                      onChange={(event) => setComparisonQuery((prev) => ({ ...prev, page: 1, sortOrder: event.target.value }))}
+                      style={{ maxWidth: 180 }}
+                    >
+                      <option value="asc">Ascending</option>
+                      <option value="desc">Descending</option>
+                    </Form.Select>
+                  </div>
                   <Table striped bordered hover responsive>
                     <thead>
                       <tr>
@@ -521,32 +568,6 @@ const ForecastDashboard = () => {
                       )}
                     </tbody>
                   </Table>
-                  <div className="d-flex flex-column flex-md-row gap-2 mb-3">
-                    <Form.Control
-                      placeholder="Search course code or name"
-                      value={comparisonQuery.search}
-                      onChange={(event) => setComparisonQuery((prev) => ({ ...prev, page: 1, search: event.target.value }))}
-                    />
-                    <Form.Select
-                      value={comparisonQuery.sortBy}
-                      onChange={(event) => setComparisonQuery((prev) => ({ ...prev, page: 1, sortBy: event.target.value }))}
-                      style={{ maxWidth: 220 }}
-                    >
-                      <option value="courseCode">Sort by Course Code</option>
-                      <option value="courseName">Sort by Course Name</option>
-                      <option value="forecastedDemand">Sort by Forecasted</option>
-                      <option value="actualDemand">Sort by Actual</option>
-                      <option value="difference">Sort by Difference</option>
-                    </Form.Select>
-                    <Form.Select
-                      value={comparisonQuery.sortOrder}
-                      onChange={(event) => setComparisonQuery((prev) => ({ ...prev, page: 1, sortOrder: event.target.value }))}
-                      style={{ maxWidth: 180 }}
-                    >
-                      <option value="asc">Ascending</option>
-                      <option value="desc">Descending</option>
-                    </Form.Select>
-                  </div>
                   <PaginationControls
                     page={comparisonMeta.page}
                     totalPages={comparisonMeta.totalPages}
@@ -559,6 +580,7 @@ const ForecastDashboard = () => {
             </Tab>
 
             <Tab eventKey="history" title="Forecast History">
+              {tabLoading.history && <div className="text-center py-5"><Spinner animation="border" /></div>}
               <ChartContainer
                 title="Historical Snapshot Trend"
                 subtitle="X-axis: Snapshot term · Y-axis: Stored rows"
@@ -666,7 +688,7 @@ const ForecastDashboard = () => {
           </Tabs>
         </>
       )}
-    </div>
+    </AdminLayout>
   );
 };
 

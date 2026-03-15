@@ -56,7 +56,7 @@ To change the allowed domain, update both locations.
 1. Start the backend server:
    ```bash
    cd backend
-   npm start
+   npm run dev
    ```
 
 2. Start the frontend:
@@ -86,8 +86,8 @@ To change the allowed domain, update both locations.
 - Never commit your `.env` file or expose your Client ID publicly
 - Use environment variables for production
 - Add your production domain to authorized origins in Google Cloud Console
-- Consider adding rate limiting for authentication endpoints
-- Implement refresh token rotation for better security
+- Rate limiting is applied to the Google OAuth endpoint
+- Refresh token rotation is implemented for session security
 
 ## Troubleshooting
 

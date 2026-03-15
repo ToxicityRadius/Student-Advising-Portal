@@ -4,6 +4,7 @@ import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { buildProfileImageUrl } from "../utils/profileImage";
 import useNotifications from "../utils/useNotifications";
+import LogoutConfirmModal from "../components/LogoutConfirmModal";
 
 import logo from "../assets/images/STUDENT ADVISING LOGO 1.png";
 import bellIconImg from "../assets/images/Bell White Gradient.png";
@@ -175,6 +176,8 @@ const Profile = () => {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -497,7 +500,7 @@ const Profile = () => {
           />
 
           <button
-            onClick={handleLogout}
+            onClick={() => setShowLogoutConfirm(true)}
             style={{
               display: "flex",
               alignItems: "center",
@@ -1170,9 +1173,10 @@ const Profile = () => {
                         }}
                       >
                         <option value="">Select Gender (Optional)</option>
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                        <option value="other">Other</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Non-binary">Non-binary</option>
+                        <option value="Prefer not to say">Prefer not to say</option>
                       </select>
                     </div>
                   </div>
@@ -1446,6 +1450,11 @@ const Profile = () => {
               </>
             )}
           </div>
+          <LogoutConfirmModal
+            show={showLogoutConfirm}
+            onCancel={() => setShowLogoutConfirm(false)}
+            onConfirm={handleLogout}
+          />
         </main>
       </div>
     </div>

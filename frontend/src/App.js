@@ -1,4 +1,4 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -9,26 +9,54 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider } from "./context/AuthContext";
 import Navbar from "./components/Navbar";
 import PrivateRoute from "./components/PrivateRoute";
-import Landing from "./pages/Landing";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import Dashboard from "./pages/Dashboard";
-import ActivateAccount from "./pages/ActivateAccount";
-import VerifyCode from "./pages/VerifyCode";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import CompleteProfile from "./pages/CompleteProfile";
-import Profile from "./pages/Profile";
-import ViewGrades from "./pages/ViewGrades";
-import Checklist from "./pages/Checklist";
-import PlanOfStudy from "./pages/PlanOfStudy";
-import AvailableSubjects from "./pages/AvailableSubjects";
-import AboutUs from "./pages/AboutUs";
-import Purpose from "./pages/Purpose";
-import CurriculumManagement from "./pages/admin/CurriculumManagement";
-import CurriculumDetail from "./pages/admin/CurriculumDetail";
 import ErrorBoundary from "./components/ErrorBoundary";
 import "./index.css";
+
+// Public / auth pages
+const Landing = lazy(() => import("./pages/Landing"));
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const ActivateAccount = lazy(() => import("./pages/ActivateAccount"));
+const VerifyCode = lazy(() => import("./pages/VerifyCode"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const ChangePassword = lazy(() => import("./pages/ChangePassword"));
+const ChangeEmail = lazy(() => import("./pages/ChangeEmail"));
+const AboutUs = lazy(() => import("./pages/AboutUs"));
+const Purpose = lazy(() => import("./pages/Purpose"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+// Student pages
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const CompleteProfile = lazy(() => import("./pages/CompleteProfile"));
+const Profile = lazy(() => import("./pages/Profile"));
+const ViewGrades = lazy(() => import("./pages/ViewGrades"));
+const Checklist = lazy(() => import("./pages/Checklist"));
+const PlanOfStudy = lazy(() => import("./pages/PlanOfStudy"));
+const AvailableSubjects = lazy(() => import("./pages/AvailableSubjects"));
+const MyRecord = lazy(() => import("./pages/student/MyRecord"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Help = lazy(() => import("./pages/Help"));
+
+// Admin pages
+const CurriculumManagement = lazy(() => import("./pages/admin/CurriculumManagement"));
+const CurriculumDetail = lazy(() => import("./pages/admin/CurriculumDetail"));
+const ForecastDashboard = lazy(() => import("./pages/admin/ForecastDashboard"));
+const TermManagement = lazy(() => import("./pages/admin/TermManagement"));
+
+// Adviser pages
+const StudentList = lazy(() => import("./pages/adviser/StudentList"));
+const StudentDetail = lazy(() => import("./pages/adviser/StudentDetail"));
+const GradeEntry = lazy(() => import("./pages/adviser/GradeEntry"));
+const StudyPlanView = lazy(() => import("./pages/adviser/StudyPlanView"));
+const RegenerationReview = lazy(() => import("./pages/adviser/RegenerationReview"));
+const ValidationFlow = lazy(() => import("./pages/adviser/ValidationFlow"));
+
+const PageFallback = () => (
+  <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
+    <div style={{ color: "#888", fontSize: "0.9rem" }}>Loading…</div>
+  </div>
+);
 
 function AppContent() {
   const location = useLocation();
@@ -37,6 +65,8 @@ function AppContent() {
     location.pathname === "/register" ||
     location.pathname === "/verify-code" ||
     location.pathname === "/forgot-password" ||
+    location.pathname === "/change-password" ||
+    location.pathname === "/change-email" ||
     location.pathname.startsWith("/reset-password") ||
     location.pathname.startsWith("/activate") ||
     location.pathname === "/dashboard" ||
@@ -44,12 +74,17 @@ function AppContent() {
     location.pathname === "/grades" ||
     location.pathname === "/checklist" ||
     location.pathname === "/plan-of-study" ||
-    location.pathname === "/subjects";
+    location.pathname === "/subjects" ||
+    location.pathname === "/settings" ||
+    location.pathname === "/help" ||
+    location.pathname.startsWith("/admin") ||
+    location.pathname.startsWith("/adviser");
 
   return (
     <>
       {!hideNavbar && <Navbar />}
-      <Routes>
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/about" element={<AboutUs />} />
         <Route path="/purpose" element={<Purpose />} />
@@ -59,6 +94,8 @@ function AppContent() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/activate/:token" element={<ActivateAccount />} />
+        <Route path="/change-password" element={<ChangePassword />} />
+        <Route path="/change-email" element={<ChangeEmail />} />
         <Route
           path="/dashboard"
           element={
@@ -116,6 +153,32 @@ function AppContent() {
           }
         />
         <Route
+          path="/my-record"
+          element={
+            <PrivateRoute roles={["student"]}>
+              <MyRecord />
+            </PrivateRoute>
+          }
+        />
+        {/* Settings / Help */}
+        <Route
+          path="/settings"
+          element={
+            <PrivateRoute>
+              <Settings />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/help"
+          element={
+            <PrivateRoute>
+              <Help />
+            </PrivateRoute>
+          }
+        />
+        {/* Admin routes */}
+        <Route
           path="/admin/curriculum"
           element={
             <PrivateRoute roles={["admin"]}>
@@ -131,7 +194,75 @@ function AppContent() {
             </PrivateRoute>
           }
         />
+        <Route
+          path="/admin/forecast"
+          element={
+            <PrivateRoute roles={["admin"]}>
+              <ForecastDashboard />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/terms"
+          element={
+            <PrivateRoute roles={["admin"]}>
+              <TermManagement />
+            </PrivateRoute>
+          }
+        />
+        {/* Adviser routes */}
+        <Route
+          path="/adviser/students"
+          element={
+            <PrivateRoute roles={["adviser"]}>
+              <StudentList />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/adviser/students/:sarId"
+          element={
+            <PrivateRoute roles={["adviser"]}>
+              <StudentDetail />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/adviser/students/:sarId/grades"
+          element={
+            <PrivateRoute roles={["adviser"]}>
+              <GradeEntry />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/adviser/students/:sarId/plan/:versionId"
+          element={
+            <PrivateRoute roles={["adviser"]}>
+              <StudyPlanView />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/adviser/students/:sarId/plan/:versionId/review"
+          element={
+            <PrivateRoute roles={["adviser"]}>
+              <RegenerationReview />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/adviser/students/:sarId/plan/:versionId/validate"
+          element={
+            <PrivateRoute roles={["adviser"]}>
+              <ValidationFlow />
+            </PrivateRoute>
+          }
+        />
+        {/* 404 catch-all */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
+      </Suspense>
     </>
   );
 }

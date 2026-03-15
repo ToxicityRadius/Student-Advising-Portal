@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../utils/api";
 import useNotifications from "../utils/useNotifications";
+import LogoutConfirmModal from "../components/LogoutConfirmModal";
+import { buildProfileImageUrl } from "../utils/profileImage";
 
 import logo from "../assets/images/STUDENT ADVISING LOGO 1.png";
 import bellIconImg from "../assets/images/Bell White Gradient.png";
@@ -245,6 +247,8 @@ const PlanOfStudy = () => {
     return Math.max(1, Math.ceil(ratio * 8));
   }, [totalUnits, unitsRemaining]);
 
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
   const handleLogout = async () => {
     await logout();
     navigate("/login");
@@ -313,9 +317,9 @@ const PlanOfStudy = () => {
               boxShadow: "0 0 0 3px #fff, 0 0 0 5px " + YELLOW,
             }}
           >
-            {user?.profile_photo_url ? (
+            {buildProfileImageUrl(user?.profile_picture || user?.profilePicture) ? (
               <img
-                src={user.profile_photo_url}
+                src={buildProfileImageUrl(user?.profile_picture || user?.profilePicture)}
                 alt="Profile"
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
@@ -466,7 +470,7 @@ const PlanOfStudy = () => {
           />
 
           <button
-            onClick={handleLogout}
+            onClick={() => setShowLogoutConfirm(true)}
             style={{
               display: "flex",
               alignItems: "center",
@@ -931,6 +935,11 @@ const PlanOfStudy = () => {
               </>
             )}
           </div>
+          <LogoutConfirmModal
+            show={showLogoutConfirm}
+            onCancel={() => setShowLogoutConfirm(false)}
+            onConfirm={handleLogout}
+          />
         </main>
       </div>
     </div>

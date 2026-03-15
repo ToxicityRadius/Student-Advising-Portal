@@ -30,7 +30,10 @@ const User = sequelize.define('User', {
   },
   role: {
     type: DataTypes.STRING(50),
-    defaultValue: 'student'
+    defaultValue: 'student',
+    validate: {
+      isIn: [['admin', 'adviser', 'student']]
+    }
   },
   isActive: {
     type: DataTypes.BOOLEAN,
@@ -190,6 +193,15 @@ const User = sequelize.define('User', {
     allowNull: true
   },
   emailChangeCodeExpires: {
+    type: DataTypes.BIGINT,
+    allowNull: true
+  },
+  // Step 3.1 — per-account brute-force lockout
+  failedLoginAttempts: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  lockedUntil: {
     type: DataTypes.BIGINT,
     allowNull: true
   }

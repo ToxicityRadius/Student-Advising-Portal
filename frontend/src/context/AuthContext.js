@@ -62,6 +62,21 @@ export const AuthProvider = ({ children }) => {
     };
   }, [user, resetInactivityTimer]);
 
+  // Ensure consistent camelCase properties regardless of whether data came from
+  // the JWT token (old: snake_case) or the Sequelize /auth/me response (camelCase).
+  // Also handles the schema reality where 'first_name' and 'firstName' are separate
+  // DB columns — both may be present.
+  const normalizeUser = (rawUser) => {
+    if (!rawUser) return null;
+    const u = { ...rawUser };
+    u.firstName = u.firstName ?? u.first_name;
+    u.lastName = u.lastName ?? u.last_name;
+    u.yearLevel = u.yearLevel ?? u.year_level ?? u.current_year_level;
+    u.contactNumber = u.contactNumber ?? u.contact_number;
+    u.profilePicture = u.profilePicture ?? u.profile_picture;
+    return u;
+  };
+
   const decodeToken = (token) => {
     try {
       const payload = token.split('.')[1];
@@ -71,16 +86,24 @@ export const AuthProvider = ({ children }) => {
       const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
       const decoded = JSON.parse(atob(padded));
 
-      return {
+      if (!decoded.id || !decoded.role) return null;
+
+      // Slim tokens (Phase 2+) only carry id, role, is_verified.
+      // Only include PII fields when present to avoid overriding /auth/me response with undefined.
+      const result = {
         id: decoded.id,
         role: decoded.role,
-        is_verified: decoded.is_verified,
-        first_name: decoded.first_name,
-        firstName: decoded.first_name,
-        program: decoded.program,
-        contact_number: decoded.contact_number,
-        year_level: decoded.year_level
+        is_verified: decoded.is_verified ?? false
       };
+      if (decoded.first_name != null) {
+        result.first_name = decoded.first_name;
+        result.firstName = decoded.first_name;
+      }
+      if (decoded.program != null) result.program = decoded.program;
+      if (decoded.contact_number != null) result.contact_number = decoded.contact_number;
+      if (decoded.year_level != null) result.year_level = decoded.year_level;
+
+      return result;
     } catch {
       return null;
     }
@@ -94,17 +117,18 @@ export const AuthProvider = ({ children }) => {
       ? { ...fallbackUser, ...decodedUser }
       : (decodedUser || null);
 
-    if (initialUser) {
-      setUser(initialUser);
-      localStorage.setItem('user', JSON.stringify(initialUser));
+    const normalizedInitial = normalizeUser(initialUser);
+    if (normalizedInitial) {
+      setUser(normalizedInitial);
+      localStorage.setItem('user', JSON.stringify(normalizedInitial));
     }
 
     try {
       const response = await api.get('/auth/me');
-      const merged = {
+      const merged = normalizeUser({
         ...(response.data.user || {}),
         ...(decodedUser || {})
-      };
+      });
       setUser(merged);
       localStorage.setItem('user', JSON.stringify(merged));
       return merged;
@@ -117,6 +141,16 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     checkAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Listen for session-expired events dispatched by the API interceptor
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      clearInactivityTimer();
+      setUser(null);
+    };
+    window.addEventListener('auth:session-expired', handleSessionExpired);
+    return () => window.removeEventListener('auth:session-expired', handleSessionExpired);
   }, []);
 
   const checkAuth = async () => {

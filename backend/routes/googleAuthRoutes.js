@@ -1,10 +1,19 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/jwt');
 const { sendVerificationCode } = require('../utils/email');
+
+const googleAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  message: { success: false, message: 'Too many attempts, please try again after 15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 // Initialize Google OAuth client
 // Replace with your actual Google Client ID
@@ -31,7 +40,7 @@ function generateVerificationCode() {
 }
 
 // Google Sign-In route
-router.post('/google', async (req, res) => {
+router.post('/google', googleAuthLimiter, async (req, res) => {
   try {
     const { token, email, name, selectedRole } = req.body;
 

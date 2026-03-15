@@ -30,8 +30,11 @@ const StudyPlanCourse = sequelize.define('StudyPlanCourse', {
     allowNull: true
   },
   status: {
-    type: DataTypes.ENUM('pending', 'passed', 'failed', 'dropped', 'incomplete'),
-    defaultValue: 'pending'
+    type: DataTypes.STRING(20),
+    defaultValue: 'pending',
+    validate: {
+      isIn: [['pending', 'passed', 'failed', 'dropped', 'incomplete']]
+    }
   },
   createdAt: {
     type: DataTypes.BIGINT,
@@ -43,7 +46,10 @@ const StudyPlanCourse = sequelize.define('StudyPlanCourse', {
   }
 }, {
   tableName: 'study_plan_courses',
-  timestamps: false
+  timestamps: false,
+  indexes: [
+    { fields: ['studyPlanVersionId'] }
+  ]
 });
 
 module.exports = StudyPlanCourse;

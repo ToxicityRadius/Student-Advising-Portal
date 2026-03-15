@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 // Supports both signatures:
 // 1) generateToken(userObject)
 // 2) generateToken(userId, role)
+// NOTE: only id, role, and is_verified are embedded in the token.
+// PII (name, program, contact) is intentionally omitted — fetch via /auth/me.
 exports.generateToken = (userOrId, roleArg) => {
   const isObjectInput = userOrId && typeof userOrId === 'object';
   const id = isObjectInput ? (userOrId.id || userOrId._id) : userOrId;
@@ -11,39 +13,23 @@ exports.generateToken = (userOrId, roleArg) => {
   const isVerified = isObjectInput
     ? (userOrId.is_verified ?? userOrId.isVerified ?? false)
     : false;
-  const firstName = isObjectInput
-    ? (userOrId.first_name ?? userOrId.firstName ?? null)
-    : null;
-  const program = isObjectInput
-    ? (userOrId.program ?? null)
-    : null;
-  const contactNumber = isObjectInput
-    ? (userOrId.contact_number ?? null)
-    : null;
-  const yearLevel = isObjectInput
-    ? (userOrId.year_level ?? userOrId.current_year_level ?? null)
-    : null;
 
+  // Default of '30m' only applies when JWT_EXPIRE env var is not set.
+  // Update JWT_EXPIRE in .env to '30m' once the frontend refresh-token flow (Phase 3) is in place.
   return jwt.sign(
-    {
-      id,
-      role,
-      is_verified: isVerified,
-      first_name: firstName,
-      program,
-      contact_number: contactNumber,
-      year_level: yearLevel
-    },
+    { id, role, is_verified: isVerified },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRE || '7d' }
+    { expiresIn: process.env.JWT_EXPIRE || '30m' }
   );
 };
 
 // Generate refresh token
 exports.generateRefreshToken = (userId) => {
+  // JWT_REFRESH_SECRET must be different from JWT_SECRET — validated at server startup.
+  const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
   return jwt.sign(
     { id: userId },
-    process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+    secret,
     { expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d' }
   );
 };
@@ -71,13 +57,31 @@ exports.sendTokenResponse = (user, statusCode, res) => {
   const token = exports.generateToken(user);
   const refreshToken = exports.generateRefreshToken(user.id || user._id);
 
-  const tokenExpiry = process.env.JWT_EXPIRE || '7d';
-  const expiryTime = tokenExpiry.endsWith('d')
-    ? parseInt(tokenExpiry) * 24 * 60 * 60 * 1000
-    : parseInt(tokenExpiry) * 60 * 60 * 1000;
+  // Persist the newly issued refresh token so rotation verification works (Step 3.2).
+  // Fire-and-forget — the HTTP response must not be blocked by a DB write.
+  try {
+    const { User: UserModel } = require('../models');
+    UserModel.update({
+      refreshToken,
+      refreshTokenExpires: Date.now() + (30 * 24 * 60 * 60 * 1000),
+      updatedAt: Date.now()
+    }, { where: { id: user.id || user._id } }).catch(() => {});
+  } catch (_) {}
+
+  const tokenExpiry = process.env.JWT_EXPIRE || '30m';
+  let expiryMs;
+  if (tokenExpiry.endsWith('d')) {
+    expiryMs = parseInt(tokenExpiry) * 24 * 60 * 60 * 1000;
+  } else if (tokenExpiry.endsWith('h')) {
+    expiryMs = parseInt(tokenExpiry) * 60 * 60 * 1000;
+  } else if (tokenExpiry.endsWith('m')) {
+    expiryMs = parseInt(tokenExpiry) * 60 * 1000;
+  } else {
+    expiryMs = 30 * 60 * 1000; // fallback: 30 minutes
+  }
 
   const options = {
-    expires: new Date(Date.now() + expiryTime),
+    expires: new Date(Date.now() + expiryMs),
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict'

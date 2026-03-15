@@ -15,6 +15,8 @@ import {
 } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import PaginationControls from '../../components/PaginationControls';
+import ConfirmModal from '../../components/ConfirmModal';
+import AdminLayout from '../../components/admin/AdminLayout';
 import api from '../../utils/api';
 
 const initialCurriculumForm = { name: '', description: '' };
@@ -64,6 +66,8 @@ const CurriculumManagement = () => {
   const [importPreview, setImportPreview] = useState(null);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  const [confirmDialog, setConfirmDialog] = useState({ show: false, title: '', message: '', onConfirm: null });
 
   const activeCurriculumId = useMemo(() => {
     const active = curricula.find((item) => item.isActive);
@@ -190,22 +194,25 @@ const CurriculumManagement = () => {
   };
 
   const deleteCourse = async (courseId) => {
-    if (!window.confirm('Delete this course? This only works if the course is not referenced.')) {
-      return;
-    }
-
-    setSubmitting(true);
-    clearFeedback();
-
-    try {
-      await api.delete(`/courses/${courseId}`);
-      await loadAll();
-      showFeedback('success', 'Course deleted successfully.');
-    } catch (error) {
-      showFeedback('danger', getErrorMessage(error, 'Unable to delete course.'));
-    } finally {
-      setSubmitting(false);
-    }
+    setConfirmDialog({
+      show: true,
+      title: 'Delete Course',
+      message: 'Delete this course? This only works if the course is not referenced.',
+      onConfirm: async () => {
+        setConfirmDialog(d => ({ ...d, show: false }));
+        setSubmitting(true);
+        clearFeedback();
+        try {
+          await api.delete(`/courses/${courseId}`);
+          await loadAll();
+          showFeedback('success', 'Course deleted successfully.');
+        } catch (error) {
+          showFeedback('danger', getErrorMessage(error, 'Unable to delete course.'));
+        } finally {
+          setSubmitting(false);
+        }
+      }
+    });
   };
 
   const createEquivalency = async (event) => {
@@ -267,22 +274,25 @@ const CurriculumManagement = () => {
   };
 
   const deleteEquivalency = async (id) => {
-    if (!window.confirm('Delete this equivalency?')) {
-      return;
-    }
-
-    setSubmitting(true);
-    clearFeedback();
-
-    try {
-      await api.delete(`/equivalencies/${id}`);
-      await loadAll();
-      showFeedback('success', 'Equivalency removed.');
-    } catch (error) {
-      showFeedback('danger', getErrorMessage(error, 'Failed to remove equivalency.'));
-    } finally {
-      setSubmitting(false);
-    }
+    setConfirmDialog({
+      show: true,
+      title: 'Delete Equivalency',
+      message: 'Delete this equivalency?',
+      onConfirm: async () => {
+        setConfirmDialog(d => ({ ...d, show: false }));
+        setSubmitting(true);
+        clearFeedback();
+        try {
+          await api.delete(`/equivalencies/${id}`);
+          await loadAll();
+          showFeedback('success', 'Equivalency removed.');
+        } catch (error) {
+          showFeedback('danger', getErrorMessage(error, 'Failed to remove equivalency.'));
+        } finally {
+          setSubmitting(false);
+        }
+      }
+    });
   };
 
   const previewCsvImport = async () => {
@@ -321,29 +331,32 @@ const CurriculumManagement = () => {
       return;
     }
 
-    if (!window.confirm('Apply CSV import now? This replaces curriculum structure/prerequisite/corequisite/track mappings with transactional safety.')) {
-      return;
-    }
-
-    setImporting(true);
-    clearFeedback();
-
-    try {
-      const formData = new FormData();
-      formData.append('file', csvFile);
-      const response = await api.post(`/curriculums/${selectedCurriculumIdForCsv}/import/csv/apply`, formData);
-      setImportPreview(response.data?.data || null);
-      await loadAll();
-      showFeedback('success', response.data?.message || 'CSV import applied successfully.');
-    } catch (error) {
-      const payload = error?.response?.data?.data;
-      if (payload) {
-        setImportPreview(payload);
+    setConfirmDialog({
+      show: true,
+      title: 'Apply CSV Import',
+      message: 'Apply CSV import now? This replaces curriculum structure/prerequisite/corequisite/track mappings with transactional safety.',
+      onConfirm: async () => {
+        setConfirmDialog(d => ({ ...d, show: false }));
+        setImporting(true);
+        clearFeedback();
+        try {
+          const formData = new FormData();
+          formData.append('file', csvFile);
+          const response = await api.post(`/curriculums/${selectedCurriculumIdForCsv}/import/csv/apply`, formData);
+          setImportPreview(response.data?.data || null);
+          await loadAll();
+          showFeedback('success', response.data?.message || 'CSV import applied successfully.');
+        } catch (error) {
+          const payload = error?.response?.data?.data;
+          if (payload) {
+            setImportPreview(payload);
+          }
+          showFeedback('danger', getErrorMessage(error, 'Failed to apply CSV import.'));
+        } finally {
+          setImporting(false);
+        }
       }
-      showFeedback('danger', getErrorMessage(error, 'Failed to apply CSV import.'));
-    } finally {
-      setImporting(false);
-    }
+    });
   };
 
   const exportCsv = async () => {
@@ -404,14 +417,14 @@ const CurriculumManagement = () => {
 
   if (loading) {
     return (
-      <div className="container py-5 text-center">
-        <Spinner animation="border" />
-      </div>
+      <AdminLayout activePage="curriculum" pageTitle="Curriculum Management">
+        <div className="text-center py-5"><Spinner animation="border" /></div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="container py-4">
+    <AdminLayout activePage="curriculum" pageTitle="Curriculum Management">
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h2 className="mb-0">Curriculum Management</h2>
       </div>
@@ -982,7 +995,16 @@ const CurriculumManagement = () => {
           <Button variant="primary" onClick={saveEditedCourse} disabled={submitting}>Save</Button>
         </Modal.Footer>
       </Modal>
-    </div>
+
+      <ConfirmModal
+        show={confirmDialog.show}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmLabel="Confirm"
+        onCancel={() => setConfirmDialog(d => ({ ...d, show: false }))}
+        onConfirm={confirmDialog.onConfirm}
+      />
+    </AdminLayout>
   );
 };
 

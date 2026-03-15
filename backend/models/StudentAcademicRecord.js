@@ -54,7 +54,11 @@ const StudentAcademicRecord = sequelize.define('StudentAcademicRecord', {
   }
 }, {
   tableName: 'student_academic_records',
-  timestamps: false
+  timestamps: false,
+  indexes: [
+    { fields: ['userId'] },
+    { fields: ['email'] }
+  ]
 });
 
 module.exports = StudentAcademicRecord;

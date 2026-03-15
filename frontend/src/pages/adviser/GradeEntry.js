@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Badge, Button, Card, Form, Spinner, Table } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../../utils/api';
+import AdviserLayout from '../../components/adviser/AdviserLayout';
 
 const statusVariant = {
   pending: 'secondary',
@@ -204,7 +205,7 @@ const GradeEntry = () => {
   };
 
   return (
-    <div className="container py-4">
+    <AdviserLayout activePage="students" pageTitle="Grade Entry">
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
           <h2 className="mb-1">Grade Entry</h2>
@@ -339,7 +340,7 @@ const GradeEntry = () => {
           </div>
         </>
       )}
-    </div>
+    </AdviserLayout>
   );
 };
 

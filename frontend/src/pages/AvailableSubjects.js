@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../utils/api";
 import useNotifications from "../utils/useNotifications";
+import LogoutConfirmModal from "../components/LogoutConfirmModal";
+import { buildProfileImageUrl } from "../utils/profileImage";
 
 import logo from "../assets/images/STUDENT ADVISING LOGO 1.png";
 import bellIconImg from "../assets/images/Bell White Gradient.png";
@@ -129,6 +131,7 @@ const AvailableSubjects = () => {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [yearFilter, setYearFilter] = useState("All");
+  const [semesterFilter, setSemesterFilter] = useState("All");
   const [notifOpen, setNotifOpen] = useState(false);
   const [allRead, setAllRead] = useState(false);
   const notifRef = useRef(null);
@@ -234,6 +237,14 @@ const AvailableSubjects = () => {
     return ["All", ...years];
   }, [availableSubjects]);
 
+  const semesterOptions = useMemo(() => {
+    const pool = yearFilter === "All"
+      ? availableSubjects
+      : availableSubjects.filter((s) => String(s.year) === yearFilter);
+    const sems = [...new Set(pool.map((s) => String(s.semester)))].sort();
+    return ["All", ...sems];
+  }, [availableSubjects, yearFilter]);
+
   const filteredSubjects = useMemo(() => {
     const term = query.trim().toLowerCase();
 
@@ -244,9 +255,11 @@ const AvailableSubjects = () => {
         subject.name.toLowerCase().includes(term);
       const matchesYear =
         yearFilter === "All" || String(subject.year) === yearFilter;
-      return matchesQuery && matchesYear;
+      const matchesSemester =
+        semesterFilter === "All" || String(subject.semester) === semesterFilter;
+      return matchesQuery && matchesYear && matchesSemester;
     });
-  }, [availableSubjects, query, yearFilter]);
+  }, [availableSubjects, query, yearFilter, semesterFilter]);
 
   const grouped = useMemo(() => {
     const map = {};
@@ -267,6 +280,8 @@ const AvailableSubjects = () => {
       a.year !== b.year ? a.year - b.year : a.semester - b.semester,
     );
   }, [filteredSubjects]);
+
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -329,9 +344,9 @@ const AvailableSubjects = () => {
               boxShadow: "0 0 0 3px #fff, 0 0 0 5px " + YELLOW,
             }}
           >
-            {user?.profile_photo_url ? (
+            {buildProfileImageUrl(user?.profile_picture || user?.profilePicture) ? (
               <img
-                src={user.profile_photo_url}
+                src={buildProfileImageUrl(user?.profile_picture || user?.profilePicture)}
                 alt="Profile"
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
@@ -484,7 +499,7 @@ const AvailableSubjects = () => {
           />
 
           <button
-            onClick={handleLogout}
+            onClick={() => setShowLogoutConfirm(true)}
             style={{
               display: "flex",
               alignItems: "center",
@@ -906,12 +921,30 @@ const AvailableSubjects = () => {
                       <button
                         key={option}
                         type="button"
-                        onClick={() => setYearFilter(option)}
+                        onClick={() => { setYearFilter(option); setSemesterFilter("All"); }}
                         className={yearFilter === option ? "is-active" : ""}
                       >
                         {option === "All"
                           ? "All Years"
                           : `${formatYearLevel(option)}`}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="subjects-filter-row">
+                    {semesterOptions.map((option) => (
+                      <button
+                        key={`sem-${option}`}
+                        type="button"
+                        onClick={() => setSemesterFilter(option)}
+                        className={semesterFilter === option ? "is-active" : ""}
+                      >
+                        {option === "All"
+                          ? "All Semesters"
+                          : option === "3"
+                            ? "Midyear"
+                            : option === "1"
+                              ? "1st Semester"
+                              : "2nd Semester"}
                       </button>
                     ))}
                   </div>
@@ -961,6 +994,11 @@ const AvailableSubjects = () => {
               </>
             )}
           </div>
+          <LogoutConfirmModal
+            show={showLogoutConfirm}
+            onCancel={() => setShowLogoutConfirm(false)}
+            onConfirm={handleLogout}
+          />
         </main>
       </div>
     </div>

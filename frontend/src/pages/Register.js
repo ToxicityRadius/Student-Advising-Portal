@@ -33,7 +33,7 @@ const Register = () => {
   const location = useLocation();
   const role = location.state?.role || "student";
   const isFaculty = role === "faculty";
-  const { register } = useAuth();
+  const { register, login } = useAuth();
 
   const handleChange = (e) => {
     setFormData({
@@ -120,13 +120,11 @@ const Register = () => {
         name: decoded.name,
       });
 
-      // Store the token and user data
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      // Route through AuthContext so inactivity timer and state are properly set up
+      await login(data.token);
 
       // Navigate to dashboard
       navigate("/dashboard");
-      window.location.reload();
     } catch (err) {
       console.error("Google Sign-In error:", err);
       setError(
@@ -284,9 +282,10 @@ const Register = () => {
                       onChange={handleChange}
                     >
                       <option value="">Gender (Optional)</option>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Non-binary">Non-binary</option>
+                      <option value="Prefer not to say">Prefer not to say</option>
                     </Form.Select>
                   </Form.Group>
 

@@ -1,5 +1,9 @@
 export const getApiBaseUrl = () => {
-  return (process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+  const url = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  if (!process.env.REACT_APP_API_URL && process.env.NODE_ENV === 'production') {
+    console.warn('WARNING: REACT_APP_API_URL is not set. Profile images will use localhost fallback.');
+  }
+  return url.replace(/\/api\/?$/, '');
 };
 
 export const buildProfileImageUrl = (profilePicturePath) => {

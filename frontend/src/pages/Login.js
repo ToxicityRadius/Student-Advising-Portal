@@ -5,6 +5,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
+import { getHomePathForRole } from '../utils/roleRedirect';
 import StudentIdModal from '../components/StudentIdModal';
 import backgroundImage from '../assets/images/bg.png';
 import studentIcon from '../assets/images/student yellow.png';
@@ -87,8 +88,8 @@ const Login = () => {
         navigate('/change-email');
       } else {
         sessionStorage.removeItem('loginRole');
-        await login(data.token);
-        navigate('/dashboard');
+        const result = await login(data.token);
+        navigate(getHomePathForRole(result?.role || data.user?.role));
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid Credentials. Please try again.');
@@ -152,8 +153,8 @@ const Login = () => {
         setShowStudentIdModal(true);
       } else {
         sessionStorage.removeItem('loginRole');
-        await login(data.token);
-        navigate('/dashboard');
+        const result = await login(data.token);
+        navigate(getHomePathForRole(result?.role || data.user?.role));
       }
     } catch (err) {
       console.error('Google Sign-In error:', err);
@@ -174,8 +175,8 @@ const Login = () => {
 
       setShowStudentIdModal(false);
       setPendingGoogleUser(null);
-      await login(data.token);
-      navigate('/dashboard');
+      const result = await login(data.token);
+      navigate(getHomePathForRole(result?.role || data.user?.role));
     } catch (err) {
       throw new Error(err.response?.data?.message || 'Failed to update Student Number');
     }
@@ -215,6 +216,10 @@ const Login = () => {
           <div style={{ display: 'flex', gap: '40px', justifyContent: 'center' }}>
             <div
               onClick={() => selectRole('student')}
+              role="button"
+              tabIndex={0}
+              aria-label="Login as Student"
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectRole('student'); } }}
               style={{
                 cursor: 'pointer',
                 padding: '36px 30px 26px',
@@ -226,12 +231,18 @@ const Login = () => {
               }}
               onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.borderColor = '#F5B800'; }}
               onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.borderColor = '#eee'; }}
+              onFocus={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.borderColor = '#F5B800'; }}
+              onBlur={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.borderColor = '#eee'; }}
             >
               <img src={studentIcon} alt="Student" style={{ width: '110px', height: '110px', objectFit: 'contain' }}/>
               <p style={{ color: '#D4A000', fontWeight: 700, fontSize: '0.95rem', marginTop: '18px', letterSpacing: '0.5px', marginBottom: 0 }}>LOGIN AS STUDENT</p>
             </div>
             <div
               onClick={() => selectRole('faculty')}
+              role="button"
+              tabIndex={0}
+              aria-label="Login as Faculty"
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectRole('faculty'); } }}
               style={{
                 cursor: 'pointer',
                 padding: '36px 30px 26px',
@@ -243,6 +254,8 @@ const Login = () => {
               }}
               onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.borderColor = '#F5B800'; }}
               onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.borderColor = '#eee'; }}
+              onFocus={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.borderColor = '#F5B800'; }}
+              onBlur={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.borderColor = '#eee'; }}
             >
               <img src={teacherIcon} alt="Instructor" style={{ width: '110px', height: '110px', objectFit: 'contain' }}/>
               <p style={{ color: '#D4A000', fontWeight: 700, fontSize: '0.95rem', marginTop: '18px', letterSpacing: '0.5px', marginBottom: 0 }}>LOGIN AS FACULTY</p>
@@ -282,12 +295,14 @@ const Login = () => {
                 </div>
                 
                 <div className="text-start mb-2">
-                  <span 
+                  <button 
                     onClick={() => clearRole()} 
-                    style={{ cursor: 'pointer', color: '#666', fontSize: '0.8rem' }}
+                    type="button"
+                    style={{ cursor: 'pointer', color: '#666', fontSize: '0.8rem', background: 'none', border: 'none', padding: 0 }}
+                    aria-label="Go back to role selection"
                   >
                     ← Back
-                  </span>
+                  </button>
                 </div>
                 <h2 className="mb-3 text-start" style={{ fontSize: '1.3rem' }}>Sign in{selectedRole === 'faculty' ? ' as Instructor' : ' as Student'}</h2>
                 

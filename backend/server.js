@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
@@ -8,8 +9,35 @@ const dotenv = require('dotenv');
 // Load environment variables
 dotenv.config();
 
+const logger = require('./utils/logger');
+
+// Validate required secrets at startup
+if (!process.env.JWT_SECRET) {
+  logger.fatal('JWT_SECRET is not set. Refusing to start.');
+  process.exit(1);
+}
+if (!process.env.JWT_REFRESH_SECRET) {
+  logger.warn('JWT_REFRESH_SECRET is not set. Falling back to JWT_SECRET — set a separate value for production.');
+} else if (process.env.JWT_REFRESH_SECRET === process.env.JWT_SECRET) {
+  logger.warn('JWT_REFRESH_SECRET is identical to JWT_SECRET. Use distinct secrets in production.');
+}
+
+// Additional production-mode checks
+if (process.env.NODE_ENV === 'production') {
+  const required = ['DATABASE_URL', 'CLIENT_URL', 'JWT_SECRET', 'JWT_REFRESH_SECRET'];
+  const missing = required.filter(k => !process.env[k]);
+  if (missing.length > 0) {
+    logger.fatal({ missing }, 'Missing required production env vars');
+    process.exit(1);
+  }
+  if (!process.env.JWT_EXPIRE || process.env.JWT_EXPIRE === '7d') {
+    logger.warn('JWT_EXPIRE should be 15-30 minutes in production, not 7d.');
+  }
+}
+
 // Import models (centralized associations)
 const { sequelize } = require('./models');
+const { protect } = require('./middleware/auth');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -77,7 +105,14 @@ app.use('/api/forecast', forecastRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
 // Serve uploaded files
-app.use('/uploads', express.static('uploads'));
+// Profile pictures are public so they can be displayed in the frontend without auth.
+app.use('/uploads/profiles', express.static(path.join(__dirname, 'uploads', 'profiles')));
+// Proof documents require authentication — they contain sensitive student submissions.
+app.use('/uploads/proofs', protect, express.static(path.join(__dirname, 'uploads', 'proofs')));
+// Deny all other /uploads paths that don't match the above.
+app.use('/uploads', (req, res) => {
+  res.status(403).json({ success: false, message: 'Access denied' });
+});
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -111,11 +146,11 @@ app.use((err, req, res, next) => {
     };
   }
 
-  console.error('Request failed', {
+  logger.error({
     method: req.method,
     path: req.originalUrl,
     ...errorPayload
-  });
+  }, 'Request failed');
   res.status(err.statusCode || 500).json({
     success: false,
     message: err.message || 'Internal Server Error'
@@ -133,10 +168,22 @@ const syncOptions = process.env.NODE_ENV === 'production'
   ? sequelize.authenticate()
   : sequelize.sync(syncOptions)
 ).then(() => {
-  console.log('Database connected successfully');
+  logger.info('Database connected successfully');
   app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    logger.info({ port: PORT }, 'Server running');
   });
 }).catch((err) => {
-  console.error('Failed to connect to database:', err);
+  logger.fatal({ err }, 'Failed to connect to database');
 });
+
+// Graceful handling of unhandled async errors to prevent silent crashes
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error({ reason }, 'Unhandled Rejection');
+});
+
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err }, 'Uncaught Exception');
+  process.exit(1);
+});
+
+module.exports = app;

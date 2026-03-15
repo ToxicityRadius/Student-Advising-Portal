@@ -46,40 +46,34 @@ It also includes common troubleshooting and a recommended routine for each role.
 
 ### Backend
 - Node.js + Express
-- PostgreSQL (via `DATABASE_URL`)
-- Sequelize ORM
+- PostgreSQL via Supabase (`DATABASE_URL`)
+- Sequelize ORM + sequelize-cli (migrations)
 - JWT auth (access + refresh token flow)
 - bcryptjs (password hashing)
 - Nodemailer (verification/reset email workflows)
 - Multer (file uploads)
 - Google OAuth (`google-auth-library`)
 - PDFKit (SAR PDF generation)
-- helmet + morgan + nodemon (security/logging/dev)
+- Pino (structured logging)
+- express-rate-limit (brute-force protection)
+- helmet + morgan + nodemon (security/request logging/dev)
 
 ### Frontend
 - React 18 + React Router v6
 - React Bootstrap + Bootstrap 5
-- Axios (shared API utility)
+- Axios (shared API utility with token refresh interceptor)
 - Context API (authentication state)
+- Recharts (forecast charts)
+- jsPDF + jspdf-autotable (client-side PDF support)
 - `@react-oauth/google` (Google sign-in)
 
-## 🗺️ Implementation Plans
+##  Documentation
 
-Planned implementations are divided into phases and are documented here:
-- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
-
-Status summary:
-- ✅ **Core build phases (1–10):** Done
-- ✅ **Revamp phases (0–15):** Done
-
-## 📚 Documentation
-
-- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) — Consolidated implementation roadmap and phase status
 - [USER_MANUAL.md](USER_MANUAL.md) — Step-by-step user guide for Program Chair, Adviser, and Student
 - [SYSTEM_REFERENCE.md](SYSTEM_REFERENCE.md) — Detailed technical reference (project structure, database models, API endpoints, setup, security, development notes)
 - [SYSTEM_WORKFLOW.puml](SYSTEM_WORKFLOW.puml) — PlantUML activity workflow for current system behavior
 - [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md) — Google OAuth setup guide
-- [REQUIRED_EXTENSIONS.md](REQUIRED_EXTENSIONS.md) — Recommended VS Code extensions
+- [REQUIRED_EXTENSIONS.md](REQUIRED_EXTENSIONS.md) — Recommended VS Code extensions and project library reference
 
 ## 🚀 Quick Start
 
