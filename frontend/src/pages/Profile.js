@@ -218,14 +218,12 @@ const Profile = () => {
     profile?.curriculum_year || user?.curriculum_year || "";
 
   // Build academic tags
-  const academicTags = [
-    yearLevel ? formatYearLevel(yearLevel) : null,
-    currentTermLabel,
+  const yearSemTag = `${yearLevel ? formatYearLevel(yearLevel) : "—"} · ${currentTermLabel}`;
+  const typeProgramTag = [
     studentType || null,
-    curriculumYear
-      ? `${program || ""} ${curriculumYear}`.trim()
-      : program || null,
-  ].filter(Boolean);
+    curriculumYear ? `${program || ""} ${curriculumYear}`.trim() : program || null,
+  ].filter(Boolean).join(" · ");
+  const academicTags = [yearSemTag, typeProgramTag].filter(Boolean);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -403,39 +401,37 @@ const Profile = () => {
           >
             {studentId}
           </div>
-          {/* Tags grid */}
+          {/* Tags */}
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              display: "flex",
+              flexDirection: "column",
               gap: 6,
               width: "100%",
             }}
           >
             {[
-              sidebarYearLevel ? formatYearLevel(sidebarYearLevel) : "—",
-              currentTermLabel,
-              sidebarStudentType || roleLabel || null,
-              sidebarProgram || null,
-            ].map((tag, i) =>
-              tag ? (
+              `${sidebarYearLevel ? formatYearLevel(sidebarYearLevel) : "—"} · ${currentTermLabel}`,
+              [sidebarStudentType || roleLabel || null, sidebarProgram || null].filter(Boolean).join(" · ") || null,
+            ].filter(Boolean).map((tag, i) =>
+              (
                 <span
                   key={i}
                   style={{
-                    background: YELLOW,
-                    color: "#333",
-                    fontSize: "0.72rem",
+                    background: "linear-gradient(135deg, #FFD54F 0%, #FFC107 100%)",
+                    color: "#4E342E",
+                    fontSize: "0.73rem",
                     fontWeight: 700,
-                    padding: "5px 0",
-                    borderRadius: 6,
+                    padding: "6px 14px",
+                    borderRadius: 20,
                     whiteSpace: "nowrap",
                     textAlign: "center",
+                    boxShadow: "0 2px 6px rgba(255,193,7,0.30)",
+                    letterSpacing: "0.2px",
                   }}
                 >
                   {tag}
                 </span>
-              ) : (
-                <span key={i} />
               ),
             )}
           </div>
@@ -1437,13 +1433,15 @@ const Profile = () => {
                         <span
                           key={tag}
                           style={{
-                            background: YELLOW,
-                            color: "#222",
+                            background: "linear-gradient(135deg, #FFD54F 0%, #FFC107 100%)",
+                            color: "#4E342E",
                             fontSize: "0.88rem",
                             fontWeight: 700,
                             padding: "10px 26px",
-                            borderRadius: 8,
+                            borderRadius: 20,
                             whiteSpace: "nowrap",
+                            boxShadow: "0 2px 8px rgba(255,193,7,0.30)",
+                            letterSpacing: "0.2px",
                           }}
                         >
                           {tag}

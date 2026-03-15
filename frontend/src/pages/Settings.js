@@ -269,18 +269,16 @@ const Settings = () => {
           </div>
           <div style={{ fontWeight: 800, fontSize: "1rem", color: "#111", marginBottom: 4, lineHeight: 1.3 }}>{fullName}</div>
           <div style={{ fontSize: "0.82rem", color: "#888", fontWeight: 600, marginBottom: 14 }}>{studentId}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, width: "100%" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
             {[
-              yearLevel ? formatYearLevel(yearLevel) : "—",
-              currentTermLabel,
-              studentType || roleLabel || null,
-              program || null,
-            ].map((tag, i) =>
-              tag ? (
-                <span key={i} style={{ background: YELLOW, color: "#333", fontSize: "0.72rem", fontWeight: 700, padding: "5px 0", borderRadius: 6, whiteSpace: "nowrap", textAlign: "center" }}>
+              `${yearLevel ? formatYearLevel(yearLevel) : "—"} · ${currentTermLabel}`,
+              [studentType || roleLabel || null, program || null].filter(Boolean).join(" · ") || null,
+            ].filter(Boolean).map((tag, i) =>
+              (
+                <span key={i} style={{ background: "linear-gradient(135deg, #FFD54F 0%, #FFC107 100%)", color: "#4E342E", fontSize: "0.73rem", fontWeight: 700, padding: "6px 14px", borderRadius: 20, whiteSpace: "nowrap", textAlign: "center", boxShadow: "0 2px 6px rgba(255,193,7,0.30)", letterSpacing: "0.2px" }}>
                   {tag}
                 </span>
-              ) : <span key={i} />
+              )
             )}
           </div>
         </div>

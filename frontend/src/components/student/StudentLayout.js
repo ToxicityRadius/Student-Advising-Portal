@@ -196,15 +196,17 @@ const StudentLayout = ({
   const Tag = ({ label }) => (
     <span
       style={{
-        background: YELLOW,
-        color: "#333",
-        fontSize: "0.72rem",
+        background: "linear-gradient(135deg, #FFD54F 0%, #FFC107 100%)",
+        color: "#4E342E",
+        fontSize: "0.73rem",
         fontWeight: 700,
-        padding: "5px 0",
-        borderRadius: 6,
+        padding: "6px 14px",
+        borderRadius: 20,
         whiteSpace: "nowrap",
         textAlign: "center",
         flex: "1 1 0",
+        boxShadow: "0 2px 6px rgba(255,193,7,0.30)",
+        letterSpacing: "0.2px",
       }}
     >
       {label}
@@ -287,23 +289,19 @@ const StudentLayout = ({
             {studentId}
           </div>
 
-          {/* Tags (2×2 grid) */}
+          {/* Tags */}
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              display: "flex",
+              flexDirection: "column",
               gap: 6,
               width: "100%",
             }}
           >
-            {yearLevel ? (
-              <Tag label={formatYearLevel(yearLevel)} />
-            ) : (
-              <Tag label="—" />
+            <Tag label={`${yearLevel ? formatYearLevel(yearLevel) : "—"} · ${currentTermLabel}`} />
+            {(row2Left || row2Right) && (
+              <Tag label={[row2Left, row2Right].filter(Boolean).join(" · ")} />
             )}
-            <Tag label={currentTermLabel} />
-            {row2Left ? <Tag label={row2Left} /> : <span />}
-            {row2Right ? <Tag label={row2Right} /> : <span />}
           </div>
         </div>
 
