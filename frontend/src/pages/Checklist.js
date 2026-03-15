@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../utils/api";
+import useNotifications from "../utils/useNotifications";
 
 import logo from "../assets/images/STUDENT ADVISING LOGO 1.png";
 import bellIconImg from "../assets/images/Bell White Gradient.png";
@@ -163,8 +164,7 @@ const Checklist = () => {
   const program = user?.program || "";
   const studentType = user?.student_type || user?.studentType || "";
 
-  const notifications = [];
-  const notifCount = notifications.length;
+  const { notifications, notifCount } = useNotifications();
   const availableSubjectsCount = 0;
 
   const imgIcon = (src, size = 22) => (
@@ -537,12 +537,6 @@ const Checklist = () => {
             to="/profile"
           />
           <SideNavItem
-            icon={imgIcon(goldBellImg)}
-            label="Notifications"
-            to="/notifications"
-            badge={notifCount > 0 ? notifCount : undefined}
-          />
-          <SideNavItem
             icon={imgIcon(goldSettingsImg)}
             label="Settings"
             to="/settings"
@@ -824,7 +818,19 @@ const Checklist = () => {
                     overflowY: "auto",
                   }}
                 >
-                  {notifications.map((n) => {
+                  {notifications.length === 0 ? (
+                    <div
+                      style={{
+                        padding: "18px 12px",
+                        textAlign: "center",
+                        color: "#888",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                      }}
+                    >
+                      No notifications yet.
+                    </div>
+                  ) : notifications.map((n) => {
                     const colors = {
                       error: {
                         bg: "#fff0f0",
@@ -886,36 +892,6 @@ const Checklist = () => {
                   })}
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    padding: "14px 20px 16px",
-                  }}
-                >
-                  <Link
-                    to="/notifications"
-                    onClick={() => setNotifOpen(false)}
-                    style={{
-                      background: YELLOW,
-                      color: "#111",
-                      fontWeight: 800,
-                      fontSize: "0.88rem",
-                      padding: "9px 24px",
-                      borderRadius: 8,
-                      textDecoration: "none",
-                      transition: "background-color 0.15s",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.backgroundColor = "#e0a800")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.backgroundColor = YELLOW)
-                    }
-                  >
-                    View All
-                  </Link>
-                </div>
               </div>
             )}
           </div>

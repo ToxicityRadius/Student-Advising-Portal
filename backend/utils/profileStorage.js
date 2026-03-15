@@ -5,6 +5,7 @@ const { createClient } = require('@supabase/supabase-js');
 const DEFAULT_PROFILE_BUCKET = 'profile-pictures';
 
 let supabaseClient = null;
+let bucketReady = false;
 
 const getBucketName = () => process.env.SUPABASE_PROFILE_BUCKET || DEFAULT_PROFILE_BUCKET;
 
@@ -28,6 +29,37 @@ const getSupabaseClient = () => {
   });
 
   return supabaseClient;
+};
+
+const isBucketNotFoundError = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('bucket not found') || message.includes('not found');
+};
+
+const ensureBucketExists = async () => {
+  if (bucketReady) {
+    return;
+  }
+
+  const bucket = getBucketName();
+  const client = getSupabaseClient();
+
+  const { data: existingBuckets, error: listError } = await client.storage.listBuckets();
+  if (!listError && Array.isArray(existingBuckets) && existingBuckets.some((b) => b?.name === bucket)) {
+    bucketReady = true;
+    return;
+  }
+
+  const { error: createError } = await client.storage.createBucket(bucket, {
+    public: true,
+    fileSizeLimit: '5MB'
+  });
+
+  if (createError && !String(createError.message || '').toLowerCase().includes('already exists')) {
+    throw new Error(`Failed to ensure Supabase bucket "${bucket}": ${createError.message}`);
+  }
+
+  bucketReady = true;
 };
 
 const getExtensionForMimeType = (mimetype, originalName = '') => {
@@ -56,13 +88,37 @@ const uploadProfilePicture = async (file, userId) => {
   const objectPath = buildObjectPath(file, userId);
   const client = getSupabaseClient();
 
-  const { error: uploadError } = await client.storage
+  let { error: uploadError } = await client.storage
     .from(bucket)
     .upload(objectPath, file.buffer, {
       contentType: file.mimetype,
       upsert: false,
       cacheControl: '3600'
     });
+
+  if (uploadError && isBucketNotFoundError(uploadError)) {
+    await ensureBucketExists();
+
+    ({ error: uploadError } = await client.storage
+      .from(bucket)
+      .upload(objectPath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+        cacheControl: '3600'
+      }));
+
+    // Supabase bucket visibility can take a moment right after creation.
+    if (uploadError && isBucketNotFoundError(uploadError)) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      ({ error: uploadError } = await client.storage
+        .from(bucket)
+        .upload(objectPath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+          cacheControl: '3600'
+        }));
+    }
+  }
 
   if (uploadError) {
     throw new Error(`Failed to upload profile image to Supabase: ${uploadError.message}`);

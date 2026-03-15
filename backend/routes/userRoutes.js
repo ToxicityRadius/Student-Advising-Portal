@@ -3,6 +3,7 @@ const multer = require('multer');
 const {
   getAllUsers,
   getUserById,
+  getMyNotifications,
   updateStudentId,
   updateUserStudentId,
   updateProfile
@@ -57,6 +58,9 @@ router.patch('/:userId/update-student-id', updateUserStudentId);
 
 // Route for users to update their own student ID (protected but not admin-only)
 router.patch('/update-student-id', protect, updateStudentId);
+
+// Notifications for current authenticated user
+router.get('/me/notifications', protect, getMyNotifications);
 
 // Admin-only user listing
 router.get('/', protect, requireRole('admin'), getAllUsers);

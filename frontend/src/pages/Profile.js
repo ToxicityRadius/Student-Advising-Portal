@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { buildProfileImageUrl } from "../utils/profileImage";
+import useNotifications from "../utils/useNotifications";
 
 import logo from "../assets/images/STUDENT ADVISING LOGO 1.png";
 import bellIconImg from "../assets/images/Bell White Gradient.png";
@@ -127,8 +128,7 @@ const Profile = () => {
   const [notifOpen, setNotifOpen] = useState(false);
   const [allRead, setAllRead] = useState(false);
   const notifRef = useRef(null);
-  const notifications = [];
-  const notifCount = notifications.length;
+  const { notifications, notifCount } = useNotifications();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobileView, setIsMobileView] = useState(
     typeof window !== "undefined" ? window.innerWidth <= 780 : false,
@@ -247,70 +247,10 @@ const Profile = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const [photoUploading, setPhotoUploading] = useState(false);
-
   const handleFileChange = (e) => {
     const file = e.target.files?.[0] || null;
     setFormData((prev) => ({ ...prev, profile_picture: file }));
     if (file) setPreview(URL.createObjectURL(file));
-  };
-
-  // View-mode Upload Photo — saves immediately
-  const handlePhotoUpload = async (e) => {
-    const file = e.target.files?.[0] || null;
-    if (!file) return;
-    setPreview(URL.createObjectURL(file));
-    setPhotoUploading(true);
-    setError("");
-    setSuccess("");
-    try {
-      const payload = new FormData();
-      payload.append("profile_picture", file);
-      const response = await api.put(`/users/${user.id}/profile`, payload, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      const freshToken = response.data.token;
-      if (freshToken) {
-        localStorage.setItem("token", freshToken);
-        await login(freshToken);
-      }
-      const refreshed = await api.get(`/users/${user.id}`);
-      const p = refreshed.data.user || {};
-      setProfile(p);
-      setPreview(buildProfileImageUrl(p.profile_picture));
-      setSuccess("Photo updated successfully");
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to upload photo");
-    } finally {
-      setPhotoUploading(false);
-    }
-  };
-
-  // View-mode Remove Photo — clears immediately
-  const handlePhotoRemove = async () => {
-    setPhotoUploading(true);
-    setError("");
-    setSuccess("");
-    try {
-      const payload = new FormData();
-      payload.append("remove_profile_picture", "true");
-      const response = await api.put(`/users/${user.id}/profile`, payload, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      const freshToken = response.data.token;
-      if (freshToken) {
-        localStorage.setItem("token", freshToken);
-        await login(freshToken);
-      }
-      const refreshed = await api.get(`/users/${user.id}`);
-      setProfile(refreshed.data.user || {});
-      setPreview("");
-      setSuccess("Photo removed successfully");
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to remove photo");
-    } finally {
-      setPhotoUploading(false);
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -544,11 +484,6 @@ const Profile = () => {
             icon={imgIcon(goldUserImg)}
             label="Profile"
             to="/profile"
-          />
-          <SideNavItem
-            icon={imgIcon(goldBellImg)}
-            label="Notifications"
-            to="/notifications"
           />
           <SideNavItem
             icon={imgIcon(goldSettingsImg)}
@@ -869,7 +804,19 @@ const Profile = () => {
                     overflowY: "auto",
                   }}
                 >
-                  {notifications.map((n) => {
+                  {notifications.length === 0 ? (
+                    <div
+                      style={{
+                        padding: "18px 12px",
+                        textAlign: "center",
+                        color: "#888",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                      }}
+                    >
+                      No notifications yet.
+                    </div>
+                  ) : notifications.map((n) => {
                     const colors = {
                       error: {
                         bg: "#fff0f0",
@@ -929,36 +876,6 @@ const Profile = () => {
                       </div>
                     );
                   })}
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    padding: "14px 20px 16px",
-                  }}
-                >
-                  <Link
-                    to="/notifications"
-                    onClick={() => setNotifOpen(false)}
-                    style={{
-                      background: YELLOW,
-                      color: "#111",
-                      fontWeight: 800,
-                      fontSize: "0.88rem",
-                      padding: "9px 24px",
-                      borderRadius: 8,
-                      textDecoration: "none",
-                      transition: "background-color 0.15s",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.backgroundColor = "#e0a800")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.backgroundColor = YELLOW)
-                    }
-                  >
-                    View All
-                  </Link>
                 </div>
               </div>
             )}
@@ -1390,7 +1307,7 @@ const Profile = () => {
                       alignItems: "flex-start",
                     }}
                   >
-                    {/* Avatar + upload */}
+                    {/* Avatar */}
                     <div
                       style={{
                         display: "flex",
@@ -1429,51 +1346,6 @@ const Profile = () => {
                           initials
                         )}
                       </div>
-                      <label
-                        style={{
-                          border: "1px solid #ccc",
-                          borderRadius: 6,
-                          padding: "6px 14px",
-                          fontSize: "0.78rem",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          color: "#444",
-                          background: "#fff",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        Upload Photo
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handlePhotoUpload}
-                          style={{ display: "none" }}
-                        />
-                      </label>
-                      {preview && (
-                        <button
-                          onClick={handlePhotoRemove}
-                          disabled={photoUploading}
-                          style={{
-                            border: "1px solid #e57373",
-                            borderRadius: 6,
-                            padding: "6px 14px",
-                            fontSize: "0.78rem",
-                            fontWeight: 600,
-                            cursor: photoUploading ? "not-allowed" : "pointer",
-                            color: "#c62828",
-                            background: "#fff",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          Remove Photo
-                        </button>
-                      )}
-                      {photoUploading && (
-                        <span style={{ fontSize: "0.72rem", color: "#888" }}>
-                          Saving...
-                        </span>
-                      )}
                     </div>
 
                     {/* Info grid */}

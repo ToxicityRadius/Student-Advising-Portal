@@ -680,3 +680,64 @@ exports.assignAdviser = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Get current user's notification feed
+// @route   GET /api/users/me/notifications
+// @access  Private
+exports.getMyNotifications = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const notifications = [];
+
+    if (!user.profile_picture) {
+      notifications.push({
+        id: 'profile-picture-missing',
+        type: 'info',
+        title: 'Add a profile photo',
+        body: 'Upload a profile photo to complete your account identity.'
+      });
+    }
+
+    if (!user.contact_number) {
+      notifications.push({
+        id: 'contact-missing',
+        type: 'info',
+        title: 'Contact number missing',
+        body: 'Add your contact number in Profile so advisers can reach you.'
+      });
+    }
+
+    if (user.role === 'student' && !user.program) {
+      notifications.push({
+        id: 'program-missing',
+        type: 'error',
+        title: 'Program not set',
+        body: 'Set your program in Profile to unlock complete advising features.'
+      });
+    }
+
+    if (user.role === 'student' && !user.current_year_level && !user.year_level) {
+      notifications.push({
+        id: 'year-level-missing',
+        type: 'info',
+        title: 'Year level missing',
+        body: 'Set your year level in Profile for more accurate dashboard tracking.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: notifications
+    });
+  } catch (error) {
+    next(error);
+  }
+};

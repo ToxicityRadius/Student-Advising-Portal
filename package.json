@@ -1,0 +1,11 @@
+{
+  "name": "student-advising-portal-workspace",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "start": "npm --prefix frontend start",
+    "backend:dev": "npm --prefix backend run dev",
+    "frontend:start": "npm --prefix frontend start",
+    "frontend:build": "npm --prefix frontend run build"
+  }
+}
