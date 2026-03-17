@@ -473,12 +473,40 @@ const computeSarAnalytics = ({
     return Math.max((furthestRemainingIndex - currentIndex) + 1, 1);
   })();
 
-  const estimatedRemainingSemesters = Math.max(
+  const standingRemainingSemesters = (() => {
+    const targetSemester = 2;
+    const targetYearLevel = 4;
+
+    const currentIndex = toTermIndex(currentYearLevel, currentSemester);
+    const targetIndex = toTermIndex(targetYearLevel, targetSemester);
+    if (currentIndex === null || targetIndex === null) {
+      return null;
+    }
+
+    return Math.max((targetIndex - currentIndex) + 1, 0);
+  })();
+
+  const unconstrainedEstimatedRemainingSemesters = Math.max(
     semestersByUnits,
     semestersBySubjects,
     placementRemainingSemesters,
     0
   );
+
+  const hasBacklog = (
+    statusCounters[STATUS_FAILED] > 0
+    || statusCounters[STATUS_DROPPED] > 0
+    || statusCounters[STATUS_INCOMPLETE] > 0
+  );
+
+  const estimatedRemainingSemesters = (
+    !hasBacklog
+    && Number.isFinite(standingRemainingSemesters)
+    && standingRemainingSemesters !== null
+    && standingRemainingSemesters > 0
+  )
+    ? Math.min(unconstrainedEstimatedRemainingSemesters, standingRemainingSemesters)
+    : unconstrainedEstimatedRemainingSemesters;
 
   const advancementSteps = estimatedRemainingSemesters > 0
     ? Math.max(estimatedRemainingSemesters - 1, 0)
@@ -599,6 +627,9 @@ const computeSarAnalytics = ({
       estimatedRemainingSemesters,
       basedOnUnits: semestersByUnits,
       basedOnSubjects: semestersBySubjects,
+      basedOnPlacement: placementRemainingSemesters,
+      basedOnStanding: standingRemainingSemesters,
+      hasBacklog,
       assumptions: {
         averageUnitsPerSemester: averageUnits,
         averageSubjectsPerSemester: averageSubjects,

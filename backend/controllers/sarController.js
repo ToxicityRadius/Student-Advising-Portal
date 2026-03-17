@@ -21,7 +21,7 @@ const { buildElectiveTrackPlan } = require('../utils/studyPlan');
 
 const tipEmailPattern = /@tip\.edu\.ph$/i;
 
-const personAttributes = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId', 'profile_picture'];
+const personAttributes = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId', 'profile_picture', 'program', 'student_type'];
 const curriculumAttributes = ['id', 'name', 'description', 'isActive'];
 const electiveTrackAttributes = ['id', 'name', 'description'];
 
