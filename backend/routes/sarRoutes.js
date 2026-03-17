@@ -55,6 +55,7 @@ router.get('/', anyRole, ctrl.getSARs);
 router.post('/:id/study-plan/generate', adviserOrAdmin, ctrl.generateInitialStudyPlan);
 router.get('/:id/study-plan/versions', anyRole, ctrl.getStudyPlanVersions);
 router.get('/:id', anyRole, ctrl.getSARById);
+router.patch('/:id/elective-track', adviserOrAdmin, ctrl.updateSARElectiveTrack);
 router.put('/:id', adviserOrAdmin, uploadProfilePicture, ctrl.updateSAR);
 
 module.exports = router;
