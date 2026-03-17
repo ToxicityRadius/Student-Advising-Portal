@@ -7,10 +7,16 @@ const {
   CurriculumCourse,
   Prerequisite,
   CoRequisite,
+  ElectiveTrack,
   ElectiveTrackCourse,
   Course,
   User
 } = require('../models');
+const {
+  buildElectiveTrackPlan,
+  slotIndexFromYearSemester,
+  yearSemesterFromSlotIndex
+} = require('../utils/studyPlan');
 
 const VALID_STATUSES = new Set(['pending', 'passed', 'failed', 'dropped', 'incomplete']);
 
@@ -118,13 +124,6 @@ const getActiveVersion = async (studyPlanId, transaction) => {
     transaction
   });
 };
-
-const slotIndexFromYearSemester = (yearLevel, semester) => ((Number(yearLevel) - 1) * 3) + (Number(semester) - 1);
-
-const yearSemesterFromSlotIndex = (slotIndex) => ({
-  yearLevel: Math.floor(slotIndex / 3) + 1,
-  semester: (slotIndex % 3) + 1
-});
 
 const collectConnectedComponents = (courseIds, adjacencyMap) => {
   const unvisited = new Set(courseIds);
@@ -281,13 +280,25 @@ exports.triggerRegeneration = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Cannot regenerate from an archived or locked version' });
     }
 
-    const [curriculumCourses, prerequisites, coRequisites, selectedTrackCourses] = await Promise.all([
+    const [curriculumCourses, prerequisites, coRequisites, selectedTrackCourses, curriculumTrackCourses] = await Promise.all([
       CurriculumCourse.findAll({ where: { curriculumId: sar.curriculumId }, include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }], transaction }),
       Prerequisite.findAll({ where: { curriculumId: sar.curriculumId }, transaction }),
       CoRequisite.findAll({ where: { curriculumId: sar.curriculumId }, transaction }),
       sar.electiveTrackId
-        ? ElectiveTrackCourse.findAll({ where: { electiveTrackId: sar.electiveTrackId }, transaction })
-        : []
+        ? ElectiveTrackCourse.findAll({
+          where: { electiveTrackId: sar.electiveTrackId },
+          include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+          transaction
+        })
+        : [],
+      ElectiveTrackCourse.findAll({
+        include: [{
+          model: ElectiveTrack,
+          attributes: ['id', 'curriculumId'],
+          where: { curriculumId: sar.curriculumId }
+        }],
+        transaction
+      })
     ]);
 
     const curriculumByCourse = new Map();
@@ -301,7 +312,25 @@ exports.triggerRegeneration = async (req, res, next) => {
       });
     });
 
-    const selectedTrackCourseIds = new Set((selectedTrackCourses || []).map((item) => String(item.courseId)));
+    const selectedTrackPlan = buildElectiveTrackPlan(selectedTrackCourses || []);
+    const selectedTrackPlanByCourseId = new Map(selectedTrackPlan.map((item) => [String(item.courseId), item]));
+    const selectedTrackCourseIds = new Set(selectedTrackPlan.map((item) => String(item.courseId)));
+    const curriculumTrackCourseIds = new Set((curriculumTrackCourses || []).map((item) => String(item.courseId)));
+
+    selectedTrackPlan.forEach((item) => {
+      const courseId = String(item.courseId);
+      const course = item.source?.Course;
+
+      if (!curriculumByCourse.has(courseId)) {
+        curriculumByCourse.set(courseId, {
+          yearLevel: item.yearLevel,
+          semester: item.semester,
+          isElective: true,
+          units: Number(course?.units || 0),
+          sortKey: item.sortKey
+        });
+      }
+    });
 
     const prerequisiteMap = new Map();
     prerequisites.forEach((rule) => {
@@ -326,8 +355,24 @@ exports.triggerRegeneration = async (req, res, next) => {
       coReqMap.get(right).add(left);
     });
 
+    selectedTrackPlan.forEach((item, index) => {
+      if (index === 0) {
+        return;
+      }
+
+      const currentCourseId = String(item.courseId);
+      const previousCourseId = String(selectedTrackPlan[index - 1].courseId);
+
+      if (!prerequisiteMap.has(currentCourseId)) {
+        prerequisiteMap.set(currentCourseId, new Set());
+      }
+
+      prerequisiteMap.get(currentCourseId).add(previousCourseId);
+    });
+
     const resolvedCourses = [];
     const requeueCourses = [];
+    const versionCourseIds = new Set(activeVersion.StudyPlanCourses.map((entry) => String(entry.courseId)));
 
     activeVersion.StudyPlanCourses.forEach((entry) => {
       const courseId = String(entry.courseId);
@@ -338,7 +383,7 @@ exports.triggerRegeneration = async (req, res, next) => {
 
       const parsed = parseGradeInput(entry.grade);
       const classification = parsed.status;
-      const isElectiveExcluded = courseMeta.isElective && sar.electiveTrackId && !selectedTrackCourseIds.has(courseId);
+      const isElectiveExcluded = curriculumTrackCourseIds.has(courseId) && sar.electiveTrackId && !selectedTrackCourseIds.has(courseId);
 
       if (classification === 'passed') {
         resolvedCourses.push({
@@ -362,6 +407,21 @@ exports.triggerRegeneration = async (req, res, next) => {
         course: entry.Course,
         originalSortKey: courseMeta.sortKey,
         units: courseMeta.units
+      });
+    });
+
+    selectedTrackPlan.forEach((item) => {
+      const courseId = String(item.courseId);
+      if (versionCourseIds.has(courseId)) {
+        return;
+      }
+
+      const courseMeta = curriculumByCourse.get(courseId);
+      requeueCourses.push({
+        courseId,
+        course: item.source?.Course || null,
+        originalSortKey: item.sortKey,
+        units: Number(courseMeta?.units || item.source?.Course?.units || 0)
       });
     });
 
@@ -415,7 +475,7 @@ exports.triggerRegeneration = async (req, res, next) => {
       .sort((left, right) => left.originalSortKey - right.originalSortKey);
 
     for (const component of sortedComponents) {
-      let slotIndex = 0;
+      let slotIndex = Math.max(0, component.originalSortKey);
       let placed = false;
 
       while (!placed && slotIndex < 120) {

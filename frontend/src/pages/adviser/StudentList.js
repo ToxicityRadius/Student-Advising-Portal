@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import CreateSARModal from '../../components/adviser/CreateSARModal';
 import PaginationControls from '../../components/PaginationControls';
 import api from '../../utils/api';
+import { fetchCurriculumsCached } from '../../utils/curriculumsCache';
 import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
 
 const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
@@ -29,7 +30,7 @@ const StudentList = () => {
     setAlert({ variant: '', message: '' });
 
     try {
-      const [sarResponse, curriculumResponse] = await Promise.all([
+      const [sarResponse, curriculumData] = await Promise.all([
         api.get('/sars', {
           params: {
             page,
@@ -39,12 +40,12 @@ const StudentList = () => {
             sortOrder
           }
         }),
-        api.get('/curriculums', { params: { page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' } })
+        fetchCurriculumsCached({ page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' })
       ]);
 
       setSars(sarResponse.data?.items || sarResponse.data?.data || []);
       setMeta(sarResponse.data?.meta || { page: 1, pageSize, totalItems: 0, totalPages: 1 });
-      setCurriculums(curriculumResponse.data?.items || curriculumResponse.data?.data || []);
+      setCurriculums(curriculumData?.items || curriculumData?.data || []);
     } catch (error) {
       setAlert({ variant: 'danger', message: getErrorMessage(error, 'Failed to load student records.') });
     } finally {

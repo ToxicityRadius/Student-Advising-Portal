@@ -24,6 +24,20 @@ const semesterLabel = (semester) => {
   return `Semester ${semester}`;
 };
 
+const toTermIndex = (yearLevel, semester) => {
+  const cycle = INCLUDE_SUMMER_IN_ESTIMATE ? [1, 2, 3] : [1, 2];
+  const normalizedYearLevel = toNumber(yearLevel);
+  const normalizedSemester = toNumber(semester);
+
+  if (normalizedYearLevel <= 0 || !cycle.includes(normalizedSemester)) {
+    return null;
+  }
+
+  const cycleLength = cycle.length;
+  const semesterOffset = cycle.indexOf(normalizedSemester);
+  return ((normalizedYearLevel - 1) * cycleLength) + semesterOffset;
+};
+
 const parseSchoolYear = (schoolYear) => {
   const match = String(schoolYear || '').match(/^(\d{4})-(\d{4})$/);
   if (!match) return null;
@@ -435,7 +449,40 @@ const computeSarAnalytics = ({
 
   const semestersByUnits = remainingUnits > 0 ? Math.ceil(remainingUnits / averageUnits) : 0;
   const semestersBySubjects = remainingSubjects > 0 ? Math.ceil(remainingSubjects / averageSubjects) : 0;
-  const estimatedRemainingSemesters = Math.max(semestersByUnits, semestersBySubjects, 0);
+
+  const placementRemainingSemesters = (() => {
+    if (remainingSubjects <= 0) {
+      return 0;
+    }
+
+    const currentIndex = toTermIndex(currentYearLevel, currentSemester);
+    if (currentIndex === null) {
+      return 0;
+    }
+
+    const remainingIndices = subjectIndicators
+      .filter((item) => ![STATUS_COMPLETED, STATUS_CREDITED].includes(item.status))
+      .map((item) => toTermIndex(item.yearLevel, item.semester))
+      .filter((index) => index !== null);
+
+    if (remainingIndices.length === 0) {
+      return 0;
+    }
+
+    const furthestRemainingIndex = Math.max(...remainingIndices);
+    return Math.max((furthestRemainingIndex - currentIndex) + 1, 1);
+  })();
+
+  const estimatedRemainingSemesters = Math.max(
+    semestersByUnits,
+    semestersBySubjects,
+    placementRemainingSemesters,
+    0
+  );
+
+  const advancementSteps = estimatedRemainingSemesters > 0
+    ? Math.max(estimatedRemainingSemesters - 1, 0)
+    : 0;
 
   const projectedTerm = currentTerm?.schoolYear
     ? advanceAcademicTerm(
@@ -443,7 +490,7 @@ const computeSarAnalytics = ({
         schoolYear: currentTerm.schoolYear,
         semester: currentTerm.semester
       },
-      estimatedRemainingSemesters
+      advancementSteps
     )
     : null;
 
@@ -451,7 +498,7 @@ const computeSarAnalytics = ({
     ? null
     : (() => {
       const now = new Date();
-      const monthAdvance = estimatedRemainingSemesters * 6;
+      const monthAdvance = advancementSteps * 6;
       const projected = new Date(now.getFullYear(), now.getMonth() + monthAdvance, 1);
       return projected.toISOString();
     })();

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Container, Card, Form, Button, Alert, Image, ProgressBar, Row, Col } from 'react-bootstrap';
 import api from '../utils/api';
+import { fetchCurriculumsCached } from '../utils/curriculumsCache';
 import { useAuth } from '../context/AuthContext';
 import { buildProfileImageUrl, getInitials } from '../utils/profileImage';
 
@@ -59,7 +60,8 @@ const Profile = () => {
         let curriculaRes = { data: { curriculums: [] } };
         if (user?.role !== 'student') {
           try {
-            curriculaRes = await api.get('/curriculums', { params: { page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' } });
+            const curriculaData = await fetchCurriculumsCached({ page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' });
+            curriculaRes = { data: curriculaData };
           } catch {
             curriculaRes = { data: { curriculums: [] } };
           }

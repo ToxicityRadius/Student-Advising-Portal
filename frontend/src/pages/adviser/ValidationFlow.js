@@ -29,6 +29,17 @@ const statusVariant = {
 
 const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
+const isElectiveTrackSelectionRequired = (yearLevel, semester) => {
+  const parsedYearLevel = Number(yearLevel || 0);
+  const parsedSemester = Number(semester || 0);
+
+  if (parsedYearLevel > 2) {
+    return true;
+  }
+
+  return parsedYearLevel === 2 && parsedSemester >= 2;
+};
+
 const ValidationFlow = () => {
   const navigate = useNavigate();
   const { sarId, versionId } = useParams();
@@ -108,18 +119,23 @@ const ValidationFlow = () => {
   }, [version]);
 
   const electiveTrackRequired = useMemo(
-    () => Number(sar?.yearLevel) === 2 && Number(currentTerm?.semester) === 2,
+    () => isElectiveTrackSelectionRequired(sar?.yearLevel, currentTerm?.semester),
     [sar?.yearLevel, currentTerm?.semester]
   );
 
   const canValidate = Boolean(version && version.status === 'draft' && (!electiveTrackRequired || sar?.electiveTrackId));
 
-  const handleTrackSelected = (updatedSar) => {
+  const handleTrackSelected = (payload) => {
+    const updatedSar = payload?.sar || payload;
     setSar((current) => ({
       ...current,
       ...updatedSar,
       ElectiveTrack: updatedSar?.ElectiveTrack || current?.ElectiveTrack
     }));
+
+    if (payload?.draftVersion) {
+      setVersion(payload.draftVersion);
+    }
   };
 
   const handleValidate = async () => {
@@ -185,7 +201,7 @@ const ValidationFlow = () => {
 
           {electiveTrackRequired && !sar?.electiveTrackId && (
             <Alert variant="warning">
-              This student is in Year 2 and the current term is 2nd semester. Elective track selection is required before validation.
+              This student is already at the elective-track stage. Select an elective track before validating this draft study plan.
             </Alert>
           )}
 
@@ -251,6 +267,9 @@ const ValidationFlow = () => {
           </Card>
 
           <div className="d-flex flex-wrap gap-2">
+            <Button as={Link} to={`/adviser/students/${sarId}/plan/${versionId}`} variant="outline-primary">
+              Edit Draft
+            </Button>
             <Button
               variant={!canValidate || validating ? 'secondary' : 'primary'}
               onClick={handleValidate}

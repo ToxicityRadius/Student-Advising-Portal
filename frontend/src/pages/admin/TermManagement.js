@@ -13,6 +13,7 @@ import {
 } from 'react-bootstrap';
 import api from '../../utils/api';
 import PaginationControls from '../../components/PaginationControls';
+import useDebouncedValue from '../../utils/useDebouncedValue';
 
 const initialForm = {
   schoolYear: '',
@@ -38,6 +39,7 @@ const TermManagement = () => {
   const [termsMeta, setTermsMeta] = useState({ page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
   const [termsQuery, setTermsQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'schoolYear', sortOrder: 'desc' });
   const [form, setForm] = useState(initialForm);
+  const debouncedTermsSearch = useDebouncedValue(termsQuery.search, 350);
 
   const [showActivateModal, setShowActivateModal] = useState(false);
   const [termToActivate, setTermToActivate] = useState(null);
@@ -61,7 +63,7 @@ const TermManagement = () => {
     try {
       const [currentRes, termsRes, allTermsRes] = await Promise.all([
         api.get('/terms/current'),
-        api.get('/terms', { params: termsQuery }),
+        api.get('/terms', { params: { ...termsQuery, search: debouncedTermsSearch } }),
         api.get('/terms', { params: { page: 1, pageSize: 200, sortBy: 'schoolYear', sortOrder: 'desc' } })
       ]);
 
@@ -74,7 +76,7 @@ const TermManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [termsQuery]);
+  }, [termsQuery.page, termsQuery.pageSize, termsQuery.sortBy, termsQuery.sortOrder, debouncedTermsSearch]);
 
   useEffect(() => {
     loadData();

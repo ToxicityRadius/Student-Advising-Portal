@@ -16,6 +16,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import PaginationControls from '../../components/PaginationControls';
 import api from '../../utils/api';
+import useDebouncedValue from '../../utils/useDebouncedValue';
 
 const initialCurriculumForm = { name: '', description: '' };
 const initialCourseForm = { code: '', name: '', units: 3 };
@@ -27,7 +28,6 @@ const CurriculumManagement = () => {
   const navigate = useNavigate();
 
   const [tabKey, setTabKey] = useState('curricula');
-  const [equivalencyView, setEquivalencyView] = useState('list');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [alert, setAlert] = useState({ variant: '', message: '' });
@@ -40,6 +40,9 @@ const CurriculumManagement = () => {
   const [curriculaQuery, setCurriculaQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'createdAt', sortOrder: 'desc' });
   const [coursesQuery, setCoursesQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'code', sortOrder: 'asc' });
   const [equivsQuery, setEquivsQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'id', sortOrder: 'desc' });
+  const debouncedCurriculaSearch = useDebouncedValue(curriculaQuery.search, 350);
+  const debouncedCoursesSearch = useDebouncedValue(coursesQuery.search, 350);
+  const debouncedEquivsSearch = useDebouncedValue(equivsQuery.search, 350);
 
   const [curriculaMeta, setCurriculaMeta] = useState({ page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
   const [coursesMeta, setCoursesMeta] = useState({ page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
@@ -54,10 +57,6 @@ const CurriculumManagement = () => {
 
   const [courseUnitsFilter, setCourseUnitsFilter] = useState('all');
   const [courseCodePrefixFilter, setCourseCodePrefixFilter] = useState('all');
-
-  const [mappedSourceCourseId, setMappedSourceCourseId] = useState('');
-  const [mappedTargetCourseId, setMappedTargetCourseId] = useState('');
-  const [mappedNotes, setMappedNotes] = useState('');
 
   const [selectedCurriculumIdForCsv, setSelectedCurriculumIdForCsv] = useState('');
   const [csvFile, setCsvFile] = useState(null);
@@ -84,9 +83,34 @@ const CurriculumManagement = () => {
     setAlert({ variant: '', message: '' });
     try {
       const [curriculaRes, coursesRes, equivalenciesRes, courseOptionsRes] = await Promise.all([
-        api.get('/curriculums', { params: curriculaQuery }),
-        api.get('/courses', { params: coursesQuery }),
-        api.get('/equivalencies', { params: equivsQuery }),
+        api.get('/curriculums', {
+          params: {
+            page: curriculaQuery.page,
+            pageSize: curriculaQuery.pageSize,
+            sortBy: curriculaQuery.sortBy,
+            sortOrder: curriculaQuery.sortOrder,
+            search: debouncedCurriculaSearch,
+            compact: true
+          }
+        }),
+        api.get('/courses', {
+          params: {
+            page: coursesQuery.page,
+            pageSize: coursesQuery.pageSize,
+            sortBy: coursesQuery.sortBy,
+            sortOrder: coursesQuery.sortOrder,
+            search: debouncedCoursesSearch
+          }
+        }),
+        api.get('/equivalencies', {
+          params: {
+            page: equivsQuery.page,
+            pageSize: equivsQuery.pageSize,
+            sortBy: equivsQuery.sortBy,
+            sortOrder: equivsQuery.sortOrder,
+            search: debouncedEquivsSearch
+          }
+        }),
         api.get('/courses', { params: { page: 1, pageSize: 500, sortBy: 'code', sortOrder: 'asc' } })
       ]);
 
@@ -103,7 +127,23 @@ const CurriculumManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [curriculaQuery, coursesQuery, equivsQuery]);
+  }, [
+    curriculaQuery.page,
+    curriculaQuery.pageSize,
+    curriculaQuery.sortBy,
+    curriculaQuery.sortOrder,
+    debouncedCurriculaSearch,
+    coursesQuery.page,
+    coursesQuery.pageSize,
+    coursesQuery.sortBy,
+    coursesQuery.sortOrder,
+    debouncedCoursesSearch,
+    equivsQuery.page,
+    equivsQuery.pageSize,
+    equivsQuery.sortBy,
+    equivsQuery.sortOrder,
+    debouncedEquivsSearch
+  ]);
 
   useEffect(() => {
     loadAll();
@@ -236,36 +276,6 @@ const CurriculumManagement = () => {
     }
   };
 
-  const createMappedEquivalency = async () => {
-    if (!mappedSourceCourseId || !mappedTargetCourseId) {
-      showFeedback('danger', 'Select both source and target courses.');
-      return;
-    }
-
-    if (mappedSourceCourseId === mappedTargetCourseId) {
-      showFeedback('danger', 'Source and target course must be different.');
-      return;
-    }
-
-    setSubmitting(true);
-    clearFeedback();
-    try {
-      await api.post('/equivalencies', {
-        courseId: Number(mappedSourceCourseId),
-        equivalentCourseId: Number(mappedTargetCourseId),
-        notes: mappedNotes || null
-      });
-      setMappedTargetCourseId('');
-      setMappedNotes('');
-      await loadAll();
-      showFeedback('success', 'Mapped equivalency connected.');
-    } catch (error) {
-      showFeedback('danger', getErrorMessage(error, 'Failed to connect mapped equivalency.'));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const deleteEquivalency = async (id) => {
     if (!window.confirm('Delete this equivalency?')) {
       return;
@@ -390,17 +400,6 @@ const CurriculumManagement = () => {
       return acc;
     }, {});
   }, [filteredCourses]);
-
-  const mappedConnections = useMemo(() => {
-    if (!mappedSourceCourseId) {
-      return [];
-    }
-    return equivalencies.filter((item) => Number(item.Course?.id) === Number(mappedSourceCourseId));
-  }, [equivalencies, mappedSourceCourseId]);
-
-  const selectedMappedSourceCourse = useMemo(() => {
-    return courseOptions.find((course) => Number(course.id) === Number(mappedSourceCourseId)) || null;
-  }, [courseOptions, mappedSourceCourseId]);
 
   if (loading) {
     return (
@@ -758,188 +757,111 @@ const CurriculumManagement = () => {
         </Tab>
 
         <Tab eventKey="equivalencies" title="Equivalencies">
-          <Tabs activeKey={equivalencyView} onSelect={(key) => setEquivalencyView(key || 'list')} className="mb-3">
-            <Tab eventKey="list" title="List View">
-              <Row className="g-3">
-                <Col lg={4}>
-                  <div className="border rounded p-3 bg-light">
-                    <h5>Add Equivalency</h5>
-                    <Form onSubmit={createEquivalency}>
-                      <Form.Group className="mb-2">
-                        <Form.Label>Course</Form.Label>
-                        <Form.Select
-                          value={equivalencyForm.courseId}
-                          onChange={(event) => setEquivalencyForm((prev) => ({ ...prev, courseId: event.target.value }))}
-                          required
-                        >
-                          <option value="">Select course</option>
-                          {courseOptions.map((course) => (
-                            <option key={course.id} value={course.id}>{course.code} - {course.name}</option>
-                          ))}
-                        </Form.Select>
-                      </Form.Group>
-                      <Form.Group className="mb-2">
-                        <Form.Label>Equivalent Course</Form.Label>
-                        <Form.Select
-                          value={equivalencyForm.equivalentCourseId}
-                          onChange={(event) => setEquivalencyForm((prev) => ({ ...prev, equivalentCourseId: event.target.value }))}
-                          required
-                        >
-                          <option value="">Select equivalent course</option>
-                          {courseOptions.map((course) => (
-                            <option key={course.id} value={course.id}>{course.code} - {course.name}</option>
-                          ))}
-                        </Form.Select>
-                      </Form.Group>
-                      <Form.Group className="mb-3">
-                        <Form.Label>Notes</Form.Label>
-                        <Form.Control
-                          as="textarea"
-                          rows={3}
-                          value={equivalencyForm.notes}
-                          onChange={(event) => setEquivalencyForm((prev) => ({ ...prev, notes: event.target.value }))}
-                        />
-                      </Form.Group>
-                      <Button type="submit" disabled={submitting}>Save</Button>
-                    </Form>
-                  </div>
-                </Col>
-
-                <Col lg={8}>
-                  <div className="d-flex flex-column flex-md-row gap-2 mb-3">
-                    <Form.Control
-                      placeholder="Search equivalencies"
-                      value={equivsQuery.search}
-                      onChange={(event) => setEquivsQuery((prev) => ({ ...prev, page: 1, search: event.target.value }))}
-                    />
+          <Row className="g-3">
+            <Col lg={4}>
+              <div className="border rounded p-3 bg-light">
+                <h5>Add Equivalency</h5>
+                <Form onSubmit={createEquivalency}>
+                  <Form.Group className="mb-2">
+                    <Form.Label>Course</Form.Label>
                     <Form.Select
-                      value={equivsQuery.sortBy}
-                      onChange={(event) => setEquivsQuery((prev) => ({ ...prev, page: 1, sortBy: event.target.value }))}
-                      style={{ maxWidth: 220 }}
+                      value={equivalencyForm.courseId}
+                      onChange={(event) => setEquivalencyForm((prev) => ({ ...prev, courseId: event.target.value }))}
+                      required
                     >
-                      <option value="id">Sort by ID</option>
-                    </Form.Select>
-                    <Form.Select
-                      value={equivsQuery.sortOrder}
-                      onChange={(event) => setEquivsQuery((prev) => ({ ...prev, page: 1, sortOrder: event.target.value }))}
-                      style={{ maxWidth: 180 }}
-                    >
-                      <option value="asc">Ascending</option>
-                      <option value="desc">Descending</option>
-                    </Form.Select>
-                  </div>
-
-                  <Table striped bordered hover responsive>
-                    <thead>
-                      <tr>
-                        <th>Course</th>
-                        <th>Equivalent</th>
-                        <th>Notes</th>
-                        <th className="text-end">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {equivalencies.map((item) => (
-                        <tr key={item.id}>
-                          <td>{item.Course?.code} - {item.Course?.name}</td>
-                          <td>{item.EquivalentCourse?.code} - {item.EquivalentCourse?.name}</td>
-                          <td>{item.notes || '-'}</td>
-                          <td className="text-end">
-                            <Button size="sm" variant="outline-danger" onClick={() => deleteEquivalency(item.id)}>Remove</Button>
-                          </td>
-                        </tr>
+                      <option value="">Select course</option>
+                      {courseOptions.map((course) => (
+                        <option key={course.id} value={course.id}>{course.code} - {course.name}</option>
                       ))}
-                      {equivalencies.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="text-center text-muted py-4">No equivalencies found.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </Table>
-                  <PaginationControls
-                    page={equivsMeta.page}
-                    totalPages={equivsMeta.totalPages}
-                    pageSize={equivsMeta.pageSize}
-                    onPageChange={(nextPage) => setEquivsQuery((prev) => ({ ...prev, page: nextPage }))}
-                    onPageSizeChange={(nextSize) => setEquivsQuery((prev) => ({ ...prev, page: 1, pageSize: nextSize }))}
-                  />
-                </Col>
-              </Row>
-            </Tab>
+                    </Form.Select>
+                  </Form.Group>
+                  <Form.Group className="mb-2">
+                    <Form.Label>Equivalent Course</Form.Label>
+                    <Form.Select
+                      value={equivalencyForm.equivalentCourseId}
+                      onChange={(event) => setEquivalencyForm((prev) => ({ ...prev, equivalentCourseId: event.target.value }))}
+                      required
+                    >
+                      <option value="">Select equivalent course</option>
+                      {courseOptions.map((course) => (
+                        <option key={course.id} value={course.id}>{course.code} - {course.name}</option>
+                      ))}
+                    </Form.Select>
+                  </Form.Group>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Notes</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      rows={3}
+                      value={equivalencyForm.notes}
+                      onChange={(event) => setEquivalencyForm((prev) => ({ ...prev, notes: event.target.value }))}
+                    />
+                  </Form.Group>
+                  <Button type="submit" disabled={submitting}>Save</Button>
+                </Form>
+              </div>
+            </Col>
 
-            <Tab eventKey="mapped" title="Mapped View">
-              <Card className="mb-3">
-                <Card.Body>
-                  <h5 className="mb-1">Relationship Mapping</h5>
-                  <div className="text-muted small mb-3">Pick a source course, connect/disconnect equivalent courses, and keep mapping operations synchronized with list view.</div>
+            <Col lg={8}>
+              <div className="d-flex flex-column flex-md-row gap-2 mb-3">
+                <Form.Control
+                  placeholder="Search equivalencies"
+                  value={equivsQuery.search}
+                  onChange={(event) => setEquivsQuery((prev) => ({ ...prev, page: 1, search: event.target.value }))}
+                />
+                <Form.Select
+                  value={equivsQuery.sortBy}
+                  onChange={(event) => setEquivsQuery((prev) => ({ ...prev, page: 1, sortBy: event.target.value }))}
+                  style={{ maxWidth: 220 }}
+                >
+                  <option value="id">Sort by ID</option>
+                </Form.Select>
+                <Form.Select
+                  value={equivsQuery.sortOrder}
+                  onChange={(event) => setEquivsQuery((prev) => ({ ...prev, page: 1, sortOrder: event.target.value }))}
+                  style={{ maxWidth: 180 }}
+                >
+                  <option value="asc">Ascending</option>
+                  <option value="desc">Descending</option>
+                </Form.Select>
+              </div>
 
-                  <Row className="g-2 align-items-end mb-3">
-                    <Col md={4}>
-                      <Form.Label>Source Course</Form.Label>
-                      <Form.Select value={mappedSourceCourseId} onChange={(event) => setMappedSourceCourseId(event.target.value)}>
-                        <option value="">Select source course</option>
-                        {courseOptions.map((course) => (
-                          <option key={course.id} value={course.id}>{course.code} - {course.name}</option>
-                        ))}
-                      </Form.Select>
-                    </Col>
-                    <Col md={4}>
-                      <Form.Label>Connect To</Form.Label>
-                      <Form.Select value={mappedTargetCourseId} onChange={(event) => setMappedTargetCourseId(event.target.value)}>
-                        <option value="">Select target course</option>
-                        {courseOptions
-                          .filter((course) => String(course.id) !== String(mappedSourceCourseId))
-                          .map((course) => (
-                            <option key={course.id} value={course.id}>{course.code} - {course.name}</option>
-                          ))}
-                      </Form.Select>
-                    </Col>
-                    <Col md={3}>
-                      <Form.Label>Notes</Form.Label>
-                      <Form.Control value={mappedNotes} onChange={(event) => setMappedNotes(event.target.value)} placeholder="Optional" />
-                    </Col>
-                    <Col md={1} className="d-grid">
-                      <Button onClick={createMappedEquivalency} disabled={submitting}>Connect</Button>
-                    </Col>
-                  </Row>
-
-                  {selectedMappedSourceCourse ? (
-                    <>
-                      <div className="fw-semibold mb-2">
-                        {selectedMappedSourceCourse.code} - {selectedMappedSourceCourse.name} connections
-                      </div>
-                      {mappedConnections.length > 0 ? (
-                        <Table bordered size="sm" responsive>
-                          <thead>
-                            <tr>
-                              <th>Equivalent Course</th>
-                              <th>Notes</th>
-                              <th className="text-end">Action</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {mappedConnections.map((item) => (
-                              <tr key={item.id}>
-                                <td>{item.EquivalentCourse?.code} - {item.EquivalentCourse?.name}</td>
-                                <td>{item.notes || '-'}</td>
-                                <td className="text-end">
-                                  <Button size="sm" variant="outline-danger" onClick={() => deleteEquivalency(item.id)}>Disconnect</Button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </Table>
-                      ) : (
-                        <div className="text-muted">No mapped equivalents for this source course yet.</div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-muted">Select a source course to open the mapped relationship editor.</div>
+              <Table striped bordered hover responsive>
+                <thead>
+                  <tr>
+                    <th>Course</th>
+                    <th>Equivalent</th>
+                    <th>Notes</th>
+                    <th className="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {equivalencies.map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.Course?.code} - {item.Course?.name}</td>
+                      <td>{item.EquivalentCourse?.code} - {item.EquivalentCourse?.name}</td>
+                      <td>{item.notes || '-'}</td>
+                      <td className="text-end">
+                        <Button size="sm" variant="outline-danger" onClick={() => deleteEquivalency(item.id)}>Remove</Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {equivalencies.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="text-center text-muted py-4">No equivalencies found.</td>
+                    </tr>
                   )}
-                </Card.Body>
-              </Card>
-            </Tab>
-          </Tabs>
+                </tbody>
+              </Table>
+              <PaginationControls
+                page={equivsMeta.page}
+                totalPages={equivsMeta.totalPages}
+                pageSize={equivsMeta.pageSize}
+                onPageChange={(nextPage) => setEquivsQuery((prev) => ({ ...prev, page: nextPage }))}
+                onPageSizeChange={(nextSize) => setEquivsQuery((prev) => ({ ...prev, page: 1, pageSize: nextSize }))}
+              />
+            </Col>
+          </Row>
         </Tab>
       </Tabs>
 

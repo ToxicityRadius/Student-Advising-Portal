@@ -13,6 +13,7 @@ import {
   Table,
 } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+import ElectiveTrackSelector from '../adviser/ElectiveTrackSelector';
 import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
 
 const semesterLabels = { 1: '1st Semester', 2: '2nd Semester', 3: 'Summer' };
@@ -62,6 +63,7 @@ const SARLayout = ({
   role,
   sarId,
   onGeneratePlan,
+  onRefresh,
   isActionLoading = false,
 }) => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -77,15 +79,17 @@ const SARLayout = ({
     [versions, sar]
   );
 
-  const latestDraftVersion = useMemo(
-    () =>
-      versions
-        .filter((v) => v.status === 'draft')
-        .sort((a, b) => Number(b.versionNumber) - Number(a.versionNumber))[0] || null,
-    [versions]
-  );
-
   const hasStudyPlan = Boolean(sar?.StudyPlan?.id || versions.length > 0);
+  const electiveTrackRequired = useMemo(() => {
+    const currentYearLevel = Number(sar?.yearLevel || analytics?.tags?.yearLevel || 0);
+    const currentSemester = Number(analytics?.tags?.semester || 0);
+
+    if (currentYearLevel > 2) {
+      return true;
+    }
+
+    return currentYearLevel === 2 && currentSemester >= 2;
+  }, [analytics?.tags?.semester, analytics?.tags?.yearLevel, sar?.yearLevel]);
 
   const groupedCourses = useMemo(() => {
     const courses = Array.isArray(activeVersion?.StudyPlanCourses)
@@ -822,16 +826,16 @@ const SARLayout = ({
                     </Button>
                   </>
                 )}
-                {latestDraftVersion && sarId && (
-                  <Button
-                    as={Link}
-                    to={`/adviser/students/${sarId}/plan/${latestDraftVersion.id}/validate`}
-                    variant="success"
-                  >
-                    Validate Draft
-                  </Button>
-                )}
               </div>
+            )}
+
+            {canManagePlan && electiveTrackRequired && !sar?.electiveTrackId && sar?.curriculumId && (
+              <ElectiveTrackSelector
+                sarId={sarId}
+                curriculumId={sar.curriculumId}
+                selectedTrackId={sar.electiveTrackId}
+                onTrackSelected={() => onRefresh?.()}
+              />
             )}
 
             {/* Study plan versions table (adviser/admin only) */}
@@ -882,7 +886,7 @@ const SARLayout = ({
                                   size="sm"
                                   variant="outline-primary"
                                 >
-                                  View Plan
+                                  {version.status === 'draft' ? 'Edit Draft' : 'View Plan'}
                                 </Button>
                                 {version.status === 'draft' && (
                                   <Button

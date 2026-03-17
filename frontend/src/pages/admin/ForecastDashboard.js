@@ -26,6 +26,7 @@ import {
 } from 'recharts';
 import api from '../../utils/api';
 import PaginationControls from '../../components/PaginationControls';
+import useDebouncedValue from '../../utils/useDebouncedValue';
 
 const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 const EMPTY_META = { page: 1, pageSize: 12, totalPages: 1, totalItems: 0 };
@@ -118,6 +119,10 @@ const ForecastDashboard = () => {
   const [comparisonQuery, setComparisonQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'courseCode', sortOrder: 'asc' });
   const [historyQuery, setHistoryQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'createdAt', sortOrder: 'desc' });
   const [chartLimit, setChartLimit] = useState(10);
+  const debouncedCurrentSearch = useDebouncedValue(currentQuery.search, 350);
+  const debouncedNextSearch = useDebouncedValue(nextQuery.search, 350);
+  const debouncedComparisonSearch = useDebouncedValue(comparisonQuery.search, 350);
+  const debouncedHistorySearch = useDebouncedValue(historyQuery.search, 350);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -126,10 +131,10 @@ const ForecastDashboard = () => {
 
     try {
       const [currentResult, nextResult, comparisonResult, historyResult] = await Promise.allSettled([
-        api.get('/forecast/current', { params: currentQuery }),
-        api.get('/forecast/next', { params: nextQuery }),
-        api.get('/forecast/comparison', { params: comparisonQuery }),
-        api.get('/forecast/history', { params: historyQuery })
+        api.get('/forecast/current', { params: { ...currentQuery, search: debouncedCurrentSearch } }),
+        api.get('/forecast/next', { params: { ...nextQuery, search: debouncedNextSearch } }),
+        api.get('/forecast/comparison', { params: { ...comparisonQuery, search: debouncedComparisonSearch } }),
+        api.get('/forecast/history', { params: { ...historyQuery, search: debouncedHistorySearch } })
       ]);
 
       const currentRes = currentResult.status === 'fulfilled' ? currentResult.value : null;
@@ -180,7 +185,28 @@ const ForecastDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentQuery, nextQuery, comparisonQuery, historyQuery]);
+  }, [
+    currentQuery.page,
+    currentQuery.pageSize,
+    currentQuery.sortBy,
+    currentQuery.sortOrder,
+    debouncedCurrentSearch,
+    nextQuery.page,
+    nextQuery.pageSize,
+    nextQuery.sortBy,
+    nextQuery.sortOrder,
+    debouncedNextSearch,
+    comparisonQuery.page,
+    comparisonQuery.pageSize,
+    comparisonQuery.sortBy,
+    comparisonQuery.sortOrder,
+    debouncedComparisonSearch,
+    historyQuery.page,
+    historyQuery.pageSize,
+    historyQuery.sortBy,
+    historyQuery.sortOrder,
+    debouncedHistorySearch
+  ]);
 
   useEffect(() => {
     loadDashboard();

@@ -11,11 +11,13 @@ const {
   AcademicTerm,
   Course,
   ElectiveTrack,
+  ElectiveTrackCourse,
   User
 } = require('../models');
 const { syncSarToProfile } = require('../utils/sarLinking');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
 const { computeSarAnalytics } = require('../utils/sarAnalytics');
+const { buildElectiveTrackPlan } = require('../utils/studyPlan');
 
 const tipEmailPattern = /@tip\.edu\.ph$/i;
 
@@ -590,17 +592,73 @@ exports.generateInitialStudyPlan = async (req, res, next) => {
       return res.status(409).json({ success: false, message: 'Initial study plan has already been generated for this student' });
     }
 
-    const curriculumCourses = await CurriculumCourse.findAll({
-      where: { curriculumId: sar.curriculumId },
-      include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
-      order: [['yearLevel', 'ASC'], ['semester', 'ASC'], [Course, 'code', 'ASC']],
-      transaction
-    });
+    const [curriculumCourses, selectedTrackCourses, curriculumTrackCourses] = await Promise.all([
+      CurriculumCourse.findAll({
+        where: { curriculumId: sar.curriculumId },
+        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+        order: [['yearLevel', 'ASC'], ['semester', 'ASC'], [Course, 'code', 'ASC']],
+        transaction
+      }),
+      sar.electiveTrackId
+        ? ElectiveTrackCourse.findAll({
+          where: { electiveTrackId: sar.electiveTrackId },
+          include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+          transaction
+        })
+        : [],
+      ElectiveTrackCourse.findAll({
+        include: [{
+          model: ElectiveTrack,
+          attributes: ['id', 'curriculumId'],
+          where: { curriculumId: sar.curriculumId }
+        }],
+        transaction
+      })
+    ]);
 
     if (curriculumCourses.length === 0) {
       await transaction.rollback();
       return res.status(400).json({ success: false, message: 'The assigned curriculum has no courses to generate a study plan from' });
     }
+
+    const selectedTrackPlan = buildElectiveTrackPlan(selectedTrackCourses || []);
+    const selectedTrackPlanByCourseId = new Map(selectedTrackPlan.map((item) => [String(item.courseId), item]));
+    const selectedTrackCourseIds = new Set(selectedTrackPlan.map((item) => String(item.courseId)));
+    const curriculumTrackCourseIds = new Set((curriculumTrackCourses || []).map((item) => String(item.courseId)));
+    const generatedRows = [];
+    const includedCourseIds = new Set();
+
+    curriculumCourses.forEach((curriculumCourse) => {
+      const courseId = String(curriculumCourse.courseId);
+      if (curriculumTrackCourseIds.has(courseId) && !selectedTrackCourseIds.has(courseId)) {
+        return;
+      }
+
+      const selectedTrackPlacement = selectedTrackPlanByCourseId.get(courseId);
+      generatedRows.push({
+        courseId: curriculumCourse.courseId,
+        yearLevel: selectedTrackPlacement?.yearLevel || curriculumCourse.yearLevel,
+        semester: selectedTrackPlacement?.semester || curriculumCourse.semester
+      });
+      includedCourseIds.add(courseId);
+    });
+
+    selectedTrackPlan.forEach((item) => {
+      const courseId = String(item.courseId);
+      if (includedCourseIds.has(courseId)) {
+        return;
+      }
+
+      generatedRows.push({
+        courseId: item.courseId,
+        yearLevel: item.yearLevel,
+        semester: item.semester
+      });
+    });
+
+    generatedRows.sort((left, right) => left.yearLevel - right.yearLevel
+      || left.semester - right.semester
+      || left.courseId - right.courseId);
 
     const now = Date.now();
 
@@ -620,7 +678,7 @@ exports.generateInitialStudyPlan = async (req, res, next) => {
     }, { transaction });
 
     await StudyPlanCourse.bulkCreate(
-      curriculumCourses.map((curriculumCourse) => ({
+      generatedRows.map((curriculumCourse) => ({
         studyPlanVersionId: version.id,
         courseId: curriculumCourse.courseId,
         yearLevel: curriculumCourse.yearLevel,

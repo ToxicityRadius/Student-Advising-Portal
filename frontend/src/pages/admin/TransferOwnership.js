@@ -4,6 +4,7 @@ import { Alert, Button, Card, Container, Form, ListGroup, Modal, Spinner } from 
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import PaginationControls from '../../components/PaginationControls';
+import useDebouncedValue from '../../utils/useDebouncedValue';
 
 const TransferOwnership = () => {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ const TransferOwnership = () => {
   const [submitting, setSubmitting] = useState(false);
   const [query, setQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'lastName', sortOrder: 'asc' });
   const [meta, setMeta] = useState({ page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
+  const debouncedSearch = useDebouncedValue(query.search, 350);
 
   const advisers = useMemo(() => users, [users]);
 
@@ -26,6 +28,7 @@ const TransferOwnership = () => {
         const response = await api.get('/users', {
           params: {
             ...query,
+            search: debouncedSearch,
             role: 'adviser'
           }
         });
@@ -39,7 +42,7 @@ const TransferOwnership = () => {
     };
 
     loadUsers();
-  }, [query]);
+  }, [query.page, query.pageSize, query.sortBy, query.sortOrder, debouncedSearch]);
 
   const handleConfirmTransfer = async () => {
     if (!selectedAdviser) return;

@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import EditSARModal from '../../components/adviser/EditSARModal';
 import SARLayout from '../../components/sar/SARLayout';
 import api from '../../utils/api';
+import { fetchCurriculumsCached } from '../../utils/curriculumsCache';
 
 const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
@@ -49,8 +50,8 @@ const StudentDetail = () => {
   }, [loadSarData]);
 
   useEffect(() => {
-    api.get('/curriculums')
-      .then((res) => setCurriculums(res.data?.items || res.data?.data || []))
+    fetchCurriculumsCached({ page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' })
+      .then((res) => setCurriculums(res?.items || res?.data || []))
       .catch(() => setCurriculums([]));
   }, []);
 
@@ -146,6 +147,7 @@ const StudentDetail = () => {
           role={user?.role}
           sarId={sarId}
           onGeneratePlan={handleGenerateInitialStudyPlan}
+          onRefresh={loadSarData}
           isActionLoading={actionLoading}
         />
       )}

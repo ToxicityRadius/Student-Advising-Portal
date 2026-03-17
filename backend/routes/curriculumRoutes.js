@@ -23,6 +23,7 @@ const csvUpload = multer({
 // ─── Curriculums ──────────────────────────────────────────────────────────────
 router.post('/curriculums', adminOnly, ctrl.createCurriculum);
 router.get('/curriculums', adminOrAdviser, ctrl.getCurriculums);
+router.get('/curriculums-map', adminOrAdviser, ctrl.getCurriculumsMap);
 router.get('/curriculums/:id', adminOrAdviser, ctrl.getCurriculumById);
 router.put('/curriculums/:id', adminOnly, ctrl.updateCurriculum);
 router.patch('/curriculums/:id/activate', adminOnly, ctrl.setActiveCurriculum);
@@ -62,6 +63,7 @@ router.get('/curriculums/:id/elective-tracks', adminOrAdviser, ctrl.getElectiveT
 router.put('/elective-tracks/:id', adminOnly, ctrl.updateElectiveTrack);
 router.delete('/elective-tracks/:id', adminOnly, ctrl.deleteElectiveTrack);
 router.post('/elective-tracks/:id/courses', adminOnly, ctrl.addCourseToTrack);
+router.put('/elective-tracks/:id/courses/:etcId', adminOnly, ctrl.updateTrackCourse);
 router.delete('/elective-tracks/:id/courses/:etcId', adminOnly, ctrl.removeCourseFromTrack);
 
 module.exports = router;

@@ -293,6 +293,7 @@ exports.getCurriculums = async (req, res, next) => {
       defaultSortBy: 'createdAt',
       allowedSortBy: ['createdAt', 'name', 'isActive']
     });
+    const compact = String(req.query.compact || 'false').toLowerCase() === 'true';
 
     const where = search
       ? {
@@ -305,7 +306,8 @@ exports.getCurriculums = async (req, res, next) => {
 
     const { rows, count } = await Curriculum.findAndCountAll({
       where,
-      include: [{ model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] }],
+      attributes: compact ? ['id', 'name', 'description', 'isActive'] : undefined,
+      include: compact ? [] : [{ model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] }],
       order: [[sortBy, sortOrder], ['id', 'DESC']],
       offset,
       limit
@@ -318,9 +320,61 @@ exports.getCurriculums = async (req, res, next) => {
       totalItems: count
     });
 
+    res.set('Cache-Control', compact ? 'private, max-age=120' : 'private, max-age=30');
     return res.status(200).json({ success: true, ...payload });
   } catch (err) {
     next(err);
+  }
+};
+
+// @desc   Get all curriculums with mapped course placements
+// @route  GET /api/curriculums-map
+// @access admin, adviser
+exports.getCurriculumsMap = async (req, res, next) => {
+  try {
+    const curriculums = await Curriculum.findAll({
+      attributes: ['id', 'name', 'description', 'isActive'],
+      include: [
+        {
+          model: CurriculumCourse,
+          attributes: ['id', 'courseId', 'yearLevel', 'semester', 'isElective'],
+          include: [
+            {
+              model: Course,
+              attributes: ['id', 'code', 'name', 'units']
+            }
+          ]
+        }
+      ],
+      order: [
+        ['name', 'ASC'],
+        [CurriculumCourse, 'yearLevel', 'ASC'],
+        [CurriculumCourse, 'semester', 'ASC'],
+        [CurriculumCourse, Course, 'code', 'ASC']
+      ]
+    });
+
+    const data = curriculums.map((curriculum) => ({
+      id: curriculum.id,
+      name: curriculum.name,
+      description: curriculum.description,
+      isActive: curriculum.isActive,
+      courses: (curriculum.CurriculumCourses || []).map((entry) => ({
+        curriculumCourseId: entry.id,
+        courseId: entry.courseId,
+        yearLevel: entry.yearLevel,
+        semester: entry.semester,
+        isElective: entry.isElective,
+        code: entry.Course?.code || null,
+        name: entry.Course?.name || null,
+        units: entry.Course?.units || null
+      }))
+    }));
+
+    res.set('Cache-Control', 'private, max-age=120');
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -329,41 +383,46 @@ exports.getCurriculums = async (req, res, next) => {
 // @access admin, adviser
 exports.getCurriculumById = async (req, res, next) => {
   try {
+    const compact = String(req.query.compact || 'false').toLowerCase() === 'true';
     const curriculum = await Curriculum.findByPk(req.params.id, {
-      include: [
-        { model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] },
-        {
-          model: CurriculumCourse,
-          include: [{ model: Course }]
-        },
-        {
-          model: Prerequisite,
-          include: [
-            { model: Course, as: 'Course' },
-            { model: Course, as: 'PrerequisiteCourse' }
-          ]
-        },
-        {
-          model: CoRequisite,
-          include: [
-            { model: Course, as: 'Course' },
-            { model: Course, as: 'CoRequisiteCourse' }
-          ]
-        },
-        {
-          model: ElectiveTrack,
-          include: [
-            {
-              model: ElectiveTrackCourse,
-              include: [{ model: Course }]
-            }
-          ]
-        }
-      ]
+      attributes: compact ? ['id', 'name', 'description', 'isActive', 'createdAt', 'updatedAt'] : undefined,
+      include: compact
+        ? [{ model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] }]
+        : [
+          { model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] },
+          {
+            model: CurriculumCourse,
+            include: [{ model: Course }]
+          },
+          {
+            model: Prerequisite,
+            include: [
+              { model: Course, as: 'Course' },
+              { model: Course, as: 'PrerequisiteCourse' }
+            ]
+          },
+          {
+            model: CoRequisite,
+            include: [
+              { model: Course, as: 'Course' },
+              { model: Course, as: 'CoRequisiteCourse' }
+            ]
+          },
+          {
+            model: ElectiveTrack,
+            include: [
+              {
+                model: ElectiveTrackCourse,
+                include: [{ model: Course }]
+              }
+            ]
+          }
+        ]
     });
     if (!curriculum) {
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
     }
+    res.set('Cache-Control', compact ? 'private, max-age=120' : 'private, max-age=30');
     return res.status(200).json({ success: true, data: curriculum });
   } catch (err) {
     next(err);
@@ -1111,6 +1170,49 @@ exports.addCourseToTrack = async (req, res, next) => {
     });
     const result = await ElectiveTrackCourse.findByPk(etc.id, { include: [{ model: Course }] });
     return res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc   Update slot metadata for a course in an elective track
+// @route  PUT /api/elective-tracks/:id/courses/:etcId
+// @access admin
+exports.updateTrackCourse = async (req, res, next) => {
+  try {
+    const etc = await ElectiveTrackCourse.findByPk(req.params.etcId);
+    if (!etc || String(etc.electiveTrackId) !== String(req.params.id)) {
+      return res.status(404).json({ success: false, message: 'Elective track course entry not found' });
+    }
+
+    const rawYearLevel = req.body?.yearLevel;
+    const rawSemester = req.body?.semester;
+    const yearLevel = rawYearLevel === '' || rawYearLevel === null || rawYearLevel === undefined
+      ? null
+      : Number(rawYearLevel);
+    const semester = rawSemester === '' || rawSemester === null || rawSemester === undefined
+      ? null
+      : Number(rawSemester);
+
+    if ((yearLevel === null) !== (semester === null)) {
+      return res.status(400).json({ success: false, message: 'yearLevel and semester must both be provided, or both be empty' });
+    }
+
+    if (yearLevel !== null && (!Number.isInteger(yearLevel) || yearLevel < 1)) {
+      return res.status(400).json({ success: false, message: 'yearLevel must be a positive integer' });
+    }
+
+    if (semester !== null && ![1, 2, 3].includes(semester)) {
+      return res.status(400).json({ success: false, message: 'semester must be 1, 2, or 3' });
+    }
+
+    await etc.update({
+      yearLevel,
+      semester
+    });
+
+    const result = await ElectiveTrackCourse.findByPk(etc.id, { include: [{ model: Course }] });
+    return res.status(200).json({ success: true, data: result });
   } catch (err) {
     next(err);
   }

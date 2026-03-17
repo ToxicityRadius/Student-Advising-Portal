@@ -60,21 +60,10 @@ const CurriculumDetail = () => {
   const [selectedCoreq, setSelectedCoreq] = useState({ course: null, corequisite: null });
   const [addStructureAsElective, setAddStructureAsElective] = useState(false);
   const [trackForm, setTrackForm] = useState(emptyTrackForm);
-  const [trackSlotById, setTrackSlotById] = useState({});
+  const [trackCourseSlotById, setTrackCourseSlotById] = useState({});
+  const [dirtyTrackSlotIds, setDirtyTrackSlotIds] = useState([]);
 
   const [structureAddSlot, setStructureAddSlot] = useState({ yearLevel: '1', semester: '1' });
-
-  const structureBySlot = useMemo(() => {
-    const map = {};
-    for (const entry of curriculumCourses) {
-      const key = `${entry.yearLevel}-${entry.semester}`;
-      if (!map[key]) {
-        map[key] = [];
-      }
-      map[key].push(entry);
-    }
-    return map;
-  }, [curriculumCourses]);
 
   const semesterLabel = (s) => s === 3 ? 'Summer' : `Semester ${s}`;
 
@@ -89,25 +78,19 @@ const CurriculumDetail = () => {
   const showFeedback = (variant, message) => setAlert({ variant, message });
   const clearFeedback = () => setAlert({ variant: '', message: '' });
 
-  const loadData = useCallback(async () => {
+  const loadBaseData = useCallback(async () => {
     setLoading(true);
     setAlert({ variant: '', message: '' });
     try {
-      const [curriculumRes, coursesRes, ccRes, prereqRes, coreqRes, tracksRes] = await Promise.all([
-        api.get(`/curriculums/${id}`),
+      const [curriculumRes, coursesRes, ccRes] = await Promise.all([
+        api.get(`/curriculums/${id}`, { params: { compact: true } }),
         api.get('/courses', { params: { page: 1, pageSize: 200, sortBy: 'code', sortOrder: 'asc' } }),
-        api.get(`/curriculums/${id}/courses`, { params: { page: 1, pageSize: 200, sortBy: 'yearLevel', sortOrder: 'asc' } }),
-        api.get(`/curriculums/${id}/prerequisites`, { params: { page: 1, pageSize: 200, sortBy: 'id', sortOrder: 'desc' } }),
-        api.get(`/curriculums/${id}/corequisites`, { params: { page: 1, pageSize: 200, sortBy: 'id', sortOrder: 'desc' } }),
-        api.get(`/curriculums/${id}/elective-tracks`, { params: { page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' } })
+        api.get(`/curriculums/${id}/courses`, { params: { page: 1, pageSize: 200, sortBy: 'yearLevel', sortOrder: 'asc' } })
       ]);
 
       setCurriculum(curriculumRes.data?.data || null);
       setCourses(coursesRes.data?.items || coursesRes.data?.data || []);
       setCurriculumCourses(ccRes.data?.items || ccRes.data?.data || []);
-      setPrerequisites(prereqRes.data?.items || prereqRes.data?.data || []);
-      setCorequisites(coreqRes.data?.items || coreqRes.data?.data || []);
-      setTracks(tracksRes.data?.items || tracksRes.data?.data || []);
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to load curriculum detail data.'));
     } finally {
@@ -115,9 +98,57 @@ const CurriculumDetail = () => {
     }
   }, [id]);
 
+  const loadPrerequisites = useCallback(async () => {
+    const response = await api.get(`/curriculums/${id}/prerequisites`, { params: { page: 1, pageSize: 200, sortBy: 'id', sortOrder: 'desc' } });
+    setPrerequisites(response.data?.items || response.data?.data || []);
+  }, [id]);
+
+  const loadCorequisites = useCallback(async () => {
+    const response = await api.get(`/curriculums/${id}/corequisites`, { params: { page: 1, pageSize: 200, sortBy: 'id', sortOrder: 'desc' } });
+    setCorequisites(response.data?.items || response.data?.data || []);
+  }, [id]);
+
+  const loadTracks = useCallback(async () => {
+    const response = await api.get(`/curriculums/${id}/elective-tracks`, { params: { page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' } });
+    const nextTracks = response.data?.items || response.data?.data || [];
+    setTracks(nextTracks);
+    setTrackCourseSlotById(
+      nextTracks.reduce((acc, track) => {
+        (track.ElectiveTrackCourses || []).forEach((entry) => {
+          acc[entry.id] = {
+            yearLevel: entry.yearLevel ? String(entry.yearLevel) : '',
+            semester: entry.semester ? String(entry.semester) : ''
+          };
+        });
+        return acc;
+      }, {})
+    );
+    setDirtyTrackSlotIds([]);
+  }, [id]);
+
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadBaseData();
+  }, [loadBaseData]);
+
+  useEffect(() => {
+    const loadTabData = async () => {
+      try {
+        if (tabKey === 'prerequisites' && prerequisites.length === 0) {
+          await loadPrerequisites();
+        }
+        if (tabKey === 'corequisites' && corequisites.length === 0) {
+          await loadCorequisites();
+        }
+        if (tabKey === 'tracks' && tracks.length === 0) {
+          await loadTracks();
+        }
+      } catch (error) {
+        showFeedback('danger', getErrorMessage(error, 'Failed to load tab data.'));
+      }
+    };
+
+    loadTabData();
+  }, [tabKey, prerequisites.length, corequisites.length, tracks.length, loadPrerequisites, loadCorequisites, loadTracks]);
 
   const openPicker = (nextState) => {
     setPickerState({
@@ -147,7 +178,7 @@ const CurriculumDetail = () => {
           isElective: addStructureAsElective
         });
         setAddStructureAsElective(false);
-        await loadData();
+        await loadBaseData();
       } else if (pickerState.mode === 'coreq') {
         if (pickerState.target === 'course') {
           setSelectedCoreq((prev) => ({ ...prev, course }));
@@ -155,14 +186,11 @@ const CurriculumDetail = () => {
           setSelectedCoreq((prev) => ({ ...prev, corequisite: course }));
         }
       } else if (pickerState.mode === 'track') {
-        const slot = trackSlotById[pickerState.trackId] || { yearLevel: '', semester: '' };
         setBusy(true);
         await api.post(`/elective-tracks/${pickerState.trackId}/courses`, {
-          courseId: course.id,
-          yearLevel: slot.yearLevel ? Number(slot.yearLevel) : null,
-          semester: slot.semester ? Number(slot.semester) : null
+          courseId: course.id
         });
-        await loadData();
+        await loadTracks();
         showFeedback('success', 'Course assigned to elective track.');
       }
     } catch (error) {
@@ -183,7 +211,7 @@ const CurriculumDetail = () => {
 
     try {
       await api.delete(`/curriculums/${id}/courses/${ccId}`);
-      await loadData();
+      await loadBaseData();
       showFeedback('success', 'Course removed from structure.');
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to remove curriculum course.'));
@@ -207,7 +235,7 @@ const CurriculumDetail = () => {
         prerequisiteCourseId: selectedPrereq.prerequisite.id
       });
       setSelectedPrereq({ course: null, prerequisite: null });
-      await loadData();
+      await loadPrerequisites();
       showFeedback('success', 'Prerequisite added.');
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to add prerequisite.'));
@@ -226,7 +254,7 @@ const CurriculumDetail = () => {
 
     try {
       await api.delete(`/curriculums/${id}/prerequisites/${prereqId}`);
-      await loadData();
+      await loadPrerequisites();
       showFeedback('success', 'Prerequisite removed.');
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to remove prerequisite.'));
@@ -250,7 +278,7 @@ const CurriculumDetail = () => {
         coRequisiteCourseId: selectedCoreq.corequisite.id
       });
       setSelectedCoreq({ course: null, corequisite: null });
-      await loadData();
+      await loadCorequisites();
       showFeedback('success', 'Co-requisite added.');
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to add co-requisite.'));
@@ -269,7 +297,7 @@ const CurriculumDetail = () => {
 
     try {
       await api.delete(`/curriculums/${id}/corequisites/${coreqId}`);
-      await loadData();
+      await loadCorequisites();
       showFeedback('success', 'Co-requisite removed.');
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to remove co-requisite.'));
@@ -286,7 +314,7 @@ const CurriculumDetail = () => {
     try {
       await api.post(`/curriculums/${id}/elective-tracks`, trackForm);
       setTrackForm(emptyTrackForm);
-      await loadData();
+      await loadTracks();
       showFeedback('success', 'Elective track created.');
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to create elective track.'));
@@ -305,7 +333,7 @@ const CurriculumDetail = () => {
 
     try {
       await api.delete(`/elective-tracks/${trackId}`);
-      await loadData();
+      await loadTracks();
       showFeedback('success', 'Elective track deleted.');
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to delete elective track.'));
@@ -324,10 +352,55 @@ const CurriculumDetail = () => {
 
     try {
       await api.delete(`/elective-tracks/${trackId}/courses/${etcId}`);
-      await loadData();
+      await loadTracks();
       showFeedback('success', 'Course removed from elective track.');
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to remove course from track.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveAllTrackCourseSlots = async () => {
+    if (dirtyTrackSlotIds.length === 0) {
+      return;
+    }
+
+    const trackIdByEntryId = tracks.reduce((acc, track) => {
+      (track.ElectiveTrackCourses || []).forEach((entry) => {
+        acc[entry.id] = track.id;
+      });
+      return acc;
+    }, {});
+
+    const updates = dirtyTrackSlotIds.map((entryId) => {
+      const slot = trackCourseSlotById[entryId] || { yearLevel: '', semester: '' };
+      return {
+        entryId,
+        trackId: trackIdByEntryId[entryId],
+        yearLevel: slot.yearLevel,
+        semester: slot.semester
+      };
+    });
+
+    const invalidUpdate = updates.find((item) => !item.trackId || !item.yearLevel || !item.semester);
+    if (invalidUpdate) {
+      showFeedback('danger', 'Set both year and semester for all edited elective subjects before saving.');
+      return;
+    }
+
+    setBusy(true);
+    clearFeedback();
+
+    try {
+      await Promise.all(updates.map((item) => api.put(`/elective-tracks/${item.trackId}/courses/${item.entryId}`, {
+        yearLevel: item.yearLevel,
+        semester: item.semester
+      })));
+      await loadTracks();
+      showFeedback('success', `Saved ${updates.length} elective subject placement${updates.length !== 1 ? 's' : ''}.`);
+    } catch (error) {
+      showFeedback('danger', getErrorMessage(error, 'Failed to save elective subject placements.'));
     } finally {
       setBusy(false);
     }
@@ -621,6 +694,16 @@ const CurriculumDetail = () => {
 
           <div className="d-flex justify-content-between align-items-center mb-2">
             <span className="text-muted small">{tracks.length} elective track{tracks.length !== 1 ? 's' : ''}</span>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={saveAllTrackCourseSlots}
+              disabled={busy || dirtyTrackSlotIds.length === 0}
+            >
+              {dirtyTrackSlotIds.length > 0
+                ? `Save All Slot Changes (${dirtyTrackSlotIds.length})`
+                : 'Save All Slot Changes'}
+            </Button>
           </div>
 
           {tracks.length === 0 ? (
@@ -628,7 +711,6 @@ const CurriculumDetail = () => {
           ) : (
             <ListGroup className="mb-3">
               {tracks.map((track) => {
-                const slot = trackSlotById[track.id] || { yearLevel: '', semester: '' };
                 return (
                   <ListGroup.Item key={track.id} className="p-3">
                     <Row className="g-2 align-items-start mb-2">
@@ -644,37 +726,7 @@ const CurriculumDetail = () => {
                     </Row>
 
                     <Row className="g-2 align-items-end mb-2">
-                      <Col xs={12} sm={4} md={3}>
-                        <Form.Select
-                          size="sm"
-                          value={slot.yearLevel}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setTrackSlotById((prev) => ({ ...prev, [track.id]: { ...slot, yearLevel: value } }));
-                          }}
-                        >
-                          <option value="">Year (optional)</option>
-                          {YEARS.map((year) => (
-                            <option key={year} value={year}>Year {year}</option>
-                          ))}
-                        </Form.Select>
-                      </Col>
-                      <Col xs={12} sm={5} md={3}>
-                        <Form.Select
-                          size="sm"
-                          value={slot.semester}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setTrackSlotById((prev) => ({ ...prev, [track.id]: { ...slot, semester: value } }));
-                          }}
-                        >
-                          <option value="">Semester (optional)</option>
-                          {SEMESTERS.map((sem) => (
-                            <option key={sem.value} value={sem.value}>{sem.label}</option>
-                          ))}
-                        </Form.Select>
-                      </Col>
-                      <Col xs={12} sm={3} md={3}>
+                      <Col xs={12} md={3}>
                         <Button
                           size="sm"
                           variant="outline-primary"
@@ -685,21 +737,84 @@ const CurriculumDetail = () => {
                       </Col>
                     </Row>
 
-                    <div className="d-flex flex-wrap gap-2">
-                      {(track.ElectiveTrackCourses || []).map((entry) => (
-                        <Badge
-                          key={entry.id}
-                          bg="info"
-                          text="dark"
-                          style={{ cursor: 'pointer' }}
-                          title="Click to remove"
-                          onClick={() => removeTrackCourse(track.id, entry.id)}
-                        >
-                          {entry.Course?.code} - {entry.Course?.name || 'Unnamed Course'}
-                          {entry.yearLevel ? ` • Y${entry.yearLevel}` : ''}
-                          {entry.semester ? ` • S${entry.semester}` : ''}
-                        </Badge>
-                      ))}
+                    <div className="d-flex flex-column gap-2">
+                      {(track.ElectiveTrackCourses || []).map((entry) => {
+                        const entrySlot = trackCourseSlotById[entry.id] || {
+                          yearLevel: entry.yearLevel ? String(entry.yearLevel) : '',
+                          semester: entry.semester ? String(entry.semester) : ''
+                        };
+
+                        return (
+                          <div key={entry.id} className="border rounded p-2 bg-light-subtle">
+                            <div className="d-flex flex-column flex-lg-row justify-content-between gap-2 mb-2">
+                              <div>
+                                <div className="fw-semibold">{entry.Course?.code} - {entry.Course?.name || 'Unnamed Course'}</div>
+                                <div className="text-muted small">
+                                  {entrySlot.yearLevel && entrySlot.semester
+                                    ? `Placed at Year ${entrySlot.yearLevel}, ${SEMESTERS.find((item) => String(item.value) === String(entrySlot.semester))?.label || `Semester ${entrySlot.semester}`}`
+                                    : 'Placement not set.'}
+                                </div>
+                              </div>
+                              <Badge bg="info" text="dark" className="align-self-start">
+                                {entry.Course?.units || 0} units
+                              </Badge>
+                            </div>
+
+                            <Row className="g-2 align-items-end">
+                              <Col xs={12} sm={4} md={3}>
+                                <Form.Select
+                                  size="sm"
+                                  value={entrySlot.yearLevel}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setTrackCourseSlotById((prev) => ({
+                                      ...prev,
+                                      [entry.id]: { ...entrySlot, yearLevel: value }
+                                    }));
+                                    setDirtyTrackSlotIds((prev) => prev.includes(entry.id) ? prev : [...prev, entry.id]);
+                                  }}
+                                >
+                                  <option value="">Select year</option>
+                                  {YEARS.map((year) => (
+                                    <option key={year} value={year}>Year {year}</option>
+                                  ))}
+                                </Form.Select>
+                              </Col>
+                              <Col xs={12} sm={4} md={3}>
+                                <Form.Select
+                                  size="sm"
+                                  value={entrySlot.semester}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setTrackCourseSlotById((prev) => ({
+                                      ...prev,
+                                      [entry.id]: { ...entrySlot, semester: value }
+                                    }));
+                                    setDirtyTrackSlotIds((prev) => prev.includes(entry.id) ? prev : [...prev, entry.id]);
+                                  }}
+                                >
+                                  <option value="">Select semester</option>
+                                  {SEMESTERS.map((sem) => (
+                                    <option key={sem.value} value={sem.value}>{sem.label}</option>
+                                  ))}
+                                </Form.Select>
+                              </Col>
+                              <Col xs={12} sm={4} md={6}>
+                                <div className="d-flex gap-2 justify-content-sm-end">
+                                  <Button
+                                    size="sm"
+                                    variant="outline-danger"
+                                    onClick={() => removeTrackCourse(track.id, entry.id)}
+                                    disabled={busy}
+                                  >
+                                    Remove
+                                  </Button>
+                                </div>
+                              </Col>
+                            </Row>
+                          </div>
+                        );
+                      })}
                       {(track.ElectiveTrackCourses || []).length === 0 && (
                         <span className="text-muted small">No courses assigned.</span>
                       )}

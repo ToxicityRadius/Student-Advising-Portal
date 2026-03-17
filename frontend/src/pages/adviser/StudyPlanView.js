@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Card, Spinner, Table } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Form, Spinner, Table } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 
@@ -28,17 +28,27 @@ const statusVariant = {
 
 const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
+const buildEditableRows = (planVersion) => (planVersion?.StudyPlanCourses || []).map((courseEntry) => ({
+  ...courseEntry,
+  yearLevel: Number(courseEntry.yearLevel || 1),
+  semester: Number(courseEntry.semester || 1)
+}));
+
 const StudyPlanView = () => {
   const { sarId, versionId } = useParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [alert, setAlert] = useState({ variant: '', message: '' });
+  const [saving, setSaving] = useState(false);
   const [sar, setSar] = useState(null);
   const [version, setVersion] = useState(null);
+  const [draftCourses, setDraftCourses] = useState([]);
 
   useEffect(() => {
     const loadPlan = async () => {
       setLoading(true);
       setError('');
+      setAlert({ variant: '', message: '' });
 
       try {
         const [sarResponse, versionsResponse] = await Promise.all([
@@ -59,10 +69,12 @@ const StudyPlanView = () => {
 
         setSar(sarResponse.data?.data || null);
         setVersion(matchedVersion);
+        setDraftCourses(buildEditableRows(matchedVersion));
       } catch (loadError) {
         setError(getErrorMessage(loadError, 'Failed to load the study plan version.'));
         setSar(null);
         setVersion(null);
+        setDraftCourses([]);
       } finally {
         setLoading(false);
       }
@@ -71,14 +83,17 @@ const StudyPlanView = () => {
     loadPlan();
   }, [sarId, versionId]);
 
+  const editable = version?.status === 'draft';
+
   const groupedCourses = useMemo(() => {
     const groups = new Map();
+    const sourceCourses = editable ? draftCourses : (version?.StudyPlanCourses || []);
 
-    if (!version?.StudyPlanCourses) {
+    if (!sourceCourses.length) {
       return [];
     }
 
-    version.StudyPlanCourses.forEach((courseEntry) => {
+    sourceCourses.forEach((courseEntry) => {
       const key = `${courseEntry.yearLevel}-${courseEntry.semester}`;
       if (!groups.has(key)) {
         groups.set(key, []);
@@ -102,19 +117,73 @@ const StudyPlanView = () => {
         label: slotLabels[key] || `Year ${key.replace('-', ' • Semester ')}`,
         courses: entries
       }));
-  }, [version]);
+  }, [draftCourses, editable, version]);
+
+  const availableYearLevels = useMemo(() => {
+    const highestAssignedYear = Math.max(4, ...draftCourses.map((courseEntry) => Number(courseEntry.yearLevel || 1)));
+    return Array.from({ length: highestAssignedYear + 2 }, (_, index) => index + 1);
+  }, [draftCourses]);
+
+  const updateDraftCourse = (courseId, field, value) => {
+    setDraftCourses((currentCourses) => currentCourses.map((courseEntry) => (
+      courseEntry.id === courseId
+        ? { ...courseEntry, [field]: Number(value) }
+        : courseEntry
+    )));
+  };
+
+  const handleSaveDraft = async () => {
+    if (!editable) {
+      return;
+    }
+
+    setSaving(true);
+    setAlert({ variant: '', message: '' });
+
+    try {
+      const response = await api.put(`/sars/${sarId}/study-plan/versions/${versionId}/courses`, {
+        courses: draftCourses.map((courseEntry) => ({
+          studyPlanCourseId: courseEntry.id,
+          yearLevel: Number(courseEntry.yearLevel),
+          semester: Number(courseEntry.semester)
+        }))
+      });
+
+      const updatedVersion = response.data?.data || null;
+      setVersion(updatedVersion);
+      setDraftCourses(buildEditableRows(updatedVersion));
+      setAlert({ variant: 'success', message: 'Draft study plan updated successfully.' });
+    } catch (saveError) {
+      setAlert({ variant: 'danger', message: getErrorMessage(saveError, 'Failed to update the draft study plan.') });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="container py-4">
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
           <h2 className="mb-1">Study Plan View</h2>
-          <p className="text-muted mb-0">Read-only view of the generated study plan version.</p>
+          <p className="text-muted mb-0">
+            {editable
+              ? 'Update semester placements for this draft before validation.'
+              : 'Read-only view of the generated study plan version.'}
+          </p>
         </div>
-        <Button as={Link} to={`/adviser/students/${sarId}`} variant="outline-secondary">
-          Back to Record
-        </Button>
+        <div className="d-flex gap-2 flex-wrap">
+          {editable && (
+            <Button as={Link} to={`/adviser/students/${sarId}/plan/${versionId}/validate`} variant="primary">
+              Go to Validation
+            </Button>
+          )}
+          <Button as={Link} to={`/adviser/students/${sarId}`} variant="outline-secondary">
+            Back to Record
+          </Button>
+        </div>
       </div>
+
+      {alert.message && <Alert variant={alert.variant}>{alert.message}</Alert>}
 
       {loading ? (
         <div className="text-center py-5">
@@ -165,6 +234,30 @@ const StudyPlanView = () => {
                                     <div className="fw-semibold">{courseEntry.Course?.code || 'No code'}</div>
                                     <div>{courseEntry.Course?.name || 'Unnamed course'}</div>
                                     <div className="text-muted small">{courseEntry.Course?.units || 0} units</div>
+                                    {editable && (
+                                      <div className="d-flex flex-wrap gap-2 mt-3">
+                                        <Form.Select
+                                          size="sm"
+                                          style={{ maxWidth: 140 }}
+                                          value={courseEntry.yearLevel}
+                                          onChange={(event) => updateDraftCourse(courseEntry.id, 'yearLevel', event.target.value)}
+                                        >
+                                          {availableYearLevels.map((yearLevel) => (
+                                            <option key={yearLevel} value={yearLevel}>Year {yearLevel}</option>
+                                          ))}
+                                        </Form.Select>
+                                        <Form.Select
+                                          size="sm"
+                                          style={{ maxWidth: 170 }}
+                                          value={courseEntry.semester}
+                                          onChange={(event) => updateDraftCourse(courseEntry.id, 'semester', event.target.value)}
+                                        >
+                                          <option value={1}>1st Semester</option>
+                                          <option value={2}>2nd Semester</option>
+                                          <option value={3}>Summer</option>
+                                        </Form.Select>
+                                      </div>
+                                    )}
                                   </div>
                                   <div className="text-lg-end">
                                     <div className="small text-muted">Grade</div>
@@ -193,6 +286,21 @@ const StudyPlanView = () => {
               </Table>
             </Card.Body>
           </Card>
+
+          {editable && (
+            <div className="d-flex flex-wrap gap-2 mt-4">
+              <Button onClick={handleSaveDraft} disabled={saving || draftCourses.length === 0}>
+                {saving ? 'Saving...' : 'Save Draft Changes'}
+              </Button>
+              <Button
+                variant="outline-secondary"
+                disabled={saving}
+                onClick={() => setDraftCourses(buildEditableRows(version))}
+              >
+                Reset Changes
+              </Button>
+            </div>
+          )}
         </>
       ) : null}
     </div>

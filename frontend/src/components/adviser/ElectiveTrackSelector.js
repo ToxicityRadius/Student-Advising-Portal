@@ -47,9 +47,14 @@ const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSe
         electiveTrackId: Number(chosenTrackId)
       });
 
-      const updatedSar = response.data?.data || null;
-      setAlert({ variant: 'success', message: 'Elective track selected successfully.' });
-      onTrackSelected(updatedSar);
+      const payload = response.data?.data || null;
+      setAlert({
+        variant: 'success',
+        message: payload?.draftVersion
+          ? 'Elective track selected and draft study plan updated successfully.'
+          : 'Elective track selected successfully.'
+      });
+      onTrackSelected(payload);
     } catch (error) {
       setAlert({ variant: 'danger', message: getErrorMessage(error, 'Failed to select elective track.') });
     } finally {
