@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Badge,
@@ -31,6 +31,7 @@ const CurriculumManagement = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [alert, setAlert] = useState({ variant: '', message: '' });
+  const hasLoadedOnceRef = useRef(false);
 
   const [curricula, setCurricula] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -79,7 +80,9 @@ const CurriculumManagement = () => {
   const clearFeedback = () => setAlert({ variant: '', message: '' });
 
   const loadAll = useCallback(async () => {
-    setLoading(true);
+    if (!hasLoadedOnceRef.current) {
+      setLoading(true);
+    }
     setAlert({ variant: '', message: '' });
     try {
       const [curriculaRes, coursesRes, equivalenciesRes, courseOptionsRes] = await Promise.all([
@@ -125,6 +128,7 @@ const CurriculumManagement = () => {
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to load curriculum management data.'));
     } finally {
+      hasLoadedOnceRef.current = true;
       setLoading(false);
     }
   }, [
