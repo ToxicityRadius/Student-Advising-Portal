@@ -176,6 +176,14 @@ const User = sequelize.define('User', {
     type: DataTypes.BIGINT,
     allowNull: true
   },
+  profile_last_submitted_term_key: {
+    type: DataTypes.STRING(40),
+    allowNull: true
+  },
+  profile_submission_locked_at: {
+    type: DataTypes.BIGINT,
+    allowNull: true
+  },
   // --- Phase 2A: Credential Rotation Fields ---
   mustChangeEmail: {
     type: DataTypes.BOOLEAN,

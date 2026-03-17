@@ -21,9 +21,37 @@ const { buildElectiveTrackPlan } = require('../utils/studyPlan');
 
 const tipEmailPattern = /@tip\.edu\.ph$/i;
 
-const personAttributes = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId', 'profile_picture', 'program', 'student_type'];
+const personAttributes = [
+  'id',
+  'firstName',
+  'lastName',
+  'email',
+  'role',
+  'studentId',
+  'profile_picture',
+  'first_name',
+  'middle_name',
+  'last_name',
+  'suffix',
+  'preferred_name',
+  'program',
+  'curriculum_id',
+  'student_type',
+  'current_year_level',
+  'contact_number',
+  'alternate_email',
+  'sex',
+  'citizenship',
+  'address',
+  'emergency_contact_name',
+  'emergency_contact_relationship',
+  'emergency_contact_number',
+  'profile_updated_at'
+];
 const curriculumAttributes = ['id', 'name', 'description', 'isActive'];
 const electiveTrackAttributes = ['id', 'name', 'description'];
+const ALLOWED_SEX = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
+const ALLOWED_STUDENT_TYPES = ['regular', 'irregular', 'transferee', 'ladderized'];
 
 const buildSarIncludes = () => ([
   { model: Curriculum, attributes: curriculumAttributes },
@@ -37,6 +65,19 @@ const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 const parseYearLevel = (value) => Number(value);
 
 const isValidYearLevel = (value) => Number.isInteger(value) && value >= 1 && value <= 4;
+
+const normalizeProfileField = (value) => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  return normalized === '' ? null : normalized;
+};
 
 const composeStudentDisplayName = (studentUser) => {
   if (!studentUser) {
@@ -495,6 +536,7 @@ exports.updateSAR = async (req, res, next) => {
     }
 
     const updates = {};
+    const profileUpdates = {};
 
     if (req.body.studentName !== undefined) {
       const studentName = String(req.body.studentName || '').trim();
@@ -537,12 +579,97 @@ exports.updateSAR = async (req, res, next) => {
       updates.curriculumId = curriculum.id;
     }
 
-    if (Object.keys(updates).length === 0) {
+    if (req.body.studentProfile !== undefined) {
+      if (!req.body.studentProfile || typeof req.body.studentProfile !== 'object' || Array.isArray(req.body.studentProfile)) {
+        return res.status(400).json({ success: false, message: 'studentProfile must be an object when provided' });
+      }
+
+      const incomingProfile = req.body.studentProfile;
+      const allowedProfileFields = [
+        'first_name',
+        'middle_name',
+        'last_name',
+        'suffix',
+        'preferred_name',
+        'program',
+        'student_type',
+        'contact_number',
+        'alternate_email',
+        'sex',
+        'citizenship',
+        'address',
+        'emergency_contact_name',
+        'emergency_contact_relationship',
+        'emergency_contact_number'
+      ];
+
+      for (const field of allowedProfileFields) {
+        if (Object.prototype.hasOwnProperty.call(incomingProfile, field)) {
+          profileUpdates[field] = normalizeProfileField(incomingProfile[field]);
+        }
+      }
+
+      if (
+        Object.prototype.hasOwnProperty.call(profileUpdates, 'student_type') &&
+        profileUpdates.student_type !== null &&
+        !ALLOWED_STUDENT_TYPES.includes(profileUpdates.student_type)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `student_type must be one of: ${ALLOWED_STUDENT_TYPES.join(', ')}`
+        });
+      }
+
+      if (
+        Object.prototype.hasOwnProperty.call(profileUpdates, 'sex') &&
+        profileUpdates.sex !== null &&
+        !ALLOWED_SEX.includes(profileUpdates.sex)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `sex must be one of: ${ALLOWED_SEX.join(', ')}`
+        });
+      }
+
+      if (
+        Object.prototype.hasOwnProperty.call(profileUpdates, 'alternate_email') &&
+        profileUpdates.alternate_email !== null
+      ) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(profileUpdates.alternate_email)) {
+          return res.status(400).json({ success: false, message: 'alternate_email must be a valid email address' });
+        }
+      }
+    }
+
+    if (Object.keys(updates).length === 0 && Object.keys(profileUpdates).length === 0) {
       return res.status(400).json({ success: false, message: 'No valid SAR fields were provided for update' });
+    }
+
+    let linkedStudent = null;
+    if (Object.keys(profileUpdates).length > 0) {
+      if (!sar.userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot update profile details because this SAR is not linked to a student account'
+        });
+      }
+
+      linkedStudent = await User.findByPk(sar.userId);
+      if (!linkedStudent) {
+        return res.status(404).json({ success: false, message: 'Linked student account not found' });
+      }
     }
 
     updates.updatedAt = Date.now();
     await sar.update(updates);
+
+    if (Object.keys(profileUpdates).length > 0) {
+      profileUpdates.updatedAt = Date.now();
+      profileUpdates.profile_updated_at = Date.now();
+
+      await linkedStudent.update(profileUpdates);
+    }
 
     const updatedSar = await StudentAcademicRecord.findByPk(sar.id, {
       include: buildSarIncludes()

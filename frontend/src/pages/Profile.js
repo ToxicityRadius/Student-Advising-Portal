@@ -8,6 +8,7 @@ import { buildProfileImageUrl, getInitials } from '../utils/profileImage';
 const programOptions = ['BSCpE', 'BSCS', 'BSIT', 'BSCE', 'BSEE', 'BSME'];
 const sexOptions = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
 const studentTypeOptions = ['regular', 'irregular', 'transferee', 'ladderized'];
+const semesterLabels = { 1: '1st Semester', 2: '2nd Semester', 3: 'Summer' };
 
 const EMPTY_FORM = {
   // Identity
@@ -50,12 +51,25 @@ const Profile = () => {
   const [curricula, setCurricula] = useState([]);
   const [removeProfilePicture, setRemoveProfilePicture] = useState(false);
   const [formData, setFormData] = useState(EMPTY_FORM);
+  const [isProfileLockedForCurrentTerm, setIsProfileLockedForCurrentTerm] = useState(false);
+  const [currentProfileTermLabel, setCurrentProfileTermLabel] = useState('current term');
+  const [passwordData, setPasswordData] = useState({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const profileRes = await api.get(`/users/${user.id}`);
+        const [profileRes, currentTermRes] = await Promise.all([
+          api.get(`/users/${user.id}`),
+          api.get('/terms/current').catch(() => ({ data: { data: null } }))
+        ]);
 
         let curriculaRes = { data: { curriculums: [] } };
         if (user?.role !== 'student') {
@@ -68,6 +82,19 @@ const Profile = () => {
         }
 
         const profile = profileRes.data.user || {};
+        const currentTerm = currentTermRes?.data?.data || null;
+        const currentTermKey = currentTerm ? `${currentTerm.schoolYear}-S${currentTerm.semester}` : 'NO_ACTIVE_TERM';
+        const lastSubmittedTermKey = profile.lastSubmittedProfileTermKey || profile.profile_last_submitted_term_key || null;
+        const lockFromServer = Boolean(profile.isProfileLockedForCurrentTerm);
+        const lockFromFallback = Boolean(user?.role === 'student' && lastSubmittedTermKey && lastSubmittedTermKey === currentTermKey);
+
+        if (currentTerm) {
+          setCurrentProfileTermLabel(`${currentTerm.schoolYear} — ${semesterLabels[currentTerm.semester] || `Semester ${currentTerm.semester}`}`);
+        } else {
+          setCurrentProfileTermLabel('current term');
+        }
+
+        setIsProfileLockedForCurrentTerm(lockFromServer || lockFromFallback);
         setCurricula(curriculaRes.data?.items || curriculaRes.data?.data || curriculaRes.data?.curriculums || []);
 
         setFormData((prev) => ({
@@ -130,6 +157,12 @@ const Profile = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (user?.role === 'student' && isProfileLockedForCurrentTerm) {
+      setError(`Your profile is already submitted for ${currentProfileTermLabel}. You can update it again next term.`);
+      return;
+    }
+
     setSaving(true);
     setError('');
     setFieldErrors({});
@@ -187,6 +220,47 @@ const Profile = () => {
     }
   };
 
+  const handlePasswordFieldChange = (event) => {
+    const { name, value } = event.target;
+    setPasswordData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handlePasswordSubmit = async (event) => {
+    event.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (!passwordData.oldPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      setPasswordError('Please fill in all password fields.');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError('New password and confirmation do not match.');
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      const response = await api.put('/auth/change-password', {
+        oldPassword: passwordData.oldPassword,
+        newPassword: passwordData.newPassword
+      });
+
+      if (response.data?.token) {
+        localStorage.setItem('token', response.data.token);
+        await login(response.data.token);
+      }
+
+      setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordSuccess('Password changed successfully.');
+    } catch (err) {
+      setPasswordError(err.response?.data?.message || 'Failed to change password.');
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
   const scoreVariant = completionScore >= 80 ? 'success' : completionScore >= 50 ? 'warning' : 'danger';
 
   if (loading) return <Container className="py-4">Loading profile...</Container>;
@@ -213,8 +287,14 @@ const Profile = () => {
 
           {error && <Alert variant="danger">{error}</Alert>}
           {success && <Alert variant="success">{success}</Alert>}
+          {user?.role === 'student' && isProfileLockedForCurrentTerm && (
+            <Alert variant="warning" className="mb-3">
+              Profile editing is locked for {currentProfileTermLabel}. You may update your profile again when a new term is activated.
+            </Alert>
+          )}
 
           <Form onSubmit={handleSubmit}>
+            <fieldset disabled={saving || (user?.role === 'student' && isProfileLockedForCurrentTerm)}>
 
             {/* ── Identity ── */}
             <h6 className="text-uppercase text-muted mb-2" style={{ letterSpacing: '0.08em' }}>Identity</h6>
@@ -473,6 +553,63 @@ const Profile = () => {
 
             <Button type="submit" variant="warning" disabled={saving}>
               {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+            </fieldset>
+          </Form>
+        </Card.Body>
+      </Card>
+
+      <Card className="shadow-sm mt-3">
+        <Card.Body>
+          <h5 className="mb-3">Change Password</h5>
+          {passwordError && <Alert variant="danger">{passwordError}</Alert>}
+          {passwordSuccess && <Alert variant="success">{passwordSuccess}</Alert>}
+
+          <Form onSubmit={handlePasswordSubmit}>
+            <Row>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Current Password</Form.Label>
+                  <Form.Control
+                    type="password"
+                    name="oldPassword"
+                    value={passwordData.oldPassword}
+                    onChange={handlePasswordFieldChange}
+                    autoComplete="current-password"
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label>New Password</Form.Label>
+                  <Form.Control
+                    type="password"
+                    name="newPassword"
+                    value={passwordData.newPassword}
+                    onChange={handlePasswordFieldChange}
+                    autoComplete="new-password"
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Confirm New Password</Form.Label>
+                  <Form.Control
+                    type="password"
+                    name="confirmPassword"
+                    value={passwordData.confirmPassword}
+                    onChange={handlePasswordFieldChange}
+                    autoComplete="new-password"
+                    required
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Button type="submit" variant="primary" disabled={passwordSaving}>
+              {passwordSaving ? 'Changing...' : 'Change Password'}
             </Button>
           </Form>
         </Card.Body>

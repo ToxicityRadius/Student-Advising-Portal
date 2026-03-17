@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { User } = require('../models');
+const { User, AcademicTerm } = require('../models');
 const { generateToken } = require('../utils/jwt');
 const { linkStudentAccountToSar, syncProfileToSar } = require('../utils/sarLinking');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
@@ -12,6 +12,48 @@ const ALLOWED_SEX = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
 const ALLOWED_STUDENT_TYPES = ['regular', 'irregular', 'transferee', 'ladderized'];
 const MAX_PROFILE_IMAGE_WIDTH = 2000;
 const MAX_PROFILE_IMAGE_HEIGHT = 2000;
+
+const NO_ACTIVE_TERM_KEY = 'NO_ACTIVE_TERM';
+
+const getTermKey = (term) => {
+  if (!term) {
+    return NO_ACTIVE_TERM_KEY;
+  }
+
+  return `${term.schoolYear}-S${term.semester}`;
+};
+
+const getStudentProfileLockMeta = async (user) => {
+  const role = user?.role;
+  if (role !== 'student') {
+    return {};
+  }
+
+  const currentTerm = await AcademicTerm.findOne({
+    where: { isCurrent: true },
+    attributes: ['id', 'schoolYear', 'semester']
+  });
+
+  const currentTermKey = getTermKey(currentTerm);
+  const lastSubmittedTermKey = user?.profile_last_submitted_term_key || null;
+
+  return {
+    currentProfileTerm: currentTerm
+      ? {
+        id: currentTerm.id,
+        schoolYear: currentTerm.schoolYear,
+        semester: currentTerm.semester,
+        key: currentTermKey
+      }
+      : null,
+    lastSubmittedProfileTermKey: lastSubmittedTermKey,
+    isProfileLockedForCurrentTerm: Boolean(
+      lastSubmittedTermKey &&
+      currentTermKey &&
+      lastSubmittedTermKey === currentTermKey
+    )
+  };
+};
 
 const removeLocalFile = async (filePath) => {
   if (!filePath) {
@@ -178,9 +220,15 @@ exports.getUserById = async (req, res, next) => {
       });
     }
 
+    const sanitizedUser = sanitizeUser(user);
+    const lockMeta = await getStudentProfileLockMeta(user);
+
     res.status(200).json({
       success: true,
-      user: sanitizeUser(user)
+      user: {
+        ...sanitizedUser,
+        ...lockMeta
+      }
     });
   } catch (error) {
     next(error);
@@ -461,6 +509,28 @@ exports.updateProfile = async (req, res, next) => {
       });
     }
 
+    let currentTermKey = null;
+    const isStudentSelfEdit = requestingOwnProfile && user.role === 'student';
+    if (isStudentSelfEdit) {
+      const currentTerm = await AcademicTerm.findOne({
+        where: { isCurrent: true },
+        attributes: ['schoolYear', 'semester']
+      });
+
+      currentTermKey = getTermKey(currentTerm);
+
+      if (
+        user.profile_last_submitted_term_key &&
+        user.profile_last_submitted_term_key === currentTermKey
+      ) {
+        await removeLocalFile(uploadedFilePath);
+        return res.status(403).json({
+          success: false,
+          message: 'Profile is already submitted for the current term. You can edit again next term.'
+        });
+      }
+    }
+
     const allowedFields = [
       // Identity
       'first_name',
@@ -607,6 +677,11 @@ exports.updateProfile = async (req, res, next) => {
     updatePayload.updatedAt = now;
     updatePayload.profile_updated_at = now;
 
+    if (isStudentSelfEdit) {
+      updatePayload.profile_last_submitted_term_key = currentTermKey || NO_ACTIVE_TERM_KEY;
+      updatePayload.profile_submission_locked_at = now;
+    }
+
     Object.assign(user, updatePayload);
     await user.save();
 
@@ -638,9 +713,14 @@ exports.updateProfile = async (req, res, next) => {
       }
     }
 
+    const lockMeta = await getStudentProfileLockMeta(user);
+
     res.status(200).json({
       message: 'Profile updated successfully',
-      user: sanitizeUser(user),
+      user: {
+        ...sanitizeUser(user),
+        ...lockMeta
+      },
       token
     });
   } catch (error) {

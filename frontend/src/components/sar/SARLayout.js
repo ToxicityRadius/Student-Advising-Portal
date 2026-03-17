@@ -200,6 +200,66 @@ const SARLayout = ({
                         <span className="text-muted">Elective Track</span>
                         <strong>{sar.ElectiveTrack?.name || 'Not selected'}</strong>
                       </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Program</span>
+                        <strong>{sar.Student?.program || analytics?.tags?.program || 'N/A'}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Student Type</span>
+                        <strong>{sar.Student?.student_type || analytics?.tags?.studentType || 'N/A'}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">First Name</span>
+                        <strong>{sar.Student?.first_name || 'N/A'}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Middle Name</span>
+                        <strong>{sar.Student?.middle_name || 'N/A'}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Last Name</span>
+                        <strong>{sar.Student?.last_name || 'N/A'}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Suffix</span>
+                        <strong>{sar.Student?.suffix || 'N/A'}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Preferred Name</span>
+                        <strong>{sar.Student?.preferred_name || 'N/A'}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Contact Number</span>
+                        <strong>{sar.Student?.contact_number || 'N/A'}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Alternate Email</span>
+                        <strong>{sar.Student?.alternate_email || 'N/A'}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Sex</span>
+                        <strong>{sar.Student?.sex || 'N/A'}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Citizenship</span>
+                        <strong>{sar.Student?.citizenship || 'N/A'}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Emergency Contact</span>
+                        <strong>{sar.Student?.emergency_contact_name || 'N/A'}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Emergency Relationship</span>
+                        <strong>{sar.Student?.emergency_contact_relationship || 'N/A'}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0 d-flex justify-content-between">
+                        <span className="text-muted">Emergency Number</span>
+                        <strong>{sar.Student?.emergency_contact_number || 'N/A'}</strong>
+                      </ListGroup.Item>
+                      <ListGroup.Item className="px-0">
+                        <div className="text-muted mb-1">Address</div>
+                        <strong>{sar.Student?.address || 'N/A'}</strong>
+                      </ListGroup.Item>
                     </ListGroup>
                   </Card.Body>
                 </Card>
@@ -210,18 +270,6 @@ const SARLayout = ({
                   <Card.Body>
                     <h5 className="mb-3">Academic Context</h5>
                     <ListGroup variant="flush">
-                      {analytics?.tags?.program !== undefined && (
-                        <ListGroup.Item className="px-0 d-flex justify-content-between">
-                          <span className="text-muted">Program</span>
-                          <strong>{analytics.tags.program || 'N/A'}</strong>
-                        </ListGroup.Item>
-                      )}
-                      {analytics?.tags?.studentType !== undefined && (
-                        <ListGroup.Item className="px-0 d-flex justify-content-between">
-                          <span className="text-muted">Student Type</span>
-                          <strong>{analytics.tags.studentType || 'N/A'}</strong>
-                        </ListGroup.Item>
-                      )}
                       {analytics?.tags?.schoolYear && (
                         <ListGroup.Item className="px-0 d-flex justify-content-between">
                           <span className="text-muted">Current Term</span>
