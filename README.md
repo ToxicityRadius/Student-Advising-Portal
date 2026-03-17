@@ -30,12 +30,14 @@ It also includes common troubleshooting and a recommended routine for each role.
 - 🎓 **Student (`student`)**: views own academic record and progress outputs.
 
 ### Main Functional Areas
-- 🔐 **Authentication & Role Access**
-- 🗂️ **Curriculum Management**
-- 📄 **Student Academic Records (SAR)**
-- 🧩 **Study Plan & Validation Workflow**
-- 📈 **Academic Term & Forecasting**
-- 🧾 **PDF Export & Reporting**
+- 🔐 **Authentication & Role Access** — JWT + Google OAuth, role-guarded routes, email verification, OTP-based email change, forced first-login credential rotation
+- 🗂️ **Curriculum Management** — curricula, course library, prerequisites, co-requisites, elective tracks, equivalencies, CSV import/export
+- 📄 **Student Academic Records (SAR)** — email-first creation with profile autofill, bi-directional SAR↔profile sync, analytics and KPIs
+- 🧩 **Study Plan & Validation Workflow** — generate, edit, regenerate, and validate versioned study plans with prerequisite and load enforcement
+- 📈 **Academic Term & Forecasting** — term lifecycle management, current/next/comparison/history demand charts
+- 🧾 **PDF Export & Reporting** — professional SAR PDF export for all roles
+- 🏠 **Role-Specific Dashboards** — KPI summaries and quicklinks tailored to Program Chair, Adviser, and Student
+- 🌐 **Public Pages** — Landing, About, and Purpose pages accessible without authentication
 
 ### High-Level Architecture
 - **Backend:** Node.js, Express, Sequelize, PostgreSQL
@@ -59,6 +61,7 @@ It also includes common troubleshooting and a recommended routine for each role.
 ### Frontend
 - React 18 + React Router v6
 - React Bootstrap + Bootstrap 5
+- Recharts (demand/forecast bar and line charts)
 - Axios (shared API utility)
 - Context API (authentication state)
 - `@react-oauth/google` (Google sign-in)

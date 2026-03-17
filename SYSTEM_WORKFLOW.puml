@@ -3,14 +3,22 @@ title Student Advising System — Current End-to-End Workflow
 
 start
 
-group Authentication & Account Security {
-  :User opens portal and selects role path;
+group Public Access {
+  :User visits portal (Landing / About / Purpose pages);
+  :Select role path (Faculty or Student login);
+}
 
+group Authentication & Account Security {
   if (Sign-in method?) then (Email/Password)
     :Submit credentials;
+    :Rate limiter check (15 req / 15 min);
   else (Google OAuth)
     :Authenticate with Google;
     if (Allowed domain + role rules?) then (Yes)
+      if (Student account — no Student ID yet?) then (Yes)
+        :Prompt for Student ID via modal;
+        :Link or create account;
+      endif
     else (No)
       :Reject sign-in;
       stop
@@ -18,9 +26,10 @@ group Authentication & Account Security {
   endif
 
   if (Program Chair first-login security flags active?) then (Yes)
-    :Complete mandatory password + email rotation
-with verification;
-    if (Verification succeeds?) then (Yes)
+    :Complete mandatory password rotation;
+    :Initiate email change — OTP sent to new address;
+    if (OTP verified?) then (Yes)
+      :Commit new email, clear flags;
       :Grant full admin access;
     else (No)
       :Keep account restricted;
@@ -28,93 +37,137 @@ with verification;
     endif
   endif
 
-  :Load role-based dashboard;
+  :Issue JWT access token + HTTP-only refresh token;
+  :Load role-based dashboard with KPI summary;
+}
+
+group Profile Management {
+  :User opens Profile page;
+  :Edit identity, contact, demographics,
+emergency contact, and profile photo;
+
+  if (Role is Student?) then (Yes)
+    if (Profile already submitted this active term?) then (Yes)
+      :Form locked — view-only until next term;
+    else (No)
+      :Allow profile update;
+      :Record last-submitted term key;
+    endif
+  else (No)
+    :Update profile freely (adviser/admin);
+  endif
+
+  if (Email change requested?) then (Yes)
+    :Initiate email change — OTP sent to new email;
+    :User verifies OTP to commit new email;
+  endif
 }
 
 group Curriculum & Term Governance {
+  :Program Chair opens Curriculum Management;
   :Configure curriculum structure
-(courses, pre/co-reqs, equivalencies, elective tracks);
+(courses, year/semester placement,
+pre/co-requisites, equivalencies, elective tracks);
 
   if (Bulk update needed?) then (Yes)
-    :Preview CSV import (dry-run + row errors);
+    :Upload CSV — dry-run preview with row-level errors;
     if (Validation passes?) then (Yes)
       :Apply transactional import;
     else (No)
-      :Fix CSV and retry;
+      :Fix CSV errors and retry;
     endif
   endif
 
-  :Export CSV when needed and set active curriculum;
+  :Export CSV for backup or external editing;
+  :Set one curriculum as Active;
 
-  :Create or activate academic term;
-  if (Term activated?) then (Yes)
-    :Mark active study plans for revalidation;
+  :Open Term Management;
+  :Create academic term (school year + semester);
+  if (Activate term?) then (Yes)
+    :Confirm via modal;
+    :Mark previously active study plans for revalidation;
   endif
 }
 
 repeat
 
-group Advising & Study Plan Management {
-  :Open Student Records;
+group SAR & Study Plan Management {
+  :Open Student Records (adviser / admin);
 
   if (SAR exists?) then (No)
-    :Create SAR via email-first flow
-(autofill if linked, manual if unlinked);
-    :Generate initial draft study plan;
+    :Enter student email — autofill from linked account if available;
+    :Complete remaining fields (name, student #, year level, curriculum);
+    :Create SAR and generate initial draft study plan;
   else (Yes)
-    :Open SAR versions and review profile,
-checklist, prerequisites, grades, and analytics;
+    :Open SAR — view unified layout:
+Profile, Progress, Checklist,
+Prerequisites, Grades, Study Plan;
+    :Edit SAR info or student profile via Edit Record modal;
   endif
 
-  :Enter or update grades;
+  :Enter or update course grades
+(numeric, INC, Pending, 4.00 accepted);
 
-  if (Year 2, Semester 2 reached?) then (Yes)
-    if (Elective track selected?) then (No)
-      :Select elective track (immutable once set);
+  if (Year 2, Semester 2 reached or later?) then (Yes)
+    if (Elective track not yet selected?) then (Yes)
+      :Select elective track — immutable once set;
     endif
-    :Ensure elective subjects follow selected track;
+    :Verify plan elective slots match selected track;
   endif
 
-  if (Failures / INC / unresolved subjects?) then (Yes)
-    :Regenerate next draft study plan;
+  if (Unresolved subjects — failed / INC / dropped?) then (Yes)
+    :Regenerate new draft study plan;
     note right
-    Regeneration keeps passed courses completed,
-    reschedules unresolved courses, and respects
+    Regeneration keeps passed courses as completed,
+    reschedules unresolved courses, respects
     prerequisites/co-requisites and load constraints.
     end note
   endif
 
-  :Review/adjust draft and validate selected version
-as new active plan;
-}
-
-group Forecasting & Capacity Planning {
-  :Read active validated plans and compute
-current demand, next-term forecast, and variance;
-  :Show forecast dashboards/charts to Program Chair;
-
-  if (No active term?) then (Yes)
-    :Show guided empty-state to activate a term;
-  endif
+  :Review draft — adjust course placements if needed;
+  :Validate selected draft version as new active plan;
 }
 
 group Student Self-Service Experience {
-  :Open student dashboard;
+  :Student opens dashboard
+(KPI snapshot: completion %, GWA, remaining units, prereq risks);
 
   if (SAR exists?) then (No)
-    :Show clear "No SAR yet" status
-with adviser guidance;
+    :Show "No SAR yet" message with adviser contact guidance;
   else (Yes)
-    :View SAR snapshot/KPIs, open unified read-only SAR,
-and export SAR PDF;
+    :Open My Record — read-only unified SAR view
+(Profile, Progress, Checklist, Prerequisites, Grades, Study Plan);
+    :Export SAR as PDF;
   endif
+}
 
-  :Update profile and manage profile photo anytime;
+group Forecasting & Capacity Planning {
+  :Program Chair / Adviser opens Forecast Dashboard;
+  :Read active validated plans and compute:
+- Current Demand (course enrollment counts)
+- Next-Term Forecast (projected course demand)
+- Comparison (actual vs. prior forecast delta)
+- History (past snapshots from term rollover);
+  :View bar charts and data tables for each view;
+
+  if (No active term?) then (Yes)
+    :Show guided empty-state to activate a term first;
+  endif
 }
 
 group Term Closeout & Rollover {
-  :End current term, save forecast snapshot,
-activate next term, and trigger required revalidation;
+  :Program Chair ends current term;
+  :System saves forecast snapshot automatically;
+  :Activate next term;
+  :Study plans flagged for revalidation by advisers;
+}
+
+group Program Chair Ownership Transfer {
+  :Program Chair opens Transfer Ownership;
+  :Search and select an eligible adviser;
+  :Confirm transfer;
+  :Adviser role promoted to admin;
+  :Former admin demoted to adviser and signed out;
 }
 
 repeat while (Next term?)
