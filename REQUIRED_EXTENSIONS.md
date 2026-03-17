@@ -5,7 +5,7 @@
 ### Backend Dependencies
 - **express:** ^4.18.2 - Web framework for Node.js
 - **sequelize:** ^6.37.7 - Promise-based ORM
-- **sqlite3:** ^5.1.7 - SQLite database driver (local development)
+- **pg:** PostgreSQL database driver
 - **bcryptjs:** ^2.4.3 - Password hashing library
 - **jsonwebtoken:** ^9.0.2 - JWT authentication
 - **cookie-parser:** ^1.4.6 - Parse HTTP cookies
@@ -13,9 +13,18 @@
 - **dotenv:** ^16.3.1 - Environment variable management
 - **google-auth-library:** ^10.5.0 - Google OAuth 2.0 authentication
 - **nodemailer:** ^7.0.12 - Email sending functionality
-- **multer:** ^2.1.0 - File upload handling (proof documents, CSV imports)
-- **csv-parser:** ^3.2.0 - CSV file parsing for bulk imports
-- **nodemon:** ^3.1.11 (dev) - Auto-restart server on changes
+- **multer:** ^2.1.0 - File upload handling (proof documents, CSV imports, profile images)
+- **pdfkit:** - Server-side PDF generation (SAR exports)
+- **pino:** - Structured JSON logging
+- **express-rate-limit:** - Brute-force / rate limiting middleware
+- **helmet:** - HTTP security headers
+- **morgan:** - HTTP request logging
+- **image-size:** - Image dimension validation for uploads
+- **@supabase/supabase-js:** - Supabase client (database hosting)
+- **nodemon:** (dev) - Auto-restart server on changes
+- **jest:** (dev) - Testing framework
+- **supertest:** (dev) - HTTP integration testing
+- **sequelize-cli:** (dev) - Database migrations
 
 ### Frontend Dependencies
 - **react:** ^18.2.0 - UI library
@@ -25,13 +34,17 @@
 - **react-bootstrap:** ^2.10.10 - Bootstrap React components
 - **bootstrap:** ^5.3.8 - CSS framework
 - **axios:** ^1.6.2 - HTTP client for API calls
-- **bootstrap:** ^5.3.8 - CSS framework
-- **react-bootstrap:** ^2.10.10 - Bootstrap components for React
 - **@react-oauth/google:** ^0.13.4 - Google OAuth integration
 - **jwt-decode:** ^4.0.0 - Decode JWT tokens
+- **recharts:** - Charting library (forecast visualizations)
+- **jspdf:** - Client-side PDF generation
+- **jspdf-autotable:** - Table plugin for jsPDF
+- **@testing-library/react:** (dev) - React component testing
+- **@testing-library/jest-dom:** (dev) - Custom Jest DOM matchers
+- **@testing-library/user-event:** (dev) - User interaction simulation
 
 ### Database
-- **SQLite** via **Sequelize** (local file: `backend/database.sqlite`)
+- **PostgreSQL** via **Supabase** (connection via `DATABASE_URL` environment variable)
 
 ---
 
@@ -52,11 +65,11 @@
 - **Purpose:** React code snippets and shortcuts
 - **Install:** `ext install dsznajder.es7-react-js-snippets`
 
-### 4. **SQLite Viewer** (or similar)
-- **ID:** `alexcvzz.vscode-sqlite`
-- **Purpose:** Browse the local SQLite database file
-- **Install:** `ext install alexcvzz.vscode-sqlite`
-- **Note:** Open `backend/database.sqlite` to inspect tables
+### 4. **PostgreSQL Explorer** (or similar)
+- **ID:** `ckolkman.vscode-postgres`
+- **Purpose:** Browse and query the PostgreSQL database
+- **Install:** `ext install ckolkman.vscode-postgres`
+- **Note:** Connect using your `DATABASE_URL` from `backend/.env`
 
 ### 5. **Thunder Client** (or REST Client)
 - **ID:** `rangav.vscode-thunder-client`
@@ -137,7 +150,7 @@ Run this command in VS Code terminal or Command Palette (`Ctrl+Shift+P` → "She
 code --install-extension dbaeumer.vscode-eslint
 code --install-extension esbenp.prettier-vscode
 code --install-extension dsznajder.es7-react-js-snippets
-code --install-extension alexcvzz.vscode-sqlite
+code --install-extension ckolkman.vscode-postgres
 code --install-extension rangav.vscode-thunder-client
 code --install-extension christian-kohler.npm-intellisense
 code --install-extension christian-kohler.path-intellisense
@@ -180,9 +193,9 @@ Add these settings to your `.vscode/settings.json` for consistent team configura
 ## Node.js and npm Requirements
 
 Make sure team members have installed:
-- **Node.js:** v14 or higher
-- **npm:** v8 or higher
-- **Database:** SQLite (no external DB setup needed — the file is auto-created on first run)
+- **Node.js:** v18 or higher (LTS recommended)
+- **npm:** v9 or higher
+- **Database:** PostgreSQL (hosted via Supabase; connection string set in `backend/.env` as `DATABASE_URL`)
 
 Check versions:
 ```bash

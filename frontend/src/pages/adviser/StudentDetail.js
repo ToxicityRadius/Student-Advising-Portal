@@ -6,6 +6,7 @@ import EditSARModal from '../../components/adviser/EditSARModal';
 import SARLayout from '../../components/sar/SARLayout';
 import api from '../../utils/api';
 import { fetchCurriculumsCached } from '../../utils/curriculumsCache';
+import AdviserLayout from '../../components/adviser/AdviserLayout';
 
 const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
@@ -131,7 +132,7 @@ const StudentDetail = () => {
   };
 
   return (
-    <div className="container py-4">
+    <AdviserLayout activePage="students" pageTitle="Student Detail">
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
           <h2 className="mb-1">Student Academic Record</h2>
@@ -139,7 +140,7 @@ const StudentDetail = () => {
         </div>
         <div className="d-flex gap-2 flex-wrap">
           {canEditSar && sar && (
-            <Button onClick={() => setShowEditModal(true)} variant="outline-primary" disabled={actionLoading}>
+            <Button onClick={() => setShowEditModal(true)} variant="light" className="border border-dark" disabled={actionLoading}>
               Edit Record
             </Button>
           )}
@@ -148,7 +149,7 @@ const StudentDetail = () => {
               {actionLoading ? 'Working...' : 'Export PDF'}
             </Button>
           )}
-          <Button as={Link} to="/adviser/students" variant="outline-secondary">
+          <Button as={Link} to="/adviser/students" variant="light" className="border border-dark">
             Back to Records
           </Button>
         </div>
@@ -169,6 +170,7 @@ const StudentDetail = () => {
           onGeneratePlan={handleGenerateInitialStudyPlan}
           onRefresh={loadSarData}
           isActionLoading={actionLoading}
+          onTermChange={loadSarData}
         />
       )}
 
@@ -180,7 +182,7 @@ const StudentDetail = () => {
         curriculums={curriculums}
         submitting={editSubmitting}
       />
-    </div>
+    </AdviserLayout>
   );
 };
 

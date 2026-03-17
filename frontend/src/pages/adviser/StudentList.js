@@ -6,6 +6,7 @@ import PaginationControls from '../../components/PaginationControls';
 import api from '../../utils/api';
 import { fetchCurriculumsCached } from '../../utils/curriculumsCache';
 import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
+import AdviserLayout from '../../components/adviser/AdviserLayout';
 
 const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
@@ -85,7 +86,7 @@ const StudentList = () => {
   };
 
   return (
-    <div className="container py-4">
+    <AdviserLayout activePage="students" pageTitle="Student Academic Records">
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
           <h2 className="mb-1">Student Academic Records</h2>
@@ -220,7 +221,7 @@ const StudentList = () => {
         defaultCurriculumId={activeCurriculum?.id}
         submitting={submitting}
       />
-    </div>
+    </AdviserLayout>
   );
 };
 

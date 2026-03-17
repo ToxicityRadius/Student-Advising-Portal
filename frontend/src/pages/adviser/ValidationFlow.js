@@ -3,6 +3,7 @@ import { Alert, Badge, Button, Card, Spinner, Table } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import ElectiveTrackSelector from '../../components/adviser/ElectiveTrackSelector';
 import api from '../../utils/api';
+import AdviserLayout from '../../components/adviser/AdviserLayout';
 
 const slotLabels = {
   '1-1': 'Year 1 • 1st Semester',
@@ -163,7 +164,7 @@ const ValidationFlow = () => {
   };
 
   return (
-    <div className="container py-4">
+    <AdviserLayout activePage="students" pageTitle="Validation Flow">
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
           <h2 className="mb-1">Validation Flow</h2>
@@ -283,7 +284,7 @@ const ValidationFlow = () => {
           </div>
         </>
       )}
-    </div>
+    </AdviserLayout>
   );
 };
 

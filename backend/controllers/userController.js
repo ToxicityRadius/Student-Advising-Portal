@@ -3,9 +3,8 @@ const { User, AcademicTerm, Curriculum } = require('../models');
 const { generateToken } = require('../utils/jwt');
 const { linkStudentAccountToSar, syncProfileToSar } = require('../utils/sarLinking');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
-const fs = require('fs');
-const path = require('path');
 const { imageSize } = require('image-size');
+const { uploadProfilePicture, deleteProfilePictureAsset } = require('../utils/profileStorage');
 
 // Allowed enum values for validated fields
 const ALLOWED_SEX = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
@@ -55,28 +54,6 @@ const getStudentProfileLockMeta = async (user) => {
   };
 };
 
-const removeLocalFile = async (filePath) => {
-  if (!filePath) {
-    return;
-  }
-
-  try {
-    await fs.promises.unlink(filePath);
-  } catch {
-    // Ignore cleanup failures to avoid blocking the main request flow.
-  }
-};
-
-const resolveUploadPathFromPublicPath = (publicPath) => {
-  if (!publicPath || !String(publicPath).startsWith('/uploads/')) {
-    return null;
-  }
-
-  const normalized = String(publicPath).replace(/\\/g, '/');
-  const relative = normalized.replace(/^\/uploads\//, '');
-  return path.join(__dirname, '../uploads', relative);
-};
-
 const REQUIRED_PROFILE_FIELDS_COMMON = [
   'first_name',
   'last_name',
@@ -122,6 +99,7 @@ function sanitizeUser(user) {
   delete plain.verificationCode;
   delete plain.verificationCodeExpires;
   plain.profileCompletionScore = computeProfileCompletionScore(plain);
+  plain.gender = plain.sex ?? null;
   return plain;
 }
 
@@ -518,13 +496,13 @@ exports.updateUserStudentId = async (req, res, next) => {
 // @route   PUT /api/users/:id/profile
 // @access  Private (self or admin)
 exports.updateProfile = async (req, res, next) => {
+  let uploadedProfilePictureUrl = null;
+
   try {
     const { id } = req.params;
-    const uploadedFilePath = req.file?.path || null;
 
     const requestingOwnProfile = req.user && req.user.id.toString() === id.toString();
     if (!requestingOwnProfile && req.user.role !== 'admin') {
-      await removeLocalFile(uploadedFilePath);
       return res.status(403).json({
         success: false,
         message: 'You are not authorized to update this profile'
@@ -533,7 +511,6 @@ exports.updateProfile = async (req, res, next) => {
 
     const user = await User.findByPk(id);
     if (!user) {
-      await removeLocalFile(uploadedFilePath);
       return res.status(404).json({
         success: false,
         message: 'User not found'
@@ -574,9 +551,8 @@ exports.updateProfile = async (req, res, next) => {
       'emergency_contact_name',
       'emergency_contact_relationship',
       'emergency_contact_number',
-      // Legacy/admin fields
-      'year_level',
-      'adviserId'
+      // User-adjustable during onboarding
+      'year_level'
     ];
 
     const updatePayload = {};
@@ -586,6 +562,16 @@ exports.updateProfile = async (req, res, next) => {
       if (Object.prototype.hasOwnProperty.call(req.body, field)) {
         updatePayload[field] = req.body[field];
       }
+    }
+
+    // adviserId may only be changed by an admin; ignore it from non-admin requests
+    if (req.user.role === 'admin' && Object.prototype.hasOwnProperty.call(req.body, 'adviserId')) {
+      updatePayload.adviserId = req.body.adviserId;
+    }
+
+    // Accept 'gender' as alias for 'sex' for frontend compatibility
+    if (!Object.prototype.hasOwnProperty.call(req.body, 'sex') && Object.prototype.hasOwnProperty.call(req.body, 'gender')) {
+      updatePayload.sex = req.body.gender;
     }
 
     // Validate: sex enum
@@ -656,7 +642,6 @@ exports.updateProfile = async (req, res, next) => {
 
     // Final check after all field-level validations (adviserId / year_level may have added errors)
     if (Object.keys(validationErrors).length > 0) {
-      await removeLocalFile(uploadedFilePath);
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -668,17 +653,10 @@ exports.updateProfile = async (req, res, next) => {
     const existingProfilePicturePath = user.profile_picture;
 
     if (req.file) {
-      const dimensions = imageSize(fs.readFileSync(req.file.path));
-      const width = Number(dimensions?.width || 0);
-      const height = Number(dimensions?.height || 0);
-
-      if (
-        !width ||
-        !height ||
-        width > MAX_PROFILE_IMAGE_WIDTH ||
-        height > MAX_PROFILE_IMAGE_HEIGHT
-      ) {
-        await removeLocalFile(req.file.path);
+      let dimensions;
+      try {
+        dimensions = imageSize(req.file.buffer);
+      } catch {
         return res.status(400).json({
           success: false,
           message: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.',
@@ -688,7 +666,26 @@ exports.updateProfile = async (req, res, next) => {
         });
       }
 
-      updatePayload.profile_picture = `/uploads/profiles/${req.file.filename}`;
+      const width = Number(dimensions?.width || 0);
+      const height = Number(dimensions?.height || 0);
+
+      if (
+        !width ||
+        !height ||
+        width > MAX_PROFILE_IMAGE_WIDTH ||
+        height > MAX_PROFILE_IMAGE_HEIGHT
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.',
+          errors: {
+            profile_picture: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.'
+          }
+        });
+      }
+
+      uploadedProfilePictureUrl = await uploadProfilePicture(req.file, id);
+      updatePayload.profile_picture = uploadedProfilePictureUrl;
     } else if (removeProfilePicture) {
       updatePayload.profile_picture = null;
     }
@@ -702,7 +699,9 @@ exports.updateProfile = async (req, res, next) => {
       user.profile_last_submitted_term_key === currentTermKey &&
       hasNonPictureUpdates
     ) {
-      await removeLocalFile(uploadedFilePath);
+      if (uploadedProfilePictureUrl) {
+        await deleteProfilePictureAsset(uploadedProfilePictureUrl);
+      }
       return res.status(403).json({
         success: false,
         message: 'Profile details are already submitted for the current term. Only profile picture can be updated until next term.'
@@ -718,6 +717,14 @@ exports.updateProfile = async (req, res, next) => {
       updatePayload.profile_submission_locked_at = now;
     }
 
+    // Keep camelCase columns in sync with snake_case columns
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'first_name')) {
+      updatePayload.firstName = updatePayload.first_name;
+    }
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'last_name')) {
+      updatePayload.lastName = updatePayload.last_name;
+    }
+
     Object.assign(user, updatePayload);
     await user.save();
 
@@ -726,7 +733,7 @@ exports.updateProfile = async (req, res, next) => {
       existingProfilePicturePath &&
       existingProfilePicturePath !== updatePayload.profile_picture
     ) {
-      await removeLocalFile(resolveUploadPathFromPublicPath(existingProfilePicturePath));
+      await deleteProfilePictureAsset(existingProfilePicturePath);
     }
 
     const token = generateToken(user);
@@ -760,6 +767,9 @@ exports.updateProfile = async (req, res, next) => {
       token
     });
   } catch (error) {
+    if (uploadedProfilePictureUrl) {
+      await deleteProfilePictureAsset(uploadedProfilePictureUrl);
+    }
     next(error);
   }
 };
@@ -801,6 +811,67 @@ exports.assignAdviser = async (req, res, next) => {
       success: true,
       message: 'Adviser assigned successfully',
       user: sanitizeUser(updated)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get current user's notification feed
+// @route   GET /api/users/me/notifications
+// @access  Private
+exports.getMyNotifications = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const notifications = [];
+
+    if (!user.profile_picture) {
+      notifications.push({
+        id: 'profile-picture-missing',
+        type: 'info',
+        title: 'Add a profile photo',
+        body: 'Upload a profile photo to complete your account identity.'
+      });
+    }
+
+    if (!user.contact_number) {
+      notifications.push({
+        id: 'contact-missing',
+        type: 'info',
+        title: 'Contact number missing',
+        body: 'Add your contact number in Profile so advisers can reach you.'
+      });
+    }
+
+    if (user.role === 'student' && !user.program) {
+      notifications.push({
+        id: 'program-missing',
+        type: 'error',
+        title: 'Program not set',
+        body: 'Set your program in Profile to unlock complete advising features.'
+      });
+    }
+
+    if (user.role === 'student' && !user.current_year_level && !user.year_level) {
+      notifications.push({
+        id: 'year-level-missing',
+        type: 'info',
+        title: 'Year level missing',
+        body: 'Set your year level in Profile for more accurate dashboard tracking.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: notifications
     });
   } catch (error) {
     next(error);

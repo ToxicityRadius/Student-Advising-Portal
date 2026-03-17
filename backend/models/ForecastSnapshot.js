@@ -35,7 +35,10 @@ const ForecastSnapshot = sequelize.define('ForecastSnapshot', {
   }
 }, {
   tableName: 'forecast_snapshots',
-  timestamps: false
+  timestamps: false,
+  indexes: [
+    { fields: ['academicTermId'] }
+  ]
 });
 
 module.exports = ForecastSnapshot;

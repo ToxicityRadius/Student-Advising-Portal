@@ -1,14 +1,20 @@
 const nodemailer = require('nodemailer');
 
+// CLIENT_URL may contain comma-separated origins; use the first one.
+function getClientUrl() {
+  const raw = (process.env.CLIENT_URL || '').trim();
+  return raw.split(',')[0].trim().replace(/\/$/, '');
+}
+
 function buildActivationUrl(token) {
   const explicitBase = (process.env.ACTIVATION_URL_BASE || '').trim();
   if (explicitBase) {
     return `${explicitBase.replace(/\/$/, '')}/${token}`;
   }
 
-  const clientUrl = (process.env.CLIENT_URL || '').trim();
+  const clientUrl = getClientUrl();
   if (clientUrl) {
-    return `${clientUrl.replace(/\/$/, '')}/activate/${token}`;
+    return `${clientUrl}/activate/${token}`;
   }
 
   const serverPublicUrl = (process.env.SERVER_PUBLIC_URL || `http://localhost:${process.env.PORT || 5000}`).trim();
@@ -17,10 +23,15 @@ function buildActivationUrl(token) {
 
 // Create transporter
 const createTransporter = () => {
+  const port = parseInt(process.env.EMAIL_PORT || '587', 10);
+  // Port 465 uses implicit TLS (secure: true).
+  // Port 587 uses STARTTLS (secure: false + requireTLS: true).
+  const useImplicitTls = port === 465;
   return nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT,
-    secure: false,
+    port,
+    secure: useImplicitTls,
+    requireTLS: !useImplicitTls,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASSWORD
@@ -200,7 +211,7 @@ exports.sendVerificationCode = async (email, code, firstName) => {
 exports.sendPasswordResetEmail = async (email, token, firstName) => {
   const transporter = createTransporter();
 
-  const resetUrl = `${process.env.CLIENT_URL}/reset-password/${token}`;
+  const resetUrl = `${getClientUrl()}/reset-password/${token}`;
 
   const mailOptions = {
     from: process.env.EMAIL_FROM,

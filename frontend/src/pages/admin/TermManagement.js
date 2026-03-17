@@ -14,6 +14,7 @@ import {
 import api from '../../utils/api';
 import PaginationControls from '../../components/PaginationControls';
 import useDebouncedValue from '../../utils/useDebouncedValue';
+import AdminLayout from '../../components/admin/AdminLayout';
 
 const initialForm = {
   schoolYear: '',
@@ -146,7 +147,7 @@ const TermManagement = () => {
   };
 
   return (
-    <div className="container py-4">
+    <AdminLayout activePage="terms" pageTitle="Term Management">
       <h2 className="mb-3">Term Management</h2>
 
       {alert.message && <Alert variant={alert.variant}>{alert.message}</Alert>}
@@ -348,7 +349,7 @@ const TermManagement = () => {
           <Button variant="danger" onClick={confirmEndCurrentTerm} disabled={submitting}>Confirm End Term</Button>
         </Modal.Footer>
       </Modal>
-    </div>
+    </AdminLayout>
   );
 };
 

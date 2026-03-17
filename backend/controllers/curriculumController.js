@@ -456,15 +456,21 @@ exports.updateCurriculum = async (req, res, next) => {
 // @route  PATCH /api/curriculums/:id/activate
 // @access admin
 exports.setActiveCurriculum = async (req, res, next) => {
+  const transaction = await sequelize.transaction();
   try {
-    const curriculum = await Curriculum.findByPk(req.params.id);
+    const curriculum = await Curriculum.findByPk(req.params.id, { transaction });
     if (!curriculum) {
+      await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
     }
-    await Curriculum.update({ isActive: false }, { where: {} });
-    await curriculum.update({ isActive: true });
+    // Both updates are wrapped in a transaction so a partial failure cannot
+    // leave all curricula deactivated (Step 3.4)
+    await Curriculum.update({ isActive: false }, { where: {}, transaction });
+    await curriculum.update({ isActive: true }, { transaction });
+    await transaction.commit();
     return res.status(200).json({ success: true, data: curriculum });
   } catch (err) {
+    await transaction.rollback();
     next(err);
   }
 };

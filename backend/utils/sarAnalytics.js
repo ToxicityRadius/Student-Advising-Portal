@@ -5,10 +5,10 @@ const STATUS_NOT_YET_TAKEN = 'not yet taken';
 const STATUS_CREDITED = 'credited';
 const STATUS_DROPPED = 'dropped';
 const STATUS_INCOMPLETE = 'incomplete';
+const STATUS_ONGOING = 'ongoing';
 
 const DEFAULT_AVG_UNITS_PER_SEMESTER = Number(process.env.SAR_ANALYTICS_AVG_UNITS_PER_SEMESTER || 18);
 const DEFAULT_AVG_SUBJECTS_PER_SEMESTER = Number(process.env.SAR_ANALYTICS_AVG_SUBJECTS_PER_SEMESTER || 6);
-const INCLUDE_SUMMER_IN_ESTIMATE = String(process.env.SAR_ANALYTICS_INCLUDE_SUMMER || 'false').toLowerCase() === 'true';
 
 const toPlain = (value) => (value?.get ? value.get({ plain: true }) : value);
 
@@ -49,7 +49,7 @@ const parseSchoolYear = (schoolYear) => {
   return { startYear, endYear };
 };
 
-const advanceAcademicTerm = ({ schoolYear, semester }, steps) => {
+const advanceAcademicTerm = ({ schoolYear, semester }, steps, { includeSummer = false } = {}) => {
   const parsed = parseSchoolYear(schoolYear);
   if (!parsed || !Number.isInteger(steps) || steps < 0) {
     return null;
@@ -58,7 +58,7 @@ const advanceAcademicTerm = ({ schoolYear, semester }, steps) => {
   let currentStart = parsed.startYear;
   let currentEnd = parsed.endYear;
   let currentSemester = Number(semester);
-  const cycle = INCLUDE_SUMMER_IN_ESTIMATE ? [1, 2, 3] : [1, 2];
+  const cycle = includeSummer ? [1, 2, 3] : [1, 2];
 
   if (!cycle.includes(currentSemester)) {
     currentSemester = 1;
@@ -124,16 +124,28 @@ const inferSubjectStatus = ({ rawStatus, grade, yearLevel, semester, currentYear
     return STATUS_NOT_YET_TAKEN;
   }
 
+  if (
+    yLevel > 0 &&
+    sem > 0 &&
+    currentYearLevel > 0 &&
+    currentSemester > 0 &&
+    yLevel === currentYearLevel &&
+    sem === currentSemester
+  ) {
+    return STATUS_ONGOING;
+  }
+
   return STATUS_PENDING;
 };
 
 const buildStatusRank = (status) => {
   const ranking = {
-    [STATUS_CREDITED]: 7,
-    [STATUS_COMPLETED]: 6,
-    [STATUS_FAILED]: 5,
-    [STATUS_DROPPED]: 4,
-    [STATUS_INCOMPLETE]: 3,
+    [STATUS_CREDITED]: 8,
+    [STATUS_COMPLETED]: 7,
+    [STATUS_FAILED]: 6,
+    [STATUS_DROPPED]: 5,
+    [STATUS_INCOMPLETE]: 4,
+    [STATUS_ONGOING]: 3,
     [STATUS_PENDING]: 2,
     [STATUS_NOT_YET_TAKEN]: 1
   };
@@ -188,7 +200,8 @@ const statusCounterTemplate = () => ({
   [STATUS_NOT_YET_TAKEN]: 0,
   [STATUS_CREDITED]: 0,
   [STATUS_DROPPED]: 0,
-  [STATUS_INCOMPLETE]: 0
+  [STATUS_INCOMPLETE]: 0,
+  [STATUS_ONGOING]: 0
 });
 
 const toSubjectKey = (courseId) => String(courseId || '');
@@ -361,12 +374,12 @@ const computeSarAnalytics = ({
       prerequisites: requiredPrereqs,
       unmetPrerequisites,
       isPrerequisiteMet: unmetPrerequisites.length === 0,
-      isEligible: unmetPrerequisites.length === 0 && (status === STATUS_PENDING || status === STATUS_NOT_YET_TAKEN),
+      isEligible: unmetPrerequisites.length === 0 && (status === STATUS_PENDING || status === STATUS_NOT_YET_TAKEN || status === STATUS_ONGOING),
       isPriority: false
     };
   }).sort(sortByPlacement);
 
-  const pendingEligible = subjectIndicators.filter((subject) => subject.isEligible && (subject.status === STATUS_PENDING || subject.status === STATUS_NOT_YET_TAKEN));
+  const pendingEligible = subjectIndicators.filter((subject) => subject.isEligible && (subject.status === STATUS_PENDING || subject.status === STATUS_NOT_YET_TAKEN || subject.status === STATUS_ONGOING));
   const earliestPrioritySlot = pendingEligible.reduce((minimum, subject) => {
     const slot = (toNumber(subject.yearLevel) * 10) + toNumber(subject.semester);
     if (!minimum || slot < minimum) {
@@ -444,9 +457,27 @@ const computeSarAnalytics = ({
     entry.yearLevel === currentYearLevel && entry.semester === currentSemester
   )) || semesterAcademicSummary[semesterAcademicSummary.length - 1] || null;
 
+  // Count remaining semesters from the actual study plan schedule:
+  // Find distinct year/semester slots that still have incomplete courses.
+  // Exclude the current semester (ongoing courses) — the student is already enrolled.
+  const incompleteSemesterSlots = new Set();
+  subjectIndicators.forEach((subject) => {
+    if (
+      subject.status !== STATUS_COMPLETED &&
+      subject.status !== STATUS_CREDITED &&
+      subject.status !== STATUS_ONGOING
+    ) {
+      const key = `${subject.yearLevel}-${subject.semester}`;
+      incompleteSemesterSlots.add(key);
+    }
+  });
+
+  // Detect whether summer is part of this student's curriculum
+  const curriculumHasSummer = checklistBase.some((subject) => toNumber(subject.semester) === 3);
+
+  // Keep average-based values for informational display only
   const averageUnits = DEFAULT_AVG_UNITS_PER_SEMESTER > 0 ? DEFAULT_AVG_UNITS_PER_SEMESTER : 18;
   const averageSubjects = DEFAULT_AVG_SUBJECTS_PER_SEMESTER > 0 ? DEFAULT_AVG_SUBJECTS_PER_SEMESTER : 6;
-
   const semestersByUnits = remainingUnits > 0 ? Math.ceil(remainingUnits / averageUnits) : 0;
   const semestersBySubjects = remainingSubjects > 0 ? Math.ceil(remainingSubjects / averageSubjects) : 0;
 
@@ -633,7 +664,7 @@ const computeSarAnalytics = ({
       assumptions: {
         averageUnitsPerSemester: averageUnits,
         averageSubjectsPerSemester: averageSubjects,
-        includeSummer: INCLUDE_SUMMER_IN_ESTIMATE
+        includeSummer: curriculumHasSummer
       }
     },
     estimatedGraduationDate: {

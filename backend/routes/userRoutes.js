@@ -1,14 +1,18 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const multer = require('multer');
 const {
   getAllUsers,
   getUserById,
+  getMyNotifications,
   updateStudentId,
   updateUserStudentId,
   updateProfile,
-  getCurriculumOptions
+  getCurriculumOptions,
+  updateUser,
+  deleteUser,
+  toggleUserStatus,
+  assignAdviser,
+  completeOnboarding
 } = require('../controllers/userController');
 const { protect, requireRole } = require('../middleware/auth');
 
@@ -16,26 +20,8 @@ const router = express.Router();
 const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
-const profileUploadDir = path.join(__dirname, '../uploads/profiles');
-if (!fs.existsSync(profileUploadDir)) {
-  fs.mkdirSync(profileUploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, profileUploadDir),
-  filename: (req, file, cb) => {
-    const extensionByMimeType = {
-      'image/jpeg': '.jpg',
-      'image/png': '.png',
-      'image/webp': '.webp'
-    };
-    const ext = extensionByMimeType[file.mimetype] || path.extname(file.originalname) || '.img';
-    cb(null, `profile-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
-  }
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: MAX_PROFILE_IMAGE_SIZE_BYTES
   },
@@ -73,11 +59,21 @@ const uploadProfilePicture = (req, res, next) => {
   });
 };
 
-// Public route for Google OAuth users to update student ID
-router.patch('/:userId/update-student-id', updateUserStudentId);
+// Admin-only: update any user's student ID by specifying userId
+router.patch('/:userId/update-student-id', protect, requireRole('admin'), updateUserStudentId);
 
 // Route for users to update their own student ID (protected but not admin-only)
 router.patch('/update-student-id', protect, updateStudentId);
+
+// Complete student onboarding (set year level)
+router.post('/onboard', protect, completeOnboarding);
+
+// Notifications for current authenticated user
+router.get('/me/notifications', protect, getMyNotifications);
+
+// Student dashboard for legacy pages (Checklist, ViewGrades, AvailableSubjects, PlanOfStudy)
+const { getStudentDashboard } = require('../controllers/dashboardController');
+router.get('/me/dashboard', protect, getStudentDashboard);
 
 // Admin-only user listing
 router.get('/', protect, requireRole('admin'), getAllUsers);
@@ -87,6 +83,18 @@ router.get('/curriculum-options', protect, getCurriculumOptions);
 
 // Profile update route (protected, user can update self; admin can update any)
 router.put('/:id/profile', protect, uploadProfilePicture, updateProfile);
+
+// Admin-only: update a user's core fields (role, active status, etc.)
+router.put('/:id', protect, requireRole('admin'), updateUser);
+
+// Admin-only: toggle user active/inactive status
+router.patch('/:id/toggle-status', protect, requireRole('admin'), toggleUserStatus);
+
+// Admin-only: assign adviser to a student
+router.put('/:id/assign-adviser', protect, requireRole('admin'), assignAdviser);
+
+// Admin-only: delete a user
+router.delete('/:id', protect, requireRole('admin'), deleteUser);
 
 // Profile read route (protected, user can view self; admin can view any)
 router.get('/:id', protect, getUserById);

@@ -15,6 +15,8 @@ import {
 } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 import CoursePickerModal from '../../components/admin/CoursePickerModal';
+import ConfirmModal from '../../components/ConfirmModal';
+import AdminLayout from '../../components/admin/AdminLayout';
 import api from '../../utils/api';
 
 const YEARS = [1, 2, 3, 4];
@@ -63,8 +65,9 @@ const CurriculumDetail = () => {
   const [trackCourseSlotById, setTrackCourseSlotById] = useState({});
   const [dirtyTrackSlotIds, setDirtyTrackSlotIds] = useState([]);
 
-  const [structureAddSlot, setStructureAddSlot] = useState({ yearLevel: '1', semester: '1' });
+  const [confirmDialog, setConfirmDialog] = useState({ show: false, title: '', message: '', onConfirm: null });
 
+  const [structureAddSlot, setStructureAddSlot] = useState({ yearLevel: '1', semester: '1' });
   const semesterLabel = (s) => s === 3 ? 'Summer' : `Semester ${s}`;
 
   const sortedStructure = useMemo(() => {
@@ -202,22 +205,25 @@ const CurriculumDetail = () => {
   };
 
   const removeFromStructure = async (ccId) => {
-    if (!window.confirm('Remove this course from curriculum structure?')) {
-      return;
-    }
-
-    setBusy(true);
-    clearFeedback();
-
-    try {
-      await api.delete(`/curriculums/${id}/courses/${ccId}`);
-      await loadBaseData();
-      showFeedback('success', 'Course removed from structure.');
-    } catch (error) {
-      showFeedback('danger', getErrorMessage(error, 'Failed to remove curriculum course.'));
-    } finally {
-      setBusy(false);
-    }
+    setConfirmDialog({
+      show: true,
+      title: 'Remove Course',
+      message: 'Remove this course from curriculum structure?',
+      onConfirm: async () => {
+        setConfirmDialog(d => ({ ...d, show: false }));
+        setBusy(true);
+        clearFeedback();
+        try {
+          await api.delete(`/curriculums/${id}/courses/${ccId}`);
+          await loadBaseData();
+          showFeedback('success', 'Course removed from structure.');
+        } catch (error) {
+          showFeedback('danger', getErrorMessage(error, 'Failed to remove curriculum course.'));
+        } finally {
+          setBusy(false);
+        }
+      }
+    });
   };
 
   const addPrerequisite = async () => {
@@ -245,22 +251,25 @@ const CurriculumDetail = () => {
   };
 
   const removePrerequisite = async (prereqId) => {
-    if (!window.confirm('Remove this prerequisite?')) {
-      return;
-    }
-
-    setBusy(true);
-    clearFeedback();
-
-    try {
-      await api.delete(`/curriculums/${id}/prerequisites/${prereqId}`);
-      await loadPrerequisites();
-      showFeedback('success', 'Prerequisite removed.');
-    } catch (error) {
-      showFeedback('danger', getErrorMessage(error, 'Failed to remove prerequisite.'));
-    } finally {
-      setBusy(false);
-    }
+    setConfirmDialog({
+      show: true,
+      title: 'Remove Prerequisite',
+      message: 'Remove this prerequisite?',
+      onConfirm: async () => {
+        setConfirmDialog(d => ({ ...d, show: false }));
+        setBusy(true);
+        clearFeedback();
+        try {
+          await api.delete(`/curriculums/${id}/prerequisites/${prereqId}`);
+          await loadPrerequisites();
+          showFeedback('success', 'Prerequisite removed.');
+        } catch (error) {
+          showFeedback('danger', getErrorMessage(error, 'Failed to remove prerequisite.'));
+        } finally {
+          setBusy(false);
+        }
+      }
+    });
   };
 
   const addCorequisite = async () => {
@@ -288,22 +297,25 @@ const CurriculumDetail = () => {
   };
 
   const removeCorequisite = async (coreqId) => {
-    if (!window.confirm('Remove this co-requisite?')) {
-      return;
-    }
-
-    setBusy(true);
-    clearFeedback();
-
-    try {
-      await api.delete(`/curriculums/${id}/corequisites/${coreqId}`);
-      await loadCorequisites();
-      showFeedback('success', 'Co-requisite removed.');
-    } catch (error) {
-      showFeedback('danger', getErrorMessage(error, 'Failed to remove co-requisite.'));
-    } finally {
-      setBusy(false);
-    }
+    setConfirmDialog({
+      show: true,
+      title: 'Remove Co-requisite',
+      message: 'Remove this co-requisite?',
+      onConfirm: async () => {
+        setConfirmDialog(d => ({ ...d, show: false }));
+        setBusy(true);
+        clearFeedback();
+        try {
+          await api.delete(`/curriculums/${id}/corequisites/${coreqId}`);
+          await loadCorequisites();
+          showFeedback('success', 'Co-requisite removed.');
+        } catch (error) {
+          showFeedback('danger', getErrorMessage(error, 'Failed to remove co-requisite.'));
+        } finally {
+          setBusy(false);
+        }
+      }
+    });
   };
 
   const createTrack = async (e) => {
@@ -324,41 +336,47 @@ const CurriculumDetail = () => {
   };
 
   const deleteTrack = async (trackId) => {
-    if (!window.confirm('Delete this elective track?')) {
-      return;
-    }
-
-    setBusy(true);
-    clearFeedback();
-
-    try {
-      await api.delete(`/elective-tracks/${trackId}`);
-      await loadTracks();
-      showFeedback('success', 'Elective track deleted.');
-    } catch (error) {
-      showFeedback('danger', getErrorMessage(error, 'Failed to delete elective track.'));
-    } finally {
-      setBusy(false);
-    }
+    setConfirmDialog({
+      show: true,
+      title: 'Delete Elective Track',
+      message: 'Delete this elective track?',
+      onConfirm: async () => {
+        setConfirmDialog(d => ({ ...d, show: false }));
+        setBusy(true);
+        clearFeedback();
+        try {
+          await api.delete(`/elective-tracks/${trackId}`);
+          await loadTracks();
+          showFeedback('success', 'Elective track deleted.');
+        } catch (error) {
+          showFeedback('danger', getErrorMessage(error, 'Failed to delete elective track.'));
+        } finally {
+          setBusy(false);
+        }
+      }
+    });
   };
 
   const removeTrackCourse = async (trackId, etcId) => {
-    if (!window.confirm('Remove this course from the elective track?')) {
-      return;
-    }
-
-    setBusy(true);
-    clearFeedback();
-
-    try {
-      await api.delete(`/elective-tracks/${trackId}/courses/${etcId}`);
-      await loadTracks();
-      showFeedback('success', 'Course removed from elective track.');
-    } catch (error) {
-      showFeedback('danger', getErrorMessage(error, 'Failed to remove course from track.'));
-    } finally {
-      setBusy(false);
-    }
+    setConfirmDialog({
+      show: true,
+      title: 'Remove Track Course',
+      message: 'Remove this course from the elective track?',
+      onConfirm: async () => {
+        setConfirmDialog(d => ({ ...d, show: false }));
+        setBusy(true);
+        clearFeedback();
+        try {
+          await api.delete(`/elective-tracks/${trackId}/courses/${etcId}`);
+          await loadTracks();
+          showFeedback('success', 'Course removed from elective track.');
+        } catch (error) {
+          showFeedback('danger', getErrorMessage(error, 'Failed to remove course from track.'));
+        } finally {
+          setBusy(false);
+        }
+      }
+    });
   };
 
   const saveAllTrackCourseSlots = async () => {
@@ -408,14 +426,14 @@ const CurriculumDetail = () => {
 
   if (loading) {
     return (
-      <div className="container py-5 text-center">
-        <Spinner animation="border" />
-      </div>
+      <AdminLayout activePage="curriculum" pageTitle="Curriculum Detail">
+        <div className="text-center py-5"><Spinner animation="border" /></div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="container py-4">
+    <AdminLayout activePage="curriculum" pageTitle="Curriculum Detail">
       <div className="d-flex justify-content-between align-items-center mb-3">
         <div>
           <h2 className="mb-1">{curriculum?.name || 'Curriculum Detail'}</h2>
@@ -834,7 +852,16 @@ const CurriculumDetail = () => {
         onSelect={handlePickerSelect}
         title={pickerState.title || 'Select Course'}
       />
-    </div>
+
+      <ConfirmModal
+        show={confirmDialog.show}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmLabel="Remove"
+        onCancel={() => setConfirmDialog(d => ({ ...d, show: false }))}
+        onConfirm={confirmDialog.onConfirm}
+      />
+    </AdminLayout>
   );
 };
 

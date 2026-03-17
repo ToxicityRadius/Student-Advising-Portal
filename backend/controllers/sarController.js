@@ -1,6 +1,4 @@
 const { Op } = require('sequelize');
-const fs = require('fs');
-const path = require('path');
 const { imageSize } = require('image-size');
 const {
   sequelize,
@@ -21,6 +19,7 @@ const { syncSarToProfile } = require('../utils/sarLinking');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
 const { computeSarAnalytics } = require('../utils/sarAnalytics');
 const { buildElectiveTrackPlan } = require('../utils/studyPlan');
+const { uploadProfilePicture: uploadProfilePictureAsset, deleteProfilePictureAsset } = require('../utils/profileStorage');
 
 const tipEmailPattern = /@tip\.edu\.ph$/i;
 
@@ -69,7 +68,7 @@ const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 
 const parseYearLevel = (value) => Number(value);
 
-const isValidYearLevel = (value) => Number.isInteger(value) && value >= 1 && value <= 4;
+const isValidYearLevel = (value) => Number.isInteger(value) && value >= 1 && value <= 5;
 
 const normalizeProfileField = (value) => {
   if (value === undefined) {
@@ -82,28 +81,6 @@ const normalizeProfileField = (value) => {
 
   const normalized = String(value).trim();
   return normalized === '' ? null : normalized;
-};
-
-const removeLocalFile = async (filePath) => {
-  if (!filePath) {
-    return;
-  }
-
-  try {
-    await fs.promises.unlink(filePath);
-  } catch {
-    // Ignore cleanup failures to avoid blocking the main request flow.
-  }
-};
-
-const resolveUploadPathFromPublicPath = (publicPath) => {
-  if (!publicPath || !String(publicPath).startsWith('/uploads/')) {
-    return null;
-  }
-
-  const normalized = String(publicPath).replace(/\\/g, '/');
-  const relative = normalized.replace(/^\/uploads\//, '');
-  return path.join(__dirname, '../uploads', relative);
 };
 
 const composeStudentDisplayName = (studentUser) => {
@@ -557,10 +534,8 @@ exports.getSARById = async (req, res, next) => {
 // @access adviser, admin
 exports.updateSAR = async (req, res, next) => {
   try {
-    const uploadedFilePath = req.file?.path || null;
     const sar = await StudentAcademicRecord.findByPk(req.params.id);
     if (!sar) {
-      await removeLocalFile(uploadedFilePath);
       return res.status(404).json({ success: false, message: 'Student academic record not found' });
     }
 
@@ -570,7 +545,6 @@ exports.updateSAR = async (req, res, next) => {
     if (req.body.studentName !== undefined) {
       const studentName = String(req.body.studentName || '').trim();
       if (!studentName) {
-        await removeLocalFile(uploadedFilePath);
         return res.status(400).json({ success: false, message: 'studentName cannot be empty' });
       }
       updates.studentName = studentName;
@@ -579,7 +553,6 @@ exports.updateSAR = async (req, res, next) => {
     if (req.body.studentNumber !== undefined) {
       const studentNumber = String(req.body.studentNumber || '').trim();
       if (!studentNumber) {
-        await removeLocalFile(uploadedFilePath);
         return res.status(400).json({ success: false, message: 'studentNumber cannot be empty' });
       }
       // Check uniqueness only when changing to a different value
@@ -588,7 +561,6 @@ exports.updateSAR = async (req, res, next) => {
           where: { studentNumber, id: { [Op.ne]: sar.id } }
         });
         if (conflict) {
-          await removeLocalFile(uploadedFilePath);
           return res.status(409).json({ success: false, message: 'Another student academic record already uses that student number' });
         }
       }
@@ -598,7 +570,6 @@ exports.updateSAR = async (req, res, next) => {
     if (req.body.yearLevel !== undefined) {
       const yearLevel = parseYearLevel(req.body.yearLevel);
       if (!isValidYearLevel(yearLevel)) {
-        await removeLocalFile(uploadedFilePath);
         return res.status(400).json({ success: false, message: 'yearLevel must be an integer from 1 to 4' });
       }
       updates.yearLevel = yearLevel;
@@ -607,7 +578,6 @@ exports.updateSAR = async (req, res, next) => {
     if (req.body.curriculumId !== undefined) {
       const curriculum = await Curriculum.findByPk(req.body.curriculumId);
       if (!curriculum) {
-        await removeLocalFile(uploadedFilePath);
         return res.status(404).json({ success: false, message: 'Assigned curriculum not found' });
       }
       updates.curriculumId = curriculum.id;
@@ -617,14 +587,12 @@ exports.updateSAR = async (req, res, next) => {
       try {
         req.body.studentProfile = JSON.parse(req.body.studentProfile);
       } catch {
-        await removeLocalFile(uploadedFilePath);
         return res.status(400).json({ success: false, message: 'studentProfile must be valid JSON when provided as text' });
       }
     }
 
     if (req.body.studentProfile !== undefined) {
       if (!req.body.studentProfile || typeof req.body.studentProfile !== 'object' || Array.isArray(req.body.studentProfile)) {
-        await removeLocalFile(uploadedFilePath);
         return res.status(400).json({ success: false, message: 'studentProfile must be an object when provided' });
       }
 
@@ -658,7 +626,6 @@ exports.updateSAR = async (req, res, next) => {
         profileUpdates.student_type !== null &&
         !ALLOWED_STUDENT_TYPES.includes(profileUpdates.student_type)
       ) {
-        await removeLocalFile(uploadedFilePath);
         return res.status(400).json({
           success: false,
           message: `student_type must be one of: ${ALLOWED_STUDENT_TYPES.join(', ')}`
@@ -670,7 +637,6 @@ exports.updateSAR = async (req, res, next) => {
         profileUpdates.sex !== null &&
         !ALLOWED_SEX.includes(profileUpdates.sex)
       ) {
-        await removeLocalFile(uploadedFilePath);
         return res.status(400).json({
           success: false,
           message: `sex must be one of: ${ALLOWED_SEX.join(', ')}`
@@ -683,7 +649,6 @@ exports.updateSAR = async (req, res, next) => {
       ) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(profileUpdates.alternate_email)) {
-          await removeLocalFile(uploadedFilePath);
           return res.status(400).json({ success: false, message: 'alternate_email must be a valid email address' });
         }
       }
@@ -697,14 +662,12 @@ exports.updateSAR = async (req, res, next) => {
       !req.file &&
       !removeProfilePicture
     ) {
-      await removeLocalFile(uploadedFilePath);
       return res.status(400).json({ success: false, message: 'No valid SAR fields were provided for update' });
     }
 
     let linkedStudent = null;
     if (Object.keys(profileUpdates).length > 0 || req.file || removeProfilePicture) {
       if (!sar.userId) {
-        await removeLocalFile(uploadedFilePath);
         return res.status(400).json({
           success: false,
           message: 'Cannot update profile details because this SAR is not linked to a student account'
@@ -713,12 +676,11 @@ exports.updateSAR = async (req, res, next) => {
 
       linkedStudent = await User.findByPk(sar.userId);
       if (!linkedStudent) {
-        await removeLocalFile(uploadedFilePath);
         return res.status(404).json({ success: false, message: 'Linked student account not found' });
       }
 
       if (req.file) {
-        const dimensions = imageSize(fs.readFileSync(req.file.path));
+        const dimensions = imageSize(req.file.buffer);
         const width = Number(dimensions?.width || 0);
         const height = Number(dimensions?.height || 0);
 
@@ -728,14 +690,14 @@ exports.updateSAR = async (req, res, next) => {
           width > MAX_PROFILE_IMAGE_WIDTH ||
           height > MAX_PROFILE_IMAGE_HEIGHT
         ) {
-          await removeLocalFile(uploadedFilePath);
           return res.status(400).json({
             success: false,
             message: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.'
           });
         }
 
-        profileUpdates.profile_picture = `/uploads/profiles/${req.file.filename}`;
+        const publicUrl = await uploadProfilePictureAsset(req.file, sar.userId);
+        profileUpdates.profile_picture = publicUrl;
       } else if (removeProfilePicture) {
         profileUpdates.profile_picture = null;
       }
@@ -756,7 +718,7 @@ exports.updateSAR = async (req, res, next) => {
         existingProfilePicturePath &&
         existingProfilePicturePath !== profileUpdates.profile_picture
       ) {
-        await removeLocalFile(resolveUploadPathFromPublicPath(existingProfilePicturePath));
+        await deleteProfilePictureAsset(existingProfilePicturePath);
       }
     }
 
@@ -776,9 +738,6 @@ exports.updateSAR = async (req, res, next) => {
 
     return res.status(200).json({ success: true, data: serializeSar(updatedSar) });
   } catch (error) {
-    if (req.file?.path) {
-      await removeLocalFile(req.file.path);
-    }
     next(error);
   }
 };

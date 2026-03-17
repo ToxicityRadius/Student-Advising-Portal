@@ -39,9 +39,7 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const { data } = await api.put(`/auth/reset-password/${token}`, { password });
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      await api.put(`/auth/reset-password/${token}`, { password });
       setSuccessCountdown(3);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to reset password. Please try again.');

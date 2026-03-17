@@ -1,21 +1,24 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Badge,
   Button,
   Card,
   Col,
   Collapse,
+  Form,
   Image,
   ListGroup,
   Nav,
   ProgressBar,
   Row,
+  Spinner,
   Tab,
   Table,
 } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import ElectiveTrackSelector from '../adviser/ElectiveTrackSelector';
 import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
+import api from '../../utils/api';
 
 const semesterLabels = { 1: '1st Semester', 2: '2nd Semester', 3: 'Summer' };
 
@@ -26,6 +29,7 @@ const statusVariant = (status) => {
     case 'failed': return 'danger';
     case 'dropped': return 'warning';
     case 'incomplete': return 'warning';
+    case 'ongoing': return 'primary';
     case 'pending': return 'secondary';
     case 'not yet taken': return 'light';
     default: return 'secondary';
@@ -57,6 +61,7 @@ const TABS = [
  *   sarId          – SAR id string (needed for adviser action links)
  *   onGeneratePlan – Callback for "Generate Initial Study Plan" (adviser/admin)
  *   isActionLoading – Boolean for loading state of adviser actions
+ *   onTermChange   – Callback when adviser/admin changes the active academic term
  */
 const SARLayout = ({
   sar,
@@ -66,6 +71,7 @@ const SARLayout = ({
   onGeneratePlan,
   onRefresh,
   isActionLoading = false,
+  onTermChange,
 }) => {
   const [activeTab, setActiveTab] = useState('profile');
   const [showFullIdentity, setShowFullIdentity] = useState(false);
@@ -75,6 +81,46 @@ const SARLayout = ({
 
   const analytics = sar?.analytics || null;
   const profileImageUrl = buildProfileImageUrl(sar?.Student?.profile_picture);
+
+  /* ── Academic term selector state (adviser/admin only) ── */
+  const [terms, setTerms] = useState([]);
+  const [termsLoading, setTermsLoading] = useState(false);
+  const [termChanging, setTermChanging] = useState(false);
+
+  const fetchTerms = useCallback(async () => {
+    if (!canManagePlan) return;
+    setTermsLoading(true);
+    try {
+      const res = await api.get('/terms', { params: { pageSize: 100, sortBy: 'schoolYear', sortOrder: 'DESC' } });
+      setTerms(res.data?.items || res.data?.data || []);
+    } catch {
+      setTerms([]);
+    } finally {
+      setTermsLoading(false);
+    }
+  }, [canManagePlan]);
+
+  useEffect(() => { fetchTerms(); }, [fetchTerms]);
+
+  const currentTermId = useMemo(
+    () => terms.find((t) => t.isCurrent)?.id || null,
+    [terms]
+  );
+
+  const handleTermChange = async (e) => {
+    const selectedId = e.target.value;
+    if (!selectedId || String(selectedId) === String(currentTermId)) return;
+    setTermChanging(true);
+    try {
+      await api.patch(`/terms/${selectedId}/activate`);
+      await fetchTerms();
+      if (onTermChange) onTermChange();
+    } catch {
+      // silent — parent will show alert on refresh
+    } finally {
+      setTermChanging(false);
+    }
+  };
 
   const activeVersion = useMemo(
     () => versions.find((v) => v.status === 'active') || sar?.activeStudyPlanVersion || null,
@@ -371,6 +417,43 @@ const SARLayout = ({
               </Card>
             ) : (
               <>
+                {/* ── Current academic term display / selector ── */}
+                <Card className="shadow-sm mb-3">
+                  <Card.Body className="py-2 px-3 d-flex align-items-center gap-3">
+                    <span className="small fw-semibold text-nowrap">Current Academic Term:</span>
+                    {termsLoading ? (
+                      <Spinner animation="border" size="sm" />
+                    ) : canManagePlan ? (
+                      <Form.Select
+                        size="sm"
+                        style={{ maxWidth: 280 }}
+                        value={currentTermId || ''}
+                        onChange={handleTermChange}
+                        disabled={termChanging}
+                      >
+                        <option value="" disabled>Select term…</option>
+                        {terms
+                          .sort((a, b) => {
+                            if (a.schoolYear !== b.schoolYear) return a.schoolYear.localeCompare(b.schoolYear);
+                            return Number(a.semester) - Number(b.semester);
+                          })
+                          .map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.schoolYear} {semesterLabels[t.semester] || `Sem ${t.semester}`}
+                            </option>
+                          ))}
+                      </Form.Select>
+                    ) : (
+                      <span className="fw-semibold">
+                        {analytics?.tags?.schoolYear
+                          ? `${analytics.tags.schoolYear} ${analytics.tags.semesterLabel || ''}`
+                          : 'Not set'}
+                      </span>
+                    )}
+                    {termChanging && <Spinner animation="border" size="sm" className="ms-2" />}
+                  </Card.Body>
+                </Card>
+
                 <Row className="g-3 mb-4">
                   <Col xs={6} md={4} lg={2}>
                     <Card bg="primary" text="white" className="h-100">
@@ -453,6 +536,7 @@ const SARLayout = ({
                             ['Failed', analytics.statusCounters?.failed ?? 0, 'danger'],
                             ['Dropped', analytics.statusCounters?.dropped ?? 0, 'warning'],
                             ['Incomplete', analytics.statusCounters?.incomplete ?? 0, 'warning'],
+                            ['Ongoing', analytics.statusCounters?.ongoing ?? 0, 'primary'],
                             ['Pending', analytics.statusCounters?.pending ?? 0, 'secondary'],
                             [
                               'Not Yet Taken',

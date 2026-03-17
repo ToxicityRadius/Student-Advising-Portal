@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
+import { getHomePathForRole } from '../utils/roleRedirect';
 import backgroundImage from '../assets/images/bg.png';
 import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 
@@ -14,7 +15,7 @@ const VerifyCode = () => {
   const [successCountdown, setSuccessCountdown] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const { setUser } = useAuth();
+  const { login } = useAuth();
   
   const userId = location.state?.userId;
   const userEmail = location.state?.email;
@@ -37,7 +38,8 @@ const VerifyCode = () => {
       const timer = setTimeout(() => setSuccessCountdown(successCountdown - 1), 1000);
       return () => clearTimeout(timer);
     } else if (successCountdown === 0) {
-      navigate('/dashboard');
+      const role = JSON.parse(localStorage.getItem('user') || '{}')?.role;
+      navigate(getHomePathForRole(role));
     }
   }, [successCountdown, navigate]);
 
@@ -101,8 +103,6 @@ const VerifyCode = () => {
         code: verificationCode,
       });
 
-      console.log('Response data:', data);
-
       if (data.success) {
         if (data.mustChangePassword) {
           sessionStorage.setItem('forcePasswordChangeToken', data.token);
@@ -110,19 +110,14 @@ const VerifyCode = () => {
           return;
         }
 
-        console.log('Success! Storing token and redirecting...');
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        setUser(data.user);
+        await login(data.token);
         setSuccessCountdown(3);
       } else {
-        console.log('Verification failed:', data.message);
         setError(data.message || 'Invalid verification code');
         setCode(['', '', '', '', '', '']);
         document.getElementById('code-input-0')?.focus();
       }
     } catch (err) {
-      console.error('Verification error:', err);
       setError(err.response?.data?.message || 'An error occurred. Please try again.');
       setCode(['', '', '', '', '', '']);
       document.getElementById('code-input-0')?.focus();

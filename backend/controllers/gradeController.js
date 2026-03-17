@@ -18,70 +18,11 @@ const {
   yearSemesterFromSlotIndex
 } = require('../utils/studyPlan');
 
-const VALID_STATUSES = new Set(['pending', 'passed', 'failed', 'dropped', 'incomplete']);
+const { VALID_STATUSES, parseGradeInput, parseGradePayload, formatQuarterGrade } = require('../utils/gradeValidation');
 
 const personAttributes = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId'];
 
 const toNumber = (value) => Number(value);
-
-const formatQuarterGrade = (value) => Number(value).toFixed(2);
-
-const parseGradeInput = (input) => {
-  if (input === null || input === undefined) {
-    return { grade: null, status: 'pending' };
-  }
-
-  const raw = String(input).trim();
-  if (!raw) {
-    return { grade: null, status: 'pending' };
-  }
-
-  const normalized = raw.toUpperCase();
-
-  if (normalized === 'INC') {
-    return { grade: 'INC', status: 'incomplete' };
-  }
-
-  if (normalized === 'PENDING') {
-    return { grade: 'Pending', status: 'pending' };
-  }
-
-  const numeric = Number(raw);
-  if (!Number.isFinite(numeric) || numeric < 1 || numeric > 5) {
-    throw new Error('Grade must be between 1.00 and 5.00, INC, or Pending');
-  }
-
-  if (Math.round(numeric * 4) !== numeric * 4) {
-    throw new Error('Numeric grades must be in 0.25 increments');
-  }
-
-  if (numeric <= 3) {
-    return { grade: formatQuarterGrade(numeric), status: 'passed' };
-  }
-
-  if (numeric === 4) {
-    return { grade: '4.00', status: 'dropped' };
-  }
-
-  return { grade: '5.00', status: 'failed' };
-};
-
-const parseGradePayload = (item) => {
-  const parsed = parseGradeInput(item.grade);
-
-  if (item.status !== undefined && item.status !== null) {
-    const normalizedStatus = String(item.status).trim().toLowerCase();
-    if (!VALID_STATUSES.has(normalizedStatus)) {
-      throw new Error('Invalid status value provided');
-    }
-
-    if (normalizedStatus !== parsed.status) {
-      throw new Error('Provided status does not match the computed status for the grade');
-    }
-  }
-
-  return parsed;
-};
 
 const serializeVersion = (version) => {
   const plain = version.get ? version.get({ plain: true }) : version;
@@ -174,6 +115,12 @@ exports.enterGrades = async (req, res, next) => {
     if (!Array.isArray(grades) || grades.length === 0) {
       await transaction.rollback();
       return res.status(400).json({ success: false, message: 'grades must be a non-empty array' });
+    }
+
+    // Step 3.5 — cap submission size to prevent slow transactions
+    if (grades.length > 100) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'Cannot submit more than 100 grades in a single request' });
     }
 
     const sar = await getSarWithStudyPlan(req.params.id, transaction);

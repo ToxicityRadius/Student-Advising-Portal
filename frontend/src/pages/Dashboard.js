@@ -1,313 +1,765 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Col,
-  Container,
-  Image,
-  ListGroup,
-  Row,
-  Spinner,
-  Table
-} from 'react-bootstrap';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import api from '../utils/api';
-import { buildProfileImageUrl, getInitials } from '../utils/profileImage';
+import React, { useState, useEffect } from "react";
+import { Navigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import api from "../utils/api";
+import { getHomePathForRole } from "../utils/roleRedirect";
+import StudentLayout, { formatYearLevel } from "../components/student/StudentLayout";
 
+import "./Dashboard.css";
+
+const YELLOW = "#FFC107";
+
+const ChecklistWhiteIcon = ({ size = 40 }) => (
+  <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+    <rect
+      x="3"
+      y="3"
+      width="34"
+      height="34"
+      rx="5"
+      stroke="white"
+      strokeWidth="2.5"
+    />
+    <path
+      d="M11 20l6 6L29 13"
+      stroke="white"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+/* ══════════════════════════════════════
+   Main Dashboard component
+══════════════════════════════════════ */
 const Dashboard = () => {
   const { user } = useAuth();
+  const yearLevel = user?.year_level || user?.yearLevel || "";
 
-  const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [profileReminderDismissed, setProfileReminderDismissed] = useState(
-    () => sessionStorage.getItem('profileReminderDismissed') === 'true'
-  );
+  /* Progress data — from API */
+  const [dashData, setDashData] = useState(null);
+  const [dashError, setDashError] = useState('');
+  const [currentTerm, setCurrentTerm] = useState(null);
+  const [semPage, setSemPage] = useState(0);
+  const unitsCredited = dashData ? dashData.unitsCredited : 0;
+  const totalUnits = dashData ? dashData.totalUnits || 0 : 0;
+  const progressPercent =
+    totalUnits > 0 ? Math.round((unitsCredited / totalUnits) * 100) : 0;
 
-  const profileIncomplete = user?.role === 'student' ? !user?.program : !user?.contact_number;
-  const showProfileReminder = profileIncomplete && !profileReminderDismissed;
-  const displayName = `${user?.firstName || user?.first_name || ''} ${user?.lastName || user?.last_name || ''}`.trim();
-  const profileImageUrl = buildProfileImageUrl(user?.profile_picture);
-
-  const handleDismissProfileReminder = () => {
-    sessionStorage.setItem('profileReminderDismissed', 'true');
-    setProfileReminderDismissed(true);
-  };
-
+  // Fetch dashboard data from backend
   useEffect(() => {
-    const loadSummary = async () => {
-      setLoading(true);
-      setError('');
+    if (user?.role && user.role !== 'student') return;
+    api
+      .get("/dashboard/summary")
+      .then((r) => {
+        if (!r.data.success || !r.data.data) {
+          return;
+        }
 
-      try {
-        const response = await api.get('/dashboard/summary');
-        setDashboardData(response.data?.data || null);
-      } catch (requestError) {
-        setDashboardData(null);
-        setError(requestError?.response?.data?.message || 'Failed to load dashboard summary.');
-      } finally {
-        setLoading(false);
-      }
-    };
+        const payload = r.data.data;
+        const kpis = payload?.sar?.kpis || {};
 
-    loadSummary();
+        setCurrentTerm(payload?.currentTerm || null);
+        setDashData({
+          unitsCredited: Number(kpis.completedUnits || 0),
+          totalUnits: Number(kpis.totalUnits || 0),
+          gwa: kpis.gwa,
+          subjectsCompleted: Number(kpis.completedSubjects || 0),
+          subjectsPending: Number(kpis.remainingSubjects || 0)
+        });
+      })
+      .catch((err) => {
+        setDashError(
+          err?.response?.data?.message || 'Failed to load dashboard data. Please refresh to try again.'
+        );
+      });
   }, []);
 
-  const currentTermLabel = useMemo(() => {
-    if (!dashboardData?.currentTerm) {
-      return null;
-    }
+  const semesterLabel = (() => {
+    const termLabel = currentTerm
+      ? ({ 1: '1st Semester', 2: '2nd Semester', 3: 'Summer' }[currentTerm.semester] || `Semester ${currentTerm.semester}`)
+      : null;
+    if (yearLevel && termLabel) return `${formatYearLevel(yearLevel)}, ${termLabel}`;
+    if (yearLevel) return formatYearLevel(yearLevel);
+    return termLabel || '';
+  })();
 
-    return `${dashboardData.currentTerm.schoolYear} · ${dashboardData.currentTerm.semesterLabel || `Semester ${dashboardData.currentTerm.semester}`}`;
-  }, [dashboardData]);
-
-  const renderStudentSummary = () => {
-    const studentSummary = dashboardData || {};
-    const sar = studentSummary.sar;
-
-    if (!studentSummary.sarAvailable || !sar) {
-      return (
-        <Card className="mb-4 border-start border-info border-5 shadow-sm">
-          <Card.Body className="p-4">
-            <h5 className="mb-3">Student Academic Record</h5>
-            <Badge bg="secondary" className="mb-3 text-uppercase">No Student Academic Record yet</Badge>
-            <p className="text-muted mb-3">
-              Your adviser or Program Chair has not created your Student Academic Record yet. Please contact them for assistance.
-            </p>
-            <div className="d-flex flex-wrap gap-2">
-              <Button as={Link} to="/profile" variant="outline-primary" size="sm">Profile Shortcut</Button>
-              <Button as={Link} to="/my-record" variant="outline-secondary" size="sm">My Academic Record</Button>
-            </div>
-          </Card.Body>
-        </Card>
-      );
-    }
-
-    return (
-      <Card className="mb-4 border-start border-info border-5 shadow-sm">
-        <Card.Body className="p-4">
-          <div className="d-flex justify-content-between align-items-start mb-3">
-            <h5 className="mb-0">Student Academic Record Snapshot</h5>
-            <Badge bg="success" className="text-uppercase">Record Available</Badge>
-          </div>
-
-          <Row className="g-3 mb-3">
-            <Col md={3}><strong>Student #:</strong> {sar.studentNumber || 'N/A'}</Col>
-            <Col md={3}><strong>Year:</strong> {sar.yearLevel ? `Year ${sar.yearLevel}` : 'N/A'}</Col>
-            <Col md={6}><strong>Curriculum:</strong> {sar.curriculumName || 'N/A'}</Col>
-          </Row>
-
-          <Row className="g-3 mb-3">
-            <Col md={3}>
-              <Card className="h-100"><Card.Body className="py-2"><div className="small text-muted">Completion</div><div className="fw-semibold">{Number(sar.kpis?.completionPercentage || 0).toFixed(2)}%</div></Card.Body></Card>
-            </Col>
-            <Col md={3}>
-              <Card className="h-100"><Card.Body className="py-2"><div className="small text-muted">Remaining Units</div><div className="fw-semibold">{sar.kpis?.remainingUnits ?? 'N/A'}</div></Card.Body></Card>
-            </Col>
-            <Col md={3}>
-              <Card className="h-100"><Card.Body className="py-2"><div className="small text-muted">GWA</div><div className="fw-semibold">{sar.kpis?.gwa ?? 'N/A'}</div></Card.Body></Card>
-            </Col>
-            <Col md={3}>
-              <Card className="h-100"><Card.Body className="py-2"><div className="small text-muted">Prereq Risks</div><div className="fw-semibold">{sar.kpis?.prerequisiteRiskSubjects ?? 0}</div></Card.Body></Card>
-            </Col>
-          </Row>
-
-          <div className="d-flex flex-wrap gap-2">
-            <Button as={Link} to="/my-record" variant="primary" size="sm">Open My Academic Record</Button>
-            <Button as={Link} to="/my-record" variant="outline-success" size="sm">Export Shortcut (via My Record)</Button>
-            <Button as={Link} to="/profile" variant="outline-primary" size="sm">Profile Shortcut</Button>
-          </div>
-        </Card.Body>
-      </Card>
-    );
-  };
-
-  const renderAdviserSummary = () => (
-    <Card className="mb-4 border-start border-warning border-5 shadow-sm">
-      <Card.Body className="p-4">
-        <h5 className="mb-3">Adviser Summary</h5>
-
-        <Row className="g-3 mb-3">
-          <Col md={4}>
-            <Card className="h-100"><Card.Body className="py-2"><div className="small text-muted">Assigned Students</div><div className="fw-semibold fs-5">{dashboardData?.assignedStudents ?? 0}</div></Card.Body></Card>
-          </Col>
-          <Col md={4}>
-            <Card className="h-100"><Card.Body className="py-2"><div className="small text-muted">Students Needing Review</div><div className="fw-semibold fs-5">{dashboardData?.studentsNeedingReview ?? 0}</div></Card.Body></Card>
-          </Col>
-          <Col md={4}>
-            <Card className="h-100"><Card.Body className="py-2"><div className="small text-muted">SARs with Prereq Risk</div><div className="fw-semibold fs-5">{dashboardData?.prerequisiteRiskCount ?? 0}</div></Card.Body></Card>
-          </Col>
-        </Row>
-
-        <div className="mb-3">
-          <div className="fw-semibold mb-2">Recent Assigned Students</div>
-          {Array.isArray(dashboardData?.recentStudents) && dashboardData.recentStudents.length > 0 ? (
-            <ListGroup>
-              {dashboardData.recentStudents.map((item) => (
-                <ListGroup.Item key={item.id} className="d-flex justify-content-between align-items-center">
-                  <div>
-                    <div className="fw-semibold">{item.studentName}</div>
-                    <div className="small text-muted">{item.studentNumber} · {item.curriculumName || 'No curriculum'} · Year {item.yearLevel || 'N/A'}</div>
-                  </div>
-                  <Button as={Link} to={`/adviser/students/${item.id}`} variant="outline-primary" size="sm">Open</Button>
-                </ListGroup.Item>
-              ))}
-            </ListGroup>
-          ) : (
-            <div className="text-muted">No assigned students yet.</div>
-          )}
-        </div>
-
-        <div className="d-flex flex-wrap gap-2">
-          <Button as={Link} to="/adviser/students" variant="primary" size="sm">Student Records</Button>
-          <Button as={Link} to="/adviser/students" variant="outline-success" size="sm">Quick-Create SAR</Button>
-        </div>
-      </Card.Body>
-    </Card>
-  );
-
-  const renderAdminSummary = () => {
-    const snapshot = dashboardData?.forecastSnapshotPreview;
-    const health = dashboardData?.curriculumHealth || {};
-    const termManagement = dashboardData?.termManagement || {};
-    const adviserWorkload = Array.isArray(dashboardData?.adviserWorkload) ? dashboardData.adviserWorkload : [];
-
-    return (
-      <>
-        <Card className="mb-4 border-start border-success border-5 shadow-sm">
-          <Card.Body className="p-4">
-            <h5 className="mb-3">Summary</h5>
-
-            <Row className="g-3 mb-3">
-              <Col md={4}>
-                <Card className="h-100"><Card.Body className="py-2"><div className="small text-muted">Forecast Snapshot Preview</div><div className="fw-semibold">{snapshot ? `${snapshot.schoolYear} · ${snapshot.semesterLabel}` : 'No snapshot yet'}</div><div className="small text-muted">Current rows: {snapshot?.currentDemandCount ?? 0} · Next rows: {snapshot?.nextSemesterForecastCount ?? 0}</div></Card.Body></Card>
-              </Col>
-              <Col md={4}>
-                <Card className="h-100"><Card.Body className="py-2"><div className="small text-muted">Curriculum Health</div><div className="fw-semibold">{health.activeCurriculumCount ?? 0}/{health.totalCurriculums ?? 0} active</div><div className="small text-muted">Courses: {health.totalCourses ?? 0} · Equivalencies: {health.totalEquivalencies ?? 0}</div></Card.Body></Card>
-              </Col>
-              <Col md={4}>
-                <Card className="h-100"><Card.Body className="py-2"><div className="small text-muted">Term Management</div><div className="fw-semibold">{termManagement.currentTerm ? `${termManagement.currentTerm.schoolYear} · ${termManagement.currentTerm.semesterLabel}` : 'No active term'}</div><div className="small text-muted">Recent terms: {(termManagement.recentTerms || []).length}</div></Card.Body></Card>
-              </Col>
-            </Row>
-
-            <div className="d-flex flex-wrap gap-2 mb-3">
-              <Button as={Link} to="/admin/forecast" variant="primary" size="sm">Open Forecast Dashboard</Button>
-              <Button as={Link} to="/admin/curriculum" variant="outline-primary" size="sm">Curriculum & Equivalency</Button>
-              <Button as={Link} to="/admin/terms" variant="outline-success" size="sm">Term Management Actions</Button>
-            </div>
-
-            <div>
-              <div className="fw-semibold mb-2">Adviser Workload Overview</div>
-              {adviserWorkload.length > 0 ? (
-                <Table striped bordered hover responsive size="sm" className="mb-0">
-                  <thead>
-                    <tr>
-                      <th>Adviser</th>
-                      <th>Email</th>
-                      <th className="text-end">Assigned Students</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {adviserWorkload.slice(0, 8).map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.name}</td>
-                        <td>{item.email}</td>
-                        <td className="text-end fw-semibold">{item.assignedStudents}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Table>
-              ) : (
-                <div className="text-muted">No adviser workload data available yet.</div>
-              )}
-            </div>
-          </Card.Body>
-        </Card>
-      </>
-    );
-  };
+  // Redirect non-student roles to their own home page
+  if (user?.role && user.role !== 'student') {
+    return <Navigate to={getHomePathForRole(user.role)} replace />;
+  }
 
   return (
-    <Container className="py-4">
-      <h1 className="mb-4">Dashboard</h1>
-
-      {showProfileReminder && (
-        <Alert variant="info" dismissible onClose={handleDismissProfileReminder} className="mb-4">
-          <strong>Your profile is incomplete.</strong> Complete your profile to help your adviser and get the most out of the portal.{' '}
-          <Alert.Link as={Link} to="/profile">Complete profile &rarr;</Alert.Link>
-        </Alert>
-      )}
-
-      {error && <Alert variant="danger">{error}</Alert>}
-
-      <Card className="mb-4 border-start border-primary border-5 shadow-sm">
-        <Card.Body className="p-4">
-          <h5 className="mb-2">Current Academic Term</h5>
-          {loading ? (
-            <div className="d-flex align-items-center gap-2 text-muted"><Spinner animation="border" size="sm" /><span>Loading current term...</span></div>
-          ) : currentTermLabel ? (
-            <div className="fw-semibold fs-5">{currentTermLabel}</div>
-          ) : (
-            <p className="text-muted mb-0">No active term set yet.</p>
+    <StudentLayout activePage="dashboard" pageTitle="Dashboard">
+      <div style={{ padding: "28px 32px" }}>
+          {dashError && (
+            <div
+              role="alert"
+              style={{
+                background: '#fff3cd',
+                border: '1px solid #ffc107',
+                borderRadius: 10,
+                padding: '12px 16px',
+                marginBottom: 20,
+                color: '#664d03',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
+              <span>{dashError}</span>
+              <button
+                onClick={() => setDashError('')}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, color: '#664d03', fontSize: '1rem' }}
+                aria-label="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
           )}
-        </Card.Body>
-      </Card>
+          {/* Academic Progress Overview */}
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              padding: "28px 32px",
+              marginBottom: 24,
+              boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
+            }}
+          >
+            <h2
+              style={{
+                fontSize: "1.6rem",
+                fontWeight: 800,
+                color: "#111",
+                marginBottom: 22,
+              }}
+            >
+              Academic Progress Overview
+            </h2>
 
-      <Card className="mb-4 border-start border-warning border-5 shadow-sm">
-        <Card.Body className="p-4">
-          <div className="d-flex align-items-center gap-3 mb-4">
-            {profileImageUrl ? (
-              <Image src={profileImageUrl} roundedCircle width={72} height={72} style={{ objectFit: 'cover' }} />
-            ) : (
-              <div className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center" style={{ width: 72, height: 72, fontWeight: 700, fontSize: '1.1rem' }}>
-                {getInitials(displayName)}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 22,
+              }}
+            >
+              <span
+                style={{ fontWeight: 700, fontSize: "1rem", color: "#222" }}
+              >
+                {semesterLabel}
+              </span>
+              <span
+                style={{
+                  background: YELLOW,
+                  color: "#111",
+                  padding: "5px 18px",
+                  borderRadius: 8,
+                  fontSize: "0.82rem",
+                  fontWeight: 700,
+                }}
+              >
+                Current
+              </span>
+            </div>
+
+            {/* Units credited row */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    background: YELLOW,
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "0.86rem",
+                    color: "#555",
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  UNITS CREDITED
+                </span>
               </div>
-            )}
-            <h2 className="mb-0" style={{ fontSize: '1.75rem' }}>Welcome, {displayName || 'User'}!</h2>
+              <span
+                style={{ fontWeight: 800, fontSize: "0.92rem", color: "#222" }}
+              >
+                {unitsCredited} UNITS
+              </span>
+            </div>
+
+            {/* Total units row */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    background: "#aaa",
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "0.86rem",
+                    color: "#555",
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  TOTAL UNITS
+                </span>
+              </div>
+              <span
+                style={{ fontWeight: 800, fontSize: "0.92rem", color: "#222" }}
+              >
+                {totalUnits} UNITS
+              </span>
+            </div>
+
+            {/* Progress bar */}
+            <div
+              style={{
+                background: "#ddd",
+                borderRadius: 999,
+                height: 18,
+                overflow: "hidden",
+                marginBottom: 10,
+              }}
+            >
+              <div
+                style={{
+                  width: `${progressPercent}%`,
+                  height: "100%",
+                  background: YELLOW,
+                  borderRadius: 999,
+                  transition: "width 0.6s ease",
+                  minWidth: progressPercent > 0 ? 8 : 0,
+                }}
+              />
+            </div>
+            <div
+              style={{
+                textAlign: "center",
+                fontSize: "0.85rem",
+                color: "#666",
+                fontWeight: 600,
+              }}
+            >
+              {progressPercent}% Complete
+            </div>
           </div>
 
-          <Row className="g-4">
-            <Col md={6}><small className="text-muted fw-semibold">Email</small><p className="mb-0 fw-medium">{user?.email}</p></Col>
-            <Col md={3}><small className="text-muted fw-semibold">Role</small><div><Badge bg={user?.role === 'admin' ? 'danger' : user?.role === 'adviser' ? 'warning' : 'primary'} className="text-uppercase">{user?.role}</Badge></div></Col>
-            <Col md={3}><small className="text-muted fw-semibold">Account Status</small><div><Badge bg={user?.isActive ? 'success' : 'danger'}>{user?.isActive ? 'ACTIVE' : 'INACTIVE'}</Badge></div></Col>
-          </Row>
-        </Card.Body>
-      </Card>
+          {/* ── Status Cards ── */}
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              padding: "28px 32px",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
+              marginBottom: 24,
+            }}
+          >
+            <h2
+              style={{
+                fontSize: "1.4rem",
+                fontWeight: 800,
+                color: "#111",
+                marginBottom: 20,
+              }}
+            >
+              Status Cards
+            </h2>
 
-      {!loading && user?.role === 'student' && renderStudentSummary()}
-      {!loading && user?.role === 'adviser' && renderAdviserSummary()}
-      {!loading && user?.role === 'admin' && renderAdminSummary()}
+            {/* GWA — full-width bright green row */}
+            <div
+              style={{
+                background: "#2ecc71",
+                borderRadius: 14,
+                padding: "18px 24px",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <ChecklistWhiteIcon size={28} />
+                <div>
+                  <div
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      opacity: 0.9,
+                      marginBottom: 2,
+                    }}
+                  >
+                    Overall GWA
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1.9rem",
+                      fontWeight: 900,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {dashData && dashData.gwa ? dashData.gwa : "\u2014"}
+                  </div>
+                </div>
+              </div>
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: "50%",
+                  background: "rgba(255,255,255,0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <ChecklistWhiteIcon size={24} />
+              </div>
+            </div>
 
-      <Card className="shadow-sm border-3" style={{ borderColor: '#FFC107' }}>
-        <Card.Header className="bg-warning fw-bold text-dark" style={{ fontSize: '1.1rem' }}>
-          Quick Links
-        </Card.Header>
-        <Card.Body className="p-0">
-          <ListGroup variant="flush">
-            <ListGroup.Item as={Link} to="/profile" className="py-3 px-4 text-decoration-none text-dark fw-semibold" action>
-              <span className="me-2">👤</span> My Profile
-            </ListGroup.Item>
-            {user?.role === 'admin' && (
-              <>
-                <ListGroup.Item as={Link} to="/admin/curriculum" className="py-3 px-4 text-decoration-none text-dark fw-semibold" action><span className="me-2">📘</span> Curriculum Management</ListGroup.Item>
-                <ListGroup.Item as={Link} to="/admin/terms" className="py-3 px-4 text-decoration-none text-dark fw-semibold" action><span className="me-2">📅</span> Term Management</ListGroup.Item>
-                <ListGroup.Item as={Link} to="/admin/forecast" className="py-3 px-4 text-decoration-none text-dark fw-semibold" action><span className="me-2">📈</span> Forecasting</ListGroup.Item>
-                <ListGroup.Item as={Link} to="/admin/transfer-ownership" className="py-3 px-4 text-decoration-none text-dark fw-semibold" action><span className="me-2">🔐</span> Transfer Ownership</ListGroup.Item>
-              </>
-            )}
-            {(user?.role === 'admin' || user?.role === 'adviser') && (
-              <ListGroup.Item as={Link} to="/adviser/students" className="py-3 px-4 text-decoration-none text-dark fw-semibold" action><span className="me-2">🗂️</span> Student Records</ListGroup.Item>
-            )}
-            {user?.role === 'student' && (
-              <ListGroup.Item as={Link} to="/my-record" className="py-3 px-4 text-decoration-none text-dark fw-semibold" action><span className="me-2">📄</span> My Academic Record</ListGroup.Item>
-            )}
-          </ListGroup>
-        </Card.Body>
-      </Card>
-    </Container>
+            {/* Bottom row: Completed + Pending */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 16,
+              }}
+            >
+              {/* Subjects Completed */}
+              <div
+                style={{
+                  background: "#fffbe6",
+                  border: "1.5px solid #ffe58f",
+                  borderRadius: 14,
+                  padding: "28px 20px 22px",
+                  textAlign: "center",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: "50%",
+                    background: "#FFC107",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "1.5rem",
+                    fontWeight: 900,
+                    color: "#fff",
+                    boxShadow: "0 3px 10px rgba(255,193,7,0.4)",
+                  }}
+                >
+                  {dashData ? dashData.subjectsCompleted : 0}
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    color: "#555",
+                  }}
+                >
+                  Subjects Completed
+                </div>
+              </div>
+
+              {/* Subjects Pending */}
+              <div
+                style={{
+                  background: "#e8f0fe",
+                  border: "1.5px solid #bad3f8",
+                  borderRadius: 14,
+                  padding: "28px 20px 22px",
+                  textAlign: "center",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: "50%",
+                    background: "#4a90d9",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "1.5rem",
+                    fontWeight: 900,
+                    color: "#fff",
+                    boxShadow: "0 3px 10px rgba(74,144,217,0.4)",
+                  }}
+                >
+                  {dashData ? dashData.subjectsPending : 0}
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    color: "#555",
+                  }}
+                >
+                  Subjects Pending
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Semester Summary ── */}
+          {(() => {
+            const sems = dashData?.semesterSummary ?? [];
+            const hasSems = sems.length > 0;
+            const current = hasSems ? sems[semPage] : null;
+            const semOrdinal = { 1: "1st", 2: "2nd", 3: "3rd" };
+            const semLabel = current
+              ? `${{ 1: "1st", 2: "2nd", 3: "3rd", 4: "4th" }[current.yearLevel] || current.yearLevel + "th"} Year, ${semOrdinal[current.semester] || current.semester + "th"} Semester`
+              : "\u2014";
+            return (
+              <div
+                style={{
+                  background: "#fff",
+                  borderRadius: 16,
+                  padding: "28px 32px 20px",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
+                  marginBottom: 20,
+                }}
+              >
+                {/* Header */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 18,
+                  }}
+                >
+                  <h2
+                    style={{
+                      fontSize: "1.1rem",
+                      fontWeight: 700,
+                      color: "#111",
+                      margin: 0,
+                    }}
+                  >
+                    Semester Summary
+                  </h2>
+                  {hasSems && (
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      <button
+                        onClick={() => setSemPage((p) => Math.max(0, p - 1))}
+                        disabled={semPage === 0}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: semPage === 0 ? "not-allowed" : "pointer",
+                          fontSize: "1.1rem",
+                          color: semPage === 0 ? "#ccc" : "#333",
+                          fontWeight: 700,
+                          padding: "2px 6px",
+                          lineHeight: 1,
+                        }}
+                      >
+                        &#8249;
+                      </button>
+                      <span
+                        style={{
+                          fontSize: "0.92rem",
+                          fontWeight: 600,
+                          color: "#333",
+                        }}
+                      >
+                        {semPage + 1}/{sems.length}
+                      </span>
+                      <button
+                        onClick={() =>
+                          setSemPage((p) => Math.min(sems.length - 1, p + 1))
+                        }
+                        disabled={semPage === sems.length - 1}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor:
+                            semPage === sems.length - 1
+                              ? "not-allowed"
+                              : "pointer",
+                          fontSize: "1.1rem",
+                          color: semPage === sems.length - 1 ? "#ccc" : "#333",
+                          fontWeight: 700,
+                          padding: "2px 6px",
+                          lineHeight: 1,
+                        }}
+                      >
+                        &#8250;
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Yellow inner card */}
+                <div
+                  style={{
+                    background: "#fffbe6",
+                    border: "1.5px solid #FFC107",
+                    borderRadius: 12,
+                    padding: "18px 24px 24px",
+                    marginBottom: 16,
+                    minHeight: 160,
+                  }}
+                >
+                  {/* Semester header row */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 18,
+                    }}
+                  >
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 10 }}
+                    >
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 22 22"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <rect
+                          x="1"
+                          y="3"
+                          width="20"
+                          height="17"
+                          rx="3"
+                          stroke="#b8860b"
+                          strokeWidth="1.8"
+                        />
+                        <path d="M1 8h20" stroke="#b8860b" strokeWidth="1.8" />
+                        <path
+                          d="M7 1v4M15 1v4"
+                          stroke="#b8860b"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <span
+                        style={{
+                          fontWeight: 700,
+                          fontSize: "1rem",
+                          color: "#111",
+                        }}
+                      >
+                        {semLabel}
+                      </span>
+                    </div>
+                    {current && (
+                      <span
+                        style={{
+                          background:
+                            current.status === "In Progress"
+                              ? "#FFC107"
+                              : "#2ecc71",
+                          color: "#fff",
+                          borderRadius: 999,
+                          padding: "5px 18px",
+                          fontSize: "0.82rem",
+                          fontWeight: 700,
+                          letterSpacing: "0.02em",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {current.status}
+                      </span>
+                    )}
+                  </div>
+
+                  {hasSems && current ? (
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: "0.875rem",
+                      }}
+                    >
+                      <thead>
+                        <tr>
+                          <th
+                            style={{
+                              textAlign: "left",
+                              padding: "0 12px 12px 0",
+                              fontWeight: 700,
+                              color: "#111",
+                              fontSize: "0.875rem",
+                            }}
+                          >
+                            Course Code
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "left",
+                              padding: "0 12px 12px",
+                              fontWeight: 700,
+                              color: "#111",
+                              fontSize: "0.875rem",
+                            }}
+                          >
+                            Course Descriptive Title
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "center",
+                              padding: "0 12px 12px",
+                              fontWeight: 700,
+                              color: "#111",
+                              fontSize: "0.875rem",
+                            }}
+                          >
+                            Units
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "center",
+                              padding: "0 0 12px 12px",
+                              fontWeight: 700,
+                              color: "#111",
+                              fontSize: "0.875rem",
+                            }}
+                          >
+                            Grade
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {current.courses.map((c, i) => (
+                          <tr key={i}>
+                            <td
+                              style={{
+                                padding: "10px 12px 10px 0",
+                                fontWeight: 500,
+                                color: "#222",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {c.code || "\u2014"}
+                            </td>
+                            <td style={{ padding: "10px 12px", color: "#222" }}>
+                              {c.name || "\u2014"}
+                            </td>
+                            <td
+                              style={{
+                                textAlign: "center",
+                                padding: "10px 12px",
+                                color: "#222",
+                                fontWeight: 500,
+                              }}
+                            >
+                              {c.units ?? "\u2014"}
+                            </td>
+                            <td
+                              style={{
+                                textAlign: "center",
+                                padding: "10px 0 10px 12px",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  width: 34,
+                                  height: 30,
+                                  border: "1.5px solid #FFC107",
+                                  borderRadius: 6,
+                                  fontWeight: 700,
+                                  fontSize: "0.85rem",
+                                  color:
+                                    c.status === "passed"
+                                      ? "#333"
+                                      : c.status === "failed"
+                                        ? "#c0392b"
+                                        : "#888",
+                                  background: "transparent",
+                                }}
+                              >
+                                {c.grade ||
+                                  (c.status === "pending"
+                                    ? "\u2014"
+                                    : c.status)}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: "28px 0 12px",
+                        color: "#bfa040",
+                        fontSize: "0.88rem",
+                      }}
+                    >
+                      No study plan data available yet.
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer hint */}
+                <div
+                  style={{
+                    textAlign: "center",
+                    fontSize: "0.78rem",
+                    color: "#999",
+                  }}
+                >
+                  &#8592; Use arrows to navigate between semesters &#8594;
+                </div>
+              </div>
+            );
+          })()}
+      </div>
+    </StudentLayout>
   );
 };
 

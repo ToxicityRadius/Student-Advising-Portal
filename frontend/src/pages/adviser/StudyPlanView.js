@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Badge, Button, Card, Form, Spinner, Table } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
+import AdviserLayout from '../../components/adviser/AdviserLayout';
 
 const slotLabels = {
   '1-1': 'Year 1 • 1st Semester',
@@ -161,7 +162,7 @@ const StudyPlanView = () => {
   };
 
   return (
-    <div className="container py-4">
+    <AdviserLayout activePage="students" pageTitle="Study Plan View">
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
           <h2 className="mb-1">Study Plan View</h2>
@@ -303,7 +304,7 @@ const StudyPlanView = () => {
           )}
         </>
       ) : null}
-    </div>
+    </AdviserLayout>
   );
 };
 

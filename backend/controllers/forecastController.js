@@ -85,22 +85,33 @@ const getCurrentAcademicTerm = async (transaction) => AcademicTerm.findOne({
 });
 
 const getDemandDataForTerm = async ({ term, semesterOffset = 0, transaction }) => {
+  // Pre-compute the target semester for DB-level filtering.
+  // The semester component after advancing is deterministic (same for all students).
+  // Only yearLevel varies per-student and is checked in JS below.
+  let semesterForFilter = normalizeNumber(term.semester);
+  for (let idx = 0; idx < semesterOffset; idx += 1) {
+    semesterForFilter = advanceSlot({ yearLevel: 1, semester: semesterForFilter }).semester;
+  }
+
   const versions = await StudyPlanVersion.findAll({
     where: { status: 'active' },
+    attributes: ['id'],
     include: [
       {
         model: StudyPlan,
+        required: true,
         attributes: ['id', 'studentAcademicRecordId'],
         include: [{
           model: StudentAcademicRecord,
-          attributes: ['id', 'studentName', 'studentNumber', 'yearLevel']
+          required: true,
+          attributes: ['yearLevel']
         }]
       },
       {
         model: StudyPlanCourse,
         required: false,
-        where: { status: 'pending' },
-        attributes: ['id', 'courseId', 'yearLevel', 'semester', 'status'],
+        where: { status: 'pending', semester: semesterForFilter },
+        attributes: ['courseId', 'yearLevel'],
         include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
       }
     ],
@@ -115,25 +126,25 @@ const getDemandDataForTerm = async ({ term, semesterOffset = 0, transaction }) =
       return;
     }
 
-    let targetSlot = {
-      yearLevel: normalizeNumber(sar.yearLevel),
-      semester: normalizeNumber(term.semester)
-    };
+    let targetYearLevel = normalizeNumber(sar.yearLevel);
+    let tempSemester = normalizeNumber(term.semester);
 
-    if (!targetSlot.yearLevel || !targetSlot.semester) {
+    if (!targetYearLevel || !tempSemester) {
       return;
     }
 
     for (let index = 0; index < semesterOffset; index += 1) {
-      targetSlot = advanceSlot(targetSlot);
+      const advanced = advanceSlot({ yearLevel: targetYearLevel, semester: tempSemester });
+      targetYearLevel = advanced.yearLevel;
+      tempSemester = advanced.semester;
     }
 
     const countedCoursesForStudent = new Set();
 
     (version.StudyPlanCourses || []).forEach((entry) => {
+      // semester already filtered at DB level; only check yearLevel per-student
       if (
-        normalizeNumber(entry.yearLevel) !== targetSlot.yearLevel ||
-        normalizeNumber(entry.semester) !== targetSlot.semester ||
+        normalizeNumber(entry.yearLevel) !== targetYearLevel ||
         !entry.Course
       ) {
         return;

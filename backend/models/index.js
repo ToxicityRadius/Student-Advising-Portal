@@ -16,12 +16,12 @@ const StudyPlanCourse = require('./StudyPlanCourse');
 const ForecastSnapshot = require('./ForecastSnapshot');
 
 // Self-referential adviser relationship (still used by profile fields)
-User.hasMany(User, { as: 'Advisees', foreignKey: 'adviserId', constraints: false });
-User.belongsTo(User, { as: 'Adviser', foreignKey: 'adviserId', constraints: false });
+User.hasMany(User, { as: 'Advisees', foreignKey: 'adviserId', onDelete: 'SET NULL' });
+User.belongsTo(User, { as: 'Adviser', foreignKey: 'adviserId', onDelete: 'SET NULL' });
 
 // User's selected curriculum (profile canonical reference)
-User.belongsTo(Curriculum, { as: 'CurriculumRef', foreignKey: 'curriculum_id', constraints: false });
-Curriculum.hasMany(User, { as: 'EnrolledStudents', foreignKey: 'curriculum_id', constraints: false });
+User.belongsTo(Curriculum, { as: 'CurriculumRef', foreignKey: 'curriculum_id', onDelete: 'SET NULL' });
+Curriculum.hasMany(User, { as: 'EnrolledStudents', foreignKey: 'curriculum_id', onDelete: 'SET NULL' });
 
 // Curriculum <-> CurriculumCourse <-> Course
 Curriculum.hasMany(CurriculumCourse, { foreignKey: 'curriculumId' });

@@ -1,6 +1,8 @@
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const https = require('https');
 const {
   StudentAcademicRecord,
   StudyPlan,
@@ -193,25 +195,108 @@ const resolveUploadPathFromPublicPath = (publicPath) => {
 
   const normalized = String(publicPath).replace(/\\/g, '/');
   const relative = normalized.replace(/^\/uploads\//, '');
-  return path.join(__dirname, '../uploads', relative);
+  const uploadsRoot = path.resolve(__dirname, '../uploads');
+  const resolved = path.resolve(uploadsRoot, relative);
+
+  // Prevent path traversal: reject any path that escapes the uploads directory
+  if (!resolved.startsWith(uploadsRoot + path.sep) && resolved !== uploadsRoot) {
+    return null;
+  }
+
+  return resolved;
 };
 
-const drawProfilePhoto = (doc, profilePicturePath) => {
+const PRIVATE_IP_PATTERN = /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.)/;
+const MAX_REMOTE_IMAGE_BYTES = 5 * 1024 * 1024;
+const REMOTE_IMAGE_TIMEOUT_MS = 5000;
+
+const downloadImageBuffer = (url) => new Promise((resolve, reject) => {
+  // Only allow HTTPS to prevent cleartext transmission and SSRF via redirects
+  if (!url.startsWith('https://')) {
+    return reject(new Error('Only HTTPS image URLs are permitted'));
+  }
+
+  let hostname;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    return reject(new Error('Invalid image URL'));
+  }
+
+  // Block SSRF against localhost and private/internal network addresses
+  if (hostname === 'localhost' || PRIVATE_IP_PATTERN.test(hostname)) {
+    return reject(new Error('Image URL targets a blocked address'));
+  }
+
+  const request = https.get(url, (response) => {
+    if (response.statusCode && response.statusCode >= 400) {
+      response.resume();
+      reject(new Error(`Image request failed with status ${response.statusCode}`));
+      return;
+    }
+
+    const contentLength = parseInt(response.headers['content-length'] || '0', 10);
+    if (contentLength > MAX_REMOTE_IMAGE_BYTES) {
+      response.resume();
+      reject(new Error('Remote image exceeds maximum allowed size'));
+      return;
+    }
+
+    const chunks = [];
+    let totalBytes = 0;
+    response.on('data', (chunk) => {
+      totalBytes += chunk.length;
+      if (totalBytes > MAX_REMOTE_IMAGE_BYTES) {
+        response.destroy();
+        reject(new Error('Remote image exceeds maximum allowed size'));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    response.on('end', () => resolve(Buffer.concat(chunks)));
+  });
+
+  request.setTimeout(REMOTE_IMAGE_TIMEOUT_MS, () => {
+    request.destroy();
+    reject(new Error('Image download timed out'));
+  });
+  request.on('error', reject);
+});
+
+const drawProfilePhoto = async (doc, profilePicturePath) => {
+  const photoSize = 72;
+  const drawX = doc.page.width - doc.page.margins.right - photoSize;
+  const drawY = 45;
   const localImagePath = resolveUploadPathFromPublicPath(profilePicturePath);
 
-  if (!localImagePath || !fs.existsSync(localImagePath)) {
+  if (localImagePath && fs.existsSync(localImagePath)) {
+    try {
+      doc.image(localImagePath, drawX, drawY, {
+        fit: [photoSize, photoSize],
+        align: 'center',
+        valign: 'center'
+      });
+    } catch {
+      // Skip photo rendering if PDFKit cannot parse the image.
+    }
+
+    return;
+  }
+
+  // Only attempt remote fetch for HTTPS URLs (http:// is also blocked inside downloadImageBuffer)
+  if (!/^https:\/\//i.test(String(profilePicturePath || ''))) {
     return;
   }
 
   try {
-    const photoSize = 72;
-    doc.image(localImagePath, doc.page.width - doc.page.margins.right - photoSize, 45, {
+    const remoteBuffer = await downloadImageBuffer(profilePicturePath);
+    doc.image(remoteBuffer, drawX, drawY, {
       fit: [photoSize, photoSize],
       align: 'center',
       valign: 'center'
     });
   } catch {
-    // Skip photo rendering if PDFKit cannot parse the image.
+    // Skip photo rendering if remote image cannot be downloaded or parsed.
   }
 };
 
@@ -519,7 +604,7 @@ exports.exportSARPDF = async (req, res, next) => {
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
     doc.pipe(res);
 
-    drawProfilePhoto(doc, sar.Student?.profile_picture);
+    await drawProfilePhoto(doc, sar.Student?.profile_picture);
 
     doc.fontSize(17).font('Helvetica-Bold').fillColor('#111111').text('Technological Institute of the Philippines', {
       align: 'center'

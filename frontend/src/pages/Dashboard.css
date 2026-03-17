@@ -1,0 +1,83 @@
+/* Dashboard Responsive Styles */
+
+/* Default / Desktop */
+
+.dashboard-mobile-menu-btn {
+  display: none;
+  border: 0;
+  background: rgba(255, 255, 255, 0.28);
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.dashboard-mobile-overlay {
+  display: none;
+}
+
+/* Tablet: 1024px and below */
+@media (max-width: 1024px) {
+}
+
+/* Mobile: 780px and below */
+@media (max-width: 780px) {
+  .dashboard-sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    z-index: 220 !important;
+  }
+
+  .dashboard-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .dashboard-main-shell {
+    margin-left: 0 !important;
+  }
+
+  .dashboard-topbar {
+    padding: 0 12px !important;
+  }
+
+  .dashboard-topbar > div:first-child {
+    gap: 10px !important;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .dashboard-topbar > div:first-child img {
+    height: 34px !important;
+    width: auto;
+  }
+
+  .dashboard-topbar > div:first-child > div {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.75rem !important;
+  }
+
+  .dashboard-mobile-menu-btn {
+    display: inline-flex;
+  }
+
+  .dashboard-mobile-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    border: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 210;
+    cursor: pointer;
+  }
+
+}
+
+/* Small mobile: 480px and below */
+@media (max-width: 480px) {
+}

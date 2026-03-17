@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 import backgroundImage from '../assets/images/bg.png';
 
 const ActivateAccount = () => {
   const { token } = useParams();
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('');
 
@@ -13,11 +15,9 @@ const ActivateAccount = () => {
     const activateAccount = async () => {
       try {
         const response = await api.get(`/auth/activate/${token}`);
-        const { token: authToken, user } = response.data;
-        
-        localStorage.setItem('token', authToken);
-        localStorage.setItem('user', JSON.stringify(user));
-        
+        const { token: authToken } = response.data;
+
+        await login(authToken);
         setStatus('success');
         setMessage('Account activated successfully! Redirecting to dashboard...');
         
@@ -31,6 +31,7 @@ const ActivateAccount = () => {
     };
 
     activateAccount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, navigate]);
 
   return (

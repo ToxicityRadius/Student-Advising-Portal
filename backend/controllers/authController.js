@@ -39,6 +39,7 @@ function sanitizeUser(user) {
   delete plain.resetPasswordExpires;
   delete plain.verificationCode;
   delete plain.verificationCodeExpires;
+  plain.gender = plain.sex ?? null;
   return plain;
 }
 
@@ -47,7 +48,7 @@ function sanitizeUser(user) {
 // @access  Public
 exports.register = async (req, res, next) => {
   try {
-    const { studentId, firstName, lastName, email, password, role: requestedRole } = req.body;
+    const { studentId, firstName, lastName, email, password, role: requestedRole, gender } = req.body;
     const normalizedRequestedRole = requestedRole === 'adviser' ? 'adviser' : requestedRole === 'admin' ? 'admin' : 'student';
     const isFaculty = normalizedRequestedRole === 'adviser';
     const emailLower = (email || '').toLowerCase();
@@ -150,6 +151,9 @@ exports.register = async (req, res, next) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Create user - assign role based on request
+    const ALLOWED_SEX = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
+    const sexValue = gender && ALLOWED_SEX.includes(gender) ? gender : null;
+
     const user = await User.create({
       studentId: isFaculty ? null : studentId,
       firstName,
@@ -159,6 +163,7 @@ exports.register = async (req, res, next) => {
       email: emailLower,
       password: hashedPassword,
       role: isFaculty ? 'adviser' : 'student',
+      sex: sexValue,
       activationToken,
       activationTokenExpires,
       createdAt: Date.now(),
@@ -251,7 +256,7 @@ exports.activateAccount = async (req, res, next) => {
     const acceptsHtml = (req.headers.accept || '').includes('text/html');
     const mobileScheme = process.env.MOBILE_APP_SCHEME || 'studentadvising';
     const mobileDeepLink = `${mobileScheme}://login?activated=1`;
-    const webLoginUrl = `${(process.env.CLIENT_URL || 'http://localhost:3000').replace(/\/$/, '')}/login?activated=1`;
+    const webLoginUrl = `${(process.env.CLIENT_URL || 'http://localhost:3000').split(',')[0].trim().replace(/\/$/, '')}/login?activated=1`;
 
     if (acceptsHtml) {
       return res.status(200).send(`
@@ -354,6 +359,15 @@ exports.login = async (req, res, next) => {
       });
     }
 
+    // Account lockout check (Step 3.1)
+    if (user.lockedUntil && user.lockedUntil > Date.now()) {
+      const secondsRemaining = Math.ceil((user.lockedUntil - Date.now()) / 1000);
+      return res.status(429).json({
+        success: false,
+        message: `Account temporarily locked due to too many failed login attempts. Try again in ${secondsRemaining} seconds.`
+      });
+    }
+
     if (user.role === 'student') {
       await linkStudentAccountToSar({
         userId: user.id,
@@ -381,6 +395,13 @@ exports.login = async (req, res, next) => {
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
+      // Increment failed login counter; lock account after 5 consecutive failures (Step 3.1)
+      const newAttempts = (user.failedLoginAttempts || 0) + 1;
+      const lockUpdate = { failedLoginAttempts: newAttempts, updatedAt: Date.now() };
+      if (newAttempts >= 5) {
+        lockUpdate.lockedUntil = Date.now() + 15 * 60 * 1000; // 15-minute lockout
+      }
+      await User.update(lockUpdate, { where: { id: user.id } });
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials. If you signed up with Google, please use the "Sign in with Google" button.'
@@ -441,8 +462,13 @@ exports.login = async (req, res, next) => {
         requiresVerification: true
       });
     } else {
-      // 2FA disabled - log in directly
-      await User.update({ lastLogin: Date.now(), updatedAt: Date.now() }, { where: { id: user.id } });
+      // 2FA disabled - log in directly; reset lockout counters on success (Step 3.1)
+      await User.update({
+        lastLogin: Date.now(),
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        updatedAt: Date.now()
+      }, { where: { id: user.id } });
       const updatedUser = await User.findByPk(user.id);
       sendTokenResponse(updatedUser, 200, res);
     }
@@ -885,9 +911,10 @@ exports.forgotPassword = async (req, res, next) => {
     const user = await User.findOne({ where: { email } });
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'No account found with that email address.'
+      // Return success regardless to prevent account enumeration (Step 3.7)
+      return res.status(200).json({
+        success: true,
+        message: 'If an account exists with that email, a password reset link has been sent.'
       });
     }
 
@@ -923,10 +950,17 @@ exports.resetPassword = async (req, res, next) => {
     const { token } = req.params;
     const { password } = req.body;
 
-    if (!password || password.length < 6) {
+    if (!password || password.length < 8) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 6 characters'
+        message: 'Password must be at least 8 characters'
+      });
+    }
+
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
       });
     }
 
@@ -961,8 +995,10 @@ exports.resetPassword = async (req, res, next) => {
       updatedAt: Date.now()
     }, { where: { id: result.id } });
 
-    const updatedUser = await User.findByPk(result.id);
-    sendTokenResponse(updatedUser, 200, res);
+    return res.status(200).json({
+      success: true,
+      message: 'Password has been reset successfully. Please log in with your new password.'
+    });
   } catch (error) {
     next(error);
   }
@@ -982,7 +1018,7 @@ exports.refreshToken = async (req, res, next) => {
       });
     }
 
-    const { verifyRefreshToken, generateToken } = require('../utils/jwt');
+    const { verifyRefreshToken, generateToken, generateRefreshToken } = require('../utils/jwt');
     const decoded = verifyRefreshToken(refreshToken);
 
     if (!decoded) {
@@ -1000,11 +1036,28 @@ exports.refreshToken = async (req, res, next) => {
       });
     }
 
+    // Rotation: verify token matches what was last issued for this user (Step 3.2)
+    if (!user.refreshToken || user.refreshToken !== refreshToken) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired refresh token'
+      });
+    }
+
     const newToken = generateToken(user);
+    const newRefreshToken = generateRefreshToken(user.id);
+
+    // Invalidate old token by overwriting with the newly issued one
+    await User.update({
+      refreshToken: newRefreshToken,
+      refreshTokenExpires: Date.now() + (30 * 24 * 60 * 60 * 1000),
+      updatedAt: Date.now()
+    }, { where: { id: user.id } });
 
     res.json({
       success: true,
       token: newToken,
+      refreshToken: newRefreshToken,
       user: {
         id: user.id,
         firstName: user.firstName,
