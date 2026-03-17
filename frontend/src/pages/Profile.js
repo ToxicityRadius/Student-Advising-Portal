@@ -71,14 +71,16 @@ const Profile = () => {
           api.get('/terms/current').catch(() => ({ data: { data: null } }))
         ]);
 
-        let curriculaRes = { data: { curriculums: [] } };
-        if (user?.role !== 'student') {
-          try {
-            const curriculaData = await fetchCurriculumsCached({ page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' });
-            curriculaRes = { data: curriculaData };
-          } catch {
-            curriculaRes = { data: { curriculums: [] } };
+        let curriculaData = { curriculums: [] };
+        try {
+          if (user?.role === 'student') {
+            const optionsResponse = await api.get('/users/curriculum-options');
+            curriculaData = { items: optionsResponse?.data?.items || [] };
+          } else {
+            curriculaData = await fetchCurriculumsCached({ page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' });
           }
+        } catch {
+          curriculaData = { curriculums: [] };
         }
 
         const profile = profileRes.data.user || {};
@@ -95,7 +97,7 @@ const Profile = () => {
         }
 
         setIsProfileLockedForCurrentTerm(lockFromServer || lockFromFallback);
-        setCurricula(curriculaRes.data?.items || curriculaRes.data?.data || curriculaRes.data?.curriculums || []);
+        setCurricula(curriculaData?.items || curriculaData?.data || curriculaData?.curriculums || []);
 
         setFormData((prev) => ({
           ...prev,
@@ -158,8 +160,10 @@ const Profile = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (user?.role === 'student' && isProfileLockedForCurrentTerm) {
-      setError(`Your profile is already submitted for ${currentProfileTermLabel}. You can update it again next term.`);
+    const hasPictureChange = Boolean(formData.profile_picture) || removeProfilePicture;
+
+    if (user?.role === 'student' && isProfileLockedForCurrentTerm && !hasPictureChange) {
+      setError(`Profile details are locked for ${currentProfileTermLabel}. You can still update your profile picture.`);
       return;
     }
 
@@ -170,23 +174,27 @@ const Profile = () => {
 
     try {
       const payload = new FormData();
-      payload.append('first_name', formData.first_name);
-      payload.append('middle_name', formData.middle_name);
-      payload.append('last_name', formData.last_name);
-      payload.append('suffix', formData.suffix);
-      payload.append('preferred_name', formData.preferred_name);
-      payload.append('program', formData.program);
-      payload.append('year_level', formData.year_level);
-      payload.append('curriculum_id', formData.curriculum_id);
-      payload.append('student_type', formData.student_type);
-      payload.append('contact_number', formData.contact_number);
-      payload.append('alternate_email', formData.alternate_email);
-      payload.append('sex', formData.sex);
-      payload.append('citizenship', formData.citizenship);
-      payload.append('address', formData.address);
-      payload.append('emergency_contact_name', formData.emergency_contact_name);
-      payload.append('emergency_contact_relationship', formData.emergency_contact_relationship);
-      payload.append('emergency_contact_number', formData.emergency_contact_number);
+
+      if (!(user?.role === 'student' && isProfileLockedForCurrentTerm)) {
+        payload.append('first_name', formData.first_name);
+        payload.append('middle_name', formData.middle_name);
+        payload.append('last_name', formData.last_name);
+        payload.append('suffix', formData.suffix);
+        payload.append('preferred_name', formData.preferred_name);
+        payload.append('program', formData.program);
+        payload.append('year_level', formData.year_level);
+        payload.append('curriculum_id', formData.curriculum_id);
+        payload.append('student_type', formData.student_type);
+        payload.append('contact_number', formData.contact_number);
+        payload.append('alternate_email', formData.alternate_email);
+        payload.append('sex', formData.sex);
+        payload.append('citizenship', formData.citizenship);
+        payload.append('address', formData.address);
+        payload.append('emergency_contact_name', formData.emergency_contact_name);
+        payload.append('emergency_contact_relationship', formData.emergency_contact_relationship);
+        payload.append('emergency_contact_number', formData.emergency_contact_number);
+      }
+
       if (formData.profile_picture) {
         payload.append('profile_picture', formData.profile_picture);
       }
@@ -207,6 +215,7 @@ const Profile = () => {
       }
 
       setSuccess('Profile updated successfully');
+      window.location.reload();
     } catch (err) {
       const data = err.response?.data;
       if (data?.errors) {
@@ -276,7 +285,7 @@ const Profile = () => {
           </div>
           <ProgressBar variant={scoreVariant} now={completionScore} style={{ height: '10px' }} />
           {completionScore < 100 && (
-            <small className="text-muted mt-1 d-block">Fill in all profile fields to reach 100%.</small>
+            <small className="text-muted mt-1 d-block">Complete all required fields (marked with *) to reach 100%.</small>
           )}
         </Card.Body>
       </Card>
@@ -287,9 +296,10 @@ const Profile = () => {
 
           {error && <Alert variant="danger">{error}</Alert>}
           {success && <Alert variant="success">{success}</Alert>}
+          <p className="text-muted small mb-3">Fields marked with <span className="text-danger">*</span> are required for profile completion.</p>
           {user?.role === 'student' && isProfileLockedForCurrentTerm && (
             <Alert variant="warning" className="mb-3">
-              Profile editing is locked for {currentProfileTermLabel}. You may update your profile again when a new term is activated.
+              Profile details are locked for {currentProfileTermLabel}. Only profile picture updates are available until the next term.
             </Alert>
           )}
 
@@ -373,8 +383,8 @@ const Profile = () => {
                   </Col>
                   <Col md={4}>
                     <Form.Group className="mb-3">
-                      <Form.Label>Program</Form.Label>
-                      <Form.Select name="program" value={formData.program} onChange={handleChange}>
+                      <Form.Label>Program <span className="text-danger">*</span></Form.Label>
+                      <Form.Select name="program" value={formData.program} onChange={handleChange} required>
                         <option value="">Select Program</option>
                         {programOptions.map((p) => <option key={p} value={p}>{p}</option>)}
                       </Form.Select>
@@ -382,8 +392,8 @@ const Profile = () => {
                   </Col>
                   <Col md={4}>
                     <Form.Group className="mb-3">
-                      <Form.Label>Year Level</Form.Label>
-                      <Form.Select name="year_level" value={formData.year_level} onChange={handleChange} isInvalid={!!fieldErrors.year_level}>
+                      <Form.Label>Year Level <span className="text-danger">*</span></Form.Label>
+                      <Form.Select name="year_level" value={formData.year_level} onChange={handleChange} isInvalid={!!fieldErrors.year_level} required>
                         <option value="">Select Year Level</option>
                         {[1, 2, 3, 4, 5].map((y) => <option key={y} value={y}>{y}</option>)}
                       </Form.Select>
@@ -394,8 +404,8 @@ const Profile = () => {
                 <Row>
                   <Col md={6}>
                     <Form.Group className="mb-3">
-                      <Form.Label>Curriculum</Form.Label>
-                      <Form.Select name="curriculum_id" value={formData.curriculum_id} onChange={handleChange} isInvalid={!!fieldErrors.curriculum_id}>
+                      <Form.Label>Curriculum <span className="text-danger">*</span></Form.Label>
+                      <Form.Select name="curriculum_id" value={formData.curriculum_id} onChange={handleChange} isInvalid={!!fieldErrors.curriculum_id} required>
                         <option value="">Select Curriculum</option>
                         {curricula.map((c) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
                       </Form.Select>
@@ -404,8 +414,8 @@ const Profile = () => {
                   </Col>
                   <Col md={6}>
                     <Form.Group className="mb-3">
-                      <Form.Label>Student Type</Form.Label>
-                      <Form.Select name="student_type" value={formData.student_type} onChange={handleChange} isInvalid={!!fieldErrors.student_type}>
+                      <Form.Label>Student Type <span className="text-danger">*</span></Form.Label>
+                      <Form.Select name="student_type" value={formData.student_type} onChange={handleChange} isInvalid={!!fieldErrors.student_type} required>
                         <option value="">Select Type</option>
                         {studentTypeOptions.map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
                       </Form.Select>
@@ -445,13 +455,14 @@ const Profile = () => {
             <Row>
               <Col md={6}>
                 <Form.Group className="mb-3">
-                  <Form.Label>Mobile Number</Form.Label>
+                  <Form.Label>Mobile Number <span className="text-danger">*</span></Form.Label>
                   <Form.Control
                     name="contact_number"
                     value={formData.contact_number}
                     onChange={handleChange}
                     isInvalid={!!fieldErrors.contact_number}
                     placeholder="+63 9XX XXX XXXX"
+                    required
                   />
                   <Form.Control.Feedback type="invalid">{fieldErrors.contact_number}</Form.Control.Feedback>
                 </Form.Group>
@@ -465,8 +476,8 @@ const Profile = () => {
             <Row>
               <Col md={6}>
                 <Form.Group className="mb-3">
-                  <Form.Label>Sex</Form.Label>
-                  <Form.Select name="sex" value={formData.sex} onChange={handleChange} isInvalid={!!fieldErrors.sex}>
+                  <Form.Label>Sex <span className="text-danger">*</span></Form.Label>
+                  <Form.Select name="sex" value={formData.sex} onChange={handleChange} isInvalid={!!fieldErrors.sex} required>
                     <option value="">Select</option>
                     {sexOptions.map((s) => <option key={s} value={s}>{s}</option>)}
                   </Form.Select>
@@ -475,12 +486,13 @@ const Profile = () => {
               </Col>
               <Col md={6}>
                 <Form.Group className="mb-3">
-                  <Form.Label>Citizenship</Form.Label>
+                  <Form.Label>Citizenship <span className="text-danger">*</span></Form.Label>
                   <Form.Control
                     name="citizenship"
                     value={formData.citizenship}
                     onChange={handleChange}
                     placeholder="e.g. Filipino"
+                    required
                   />
                 </Form.Group>
               </Col>
@@ -491,7 +503,7 @@ const Profile = () => {
             {/* ── Location ── */}
             <h6 className="text-uppercase text-muted mb-2" style={{ letterSpacing: '0.08em' }}>Location</h6>
             <Form.Group className="mb-3">
-              <Form.Label>Current Address</Form.Label>
+              <Form.Label>Current Address <span className="text-danger">*</span></Form.Label>
               <Form.Control
                 as="textarea"
                 name="address"
@@ -499,6 +511,7 @@ const Profile = () => {
                 value={formData.address}
                 onChange={handleChange}
                 placeholder="House/Unit No., Street, Barangay, City, Province"
+                required
               />
             </Form.Group>
 
@@ -509,8 +522,8 @@ const Profile = () => {
             <Row>
               <Col md={5}>
                 <Form.Group className="mb-3">
-                  <Form.Label>Name</Form.Label>
-                  <Form.Control name="emergency_contact_name" value={formData.emergency_contact_name} onChange={handleChange} />
+                  <Form.Label>Name <span className="text-danger">*</span></Form.Label>
+                  <Form.Control name="emergency_contact_name" value={formData.emergency_contact_name} onChange={handleChange} required />
                 </Form.Group>
               </Col>
               <Col md={4}>
@@ -521,16 +534,18 @@ const Profile = () => {
               </Col>
               <Col md={3}>
                 <Form.Group className="mb-3">
-                  <Form.Label>Contact Number</Form.Label>
-                  <Form.Control name="emergency_contact_number" value={formData.emergency_contact_number} onChange={handleChange} />
+                  <Form.Label>Contact Number <span className="text-danger">*</span></Form.Label>
+                  <Form.Control name="emergency_contact_number" value={formData.emergency_contact_number} onChange={handleChange} required />
                 </Form.Group>
               </Col>
             </Row>
 
+            </fieldset>
+
             <hr />
 
             {/* ── Profile Picture ── */}
-            <h6 className="text-uppercase text-muted mb-2" style={{ letterSpacing: '0.08em' }}>Profile Photo</h6>
+            <h6 className="text-uppercase text-muted mb-2" style={{ letterSpacing: '0.08em' }}>Profile Photo <span className="text-danger">*</span></h6>
             <div className="d-flex align-items-center gap-3 mb-4">
               {preview ? (
                 <Image src={preview} roundedCircle width={80} height={80} style={{ objectFit: 'cover', flexShrink: 0 }} />
@@ -552,9 +567,12 @@ const Profile = () => {
             </div>
 
             <Button type="submit" variant="warning" disabled={saving}>
-              {saving ? 'Saving...' : 'Save Changes'}
+              {saving
+                ? 'Saving...'
+                : user?.role === 'student' && isProfileLockedForCurrentTerm
+                ? 'Update Profile Picture'
+                : 'Save Changes'}
             </Button>
-            </fieldset>
           </Form>
         </Card.Body>
       </Card>

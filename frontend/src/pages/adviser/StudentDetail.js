@@ -59,7 +59,27 @@ const StudentDetail = () => {
     setEditSubmitting(true);
     setAlert({ variant: '', message: '' });
     try {
-      await api.put(`/sars/${sar.id}`, payload);
+      const formData = new FormData();
+      formData.append('studentName', payload.studentName);
+      formData.append('studentNumber', payload.studentNumber);
+      formData.append('yearLevel', payload.yearLevel);
+      formData.append('curriculumId', payload.curriculumId);
+
+      if (payload.studentProfile) {
+        formData.append('studentProfile', JSON.stringify(payload.studentProfile));
+      }
+
+      if (payload.profilePicture) {
+        formData.append('profile_picture', payload.profilePicture);
+      }
+
+      if (payload.removeProfilePicture) {
+        formData.append('remove_profile_picture', 'true');
+      }
+
+      await api.put(`/sars/${sar.id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       await loadSarData();
       setAlert({ variant: 'success', message: 'Student academic record updated successfully.' });
     } catch (error) {

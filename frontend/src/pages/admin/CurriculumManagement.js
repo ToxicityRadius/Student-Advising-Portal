@@ -482,7 +482,7 @@ const CurriculumManagement = () => {
                         }}
                       />
                     </Col>
-                    <Col md={3} className="d-grid">
+                    <Col md={3} className="d-flex align-items-end">
                       <Button variant="outline-primary" onClick={exportCsv} disabled={exporting || importing || !selectedCurriculumIdForCsv}>
                         {exporting ? 'Exporting...' : 'Export CSV'}
                       </Button>

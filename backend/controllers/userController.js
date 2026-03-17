@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { User, AcademicTerm } = require('../models');
+const { User, AcademicTerm, Curriculum } = require('../models');
 const { generateToken } = require('../utils/jwt');
 const { linkStudentAccountToSar, syncProfileToSar } = require('../utils/sarLinking');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
@@ -77,19 +77,30 @@ const resolveUploadPathFromPublicPath = (publicPath) => {
   return path.join(__dirname, '../uploads', relative);
 };
 
-// Compute profile completion score (0-100) for a user object/plain object
-function computeProfileCompletionScore(user) {
-  const commonFields = [
-    'first_name', 'last_name', 'contact_number',
-    'sex', 'address', 'alternate_email',
-    'emergency_contact_name', 'emergency_contact_number',
-    'citizenship', 'profile_picture'
-  ];
-  const studentOnlyFields = ['program', 'curriculum_id', 'student_type'];
+const REQUIRED_PROFILE_FIELDS_COMMON = [
+  'first_name',
+  'last_name',
+  'contact_number',
+  'sex',
+  'citizenship',
+  'address',
+  'emergency_contact_name',
+  'emergency_contact_number',
+  'profile_picture'
+];
 
+const REQUIRED_PROFILE_FIELDS_STUDENT = [
+  'program',
+  'curriculum_id',
+  'student_type',
+  'current_year_level'
+];
+
+// Compute profile completion score (0-100) using required fields only
+function computeProfileCompletionScore(user) {
   const fields = user.role === 'student'
-    ? [...commonFields, ...studentOnlyFields]
-    : commonFields;
+    ? [...REQUIRED_PROFILE_FIELDS_COMMON, ...REQUIRED_PROFILE_FIELDS_STUDENT]
+    : REQUIRED_PROFILE_FIELDS_COMMON;
 
   const filled = fields.filter(f => {
     const val = user[f];
@@ -229,6 +240,26 @@ exports.getUserById = async (req, res, next) => {
         ...sanitizedUser,
         ...lockMeta
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get curriculum options for profile forms
+// @route   GET /api/users/curriculum-options
+// @access  Private
+exports.getCurriculumOptions = async (req, res, next) => {
+  try {
+    const items = await Curriculum.findAll({
+      attributes: ['id', 'name', 'isActive'],
+      order: [['name', 'ASC'], ['id', 'DESC']]
+    });
+
+    res.set('Cache-Control', 'private, max-age=120');
+    return res.status(200).json({
+      success: true,
+      items
     });
   } catch (error) {
     next(error);
@@ -518,17 +549,6 @@ exports.updateProfile = async (req, res, next) => {
       });
 
       currentTermKey = getTermKey(currentTerm);
-
-      if (
-        user.profile_last_submitted_term_key &&
-        user.profile_last_submitted_term_key === currentTermKey
-      ) {
-        await removeLocalFile(uploadedFilePath);
-        return res.status(403).json({
-          success: false,
-          message: 'Profile is already submitted for the current term. You can edit again next term.'
-        });
-      }
     }
 
     const allowedFields = [
@@ -673,11 +693,27 @@ exports.updateProfile = async (req, res, next) => {
       updatePayload.profile_picture = null;
     }
 
+    const nonPictureFieldKeys = Object.keys(updatePayload).filter((field) => field !== 'profile_picture');
+    const hasNonPictureUpdates = nonPictureFieldKeys.length > 0;
+
+    if (
+      isStudentSelfEdit &&
+      user.profile_last_submitted_term_key &&
+      user.profile_last_submitted_term_key === currentTermKey &&
+      hasNonPictureUpdates
+    ) {
+      await removeLocalFile(uploadedFilePath);
+      return res.status(403).json({
+        success: false,
+        message: 'Profile details are already submitted for the current term. Only profile picture can be updated until next term.'
+      });
+    }
+
     const now = Date.now();
     updatePayload.updatedAt = now;
     updatePayload.profile_updated_at = now;
 
-    if (isStudentSelfEdit) {
+    if (isStudentSelfEdit && hasNonPictureUpdates) {
       updatePayload.profile_last_submitted_term_key = currentTermKey || NO_ACTIVE_TERM_KEY;
       updatePayload.profile_submission_locked_at = now;
     }

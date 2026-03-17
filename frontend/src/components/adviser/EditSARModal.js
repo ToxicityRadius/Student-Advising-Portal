@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Button, Form, Modal } from 'react-bootstrap';
+import { Alert, Button, Form, Image, Modal } from 'react-bootstrap';
+import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
 
 const sexOptions = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
 const studentTypeOptions = ['regular', 'irregular', 'transferee', 'ladderized'];
@@ -31,8 +32,11 @@ const EditSARModal = ({
     address: '',
     emergency_contact_name: '',
     emergency_contact_relationship: '',
-    emergency_contact_number: ''
+    emergency_contact_number: '',
+    profile_picture: null,
+    remove_profile_picture: false
   });
+  const [picturePreview, setPicturePreview] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -61,10 +65,21 @@ const EditSARModal = ({
       address: profile.address || '',
       emergency_contact_name: profile.emergency_contact_name || '',
       emergency_contact_relationship: profile.emergency_contact_relationship || '',
-      emergency_contact_number: profile.emergency_contact_number || ''
+      emergency_contact_number: profile.emergency_contact_number || '',
+      profile_picture: null,
+      remove_profile_picture: false
     });
+    setPicturePreview(buildProfileImageUrl(profile.profile_picture));
     setError('');
   }, [show, sar]);
+
+  useEffect(() => {
+    return () => {
+      if (picturePreview && picturePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(picturePreview);
+      }
+    };
+  }, [picturePreview]);
 
   const handleClose = () => {
     setError('');
@@ -74,6 +89,34 @@ const EditSARModal = ({
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((previous) => ({ ...previous, [name]: value }));
+  };
+
+  const handleProfilePictureChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    setForm((previous) => ({
+      ...previous,
+      profile_picture: file,
+      remove_profile_picture: false
+    }));
+
+    if (picturePreview && picturePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(picturePreview);
+    }
+
+    setPicturePreview(file ? URL.createObjectURL(file) : buildProfileImageUrl(sar?.Student?.profile_picture));
+  };
+
+  const handleRemoveProfilePicture = () => {
+    if (picturePreview && picturePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(picturePreview);
+    }
+
+    setForm((previous) => ({
+      ...previous,
+      profile_picture: null,
+      remove_profile_picture: true
+    }));
+    setPicturePreview('');
   };
 
   const handleSubmit = async (event) => {
@@ -124,6 +167,9 @@ const EditSARModal = ({
           emergency_contact_relationship: form.emergency_contact_relationship,
           emergency_contact_number: form.emergency_contact_number
         };
+
+        payload.profilePicture = form.profile_picture || null;
+        payload.removeProfilePicture = form.remove_profile_picture;
       }
 
       await onSubmit(payload);
@@ -200,6 +246,37 @@ const EditSARModal = ({
               <Form.Group className="mb-3">
                 <Form.Label>First Name</Form.Label>
                 <Form.Control name="first_name" value={form.first_name} onChange={handleChange} />
+              </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label>Profile Picture</Form.Label>
+                <div className="d-flex align-items-center gap-3 mb-2">
+                  {picturePreview ? (
+                    <Image src={picturePreview} roundedCircle width={56} height={56} style={{ objectFit: 'cover' }} />
+                  ) : (
+                    <div
+                      className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center"
+                      style={{ width: 56, height: 56, fontWeight: 700 }}
+                    >
+                      {getInitials(form.studentName)}
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline-secondary"
+                    size="sm"
+                    onClick={handleRemoveProfilePicture}
+                    disabled={!picturePreview && !sar?.Student?.profile_picture}
+                  >
+                    Remove Picture
+                  </Button>
+                </div>
+                <Form.Control
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleProfilePictureChange}
+                />
+                <Form.Text className="text-muted">JPEG, PNG, or WEBP. Max 5 MB. Recommended up to 2000x2000.</Form.Text>
               </Form.Group>
 
               <Form.Group className="mb-3">

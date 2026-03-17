@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Col,
+  Collapse,
   Image,
   ListGroup,
   Nav,
@@ -67,6 +68,7 @@ const SARLayout = ({
   isActionLoading = false,
 }) => {
   const [activeTab, setActiveTab] = useState('profile');
+  const [showFullIdentity, setShowFullIdentity] = useState(false);
 
   const isStudentView = role === 'student';
   const canManagePlan = role === 'adviser' || role === 'admin';
@@ -208,59 +210,75 @@ const SARLayout = ({
                         <span className="text-muted">Student Type</span>
                         <strong>{sar.Student?.student_type || analytics?.tags?.studentType || 'N/A'}</strong>
                       </ListGroup.Item>
-                      <ListGroup.Item className="px-0 d-flex justify-content-between">
-                        <span className="text-muted">First Name</span>
-                        <strong>{sar.Student?.first_name || 'N/A'}</strong>
-                      </ListGroup.Item>
-                      <ListGroup.Item className="px-0 d-flex justify-content-between">
-                        <span className="text-muted">Middle Name</span>
-                        <strong>{sar.Student?.middle_name || 'N/A'}</strong>
-                      </ListGroup.Item>
-                      <ListGroup.Item className="px-0 d-flex justify-content-between">
-                        <span className="text-muted">Last Name</span>
-                        <strong>{sar.Student?.last_name || 'N/A'}</strong>
-                      </ListGroup.Item>
-                      <ListGroup.Item className="px-0 d-flex justify-content-between">
-                        <span className="text-muted">Suffix</span>
-                        <strong>{sar.Student?.suffix || 'N/A'}</strong>
-                      </ListGroup.Item>
-                      <ListGroup.Item className="px-0 d-flex justify-content-between">
-                        <span className="text-muted">Preferred Name</span>
-                        <strong>{sar.Student?.preferred_name || 'N/A'}</strong>
-                      </ListGroup.Item>
-                      <ListGroup.Item className="px-0 d-flex justify-content-between">
-                        <span className="text-muted">Contact Number</span>
-                        <strong>{sar.Student?.contact_number || 'N/A'}</strong>
-                      </ListGroup.Item>
-                      <ListGroup.Item className="px-0 d-flex justify-content-between">
-                        <span className="text-muted">Alternate Email</span>
-                        <strong>{sar.Student?.alternate_email || 'N/A'}</strong>
-                      </ListGroup.Item>
-                      <ListGroup.Item className="px-0 d-flex justify-content-between">
-                        <span className="text-muted">Sex</span>
-                        <strong>{sar.Student?.sex || 'N/A'}</strong>
-                      </ListGroup.Item>
-                      <ListGroup.Item className="px-0 d-flex justify-content-between">
-                        <span className="text-muted">Citizenship</span>
-                        <strong>{sar.Student?.citizenship || 'N/A'}</strong>
-                      </ListGroup.Item>
-                      <ListGroup.Item className="px-0 d-flex justify-content-between">
-                        <span className="text-muted">Emergency Contact</span>
-                        <strong>{sar.Student?.emergency_contact_name || 'N/A'}</strong>
-                      </ListGroup.Item>
-                      <ListGroup.Item className="px-0 d-flex justify-content-between">
-                        <span className="text-muted">Emergency Relationship</span>
-                        <strong>{sar.Student?.emergency_contact_relationship || 'N/A'}</strong>
-                      </ListGroup.Item>
-                      <ListGroup.Item className="px-0 d-flex justify-content-between">
-                        <span className="text-muted">Emergency Number</span>
-                        <strong>{sar.Student?.emergency_contact_number || 'N/A'}</strong>
-                      </ListGroup.Item>
-                      <ListGroup.Item className="px-0">
-                        <div className="text-muted mb-1">Address</div>
-                        <strong>{sar.Student?.address || 'N/A'}</strong>
-                      </ListGroup.Item>
                     </ListGroup>
+
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="px-0 mt-2"
+                      onClick={() => setShowFullIdentity((prev) => !prev)}
+                    >
+                      {showFullIdentity ? 'Hide additional profile details' : 'Show additional profile details'}
+                    </Button>
+
+                    <Collapse in={showFullIdentity}>
+                      <div>
+                        <ListGroup variant="flush" className="mt-2">
+                          <ListGroup.Item className="px-0 d-flex justify-content-between">
+                            <span className="text-muted">First Name</span>
+                            <strong>{sar.Student?.first_name || 'N/A'}</strong>
+                          </ListGroup.Item>
+                          <ListGroup.Item className="px-0 d-flex justify-content-between">
+                            <span className="text-muted">Middle Name</span>
+                            <strong>{sar.Student?.middle_name || 'N/A'}</strong>
+                          </ListGroup.Item>
+                          <ListGroup.Item className="px-0 d-flex justify-content-between">
+                            <span className="text-muted">Last Name</span>
+                            <strong>{sar.Student?.last_name || 'N/A'}</strong>
+                          </ListGroup.Item>
+                          <ListGroup.Item className="px-0 d-flex justify-content-between">
+                            <span className="text-muted">Suffix</span>
+                            <strong>{sar.Student?.suffix || 'N/A'}</strong>
+                          </ListGroup.Item>
+                          <ListGroup.Item className="px-0 d-flex justify-content-between">
+                            <span className="text-muted">Preferred Name</span>
+                            <strong>{sar.Student?.preferred_name || 'N/A'}</strong>
+                          </ListGroup.Item>
+                          <ListGroup.Item className="px-0 d-flex justify-content-between">
+                            <span className="text-muted">Contact Number</span>
+                            <strong>{sar.Student?.contact_number || 'N/A'}</strong>
+                          </ListGroup.Item>
+                          <ListGroup.Item className="px-0 d-flex justify-content-between">
+                            <span className="text-muted">Alternate Email</span>
+                            <strong>{sar.Student?.alternate_email || 'N/A'}</strong>
+                          </ListGroup.Item>
+                          <ListGroup.Item className="px-0 d-flex justify-content-between">
+                            <span className="text-muted">Sex</span>
+                            <strong>{sar.Student?.sex || 'N/A'}</strong>
+                          </ListGroup.Item>
+                          <ListGroup.Item className="px-0 d-flex justify-content-between">
+                            <span className="text-muted">Citizenship</span>
+                            <strong>{sar.Student?.citizenship || 'N/A'}</strong>
+                          </ListGroup.Item>
+                          <ListGroup.Item className="px-0 d-flex justify-content-between">
+                            <span className="text-muted">Emergency Contact</span>
+                            <strong>{sar.Student?.emergency_contact_name || 'N/A'}</strong>
+                          </ListGroup.Item>
+                          <ListGroup.Item className="px-0 d-flex justify-content-between">
+                            <span className="text-muted">Emergency Relationship</span>
+                            <strong>{sar.Student?.emergency_contact_relationship || 'N/A'}</strong>
+                          </ListGroup.Item>
+                          <ListGroup.Item className="px-0 d-flex justify-content-between">
+                            <span className="text-muted">Emergency Number</span>
+                            <strong>{sar.Student?.emergency_contact_number || 'N/A'}</strong>
+                          </ListGroup.Item>
+                          <ListGroup.Item className="px-0">
+                            <div className="text-muted mb-1">Address</div>
+                            <strong>{sar.Student?.address || 'N/A'}</strong>
+                          </ListGroup.Item>
+                        </ListGroup>
+                      </div>
+                    </Collapse>
                   </Card.Body>
                 </Card>
               </Col>

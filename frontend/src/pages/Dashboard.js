@@ -179,7 +179,7 @@ const Dashboard = () => {
       <>
         <Card className="mb-4 border-start border-success border-5 shadow-sm">
           <Card.Body className="p-4">
-            <h5 className="mb-3">Program Chair Summary</h5>
+            <h5 className="mb-3">Summary</h5>
 
             <Row className="g-3 mb-3">
               <Col md={4}>
@@ -283,7 +283,7 @@ const Dashboard = () => {
 
       <Card className="shadow-sm border-3" style={{ borderColor: '#FFC107' }}>
         <Card.Header className="bg-warning fw-bold text-dark" style={{ fontSize: '1.1rem' }}>
-          Quick Links (Secondary)
+          Quick Links
         </Card.Header>
         <Card.Body className="p-0">
           <ListGroup variant="flush">

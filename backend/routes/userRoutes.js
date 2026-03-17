@@ -7,7 +7,8 @@ const {
   getUserById,
   updateStudentId,
   updateUserStudentId,
-  updateProfile
+  updateProfile,
+  getCurriculumOptions
 } = require('../controllers/userController');
 const { protect, requireRole } = require('../middleware/auth');
 
@@ -80,6 +81,9 @@ router.patch('/update-student-id', protect, updateStudentId);
 
 // Admin-only user listing
 router.get('/', protect, requireRole('admin'), getAllUsers);
+
+// Curriculum options for profile forms (all authenticated roles)
+router.get('/curriculum-options', protect, getCurriculumOptions);
 
 // Profile update route (protected, user can update self; admin can update any)
 router.put('/:id/profile', protect, uploadProfilePicture, updateProfile);
