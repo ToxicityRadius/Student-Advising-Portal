@@ -9,6 +9,7 @@ const STATUS_ONGOING = 'ongoing';
 
 const DEFAULT_AVG_UNITS_PER_SEMESTER = Number(process.env.SAR_ANALYTICS_AVG_UNITS_PER_SEMESTER || 18);
 const DEFAULT_AVG_SUBJECTS_PER_SEMESTER = Number(process.env.SAR_ANALYTICS_AVG_SUBJECTS_PER_SEMESTER || 6);
+const INCLUDE_SUMMER_IN_ESTIMATE = String(process.env.INCLUDE_SUMMER_IN_ESTIMATE || 'false').toLowerCase() === 'true';
 
 const toPlain = (value) => (value?.get ? value.get({ plain: true }) : value);
 
