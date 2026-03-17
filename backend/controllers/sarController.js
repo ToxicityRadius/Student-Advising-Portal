@@ -486,7 +486,7 @@ exports.getSARById = async (req, res, next) => {
 
     const activeStudyPlanVersion = versions.find((version) => version.status === 'active') || null;
     const latestStudyPlanVersion = versions[0] || null;
-    const [curriculumCourses, prerequisites, currentTerm] = await Promise.all([
+    const [curriculumCourses, prerequisites, currentTerm, electiveTrackCourses, allCurriculumTrackCourses] = await Promise.all([
       CurriculumCourse.findAll({
         where: { curriculumId: sarData.curriculumId },
         include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
@@ -496,7 +496,23 @@ exports.getSARById = async (req, res, next) => {
         where: { curriculumId: sarData.curriculumId },
         include: [{ model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] }]
       }),
-      AcademicTerm.findOne({ where: { isCurrent: true }, attributes: ['id', 'schoolYear', 'semester'] })
+      AcademicTerm.findOne({ where: { isCurrent: true }, attributes: ['id', 'schoolYear', 'semester'] }),
+      sarData.electiveTrackId
+        ? ElectiveTrackCourse.findAll({
+          where: { electiveTrackId: sarData.electiveTrackId },
+          include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
+        })
+        : [],
+      ElectiveTrackCourse.findAll({
+        include: [{
+          model: ElectiveTrack,
+          attributes: ['id', 'curriculumId'],
+          where: { curriculumId: sarData.curriculumId }
+        }, {
+          model: Course,
+          attributes: ['id', 'code', 'name', 'units']
+        }]
+      })
     ]);
 
     const analytics = computeSarAnalytics({
@@ -505,7 +521,9 @@ exports.getSARById = async (req, res, next) => {
       activeStudyPlanVersion,
       curriculumCourses,
       prerequisites,
-      currentTerm
+      currentTerm,
+      electiveTrackCourses,
+      allCurriculumTrackCourses
     });
 
     return res.status(200).json({

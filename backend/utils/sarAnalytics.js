@@ -213,7 +213,9 @@ const computeSarAnalytics = ({
   activeStudyPlanVersion,
   curriculumCourses,
   prerequisites,
-  currentTerm
+  currentTerm,
+  electiveTrackCourses,
+  allCurriculumTrackCourses
 }) => {
   const sarPlain = toPlain(sar) || {};
   const versions = Array.isArray(studyPlanVersions)
@@ -297,16 +299,66 @@ const computeSarAnalytics = ({
     }
   });
 
+  // Build sets for elective track resolution
+  const normalizedSelectedTrackCourses = Array.isArray(electiveTrackCourses)
+    ? electiveTrackCourses.map((e) => toPlain(e)) : [];
+  const normalizedAllTrackCourses = Array.isArray(allCurriculumTrackCourses)
+    ? allCurriculumTrackCourses.map((e) => toPlain(e)) : [];
+  const selectedTrackCourseIds = new Set(
+    normalizedSelectedTrackCourses.map((e) => String(e.courseId || e.Course?.id))
+  );
+  const allTrackCourseIds = new Set(
+    normalizedAllTrackCourses.map((e) => String(e.courseId || e.Course?.id))
+  );
+  const selectedTrackByCourseId = new Map(
+    normalizedSelectedTrackCourses.map((e) => [
+      String(e.courseId || e.Course?.id),
+      { yearLevel: toNumber(e.yearLevel), semester: toNumber(e.semester), Course: e.Course }
+    ])
+  );
+
   const checklistBase = normalizedCurriculumCourses.length > 0
-    ? normalizedCurriculumCourses.map((entry) => ({
-      courseId: toNumber(entry.courseId || entry.Course?.id),
-      code: entry.Course?.code,
-      name: entry.Course?.name,
-      units: toNumber(entry.Course?.units),
-      yearLevel: toNumber(entry.yearLevel),
-      semester: toNumber(entry.semester),
-      isElective: Boolean(entry.isElective)
-    }))
+    ? normalizedCurriculumCourses
+      .filter((entry) => {
+        const courseId = String(entry.courseId || entry.Course?.id);
+        // Remove placeholder elective courses that belong to OTHER tracks
+        if (Boolean(entry.isElective) && allTrackCourseIds.has(courseId) && !selectedTrackCourseIds.has(courseId)) {
+          return false;
+        }
+        return true;
+      })
+      .map((entry) => {
+        const courseId = String(entry.courseId || entry.Course?.id);
+        const trackOverride = selectedTrackByCourseId.get(courseId);
+        return {
+          courseId: toNumber(entry.courseId || entry.Course?.id),
+          code: trackOverride?.Course?.code || entry.Course?.code,
+          name: trackOverride?.Course?.name || entry.Course?.name,
+          units: toNumber(trackOverride?.Course?.units || entry.Course?.units),
+          yearLevel: toNumber(trackOverride?.yearLevel || entry.yearLevel),
+          semester: toNumber(trackOverride?.semester || entry.semester),
+          isElective: Boolean(entry.isElective)
+        };
+      })
+      // Add selected track courses not already in curriculum list
+      .concat(
+        normalizedSelectedTrackCourses
+          .filter((e) => {
+            const cid = String(e.courseId || e.Course?.id);
+            return !normalizedCurriculumCourses.some(
+              (cc) => String(cc.courseId || cc.Course?.id) === cid
+            );
+          })
+          .map((e) => ({
+            courseId: toNumber(e.courseId || e.Course?.id),
+            code: e.Course?.code,
+            name: e.Course?.name,
+            units: toNumber(e.Course?.units),
+            yearLevel: toNumber(e.yearLevel),
+            semester: toNumber(e.semester),
+            isElective: true
+          }))
+      )
     : Array.from(latestStatusByCourseId.values()).map((entry) => ({
       courseId: toNumber(entry.courseId),
       code: entry.code,

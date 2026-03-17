@@ -6,6 +6,7 @@ const {
   Curriculum,
   CurriculumCourse,
   ElectiveTrack,
+  ElectiveTrackCourse,
   ForecastSnapshot,
   Prerequisite,
   StudentAcademicRecord,
@@ -76,7 +77,7 @@ const getSarAnalyticsPayload = async (sar) => {
     return null;
   }
 
-  const [versions, curriculumCourses, prerequisites, currentTerm] = await Promise.all([
+  const [versions, curriculumCourses, prerequisites, currentTerm, electiveTrackCourses, allCurriculumTrackCourses] = await Promise.all([
     fetchStudyPlanVersions(sar.StudyPlan?.id),
     CurriculumCourse.findAll({
       where: { curriculumId: sar.curriculumId },
@@ -87,7 +88,23 @@ const getSarAnalyticsPayload = async (sar) => {
       where: { curriculumId: sar.curriculumId },
       include: [{ model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] }]
     }),
-    AcademicTerm.findOne({ where: { isCurrent: true }, attributes: ['id', 'schoolYear', 'semester'] })
+    AcademicTerm.findOne({ where: { isCurrent: true }, attributes: ['id', 'schoolYear', 'semester'] }),
+    sar.electiveTrackId
+      ? ElectiveTrackCourse.findAll({
+        where: { electiveTrackId: sar.electiveTrackId },
+        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
+      })
+      : [],
+    ElectiveTrackCourse.findAll({
+      include: [{
+        model: ElectiveTrack,
+        attributes: ['id', 'curriculumId'],
+        where: { curriculumId: sar.curriculumId }
+      }, {
+        model: Course,
+        attributes: ['id', 'code', 'name', 'units']
+      }]
+    })
   ]);
 
   const plainVersions = versions.map((version) => (version.get ? version.get({ plain: true }) : version));
@@ -99,7 +116,9 @@ const getSarAnalyticsPayload = async (sar) => {
     activeStudyPlanVersion,
     curriculumCourses,
     prerequisites,
-    currentTerm
+    currentTerm,
+    electiveTrackCourses,
+    allCurriculumTrackCourses
   });
 };
 
