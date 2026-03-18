@@ -412,12 +412,14 @@ exports.getStudentDashboard = async (req, res, next) => {
       return res.status(200).json({
         success: true,
         data: {
+          sarId: null,
           gwa: null,
           unitsCredited: 0,
           totalUnits: 0,
           subjectsCompleted: 0,
           subjectsPending: 0,
-          semesterSummary: []
+          semesterSummary: [],
+          adviserReviewWorkflow: null
         }
       });
     }
@@ -429,12 +431,14 @@ exports.getStudentDashboard = async (req, res, next) => {
       return res.status(200).json({
         success: true,
         data: {
+          sarId: plainSar.id,
           gwa: null,
           unitsCredited: 0,
           totalUnits: 0,
           subjectsCompleted: 0,
           subjectsPending: 0,
-          semesterSummary: []
+          semesterSummary: [],
+          adviserReviewWorkflow: null
         }
       });
     }
@@ -461,12 +465,14 @@ exports.getStudentDashboard = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       data: {
+        sarId: plainSar.id,
         gwa: analytics.gpaMonitoring?.gwa ?? null,
         unitsCredited: analytics.progress?.completedUnits ?? 0,
         totalUnits: analytics.progress?.totalUnits ?? 0,
         subjectsCompleted: analytics.progress?.completedSubjects ?? 0,
         subjectsPending: analytics.progress?.remainingSubjects ?? 0,
-        semesterSummary
+        semesterSummary,
+        adviserReviewWorkflow: analytics.adviserReviewWorkflow || null
       }
     });
   } catch (error) {

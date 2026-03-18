@@ -62,6 +62,48 @@ const normalizeStatus = (course) => {
   return "Pending";
 };
 
+const getReviewStatusPresentation = (workflow) => {
+  if (!workflow?.hasStudyPlan) {
+    return {
+      label: "Study Plan Not Started",
+      variant: "not-started"
+    };
+  }
+
+  if (workflow.needsRevalidation) {
+    return {
+      label: "Needs Adviser Revalidation",
+      variant: "revalidation"
+    };
+  }
+
+  if (workflow.reviewStatus === "approved") {
+    return {
+      label: "Validated by Adviser",
+      variant: "approved"
+    };
+  }
+
+  if (workflow.reviewStatus === "reviewed") {
+    return {
+      label: "Adviser Review Complete",
+      variant: "reviewed"
+    };
+  }
+
+  if (workflow.reviewStatus === "draft") {
+    return {
+      label: "Pending Adviser Review",
+      variant: "pending"
+    };
+  }
+
+  return {
+    label: "Study Plan Not Started",
+    variant: "not-started"
+  };
+};
+
 const SideNavItem = ({ icon, label, to, active, badge }) => (
   <Link
     to={to}
@@ -136,6 +178,8 @@ const PlanOfStudy = () => {
   const [notifOpen, setNotifOpen] = useState(false);
   const [allRead, setAllRead] = useState(false);
   const notifRef = useRef(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   const firstName = user?.firstName || user?.first_name || "";
   const lastName = user?.lastName || user?.last_name || "";
@@ -257,6 +301,12 @@ const PlanOfStudy = () => {
     return Math.max(1, Math.ceil(ratio * 8));
   }, [totalUnits, unitsRemaining]);
 
+  const reviewPresentation = useMemo(
+    () => getReviewStatusPresentation(dashboardData?.adviserReviewWorkflow),
+    [dashboardData?.adviserReviewWorkflow],
+  );
+  const canExportValidatedPlan = reviewPresentation.variant === "approved" && Boolean(dashboardData?.sarId);
+
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = async () => {
@@ -269,6 +319,33 @@ const PlanOfStudy = () => {
       ...prev,
       [key]: !prev[key],
     }));
+  };
+
+  const handleExportValidatedPlan = async () => {
+    if (!canExportValidatedPlan || exportingPdf) {
+      return;
+    }
+
+    setExportingPdf(true);
+    setExportError("");
+    try {
+      const response = await api.get(`/sars/${dashboardData.sarId}/export/pdf`, {
+        responseType: "blob"
+      });
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `Study-Plan-${dashboardData.sarId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      setExportError(error?.response?.data?.message || "Unable to export Study Plan PDF right now.");
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   return (
@@ -829,9 +906,22 @@ const PlanOfStudy = () => {
               <>
                 <section className="pos-summary-card">
                   <img src={capImg} alt="" className="pos-summary-cap" />
-                  <div className="pos-summary-review">
-                    Pending Adviser Review
+                  <div className={`pos-summary-review pos-summary-review--${reviewPresentation.variant}`}>
+                    {reviewPresentation.label}
                   </div>
+                  {canExportValidatedPlan && (
+                    <button
+                      type="button"
+                      className="pos-summary-export-btn"
+                      onClick={handleExportValidatedPlan}
+                      disabled={exportingPdf}
+                    >
+                      {exportingPdf ? "Exporting..." : "Export PDF"}
+                    </button>
+                  )}
+                  {exportError && (
+                    <div className="pos-summary-export-error">{exportError}</div>
+                  )}
                   <span>Estimated Graduation</span>
                   <h2>{estimatedGrad}</h2>
                   <p>{semestersRemaining} semester remaining</p>

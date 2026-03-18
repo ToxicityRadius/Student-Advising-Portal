@@ -320,7 +320,7 @@ exports.getCurriculums = async (req, res, next) => {
       totalItems: count
     });
 
-    res.set('Cache-Control', compact ? 'private, max-age=120' : 'private, max-age=30');
+    res.set('Cache-Control', compact ? 'private, no-store' : 'private, max-age=30');
     return res.status(200).json({ success: true, ...payload });
   } catch (err) {
     next(err);
@@ -525,13 +525,40 @@ exports.getCourses = async (req, res, next) => {
 
     const { rows, count } = await Course.findAndCountAll({
       where,
+      include: [{
+        model: CurriculumCourse,
+        attributes: ['id', 'curriculumId'],
+        required: false,
+        include: [{
+          model: Curriculum,
+          attributes: ['id', 'name']
+        }]
+      }],
+      distinct: true,
       order: [[sortBy, sortOrder], ['id', 'ASC']],
       offset,
       limit
     });
 
+    const courseIds = rows.map((course) => course.id);
+    const electiveTrackRows = courseIds.length > 0
+      ? await ElectiveTrackCourse.findAll({
+        attributes: ['courseId'],
+        where: { courseId: { [Op.in]: courseIds } }
+      })
+      : [];
+    const electiveCourseIds = new Set(electiveTrackRows.map((item) => Number(item.courseId)));
+
+    const items = rows.map((course) => {
+      const plainCourse = course.get({ plain: true });
+      return {
+        ...plainCourse,
+        isElective: electiveCourseIds.has(Number(course.id))
+      };
+    });
+
     const payload = buildPaginatedPayload({
-      items: rows,
+      items,
       page,
       pageSize,
       totalItems: count

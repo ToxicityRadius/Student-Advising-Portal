@@ -200,6 +200,7 @@ const StudentLayout = ({
         color: "#4E342E",
         fontSize: "0.73rem",
         fontWeight: 700,
+        textTransform: "capitalize",
         padding: "6px 14px",
         borderRadius: 20,
         whiteSpace: "nowrap",

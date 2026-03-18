@@ -214,7 +214,7 @@ function AppContent() {
         <Route
           path="/adviser/students"
           element={
-            <PrivateRoute roles={["adviser"]}>
+            <PrivateRoute roles={["adviser", "admin"]}>
               <StudentList />
             </PrivateRoute>
           }
@@ -222,7 +222,7 @@ function AppContent() {
         <Route
           path="/adviser/students/:sarId"
           element={
-            <PrivateRoute roles={["adviser"]}>
+            <PrivateRoute roles={["adviser", "admin"]}>
               <StudentDetail />
             </PrivateRoute>
           }
@@ -230,7 +230,7 @@ function AppContent() {
         <Route
           path="/adviser/students/:sarId/grades"
           element={
-            <PrivateRoute roles={["adviser"]}>
+            <PrivateRoute roles={["adviser", "admin"]}>
               <GradeEntry />
             </PrivateRoute>
           }
@@ -238,7 +238,7 @@ function AppContent() {
         <Route
           path="/adviser/students/:sarId/plan/:versionId"
           element={
-            <PrivateRoute roles={["adviser"]}>
+            <PrivateRoute roles={["adviser", "admin"]}>
               <StudyPlanView />
             </PrivateRoute>
           }
@@ -246,7 +246,7 @@ function AppContent() {
         <Route
           path="/adviser/students/:sarId/plan/:versionId/review"
           element={
-            <PrivateRoute roles={["adviser"]}>
+            <PrivateRoute roles={["adviser", "admin"]}>
               <RegenerationReview />
             </PrivateRoute>
           }
@@ -254,7 +254,7 @@ function AppContent() {
         <Route
           path="/adviser/students/:sarId/plan/:versionId/validate"
           element={
-            <PrivateRoute roles={["adviser"]}>
+            <PrivateRoute roles={["adviser", "admin"]}>
               <ValidationFlow />
             </PrivateRoute>
           }
