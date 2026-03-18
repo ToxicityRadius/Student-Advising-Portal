@@ -218,7 +218,7 @@ const Help = () => {
             <div style={{ flex: "1 1 220px", padding: "18px 20px", borderRadius: 12, border: "1.5px solid #f0f0f0" }}>
               <div style={{ fontSize: "1.4rem", marginBottom: 8 }}>🏫</div>
               <div style={{ fontWeight: 700, color: "#111", marginBottom: 4 }}>Office</div>
-              <div style={{ fontSize: "0.85rem", color: "#888" }}>CPE Department, Room 301<br />Mon – Fri, 8AM – 5PM</div>
+              <div style={{ fontSize: "0.85rem", color: "#888" }}>CPE Department, Room 317<br />Mon – Fri, 8AM – 5PM</div>
             </div>
             <div style={{ flex: "1 1 220px", padding: "18px 20px", borderRadius: 12, border: "1.5px solid #f0f0f0" }}>
               <div style={{ fontSize: "1.4rem", marginBottom: 8 }}>💬</div>
@@ -457,7 +457,7 @@ const Help = () => {
               <div style={{ flex: "1 1 220px", padding: "18px 20px", borderRadius: 12, border: "1.5px solid #f0f0f0" }}>
                 <div style={{ fontSize: "1.4rem", marginBottom: 8 }}>🏫</div>
                 <div style={{ fontWeight: 700, color: "#111", marginBottom: 4 }}>Office</div>
-                <div style={{ fontSize: "0.85rem", color: "#888" }}>CPE Department, Room 301<br />Mon – Fri, 8AM – 5PM</div>
+                <div style={{ fontSize: "0.85rem", color: "#888" }}>CPE Department, Room 317<br />Mon – Fri, 8AM – 5PM</div>
               </div>
               <div style={{ flex: "1 1 220px", padding: "18px 20px", borderRadius: 12, border: "1.5px solid #f0f0f0" }}>
                 <div style={{ fontSize: "1.4rem", marginBottom: 8 }}>💬</div>

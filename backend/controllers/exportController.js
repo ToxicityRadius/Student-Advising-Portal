@@ -555,6 +555,13 @@ exports.exportSARPDF = async (req, res, next) => {
       ? sar.StudyPlan.StudyPlanVersions[0] || null
       : null;
 
+    if (req.user.role === 'student' && !activeVersion?.validatedAt) {
+      return res.status(403).json({
+        success: false,
+        message: 'Study plan PDF can only be exported after adviser validation.'
+      });
+    }
+
     const allVersions = sar.StudyPlan?.id
       ? await StudyPlanVersion.findAll({
         where: { studyPlanId: sar.StudyPlan.id },

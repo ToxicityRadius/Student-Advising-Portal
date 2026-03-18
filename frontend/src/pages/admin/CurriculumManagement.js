@@ -89,17 +89,24 @@ const CurriculumManagement = () => {
     }
     setAlert({ variant: '', message: '' });
     try {
+      const curriculumListRequest = api.get('/curriculums', {
+        params: {
+          page: curriculaQuery.page,
+          pageSize: curriculaQuery.pageSize,
+          sortBy: curriculaQuery.sortBy,
+          sortOrder: curriculaQuery.sortOrder,
+          search: debouncedCurriculaSearch,
+          compact: true,
+          _ts: Date.now()
+        },
+        headers: {
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache'
+        }
+      });
+
       const [curriculaRes, coursesRes, equivalenciesRes, courseOptionsRes] = await Promise.all([
-        api.get('/curriculums', {
-          params: {
-            page: curriculaQuery.page,
-            pageSize: curriculaQuery.pageSize,
-            sortBy: curriculaQuery.sortBy,
-            sortOrder: curriculaQuery.sortOrder,
-            search: debouncedCurriculaSearch,
-            compact: true
-          }
-        }),
+        curriculumListRequest,
         api.get('/courses', {
           params: {
             page: coursesQuery.page,
@@ -180,6 +187,8 @@ const CurriculumManagement = () => {
 
     try {
       await api.patch(`/curriculums/${id}/activate`);
+      setCurricula((prev) => prev.map((item) => ({ ...item, isActive: item.id === id })));
+      setSelectedCurriculumIdForCsv(String(id));
       await loadAll();
       showFeedback('success', 'Active curriculum updated.');
     } catch (error) {
@@ -417,6 +426,18 @@ const CurriculumManagement = () => {
       return acc;
     }, {});
   }, [filteredCourses]);
+
+  const getCourseCurriculumYears = (course) => {
+    const years = (course.CurriculumCourses || [])
+      .map((entry) => {
+        const name = String(entry.Curriculum?.name || '');
+        const match = name.match(/\b(19|20)\d{2}\b/);
+        return match ? match[0] : null;
+      })
+      .filter(Boolean);
+
+    return [...new Set(years)];
+  };
 
   if (loading) {
     return (
@@ -735,6 +756,7 @@ const CurriculumManagement = () => {
                   <tr>
                     <th>Code</th>
                     <th>Name</th>
+                    <th>Curriculum Year</th>
                     <th>Units</th>
                     <th className="text-end">Actions</th>
                   </tr>
@@ -744,6 +766,16 @@ const CurriculumManagement = () => {
                     <tr key={course.id}>
                       <td>{course.code}</td>
                       <td>{course.name}</td>
+                      <td>
+                        <div>
+                          {getCourseCurriculumYears(course).length > 0
+                            ? getCourseCurriculumYears(course).join(', ')
+                            : '-'}
+                        </div>
+                        {course.isElective && (
+                          <div className="small text-muted">Elective</div>
+                        )}
+                      </td>
                       <td>{course.units}</td>
                       <td className="text-end">
                         <Button size="sm" variant="outline-primary" className="me-2" onClick={() => openEditCourse(course)}>
@@ -757,7 +789,7 @@ const CurriculumManagement = () => {
                   ))}
                   {filteredCourses.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="text-center text-muted py-4">No courses found.</td>
+                      <td colSpan={5} className="text-center text-muted py-4">No courses found.</td>
                     </tr>
                   )}
                 </tbody>
