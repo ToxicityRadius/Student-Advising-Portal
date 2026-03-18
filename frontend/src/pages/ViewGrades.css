@@ -33,7 +33,7 @@
 }
 
 .grades-hero h1 {
-  font-size: 2rem;
+  font-size: 1.6rem;
   line-height: 1.1;
   margin-bottom: 8px;
   font-weight: 900;
@@ -41,7 +41,7 @@
 
 .grades-hero p {
   color: var(--muted);
-  font-size: 1.1rem;
+  font-size: 0.95rem;
 }
 
 .grades-stats-grid {
@@ -68,7 +68,7 @@
 
 .grades-stat-card h2 {
   margin-top: 8px;
-  font-size: 2.2rem;
+  font-size: 1.6rem;
   line-height: 1;
 }
 
@@ -76,7 +76,7 @@
   margin-top: 8px;
   color: #5f6579;
   font-weight: 500;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
 }
 
 .grades-stat-card--gpa {
@@ -238,7 +238,7 @@
 }
 
 .grades-semester-meta h3 {
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   line-height: 1.1;
 }
 
@@ -246,7 +246,7 @@
   margin-top: 8px;
   color: #666d80;
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 0.85rem;
 }
 
 .grades-semester-kpis {
@@ -261,7 +261,7 @@
 
 .grades-semester-kpis strong {
   display: block;
-  font-size: 1.6rem;
+  font-size: 1.2rem;
   line-height: 1;
 }
 
@@ -322,11 +322,11 @@
 
 .grades-course-row > div {
   color: #2f3447;
-  font-size: 1rem;
+  font-size: 0.88rem;
 }
 
 .grades-course-code strong {
-  font-size: 1.05rem;
+  font-size: 0.88rem;
   font-weight: 800;
 }
 

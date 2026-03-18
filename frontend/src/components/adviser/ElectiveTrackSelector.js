@@ -33,6 +33,12 @@ const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSe
     }
   }, [curriculumId]);
 
+  useEffect(() => {
+    if (selectedTrackId) {
+      setChosenTrackId(String(selectedTrackId));
+    }
+  }, [selectedTrackId]);
+
   const handleSelectTrack = async () => {
     if (!chosenTrackId) {
       setAlert({ variant: 'danger', message: 'Please select an elective track first.' });
@@ -72,21 +78,16 @@ const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSe
     );
   }
 
-  const selectedTrack = tracks.find((track) => String(track.id) === String(selectedTrackId));
+  const isChanged = selectedTrackId ? String(chosenTrackId) !== String(selectedTrackId) : Boolean(chosenTrackId);
 
   return (
     <Card className="shadow-sm mb-4 border-warning">
       <Card.Body>
         <h5 className="mb-2">Elective Track Selection</h5>
-        <p className="text-muted mb-3">Once selected, the elective track cannot be changed.</p>
 
         {alert.message && <Alert variant={alert.variant}>{alert.message}</Alert>}
 
-        {selectedTrackId ? (
-          <Alert variant="success" className="mb-0">
-            Selected track: <strong>{selectedTrack?.name || `Track #${selectedTrackId}`}</strong>
-          </Alert>
-        ) : tracks.length === 0 ? (
+        {tracks.length === 0 ? (
           <Alert variant="warning" className="mb-0">No elective tracks are configured for this curriculum.</Alert>
         ) : (
           <div className="d-flex flex-column flex-md-row gap-2">
@@ -100,8 +101,8 @@ const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSe
                 <option key={track.id} value={track.id}>{track.name}</option>
               ))}
             </Form.Select>
-            <Button onClick={handleSelectTrack} disabled={submitting || !chosenTrackId}>
-              {submitting ? 'Saving...' : 'Confirm Track'}
+            <Button onClick={handleSelectTrack} disabled={submitting || !chosenTrackId || !isChanged}>
+              {submitting ? 'Saving...' : selectedTrackId ? 'Change Track' : 'Confirm Track'}
             </Button>
           </div>
         )}

@@ -18,7 +18,7 @@
 }
 
 .checklist-hero h1 {
-  font-size: 2.1rem;
+  font-size: 1.6rem;
   font-weight: 800;
   color: #20243b;
   line-height: 1.1;
@@ -26,7 +26,7 @@
 
 .checklist-hero p {
   margin-top: 4px;
-  font-size: 1.2rem;
+  font-size: 0.95rem;
   color: #3a3f55;
   font-weight: 500;
 }
@@ -47,12 +47,12 @@
 }
 
 .checklist-overall-head h2 {
-  font-size: 2rem;
+  font-size: 1.3rem;
   font-weight: 800;
 }
 
 .checklist-overall-head strong {
-  font-size: 3rem;
+  font-size: 1.9rem;
   font-weight: 900;
   line-height: 1;
 }
@@ -92,7 +92,7 @@
 }
 
 .checklist-overall-grid h3 {
-  font-size: 2.2rem;
+  font-size: 1.5rem;
   line-height: 1;
   margin: 8px 0 6px;
   font-weight: 900;
@@ -109,7 +109,7 @@
 }
 
 .checklist-legend h3 {
-  font-size: 1.8rem;
+  font-size: 1.1rem;
   font-weight: 800;
   color: #20243b;
   margin-bottom: 10px;
@@ -127,7 +127,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 1.1rem;
+  font-size: 0.88rem;
 }
 
 .checklist-legend-items img {
@@ -167,7 +167,7 @@
 }
 
 .checklist-group-meta h4 {
-  font-size: 1.45rem;
+  font-size: 1.05rem;
   font-weight: 800;
   color: #20243b;
 }
@@ -186,7 +186,7 @@
 
 .checklist-group-kpis strong {
   display: block;
-  font-size: 2rem;
+  font-size: 1.3rem;
   font-weight: 900;
   color: #181b2f;
   line-height: 1;

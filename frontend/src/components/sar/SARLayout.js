@@ -979,7 +979,7 @@ const SARLayout = ({
               </div>
             )}
 
-            {canManagePlan && electiveTrackRequired && !sar?.electiveTrackId && sar?.curriculumId && (
+            {canManagePlan && electiveTrackRequired && sar?.curriculumId && (
               <ElectiveTrackSelector
                 sarId={sarId}
                 curriculumId={sar.curriculumId}

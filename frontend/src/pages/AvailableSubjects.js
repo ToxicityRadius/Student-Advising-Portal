@@ -147,7 +147,8 @@ const AvailableSubjects = () => {
   const studentId = user?.student_id || user?.studentId || "No ID";
   const yearLevel = user?.year_level || user?.yearLevel || "";
   const program = user?.program || "";
-  const studentType = user?.student_type || user?.studentType || "";
+  const studentType = (user?.student_type || user?.studentType || "")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 
   useEffect(() => {
     api.get("/terms/current")
@@ -394,47 +395,20 @@ const AvailableSubjects = () => {
           </div>
 
           {(() => {
-            const Tag = ({ label }) => (
-              <span
-                style={{
-                  background: YELLOW,
-                  color: "#333",
-                  fontSize: "0.72rem",
-                  fontWeight: 700,
-                  padding: "5px 0",
-                  borderRadius: 6,
-                  whiteSpace: "nowrap",
-                  textAlign: "center",
-                  flex: "1 1 0",
-                }}
-              >
-                {label}
-              </span>
-            );
-
             const roleLabel = user?.role
               ? user.role.charAt(0).toUpperCase() + user.role.slice(1)
               : null;
-            const row2Left = studentType || roleLabel || "";
-            const row2Right = program || "";
-
+            const tags = [
+              `${yearLevel ? formatYearLevel(yearLevel) : "—"} · ${currentTermLabel}`,
+              [studentType || roleLabel || null, program || null].filter(Boolean).join(" · ") || null,
+            ].filter(Boolean);
             return (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 6,
-                  width: "100%",
-                }}
-              >
-                {yearLevel ? (
-                  <Tag label={formatYearLevel(yearLevel)} />
-                ) : (
-                  <Tag label="—" />
-                )}
-                <Tag label={currentTermLabel} />
-                {row2Left ? <Tag label={row2Left} /> : <span />}
-                {row2Right ? <Tag label={row2Right} /> : <span />}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+                {tags.map((tag, i) => (
+                  <span key={i} style={{ background: "linear-gradient(135deg, #FFD54F 0%, #FFC107 100%)", color: "#4E342E", fontSize: "0.73rem", fontWeight: 700, padding: "6px 14px", borderRadius: 20, whiteSpace: "nowrap", textAlign: "center", boxShadow: "0 2px 6px rgba(255,193,7,0.30)", letterSpacing: "0.2px" }}>
+                    {tag}
+                  </span>
+                ))}
               </div>
             );
           })()}

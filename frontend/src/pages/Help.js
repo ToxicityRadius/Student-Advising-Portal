@@ -165,8 +165,8 @@ const Help = () => {
 
   useEffect(() => {
     api.get("/terms/current").then(({ data }) => {
-      const sem = data?.semester ?? data?.term?.semester;
-      const map = { 1: "1st Semester", 2: "2nd Semester", 3: "Summer" };
+      const sem = data?.data?.semester ?? data?.semester ?? data?.term?.semester;
+      const map = { 1: "1st Sem", 2: "2nd Sem", 3: "Summer" };
       if (sem && map[sem]) setCurrentTermLabel(map[sem]);
     }).catch(() => {});
   }, []);
@@ -183,7 +183,8 @@ const Help = () => {
   const studentId = user?.studentId || user?.student_id || "";
   const yearLevel = user?.yearLevel || user?.year_level || "";
   const program = user?.program || "";
-  const studentType = user?.student_type || user?.studentType || "";
+  const studentType = (user?.student_type || user?.studentType || "")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
   const roleLabel = user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : "";
   const profilePicUrl = buildProfileImageUrl(user?.profile_picture || user?.profilePicture || "");
 
