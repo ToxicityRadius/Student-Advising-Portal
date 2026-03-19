@@ -20,6 +20,9 @@ const semesterLabel = {
 };
 
 const normalizeNumber = (value) => Number(value || 0);
+const DEFAULT_SECTION_CAP = 40;
+const FORECAST_CACHE_TTL_MS = 60 * 1000;
+const demandResponseCache = new Map();
 
 const formatUserName = (user) => {
   if (!user) {
@@ -79,12 +82,44 @@ const sortRowsBy = ({ rows, sortBy, sortOrder }) => {
   });
 };
 
+const getDemandCacheKey = ({ termId, semesterOffset, sectionCap }) => `${termId}:${semesterOffset}:${sectionCap}`;
+
+const getCachedDemandResponse = (key) => {
+  const entry = demandResponseCache.get(key);
+  if (!entry) {
+    return null;
+  }
+
+  if (Date.now() - entry.cachedAt > FORECAST_CACHE_TTL_MS) {
+    demandResponseCache.delete(key);
+    return null;
+  }
+
+  return entry.value;
+};
+
+const setCachedDemandResponse = (key, value) => {
+  demandResponseCache.set(key, {
+    value,
+    cachedAt: Date.now()
+  });
+};
+
+const normalizeSectionCap = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_SECTION_CAP;
+  }
+
+  return Math.floor(parsed);
+};
+
 const getCurrentAcademicTerm = async (transaction) => AcademicTerm.findOne({
   where: { isCurrent: true },
   transaction
 });
 
-const getDemandDataForTerm = async ({ term, semesterOffset = 0, transaction }) => {
+const getDemandDataForTerm = async ({ term, semesterOffset = 0, sectionCap = DEFAULT_SECTION_CAP, transaction }) => {
   // Pre-compute the target semester for DB-level filtering.
   // The semester component after advancing is deterministic (same for all students).
   // Only yearLevel varies per-student and is checked in JS below.
@@ -93,40 +128,43 @@ const getDemandDataForTerm = async ({ term, semesterOffset = 0, transaction }) =
     semesterForFilter = advanceSlot({ yearLevel: 1, semester: semesterForFilter }).semester;
   }
 
-  const versions = await StudyPlanVersion.findAll({
-    where: { status: 'active' },
-    attributes: ['id'],
+  const records = await StudentAcademicRecord.findAll({
+    attributes: ['id', 'yearLevel'],
     include: [
       {
         model: StudyPlan,
         required: true,
-        attributes: ['id', 'studentAcademicRecordId'],
-        include: [{
-          model: StudentAcademicRecord,
-          required: true,
-          attributes: ['yearLevel']
-        }]
+        attributes: ['id'],
+        include: [
+          {
+            model: StudyPlanVersion,
+            required: true,
+            where: { status: 'active' },
+            attributes: ['id'],
+            include: [
+              {
+                model: StudyPlanCourse,
+                required: false,
+                where: { status: 'pending', semester: semesterForFilter },
+                attributes: ['courseId', 'yearLevel'],
+                include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
+              }
+            ]
+          }
+        ]
       },
-      {
-        model: StudyPlanCourse,
-        required: false,
-        where: { status: 'pending', semester: semesterForFilter },
-        attributes: ['courseId', 'yearLevel'],
-        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-      }
     ],
     transaction
   });
 
   const demandByCourseId = new Map();
+  const uniqueStudentIds = new Set();
+  const effectiveSectionCap = normalizeSectionCap(sectionCap);
 
-  versions.forEach((version) => {
-    const sar = version.StudyPlan?.StudentAcademicRecord;
-    if (!sar) {
-      return;
-    }
+  records.forEach((record) => {
+    uniqueStudentIds.add(String(record.id));
 
-    let targetYearLevel = normalizeNumber(sar.yearLevel);
+    let targetYearLevel = normalizeNumber(record.yearLevel);
     let tempSemester = normalizeNumber(term.semester);
 
     if (!targetYearLevel || !tempSemester) {
@@ -140,38 +178,54 @@ const getDemandDataForTerm = async ({ term, semesterOffset = 0, transaction }) =
     }
 
     const countedCoursesForStudent = new Set();
+    const activeVersions = (record.StudyPlan?.StudyPlanVersions || []);
 
-    (version.StudyPlanCourses || []).forEach((entry) => {
-      // semester already filtered at DB level; only check yearLevel per-student
-      if (
-        normalizeNumber(entry.yearLevel) !== targetYearLevel ||
-        !entry.Course
-      ) {
-        return;
-      }
+    activeVersions.forEach((version) => {
+      (version.StudyPlanCourses || []).forEach((entry) => {
+        // semester already filtered at DB level; only check yearLevel per-student
+        if (
+          normalizeNumber(entry.yearLevel) !== targetYearLevel ||
+          !entry.Course
+        ) {
+          return;
+        }
 
-      const courseKey = String(entry.courseId);
-      if (countedCoursesForStudent.has(courseKey)) {
-        return;
-      }
+        const courseKey = String(entry.courseId);
+        if (countedCoursesForStudent.has(courseKey)) {
+          return;
+        }
 
-      countedCoursesForStudent.add(courseKey);
+        countedCoursesForStudent.add(courseKey);
 
-      if (!demandByCourseId.has(courseKey)) {
-        demandByCourseId.set(courseKey, {
-          courseId: entry.Course.id,
-          courseCode: entry.Course.code,
-          courseName: entry.Course.name,
-          units: entry.Course.units,
-          studentCount: 0
-        });
-      }
+        if (!demandByCourseId.has(courseKey)) {
+          demandByCourseId.set(courseKey, {
+            courseId: entry.Course.id,
+            courseCode: entry.Course.code,
+            courseName: entry.Course.name,
+            units: entry.Course.units,
+            studentCount: 0,
+            expectedSections: 0
+          });
+        }
 
-      demandByCourseId.get(courseKey).studentCount += 1;
+        demandByCourseId.get(courseKey).studentCount += 1;
+      });
     });
   });
 
-  return [...demandByCourseId.values()].sort(sortDemandRows);
+  const rows = [...demandByCourseId.values()].map((row) => {
+    const students = normalizeNumber(row.studentCount);
+    return {
+      ...row,
+      expectedSections: Math.ceil(students / effectiveSectionCap)
+    };
+  }).sort(sortDemandRows);
+
+  return {
+    rows,
+    uniqueSarCount: uniqueStudentIds.size,
+    sectionCap: effectiveSectionCap
+  };
 };
 
 const normalizeSnapshotForecastRows = (snapshot) => {
@@ -193,7 +247,7 @@ const normalizeSnapshotForecastRows = (snapshot) => {
   return [];
 };
 
-const buildDemandResponse = async ({ semesterOffset = 0, transaction } = {}) => {
+const buildDemandResponse = async ({ semesterOffset = 0, sectionCap = DEFAULT_SECTION_CAP, transaction } = {}) => {
   const currentTerm = await getCurrentAcademicTerm(transaction);
   if (!currentTerm) {
     const error = new Error('No active current term found');
@@ -206,16 +260,31 @@ const buildDemandResponse = async ({ semesterOffset = 0, transaction } = {}) => 
     targetSlot = advanceSlot(targetSlot);
   }
 
-  const data = await getDemandDataForTerm({
+  const normalizedSectionCap = normalizeSectionCap(sectionCap);
+  const cacheKey = getDemandCacheKey({
+    termId: currentTerm.id,
+    semesterOffset,
+    sectionCap: normalizedSectionCap
+  });
+
+  const cachedResponse = transaction ? null : getCachedDemandResponse(cacheKey);
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+
+  const demandData = await getDemandDataForTerm({
     term: currentTerm,
     semesterOffset,
+    sectionCap: normalizedSectionCap,
     transaction
   });
 
-  return {
-    data,
+  const response = {
+    data: demandData.rows,
     meta: {
       currentTerm: buildTermMeta(currentTerm),
+      sectionCap: demandData.sectionCap,
+      validatedSarCount: demandData.uniqueSarCount,
       offsetSemester: semesterOffset === 0 ? buildTermMeta(currentTerm) : {
         schoolYear: currentTerm.schoolYear,
         semester: targetSlot.semester,
@@ -224,10 +293,16 @@ const buildDemandResponse = async ({ semesterOffset = 0, transaction } = {}) => 
       }
     }
   };
+
+  if (!transaction) {
+    setCachedDemandResponse(cacheKey, response);
+  }
+
+  return response;
 };
 
 const storeForecastSnapshot = async (termId, userId, options = {}) => {
-  const { transaction, createdAt } = options;
+  const { transaction, createdAt, sectionCap = DEFAULT_SECTION_CAP } = options;
 
   const term = options.term || await AcademicTerm.findByPk(termId, { transaction });
   if (!term) {
@@ -237,9 +312,9 @@ const storeForecastSnapshot = async (termId, userId, options = {}) => {
   }
 
   const snapshotTimestamp = Number(createdAt || Date.now());
-  const [currentDemand, nextSemesterForecast] = await Promise.all([
-    getDemandDataForTerm({ term, semesterOffset: 0, transaction }),
-    getDemandDataForTerm({ term, semesterOffset: 1, transaction })
+  const [currentDemandData, nextSemesterForecastData] = await Promise.all([
+    getDemandDataForTerm({ term, semesterOffset: 0, sectionCap, transaction }),
+    getDemandDataForTerm({ term, semesterOffset: 1, sectionCap, transaction })
   ]);
 
   return ForecastSnapshot.create({
@@ -247,8 +322,10 @@ const storeForecastSnapshot = async (termId, userId, options = {}) => {
     schoolYear: term.schoolYear,
     semester: term.semester,
     snapshotData: {
-      currentDemand,
-      nextSemesterForecast,
+      sectionCap: currentDemandData.sectionCap,
+      validatedSarCount: currentDemandData.uniqueSarCount,
+      currentDemand: currentDemandData.rows,
+      nextSemesterForecast: nextSemesterForecastData.rows,
       generatedAt: snapshotTimestamp
     },
     triggeredByUserId: userId,
@@ -261,10 +338,13 @@ const storeForecastSnapshot = async (termId, userId, options = {}) => {
 // @access admin, adviser
 exports.getCurrentDemand = async (req, res, next) => {
   try {
-    const response = await buildDemandResponse({ semesterOffset: 0 });
+    const response = await buildDemandResponse({
+      semesterOffset: 0,
+      sectionCap: req.query.sectionCap
+    });
     const { page, pageSize, search, sortBy, sortOrder } = parsePaginationParams(req.query, {
       defaultSortBy: 'courseCode',
-      allowedSortBy: ['courseCode', 'courseName', 'units', 'studentCount']
+      allowedSortBy: ['courseCode', 'courseName', 'units', 'studentCount', 'expectedSections']
     });
 
     const filtered = (response.data || []).filter((row) => {
@@ -295,10 +375,13 @@ exports.getCurrentDemand = async (req, res, next) => {
 // @access admin, adviser
 exports.getNextSemesterForecast = async (req, res, next) => {
   try {
-    const response = await buildDemandResponse({ semesterOffset: 1 });
+    const response = await buildDemandResponse({
+      semesterOffset: 1,
+      sectionCap: req.query.sectionCap
+    });
     const { page, pageSize, search, sortBy, sortOrder } = parsePaginationParams(req.query, {
       defaultSortBy: 'courseCode',
-      allowedSortBy: ['courseCode', 'courseName', 'units', 'studentCount']
+      allowedSortBy: ['courseCode', 'courseName', 'units', 'studentCount', 'expectedSections']
     });
 
     const filtered = (response.data || []).filter((row) => {
@@ -335,7 +418,11 @@ exports.getComparisonReport = async (req, res, next) => {
     }
 
     const [actualDemand, previousSnapshot] = await Promise.all([
-      getDemandDataForTerm({ term: currentTerm, semesterOffset: 0 }),
+      getDemandDataForTerm({
+        term: currentTerm,
+        semesterOffset: 0,
+        sectionCap: req.query.sectionCap
+      }),
       ForecastSnapshot.findOne({
         where: {
           academicTermId: { [Op.ne]: currentTerm.id }
@@ -346,7 +433,7 @@ exports.getComparisonReport = async (req, res, next) => {
     ]);
 
     const forecastRows = normalizeSnapshotForecastRows(previousSnapshot);
-    const actualByCode = new Map(actualDemand.map((entry) => [String(entry.courseCode), entry]));
+    const actualByCode = new Map((actualDemand.rows || []).map((entry) => [String(entry.courseCode), entry]));
     const forecastByCode = new Map(forecastRows.map((entry) => [String(entry.courseCode), entry]));
     const allCodes = [...new Set([...actualByCode.keys(), ...forecastByCode.keys()])];
 
@@ -407,6 +494,10 @@ exports.getComparisonReport = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+exports.__clearForecastCacheForTests = () => {
+  demandResponseCache.clear();
 };
 
 // @desc   Get stored forecast history

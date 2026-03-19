@@ -7,8 +7,7 @@ import SARLayout from '../../components/sar/SARLayout';
 import api from '../../utils/api';
 import { fetchCurriculumsCached } from '../../utils/curriculumsCache';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
-
-const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
+import { getErrorMessage } from '../../utils/errorHelpers';
 
 const StudentDetail = () => {
   const { user } = useAuth();

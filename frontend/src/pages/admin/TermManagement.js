@@ -15,6 +15,7 @@ import api from '../../utils/api';
 import PaginationControls from '../../components/PaginationControls';
 import useDebouncedValue from '../../utils/useDebouncedValue';
 import AdminLayout from '../../components/admin/AdminLayout';
+import { getErrorMessage } from '../../utils/errorHelpers';
 
 const initialForm = {
   schoolYear: '',
@@ -26,8 +27,6 @@ const semesterLabel = {
   2: '2nd Semester',
   3: 'Summer'
 };
-
-const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
 const TermManagement = () => {
   const [loading, setLoading] = useState(true);
@@ -64,7 +63,15 @@ const TermManagement = () => {
     try {
       const [currentRes, termsRes, allTermsRes] = await Promise.all([
         api.get('/terms/current'),
-        api.get('/terms', { params: { ...termsQuery, search: debouncedTermsSearch } }),
+        api.get('/terms', {
+          params: {
+            page: termsQuery.page,
+            pageSize: termsQuery.pageSize,
+            sortBy: termsQuery.sortBy,
+            sortOrder: termsQuery.sortOrder,
+            search: debouncedTermsSearch
+          }
+        }),
         api.get('/terms', { params: { page: 1, pageSize: 200, sortBy: 'schoolYear', sortOrder: 'desc' } })
       ]);
 
@@ -249,13 +256,13 @@ const TermManagement = () => {
                       <option value="desc">Descending</option>
                     </Form.Select>
                   </div>
-                  <Table striped bordered hover responsive>
+                  <Table striped bordered hover responsive className="table-fixed-cols">
                     <thead>
                       <tr>
-                        <th>School Year</th>
-                        <th>Semester</th>
-                        <th>Status</th>
-                        <th className="text-end">Actions</th>
+                        <th style={{ width: '25%' }}>School Year</th>
+                        <th style={{ width: '25%' }}>Semester</th>
+                        <th style={{ width: '20%' }}>Status</th>
+                        <th className="text-end" style={{ width: '30%' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>

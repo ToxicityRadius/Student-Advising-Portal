@@ -18,7 +18,11 @@ const Course = sequelize.define('Course', {
   },
   units: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: false,
+    validate: {
+      min: 0,
+      max: 9
+    }
   },
   createdAt: {
     type: DataTypes.BIGINT,

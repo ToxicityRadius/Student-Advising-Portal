@@ -19,89 +19,22 @@ const {
 } = require('../utils/studyPlan');
 
 const { VALID_STATUSES, parseGradeInput, parseGradePayload, formatQuarterGrade } = require('../utils/gradeValidation');
+const audit = require('../utils/auditLog');
+const GradeService = require('../services/GradeService');
 
 const personAttributes = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId'];
 
 const toNumber = (value) => Number(value);
 
-const serializeVersion = (version) => {
-  const plain = version.get ? version.get({ plain: true }) : version;
-  const courses = Array.isArray(plain.StudyPlanCourses)
-    ? [...plain.StudyPlanCourses].sort((left, right) => {
-      if (left.yearLevel !== right.yearLevel) {
-        return Number(left.yearLevel || 0) - Number(right.yearLevel || 0);
-      }
+const serializeVersion = GradeService.serializeVersion;
 
-      if (left.semester !== right.semester) {
-        return Number(left.semester || 0) - Number(right.semester || 0);
-      }
+const getSarWithStudyPlan = GradeService.getSarWithStudyPlan;
 
-      return String(left.Course?.code || '').localeCompare(String(right.Course?.code || ''));
-    })
-    : [];
+const getActiveVersion = GradeService.getActiveVersion;
 
-  return {
-    ...plain,
-    StudyPlanCourses: courses
-  };
-};
+const collectConnectedComponents = GradeService.collectConnectedComponents;
 
-const getSarWithStudyPlan = async (sarId, transaction) => {
-  return StudentAcademicRecord.findByPk(sarId, {
-    include: [{ model: StudyPlan, attributes: ['id', 'studentAcademicRecordId'] }],
-    transaction
-  });
-};
-
-const getActiveVersion = async (studyPlanId, transaction) => {
-  return StudyPlanVersion.findOne({
-    where: { studyPlanId, status: 'active' },
-    include: [
-      {
-        model: StudyPlanCourse,
-        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-      }
-    ],
-    transaction
-  });
-};
-
-const collectConnectedComponents = (courseIds, adjacencyMap) => {
-  const unvisited = new Set(courseIds);
-  const components = [];
-
-  while (unvisited.size > 0) {
-    const [start] = unvisited;
-    const queue = [start];
-    unvisited.delete(start);
-    const component = [start];
-
-    while (queue.length > 0) {
-      const current = queue.shift();
-      const neighbors = adjacencyMap.get(current) || [];
-
-      neighbors.forEach((neighbor) => {
-        if (unvisited.has(neighbor)) {
-          unvisited.delete(neighbor);
-          queue.push(neighbor);
-          component.push(neighbor);
-        }
-      });
-    }
-
-    components.push(component);
-  }
-
-  return components;
-};
-
-const includeRelationsForVersion = [
-  { model: User, as: 'GeneratedByAdviser', attributes: personAttributes },
-  {
-    model: StudyPlanCourse,
-    include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-  }
-];
+const includeRelationsForVersion = GradeService.buildVersionIncludes();
 
 // @desc   Enter grades for active study plan version courses
 // @route  PUT /api/sars/:id/study-plan/active-version/grades
@@ -175,6 +108,14 @@ exports.enterGrades = async (req, res, next) => {
     }
 
     await transaction.commit();
+
+    audit.log({
+      userId: req.user?.id ?? null,
+      action: 'GRADE_ENTRY',
+      resource: 'grade',
+      resourceId: req.params.id,
+      meta: { gradeCount: grades.length, activeVersionId: activeVersion.id }
+    });
 
     const refreshedVersion = await StudyPlanVersion.findByPk(activeVersion.id, {
       include: includeRelationsForVersion

@@ -95,13 +95,13 @@ export const AuthProvider = ({ children }) => {
         role: decoded.role,
         is_verified: decoded.is_verified ?? false
       };
-      if (decoded.first_name != null) {
+      if (decoded.first_name !== null && decoded.first_name !== undefined) {
         result.first_name = decoded.first_name;
         result.firstName = decoded.first_name;
       }
-      if (decoded.program != null) result.program = decoded.program;
-      if (decoded.contact_number != null) result.contact_number = decoded.contact_number;
-      if (decoded.year_level != null) result.year_level = decoded.year_level;
+      if (decoded.program !== null && decoded.program !== undefined) result.program = decoded.program;
+      if (decoded.contact_number !== null && decoded.contact_number !== undefined) result.contact_number = decoded.contact_number;
+      if (decoded.year_level !== null && decoded.year_level !== undefined) result.year_level = decoded.year_level;
 
       return result;
     } catch {
@@ -151,6 +151,25 @@ export const AuthProvider = ({ children }) => {
     };
     window.addEventListener('auth:session-expired', handleSessionExpired);
     return () => window.removeEventListener('auth:session-expired', handleSessionExpired);
+  }, []);
+
+  // Sync auth state across browser tabs via localStorage 'storage' events
+  useEffect(() => {
+    const handleStorageChange = (event) => {
+      if (event.key === 'token') {
+        if (!event.newValue) {
+          // Token removed in another tab — log out this tab too
+          clearInactivityTimer();
+          setUser(null);
+        } else if (event.newValue !== event.oldValue) {
+          // Token updated (e.g. re-login) in another tab — re-hydrate
+          applyToken(event.newValue, JSON.parse(localStorage.getItem('user') || 'null')).catch(() => {});
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkAuth = async () => {

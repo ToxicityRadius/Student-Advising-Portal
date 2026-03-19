@@ -1,5 +1,50 @@
 const jwt = require('jsonwebtoken');
 
+const getAccessTokenExpiryMs = () => {
+  const tokenExpiry = process.env.JWT_EXPIRE || '30m';
+
+  if (tokenExpiry.endsWith('d')) {
+    return parseInt(tokenExpiry, 10) * 24 * 60 * 60 * 1000;
+  }
+  if (tokenExpiry.endsWith('h')) {
+    return parseInt(tokenExpiry, 10) * 60 * 60 * 1000;
+  }
+  if (tokenExpiry.endsWith('m')) {
+    return parseInt(tokenExpiry, 10) * 60 * 1000;
+  }
+
+  return 30 * 60 * 1000;
+};
+
+const getBaseCookieOptions = (expiryMs) => ({
+  expires: new Date(Date.now() + expiryMs),
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict'
+});
+
+exports.getAuthCookieOptions = () => {
+  const accessExpiryMs = getAccessTokenExpiryMs();
+  return {
+    token: getBaseCookieOptions(accessExpiryMs),
+    refreshToken: {
+      ...getBaseCookieOptions(30 * 24 * 60 * 60 * 1000),
+      path: '/api/auth'
+    }
+  };
+};
+
+exports.clearAuthCookies = (res) => {
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  };
+
+  res.clearCookie('token', cookieOptions);
+  res.clearCookie('refreshToken', { ...cookieOptions, path: '/api/auth' });
+};
+
 // Generate access token
 // Supports both signatures:
 // 1) generateToken(userObject)
@@ -14,8 +59,6 @@ exports.generateToken = (userOrId, roleArg) => {
     ? (userOrId.is_verified ?? userOrId.isVerified ?? false)
     : false;
 
-  // Default of '30m' only applies when JWT_EXPIRE env var is not set.
-  // Update JWT_EXPIRE in .env to '30m' once the frontend refresh-token flow (Phase 3) is in place.
   return jwt.sign(
     { id, role, is_verified: isVerified },
     process.env.JWT_SECRET,
@@ -60,32 +103,18 @@ exports.sendTokenResponse = (user, statusCode, res) => {
   // Persist the newly issued refresh token so rotation verification works (Step 3.2).
   // Fire-and-forget — the HTTP response must not be blocked by a DB write.
   try {
+    const logger = require('./logger');
     const { User: UserModel } = require('../models');
     UserModel.update({
       refreshToken,
       refreshTokenExpires: Date.now() + (30 * 24 * 60 * 60 * 1000),
       updatedAt: Date.now()
-    }, { where: { id: user.id || user._id } }).catch(() => {});
+    }, { where: { id: user.id || user._id } }).catch((err) => {
+      logger.error({ err, userId: user.id || user._id }, 'Failed to persist refresh token');
+    });
   } catch (_) {}
 
-  const tokenExpiry = process.env.JWT_EXPIRE || '30m';
-  let expiryMs;
-  if (tokenExpiry.endsWith('d')) {
-    expiryMs = parseInt(tokenExpiry) * 24 * 60 * 60 * 1000;
-  } else if (tokenExpiry.endsWith('h')) {
-    expiryMs = parseInt(tokenExpiry) * 60 * 60 * 1000;
-  } else if (tokenExpiry.endsWith('m')) {
-    expiryMs = parseInt(tokenExpiry) * 60 * 1000;
-  } else {
-    expiryMs = 30 * 60 * 1000; // fallback: 30 minutes
-  }
-
-  const options = {
-    expires: new Date(Date.now() + expiryMs),
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict'
-  };
+  const cookieOptions = exports.getAuthCookieOptions();
 
   const userResponse = {
     id: user.id || user._id,
@@ -99,10 +128,16 @@ exports.sendTokenResponse = (user, statusCode, res) => {
 
   res
     .status(statusCode)
-    .cookie('token', token, options)
-    .cookie('refreshToken', refreshToken, { ...options, path: '/api/auth/refresh' })
+    .cookie('token', token, cookieOptions.token)
+    .cookie('refreshToken', refreshToken, cookieOptions.refreshToken)
     .json({
       success: true,
+      message: 'Authentication successful',
+      data: {
+        token,
+        refreshToken,
+        user: userResponse
+      },
       token,
       refreshToken,
       user: userResponse

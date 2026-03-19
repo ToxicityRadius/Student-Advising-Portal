@@ -5,6 +5,9 @@ const { linkStudentAccountToSar, syncProfileToSar } = require('../utils/sarLinki
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
 const { imageSize } = require('image-size');
 const { uploadProfilePicture, deleteProfilePictureAsset } = require('../utils/profileStorage');
+const { validateUploadedImageFile } = require('../utils/imageValidation');
+const { sanitizeUserWithProfile, computeProfileCompletionScore } = require('../utils/sanitize');
+const UserService = require('../services/UserService');
 
 // Allowed enum values for validated fields
 const ALLOWED_SEX = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
@@ -12,47 +15,11 @@ const ALLOWED_STUDENT_TYPES = ['regular', 'irregular', 'transferee', 'ladderized
 const MAX_PROFILE_IMAGE_WIDTH = 2000;
 const MAX_PROFILE_IMAGE_HEIGHT = 2000;
 
-const NO_ACTIVE_TERM_KEY = 'NO_ACTIVE_TERM';
+const NO_ACTIVE_TERM_KEY = UserService.NO_ACTIVE_TERM_KEY;
 
-const getTermKey = (term) => {
-  if (!term) {
-    return NO_ACTIVE_TERM_KEY;
-  }
+const getTermKey = UserService.getTermKey;
 
-  return `${term.schoolYear}-S${term.semester}`;
-};
-
-const getStudentProfileLockMeta = async (user) => {
-  const role = user?.role;
-  if (role !== 'student') {
-    return {};
-  }
-
-  const currentTerm = await AcademicTerm.findOne({
-    where: { isCurrent: true },
-    attributes: ['id', 'schoolYear', 'semester']
-  });
-
-  const currentTermKey = getTermKey(currentTerm);
-  const lastSubmittedTermKey = user?.profile_last_submitted_term_key || null;
-
-  return {
-    currentProfileTerm: currentTerm
-      ? {
-        id: currentTerm.id,
-        schoolYear: currentTerm.schoolYear,
-        semester: currentTerm.semester,
-        key: currentTermKey
-      }
-      : null,
-    lastSubmittedProfileTermKey: lastSubmittedTermKey,
-    isProfileLockedForCurrentTerm: Boolean(
-      lastSubmittedTermKey &&
-      currentTermKey &&
-      lastSubmittedTermKey === currentTermKey
-    )
-  };
-};
+const getStudentProfileLockMeta = UserService.getStudentProfileLockMeta;
 
 const REQUIRED_PROFILE_FIELDS_COMMON = [
   'first_name',
@@ -73,35 +40,8 @@ const REQUIRED_PROFILE_FIELDS_STUDENT = [
   'current_year_level'
 ];
 
-// Compute profile completion score (0-100) using required fields only
-function computeProfileCompletionScore(user) {
-  const fields = user.role === 'student'
-    ? [...REQUIRED_PROFILE_FIELDS_COMMON, ...REQUIRED_PROFILE_FIELDS_STUDENT]
-    : REQUIRED_PROFILE_FIELDS_COMMON;
-
-  const filled = fields.filter(f => {
-    const val = user[f];
-    return val !== null && val !== undefined && val !== '';
-  });
-
-  return Math.round((filled.length / fields.length) * 100);
-}
-
-// Helper: strip sensitive fields from a user plain object and add computed fields
-function sanitizeUser(user) {
-  if (!user) return null;
-  const plain = user.get ? user.get({ plain: true }) : { ...user };
-  delete plain.password;
-  delete plain.activationToken;
-  delete plain.activationTokenExpires;
-  delete plain.resetPasswordToken;
-  delete plain.resetPasswordExpires;
-  delete plain.verificationCode;
-  delete plain.verificationCodeExpires;
-  plain.profileCompletionScore = computeProfileCompletionScore(plain);
-  plain.gender = plain.sex ?? null;
-  return plain;
-}
+// Alias for backward-compat inside this controller — delegates to shared utility
+const sanitizeUser = sanitizeUserWithProfile;
 
 // @desc    Complete student onboarding (set year level)
 // @route   POST /api/users/onboard
@@ -139,49 +79,14 @@ exports.completeOnboarding = async (req, res, next) => {
 // @access  Private/Admin
 exports.getAllUsers = async (req, res, next) => {
   try {
-    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
+    const paginationParams = parsePaginationParams(req.query, {
       defaultSortBy: 'createdAt',
       allowedSortBy: ['createdAt', 'firstName', 'lastName', 'email', 'role']
     });
-
     const roleFilter = String(req.query.role || '').trim();
-    const baseWhere = roleFilter ? { role: roleFilter } : {};
-    const searchWhere = search
-      ? {
-        [Op.or]: [
-          { firstName: { [Op.iLike]: `%${search}%` } },
-          { lastName: { [Op.iLike]: `%${search}%` } },
-          { email: { [Op.iLike]: `%${search}%` } },
-          { role: { [Op.iLike]: `%${search}%` } }
-        ]
-      }
-      : null;
-
-    const where = searchWhere
-      ? { [Op.and]: [baseWhere, searchWhere] }
-      : baseWhere;
-
-    const { rows, count } = await User.findAndCountAll({
-      where,
-      order: [[sortBy, sortOrder], ['id', 'DESC']],
-      offset,
-      limit
-    });
-
-    const sanitized = rows.map(u => sanitizeUser(u));
-    const payload = buildPaginatedPayload({
-      items: sanitized,
-      page,
-      pageSize,
-      totalItems: count
-    });
-
-    res.status(200).json({
-      success: true,
-      count: sanitized.length,
-      users: sanitized,
-      ...payload
-    });
+    const { items, count, page, pageSize } = await UserService.listUsers({ paginationParams, roleFilter });
+    const payload = buildPaginatedPayload({ items, page, pageSize, totalItems: count });
+    res.status(200).json({ success: true, count: items.length, users: items, ...payload });
   } catch (error) {
     next(error);
   }
@@ -229,16 +134,9 @@ exports.getUserById = async (req, res, next) => {
 // @access  Private
 exports.getCurriculumOptions = async (req, res, next) => {
   try {
-    const items = await Curriculum.findAll({
-      attributes: ['id', 'name', 'isActive'],
-      order: [['name', 'ASC'], ['id', 'DESC']]
-    });
-
+    const items = await UserService.getCurriculumOptions();
     res.set('Cache-Control', 'private, max-age=120');
-    return res.status(200).json({
-      success: true,
-      items
-    });
+    return res.status(200).json({ success: true, items });
   } catch (error) {
     next(error);
   }
@@ -653,6 +551,17 @@ exports.updateProfile = async (req, res, next) => {
     const existingProfilePicturePath = user.profile_picture;
 
     if (req.file) {
+      const imageValidationError = validateUploadedImageFile(req.file);
+      if (imageValidationError) {
+        return res.status(400).json({
+          success: false,
+          message: imageValidationError,
+          errors: {
+            profile_picture: imageValidationError
+          }
+        });
+      }
+
       let dimensions;
       try {
         dimensions = imageSize(req.file.buffer);

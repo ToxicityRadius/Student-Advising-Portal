@@ -3,7 +3,7 @@ import { Alert, Button, Spinner } from 'react-bootstrap';
 import api from '../../utils/api';
 import SARLayout from '../../components/sar/SARLayout';
 
-const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
+import { getErrorMessage } from '../../utils/errorHelpers';
 
 const MyRecord = () => {
   const [loading, setLoading] = useState(true);

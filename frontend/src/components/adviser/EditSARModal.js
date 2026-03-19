@@ -276,7 +276,7 @@ const EditSARModal = ({
                   accept="image/jpeg,image/png,image/webp"
                   onChange={handleProfilePictureChange}
                 />
-                <Form.Text className="text-muted">JPEG, PNG, or WEBP. Max 5 MB. Recommended up to 2000x2000.</Form.Text>
+                <Form.Text className="text-muted">JPEG, PNG, or WEBP. Max 2 MB. Recommended up to 2000x2000.</Form.Text>
               </Form.Group>
 
               <Form.Group className="mb-3">

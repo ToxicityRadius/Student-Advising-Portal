@@ -79,9 +79,7 @@ const Login = () => {
         });
       } else if (data.mustChangePassword) {
         sessionStorage.removeItem('loginRole');
-        sessionStorage.setItem('forcePasswordChangeToken', data.token);
-        sessionStorage.setItem('forcePasswordChangeOldPassword', formData.password);
-        navigate('/change-password');
+        navigate('/change-password', { state: { token: data.token, oldPassword: formData.password } });
       } else if (data.mustChangeEmail) {
         sessionStorage.removeItem('loginRole');
         sessionStorage.setItem('forceEmailChangeToken', data.token);
@@ -145,7 +143,6 @@ const Login = () => {
         });
       } else if (data.mustChangePassword) {
         sessionStorage.removeItem('loginRole');
-        sessionStorage.setItem('forcePasswordChangeToken', data.token);
         setError('This account must change password via email/password sign-in before continuing.');
       } else if (data.user && data.user.role === 'student' && !data.user.studentId) {
         // Student without a Student Number — show the modal
@@ -307,7 +304,7 @@ const Login = () => {
                 <h2 className="mb-3 text-start" style={{ fontSize: '1.3rem' }}>Sign in{selectedRole === 'faculty' ? ' as Instructor' : ' as Student'}</h2>
                 
                 {error && (
-                  <Alert variant="danger" dismissible onClose={() => setError('')}>
+                  <Alert variant="danger" dismissible onClose={() => setError('')} role="alert">
                     <i className="bi bi-exclamation-triangle-fill me-2"></i>
                     {error}
                   </Alert>

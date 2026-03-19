@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert } from 'react-bootstrap';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
 const ChangePassword = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
 
   const [newPassword, setNewPassword] = useState('');
@@ -14,8 +15,9 @@ const ChangePassword = () => {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const tempToken = sessionStorage.getItem('forcePasswordChangeToken');
-  const oldPassword = sessionStorage.getItem('forcePasswordChangeOldPassword');
+  // Prefer navigation state (in-memory, not persisted) over sessionStorage fallback
+  const tempToken = location.state?.token || sessionStorage.getItem('forcePasswordChangeToken');
+  const oldPassword = location.state?.oldPassword || null;
   const persistentToken = localStorage.getItem('token');
 
   const activeToken = useMemo(() => tempToken || persistentToken || null, [tempToken, persistentToken]);
@@ -67,7 +69,6 @@ const ChangePassword = () => {
       );
 
       sessionStorage.removeItem('forcePasswordChangeToken');
-      sessionStorage.removeItem('forcePasswordChangeOldPassword');
 
       if (response.data.mustChangeEmail) {
         sessionStorage.setItem('forceEmailChangeToken', response.data.token);

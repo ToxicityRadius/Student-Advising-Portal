@@ -72,8 +72,11 @@ const VerifyCode = () => {
 
   const handlePaste = (e) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').slice(0, 6);
-    if (!/^\d+$/.test(pastedData)) return;
+    const pastedData = e.clipboardData
+      .getData('text')
+      .replace(/\D/g, '')
+      .slice(0, 6);
+    if (!pastedData) return;
 
     const newCode = pastedData.split('');
     while (newCode.length < 6) newCode.push('');

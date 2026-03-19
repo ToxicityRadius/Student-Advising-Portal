@@ -51,7 +51,7 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(255, 255, 255, 0.7);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.22) 100%);
 }
 
 .login-card {
@@ -827,6 +827,41 @@ body {
   .error-popup-content p {
     font-size: 14px;
   }
+}
+
+/* ══════════════════════════════════════════
+   Aligned table column widths
+   Apply .table-fixed-cols to <Table> or <table>
+   for consistent column sizing across all
+   course-related tables in the system.
+══════════════════════════════════════════ */
+
+.table-fixed-cols {
+  table-layout: fixed;
+  width: 100%;
+}
+
+/* Course tables: Code / Name / Units / Grade / Status */
+.table-fixed-cols .col-code   { width: 14%; }
+.table-fixed-cols .col-name   { width: 40%; }
+.table-fixed-cols .col-units  { width: 10%; }
+.table-fixed-cols .col-grade  { width: 12%; }
+.table-fixed-cols .col-status { width: 14%; }
+.table-fixed-cols .col-actions { width: 14%; }
+
+/* Prevent long text from breaking the layout */
+.table-fixed-cols td,
+.table-fixed-cols th {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Course name column may wrap */
+.table-fixed-cols .col-name,
+.table-fixed-cols td:nth-child(2) {
+  white-space: normal;
+  word-break: break-word;
 }
 
 @media (max-width: 360px) {

@@ -20,8 +20,12 @@ const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagin
 const { computeSarAnalytics } = require('../utils/sarAnalytics');
 const { buildElectiveTrackPlan } = require('../utils/studyPlan');
 const { uploadProfilePicture: uploadProfilePictureAsset, deleteProfilePictureAsset } = require('../utils/profileStorage');
+const { validateUploadedImageFile } = require('../utils/imageValidation');
+const SARService = require('../services/SARService');
 
 const tipEmailPattern = /@tip\.edu\.ph$/i;
+
+const audit = require('../utils/auditLog');
 
 const personAttributes = [
   'id',
@@ -156,105 +160,12 @@ const getAssignedCurriculum = async (curriculumId) => {
 // @access adviser, admin
 exports.getSarAutofillByEmail = async (req, res, next) => {
   try {
-    const email = normalizeEmail(req.query.email);
-
-    if (!email) {
-      return res.status(400).json({ success: false, message: 'email query parameter is required' });
-    }
-
-    if (!tipEmailPattern.test(email)) {
-      return res.status(400).json({ success: false, message: 'Student email must end in @tip.edu.ph' });
-    }
-
-    const matchedStudent = await User.findOne({
-      where: { email, role: 'student' },
-      attributes: [
-        'id',
-        'email',
-        'studentId',
-        'current_year_level',
-        'curriculum_id',
-        'preferred_name',
-        'first_name',
-        'last_name',
-        'firstName',
-        'lastName'
-      ]
-    });
-
-    if (!matchedStudent) {
-      return res.status(200).json({
-        success: true,
-        data: {
-          foundStudentAccount: false,
-          linkStatus: 'unlinked',
-          email,
-          message: 'No registered student account found. You can still create an unlinked SAR manually.',
-          autofill: {
-            studentName: '',
-            studentNumber: '',
-            yearLevel: null,
-            curriculumId: null
-          },
-          autoFilledFields: []
-        }
-      });
-    }
-
-    const existingSar = await StudentAcademicRecord.findOne({
-      where: {
-        [Op.or]: [
-          { userId: matchedStudent.id },
-          { email }
-        ]
-      },
-      attributes: ['id']
-    });
-
-    const studentName = composeStudentDisplayName(matchedStudent);
-    const studentNumber = String(matchedStudent.studentId || '').trim();
-    const resolvedYearLevel = isValidYearLevel(parseYearLevel(matchedStudent.current_year_level))
-      ? parseYearLevel(matchedStudent.current_year_level)
-      : 1;
-
-    const curriculum = await getAssignedCurriculum(matchedStudent.curriculum_id || null);
-
-    const autoFilledFields = [];
-    if (studentName) {
-      autoFilledFields.push('studentName');
-    }
-    if (studentNumber) {
-      autoFilledFields.push('studentNumber');
-    }
-    if (resolvedYearLevel) {
-      autoFilledFields.push('yearLevel');
-    }
-    if (curriculum?.id) {
-      autoFilledFields.push('curriculumId');
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        foundStudentAccount: true,
-        linkStatus: 'linked',
-        email,
-        studentId: matchedStudent.id,
-        hasExistingSar: Boolean(existingSar),
-        existingSarId: existingSar?.id || null,
-        message: existingSar
-          ? 'Student account found, but this account is already linked to an existing SAR.'
-          : 'Student account found. Fields were auto-populated from the student profile.',
-        autofill: {
-          studentName,
-          studentNumber,
-          yearLevel: resolvedYearLevel,
-          curriculumId: curriculum?.id || null
-        },
-        autoFilledFields
-      }
-    });
+    const data = await SARService.getAutofillByEmail(req.query.email);
+    return res.status(200).json({ success: true, data });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
     next(error);
   }
 };
@@ -403,6 +314,14 @@ exports.createSAR = async (req, res, next) => {
       }
     }
 
+    audit.log({
+      userId: req.user.id,
+      action: 'SAR_CREATE',
+      resource: 'sar',
+      resourceId: createdSar.id,
+      meta: { studentNumber: createdSar.studentNumber, email: createdSar.email }
+    });
+
     return res.status(201).json({ success: true, data: serializeSar(createdSar) });
   } catch (error) {
     next(error);
@@ -414,42 +333,12 @@ exports.createSAR = async (req, res, next) => {
 // @access adviser, admin, student (own only)
 exports.getSARs = async (req, res, next) => {
   try {
-    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
+    const paginationParams = parsePaginationParams(req.query, {
       defaultSortBy: 'studentName',
       allowedSortBy: ['studentName', 'studentNumber', 'email', 'yearLevel', 'createdAt']
     });
-
-    const baseWhere = req.user.role === 'student' ? buildStudentOwnershipWhere(req.user) : {};
-    const searchWhere = search
-      ? {
-        [Op.or]: [
-          { studentName: { [Op.iLike]: `%${search}%` } },
-          { studentNumber: { [Op.iLike]: `%${search}%` } },
-          { email: { [Op.iLike]: `%${search}%` } }
-        ]
-      }
-      : null;
-
-    const where = searchWhere
-      ? { [Op.and]: [baseWhere, searchWhere] }
-      : baseWhere;
-
-    const { rows, count } = await StudentAcademicRecord.findAndCountAll({
-      where,
-      include: buildSarIncludes(),
-      order: [[sortBy, sortOrder], ['studentNumber', 'ASC'], ['id', 'DESC']],
-      offset,
-      limit
-    });
-
-    const items = rows.map(serializeSar);
-    const payload = buildPaginatedPayload({
-      items,
-      page,
-      pageSize,
-      totalItems: count
-    });
-
+    const { items, count, page, pageSize } = await SARService.listSARs({ user: req.user, paginationParams });
+    const payload = buildPaginatedPayload({ items, page, pageSize, totalItems: count });
     return res.status(200).json({ success: true, ...payload });
   } catch (error) {
     next(error);
@@ -461,88 +350,15 @@ exports.getSARs = async (req, res, next) => {
 // @access adviser, admin, student (own only)
 exports.getSARById = async (req, res, next) => {
   try {
-    const sar = await StudentAcademicRecord.findByPk(req.params.id, {
-      include: [
-        ...buildSarIncludes(),
-        {
-          model: StudyPlan,
-          attributes: ['id', 'studentAcademicRecordId', 'createdAt', 'updatedAt']
-        }
-      ]
-    });
-
-    if (!sar) {
+    const data = await SARService.getSARDetail(req.params.id, req.user);
+    if (!data) {
       return res.status(404).json({ success: false, message: 'Student academic record not found' });
     }
-
-    if (req.user.role === 'student' && !isSarOwnedByUser(sar, req.user)) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
-    }
-
-    const sarData = serializeSar(sar);
-    const versions = sarData.StudyPlan?.id
-      ? await fetchStudyPlanVersionsForStudyPlan(sarData.StudyPlan.id)
-      : [];
-
-    const activeStudyPlanVersion = versions.find((version) => version.status === 'active') || null;
-    const latestStudyPlanVersion = versions[0] || null;
-    const [curriculumCourses, prerequisites, currentTerm, electiveTrackCourses, allCurriculumTrackCourses] = await Promise.all([
-      CurriculumCourse.findAll({
-        where: { curriculumId: sarData.curriculumId },
-        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
-        order: [['yearLevel', 'ASC'], ['semester', 'ASC'], [Course, 'code', 'ASC']]
-      }),
-      Prerequisite.findAll({
-        where: { curriculumId: sarData.curriculumId },
-        include: [{ model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] }]
-      }),
-      AcademicTerm.findOne({ where: { isCurrent: true }, attributes: ['id', 'schoolYear', 'semester'] }),
-      sarData.electiveTrackId
-        ? ElectiveTrackCourse.findAll({
-          where: { electiveTrackId: sarData.electiveTrackId },
-          include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-        })
-        : [],
-      ElectiveTrackCourse.findAll({
-        include: [{
-          model: ElectiveTrack,
-          attributes: ['id', 'curriculumId'],
-          where: { curriculumId: sarData.curriculumId }
-        }, {
-          model: Course,
-          attributes: ['id', 'code', 'name', 'units']
-        }]
-      })
-    ]);
-
-    const analytics = computeSarAnalytics({
-      sar: sarData,
-      studyPlanVersions: versions,
-      activeStudyPlanVersion,
-      curriculumCourses,
-      prerequisites,
-      currentTerm,
-      electiveTrackCourses,
-      allCurriculumTrackCourses
-    });
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        ...sarData,
-        activeStudyPlanVersion,
-        latestStudyPlanVersion,
-        analytics,
-        studyPlanVersions: versions.map((version) => ({
-          id: version.id,
-          versionNumber: version.versionNumber,
-          status: version.status,
-          createdAt: version.createdAt,
-          updatedAt: version.updatedAt
-        }))
-      }
-    });
+    return res.status(200).json({ success: true, data });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
     next(error);
   }
 };
@@ -587,6 +403,9 @@ exports.updateSARElectiveTrack = async (req, res, next) => {
 // @desc   Update a student academic record
 // @route  PUT /api/sars/:id
 // @access adviser, admin
+// @desc   Update a student academic record
+// @route  PUT /api/sars/:id
+// @access adviser, admin
 exports.updateSAR = async (req, res, next) => {
   try {
     const sar = await StudentAcademicRecord.findByPk(req.params.id);
@@ -594,119 +413,16 @@ exports.updateSAR = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Student academic record not found' });
     }
 
-    const updates = {};
-    const profileUpdates = {};
-
-    if (req.body.studentName !== undefined) {
-      const studentName = String(req.body.studentName || '').trim();
-      if (!studentName) {
-        return res.status(400).json({ success: false, message: 'studentName cannot be empty' });
-      }
-      updates.studentName = studentName;
+    // Build SAR-level field updates (studentName, studentNumber, yearLevel, curriculumId)
+    const { updates, error: sarFieldError } = await SARService.buildSARFieldUpdates(req.body, sar);
+    if (sarFieldError) {
+      return res.status(sarFieldError.status).json({ success: false, message: sarFieldError.message });
     }
 
-    if (req.body.studentNumber !== undefined) {
-      const studentNumber = String(req.body.studentNumber || '').trim();
-      if (!studentNumber) {
-        return res.status(400).json({ success: false, message: 'studentNumber cannot be empty' });
-      }
-      // Check uniqueness only when changing to a different value
-      if (studentNumber !== String(sar.studentNumber || '').trim()) {
-        const conflict = await StudentAcademicRecord.findOne({
-          where: { studentNumber, id: { [Op.ne]: sar.id } }
-        });
-        if (conflict) {
-          return res.status(409).json({ success: false, message: 'Another student academic record already uses that student number' });
-        }
-      }
-      updates.studentNumber = studentNumber;
-    }
-
-    if (req.body.yearLevel !== undefined) {
-      const yearLevel = parseYearLevel(req.body.yearLevel);
-      if (!isValidYearLevel(yearLevel)) {
-        return res.status(400).json({ success: false, message: 'yearLevel must be an integer from 1 to 4' });
-      }
-      updates.yearLevel = yearLevel;
-    }
-
-    if (req.body.curriculumId !== undefined) {
-      const curriculum = await Curriculum.findByPk(req.body.curriculumId);
-      if (!curriculum) {
-        return res.status(404).json({ success: false, message: 'Assigned curriculum not found' });
-      }
-      updates.curriculumId = curriculum.id;
-    }
-
-    if (typeof req.body.studentProfile === 'string') {
-      try {
-        req.body.studentProfile = JSON.parse(req.body.studentProfile);
-      } catch {
-        return res.status(400).json({ success: false, message: 'studentProfile must be valid JSON when provided as text' });
-      }
-    }
-
-    if (req.body.studentProfile !== undefined) {
-      if (!req.body.studentProfile || typeof req.body.studentProfile !== 'object' || Array.isArray(req.body.studentProfile)) {
-        return res.status(400).json({ success: false, message: 'studentProfile must be an object when provided' });
-      }
-
-      const incomingProfile = req.body.studentProfile;
-      const allowedProfileFields = [
-        'first_name',
-        'middle_name',
-        'last_name',
-        'suffix',
-        'preferred_name',
-        'program',
-        'student_type',
-        'contact_number',
-        'alternate_email',
-        'sex',
-        'citizenship',
-        'address',
-        'emergency_contact_name',
-        'emergency_contact_relationship',
-        'emergency_contact_number'
-      ];
-
-      for (const field of allowedProfileFields) {
-        if (Object.prototype.hasOwnProperty.call(incomingProfile, field)) {
-          profileUpdates[field] = normalizeProfileField(incomingProfile[field]);
-        }
-      }
-
-      if (
-        Object.prototype.hasOwnProperty.call(profileUpdates, 'student_type') &&
-        profileUpdates.student_type !== null &&
-        !ALLOWED_STUDENT_TYPES.includes(profileUpdates.student_type)
-      ) {
-        return res.status(400).json({
-          success: false,
-          message: `student_type must be one of: ${ALLOWED_STUDENT_TYPES.join(', ')}`
-        });
-      }
-
-      if (
-        Object.prototype.hasOwnProperty.call(profileUpdates, 'sex') &&
-        profileUpdates.sex !== null &&
-        !ALLOWED_SEX.includes(profileUpdates.sex)
-      ) {
-        return res.status(400).json({
-          success: false,
-          message: `sex must be one of: ${ALLOWED_SEX.join(', ')}`
-        });
-      }
-
-      if (
-        Object.prototype.hasOwnProperty.call(profileUpdates, 'alternate_email') &&
-        profileUpdates.alternate_email !== null
-      ) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(profileUpdates.alternate_email)) {
-          return res.status(400).json({ success: false, message: 'alternate_email must be a valid email address' });
-        }
-      }
+    // Build student profile updates from studentProfile body field
+    const { profileUpdates, error: profileError } = SARService.buildSARProfileUpdates(req.body.studentProfile);
+    if (profileError) {
+      return res.status(profileError.status).json({ success: false, message: profileError.message });
     }
 
     const removeProfilePicture = String(req.body.remove_profile_picture || '').toLowerCase() === 'true';
@@ -720,6 +436,7 @@ exports.updateSAR = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'No valid SAR fields were provided for update' });
     }
 
+    // Handle profile picture / linked student updates
     let linkedStudent = null;
     if (Object.keys(profileUpdates).length > 0 || req.file || removeProfilePicture) {
       if (!sar.userId) {
@@ -735,16 +452,16 @@ exports.updateSAR = async (req, res, next) => {
       }
 
       if (req.file) {
+        const imageValidationError = validateUploadedImageFile(req.file);
+        if (imageValidationError) {
+          return res.status(400).json({ success: false, message: imageValidationError });
+        }
+
         const dimensions = imageSize(req.file.buffer);
         const width = Number(dimensions?.width || 0);
         const height = Number(dimensions?.height || 0);
 
-        if (
-          !width ||
-          !height ||
-          width > MAX_PROFILE_IMAGE_WIDTH ||
-          height > MAX_PROFILE_IMAGE_HEIGHT
-        ) {
+        if (!width || !height || width > MAX_PROFILE_IMAGE_WIDTH || height > MAX_PROFILE_IMAGE_HEIGHT) {
           return res.status(400).json({
             success: false,
             message: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.'
@@ -762,18 +479,17 @@ exports.updateSAR = async (req, res, next) => {
     await sar.update(updates);
 
     if (Object.keys(profileUpdates).length > 0) {
-      const existingProfilePicturePath = linkedStudent.profile_picture;
+      const existingPicturePath = linkedStudent.profile_picture;
       profileUpdates.updatedAt = Date.now();
       profileUpdates.profile_updated_at = Date.now();
-
       await linkedStudent.update(profileUpdates);
 
       if (
         Object.prototype.hasOwnProperty.call(profileUpdates, 'profile_picture') &&
-        existingProfilePicturePath &&
-        existingProfilePicturePath !== profileUpdates.profile_picture
+        existingPicturePath &&
+        existingPicturePath !== profileUpdates.profile_picture
       ) {
-        await deleteProfilePictureAsset(existingProfilePicturePath);
+        await deleteProfilePictureAsset(existingPicturePath);
       }
     }
 
@@ -790,6 +506,14 @@ exports.updateSAR = async (req, res, next) => {
         console.error('[sarSync] updateSAR sync error:', syncError.message);
       }
     }
+
+    audit.log({
+      userId: req.user.id,
+      action: 'SAR_UPDATE',
+      resource: 'sar',
+      resourceId: updatedSar.id,
+      meta: { changedFields: Object.keys(updates) }
+    });
 
     return res.status(200).json({ success: true, data: serializeSar(updatedSar) });
   } catch (error) {
@@ -951,6 +675,11 @@ exports.generateInitialStudyPlan = async (req, res, next) => {
 // @access adviser, admin, student (own only)
 exports.getStudyPlanVersions = async (req, res, next) => {
   try {
+    const { page, pageSize } = parsePaginationParams(req.query, {
+      defaultSortBy: 'createdAt',
+      allowedSortBy: ['versionNumber', 'createdAt', 'status']
+    });
+
     const sar = await StudentAcademicRecord.findByPk(req.params.id, {
       include: [{ model: StudyPlan, attributes: ['id', 'studentAcademicRecordId', 'createdAt', 'updatedAt'] }]
     });
@@ -964,11 +693,27 @@ exports.getStudyPlanVersions = async (req, res, next) => {
     }
 
     if (!sar.StudyPlan) {
-      return res.status(200).json({ success: true, data: [] });
+      const payload = buildPaginatedPayload({
+        items: [],
+        page,
+        pageSize,
+        totalItems: 0
+      });
+      return res.status(200).json({ success: true, ...payload });
     }
 
     const versions = await fetchStudyPlanVersionsForStudyPlan(sar.StudyPlan.id);
-    return res.status(200).json({ success: true, data: versions });
+    const totalItems = versions.length;
+    const offset = (page - 1) * pageSize;
+    const items = versions.slice(offset, offset + pageSize);
+    const payload = buildPaginatedPayload({
+      items,
+      page,
+      pageSize,
+      totalItems
+    });
+
+    return res.status(200).json({ success: true, ...payload });
   } catch (error) {
     next(error);
   }

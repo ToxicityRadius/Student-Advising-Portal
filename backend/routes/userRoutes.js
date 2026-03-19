@@ -15,10 +15,20 @@ const {
   completeOnboarding
 } = require('../controllers/userController');
 const { protect, requireRole } = require('../middleware/auth');
+const validate = require('../middleware/validate');
+const {
+  completeOnboardingValidation,
+  updateStudentIdValidation,
+  updateUserStudentIdValidation,
+  updateUserValidation,
+  assignAdviserValidation,
+  userIdParamValidation
+} = require('../middleware/userValidation');
+const { mutationLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-const MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_PROFILE_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -42,9 +52,9 @@ const uploadProfilePicture = (req, res, next) => {
     if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({
         success: false,
-        message: 'Profile image must not exceed 5 MB',
+        message: 'Profile image must not exceed 2 MB',
         errors: {
-          profile_picture: 'Profile image must not exceed 5 MB'
+          profile_picture: 'Profile image must not exceed 2 MB'
         }
       });
     }
@@ -60,13 +70,13 @@ const uploadProfilePicture = (req, res, next) => {
 };
 
 // Admin-only: update any user's student ID by specifying userId
-router.patch('/:userId/update-student-id', protect, requireRole('admin'), updateUserStudentId);
+router.patch('/:userId/update-student-id', protect, requireRole('admin'), validate(updateUserStudentIdValidation), updateUserStudentId);
 
 // Route for users to update their own student ID (protected but not admin-only)
-router.patch('/update-student-id', protect, updateStudentId);
+router.patch('/update-student-id', protect, validate(updateStudentIdValidation), updateStudentId);
 
 // Complete student onboarding (set year level)
-router.post('/onboard', protect, completeOnboarding);
+router.post('/onboard', protect, validate(completeOnboardingValidation), completeOnboarding);
 
 // Notifications for current authenticated user
 router.get('/me/notifications', protect, getMyNotifications);
@@ -82,19 +92,19 @@ router.get('/', protect, requireRole('admin'), getAllUsers);
 router.get('/curriculum-options', protect, getCurriculumOptions);
 
 // Profile update route (protected, user can update self; admin can update any)
-router.put('/:id/profile', protect, uploadProfilePicture, updateProfile);
+router.put('/:id/profile', mutationLimiter, protect, uploadProfilePicture, updateProfile);
 
 // Admin-only: update a user's core fields (role, active status, etc.)
-router.put('/:id', protect, requireRole('admin'), updateUser);
+router.put('/:id', protect, requireRole('admin'), validate(updateUserValidation), updateUser);
 
 // Admin-only: toggle user active/inactive status
-router.patch('/:id/toggle-status', protect, requireRole('admin'), toggleUserStatus);
+router.patch('/:id/toggle-status', protect, requireRole('admin'), validate(userIdParamValidation), toggleUserStatus);
 
 // Admin-only: assign adviser to a student
-router.put('/:id/assign-adviser', protect, requireRole('admin'), assignAdviser);
+router.put('/:id/assign-adviser', protect, requireRole('admin'), validate(assignAdviserValidation), assignAdviser);
 
 // Admin-only: delete a user
-router.delete('/:id', protect, requireRole('admin'), deleteUser);
+router.delete('/:id', protect, requireRole('admin'), validate(userIdParamValidation), deleteUser);
 
 // Profile read route (protected, user can view self; admin can view any)
 router.get('/:id', protect, getUserById);

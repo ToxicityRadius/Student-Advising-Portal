@@ -54,7 +54,8 @@ const StudyPlanVersion = sequelize.define('StudyPlanVersion', {
   tableName: 'study_plan_versions',
   timestamps: false,
   indexes: [
-    { fields: ['studyPlanId', 'status'], name: 'study_plan_versions_plan_status' }
+    { fields: ['studyPlanId', 'status'], name: 'study_plan_versions_plan_status' },
+    { fields: ['status'], name: 'study_plan_versions_status' }
   ]
 });
 

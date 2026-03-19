@@ -19,11 +19,19 @@ const CurriculumCourse = sequelize.define('CurriculumCourse', {
   },
   yearLevel: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: false,
+    validate: {
+      min: 1,
+      max: 5
+    }
   },
   semester: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: false,
+    validate: {
+      min: 1,
+      max: 3
+    }
   },
   isElective: {
     type: DataTypes.BOOLEAN,
@@ -31,7 +39,11 @@ const CurriculumCourse = sequelize.define('CurriculumCourse', {
   }
 }, {
   tableName: 'curriculum_courses',
-  timestamps: false
+  timestamps: false,
+  indexes: [
+    // Prevent the same course appearing twice in the same curriculum slot
+    { unique: true, fields: ['curriculumId', 'courseId'], name: 'curriculum_courses_curriculum_course' }
+  ]
 });
 
 module.exports = CurriculumCourse;

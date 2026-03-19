@@ -8,15 +8,18 @@ if (!connectionString) {
 }
 
 const isProduction = process.env.NODE_ENV === 'production';
+const useSsl = process.env.DB_SSL === 'false' ? false : true;
 
 const sequelize = new Sequelize(connectionString, {
   dialect: 'postgres',
-  dialectOptions: {
-    ssl: {
-      require: true,
-      rejectUnauthorized: isProduction
+  dialectOptions: useSsl
+    ? {
+      ssl: {
+        require: true,
+        rejectUnauthorized: isProduction
+      }
     }
-  },
+    : {},
   retry: {
     // Retries transient connection/query failures that can occur with managed DB poolers.
     max: 3,

@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import useNotifications from "../../utils/useNotifications";
+import { useNotificationContext } from "../../context/NotificationContext";
 import LogoutConfirmModal from "../LogoutConfirmModal";
+import SideNavItem from "../shared/SideNavItem";
 import { buildProfileImageUrl } from "../../utils/profileImage";
+import { formatYearLevel } from "../../utils/formatters";
 import api from "../../utils/api";
 
 import logo from "../../assets/images/STUDENT ADVISING LOGO 1.png";
@@ -25,12 +27,6 @@ import "./StudentLayout.css";
 
 const YELLOW = "#FFC107";
 
-const formatYearLevel = (level) => {
-  const map = { 1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th" };
-  const n = parseInt(level, 10);
-  return map[n] ? `${map[n]} Year` : `${level} Year`;
-};
-
 const imgIcon = (src, size = 22) => (
   <img
     src={src}
@@ -39,83 +35,11 @@ const imgIcon = (src, size = 22) => (
   />
 );
 
-const SideNavItem = ({ icon, label, to, active, badge }) => (
-  <Link
-    to={to}
-    aria-current={active ? 'page' : undefined}
-    style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-      padding: "10px 16px",
-      textDecoration: "none",
-      backgroundColor: "transparent",
-      color: "#444",
-      fontSize: "0.9rem",
-      fontWeight: active ? 700 : 600,
-      borderLeft: active ? `4px solid ${YELLOW}` : "4px solid transparent",
-      transition: "background-color 0.15s, box-shadow 0.15s, color 0.15s",
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.backgroundColor = YELLOW;
-      e.currentTarget.style.boxShadow = "0 0 12px rgba(255,193,7,0.6)";
-      e.currentTarget.style.color = "#fff";
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.backgroundColor = "transparent";
-      e.currentTarget.style.boxShadow = "none";
-      e.currentTarget.style.color = "#555";
-    }}
-    onFocus={(e) => {
-      e.currentTarget.style.backgroundColor = YELLOW;
-      e.currentTarget.style.boxShadow = "0 0 12px rgba(255,193,7,0.6)";
-      e.currentTarget.style.color = "#fff";
-    }}
-    onBlur={(e) => {
-      e.currentTarget.style.backgroundColor = "transparent";
-      e.currentTarget.style.boxShadow = "none";
-      e.currentTarget.style.color = "#555";
-    }}
-  >
-    <span
-      style={{
-        width: 20,
-        flexShrink: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      {icon}
-    </span>
-    <span style={{ flex: 1 }}>{label}</span>
-    {badge && (
-      <span
-        style={{
-          background: "#e53935",
-          color: "#fff",
-          borderRadius: "50%",
-          width: 18,
-          height: 18,
-          fontSize: "0.62rem",
-          fontWeight: 700,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        {badge}
-      </span>
-    )}
-  </Link>
-);
-
 /**
  * Shared student page layout: sidebar + topbar + content area.
  *
  * Props:
- *  - activePage: "dashboard" | "subjects" | "plan-of-study" | "grades" | "checklist" | "profile"
+ *  - activePage: "dashboard" | "subjects" | "plan-of-study" | "grades" | "checklist" | "profile" | "settings" | "help"
  *  - pageTitle: string shown in topbar breadcrumb
  *  - children: page content
  *  - avatarOverride: optional URL to override the profile picture (used by Profile page for live preview)
@@ -130,7 +54,7 @@ const StudentLayout = ({
 }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { notifications, notifCount } = useNotifications();
+  const { notifications, notifCount } = useNotificationContext();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -371,11 +295,13 @@ const StudentLayout = ({
             to="/profile"
           />
           <SideNavItem
+            active={activePage === "settings"}
             icon={imgIcon(goldSettingsImg)}
             label="Settings"
             to="/settings"
           />
           <SideNavItem
+            active={activePage === "help"}
             icon={imgIcon(goldHelpImg)}
             label="Help & Support"
             to="/help"
@@ -763,5 +689,4 @@ const StudentLayout = ({
   );
 };
 
-export { formatYearLevel };
 export default StudentLayout;

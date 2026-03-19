@@ -3,6 +3,7 @@ import { Alert, Badge, Button, Card, Form, Spinner, Table } from 'react-bootstra
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
+import { getErrorMessage } from '../../utils/errorHelpers';
 
 const statusVariant = {
   pending: 'secondary',
@@ -11,8 +12,6 @@ const statusVariant = {
   dropped: 'warning',
   incomplete: 'dark'
 };
-
-const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
 const normalizeSpecialOption = (value) => {
   if (!value) {
@@ -251,15 +250,15 @@ const GradeEntry = () => {
 
           <Card className="shadow-sm mb-4">
             <Card.Body>
-              <Table responsive hover>
+              <Table responsive hover className="table-fixed-cols">
                 <thead>
                   <tr>
-                    <th>Course</th>
-                    <th>Units</th>
-                    <th>Slot</th>
-                    <th style={{ minWidth: 170 }}>Numeric Grade</th>
-                    <th style={{ minWidth: 160 }}>Special</th>
-                    <th>Status</th>
+                    <th scope="col" style={{ width: '28%' }}>Course</th>
+                    <th scope="col" style={{ width: '8%' }}>Units</th>
+                    <th scope="col" style={{ width: '12%' }}>Slot</th>
+                    <th scope="col" style={{ width: '20%' }}>Numeric Grade</th>
+                    <th scope="col" style={{ width: '18%' }}>Special</th>
+                    <th scope="col" style={{ width: '14%' }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>

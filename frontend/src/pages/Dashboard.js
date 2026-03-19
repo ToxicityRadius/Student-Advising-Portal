@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../utils/api";
 import { getHomePathForRole } from "../utils/roleRedirect";
-import StudentLayout, { formatYearLevel } from "../components/student/StudentLayout";
+import StudentLayout from "../components/student/StudentLayout";
+import { formatYearLevel } from "../utils/formatters";
 
 import "./Dashboard.css";
 
@@ -40,20 +41,27 @@ const Dashboard = () => {
   /* Progress data — from API */
   const [dashData, setDashData] = useState(null);
   const [dashError, setDashError] = useState('');
+  const [loading, setLoading] = useState(true);
   const [currentTerm, setCurrentTerm] = useState(null);
   const [semPage, setSemPage] = useState(0);
   const unitsCredited = dashData ? dashData.unitsCredited : 0;
   const totalUnits = dashData ? dashData.totalUnits || 0 : 0;
   const progressPercent =
     totalUnits > 0 ? Math.round((unitsCredited / totalUnits) * 100) : 0;
+const loadDashboard = useCallback(() => {
+    if (user?.role && user.role !== 'student') {
+      setLoading(false);
+      return;
+    }
 
-  // Fetch dashboard data from backend
-  useEffect(() => {
-    if (user?.role && user.role !== 'student') return;
+    setLoading(true);
+    setDashError('');
+
     api
       .get("/dashboard/summary")
       .then((r) => {
         if (!r.data.success || !r.data.data) {
+          setDashError('Failed to load dashboard data. Please refresh to try again.');
           return;
         }
 
@@ -66,15 +74,24 @@ const Dashboard = () => {
           totalUnits: Number(kpis.totalUnits || 0),
           gwa: kpis.gwa,
           subjectsCompleted: Number(kpis.completedSubjects || 0),
-          subjectsPending: Number(kpis.remainingSubjects || 0)
+          subjectsPending: Number(kpis.remainingSubjects || 0),
+          semesterSummary: payload?.sar?.semesterSummary || []
         });
       })
       .catch((err) => {
         setDashError(
           err?.response?.data?.message || 'Failed to load dashboard data. Please refresh to try again.'
         );
+      })
+      .finally(() => {
+        setLoading(false);
       });
-  }, []);
+  }, [user?.role]);
+
+  // Fetch dashboard data from backend
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
 
   const semesterLabel = (() => {
     const termLabel = currentTerm
@@ -93,32 +110,54 @@ const Dashboard = () => {
   return (
     <StudentLayout activePage="dashboard" pageTitle="Dashboard">
       <div style={{ padding: "28px 32px" }}>
-          {dashError && (
-            <div
-              role="alert"
+        {loading ? (
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              padding: "28px 32px",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
+              color: "#555",
+              fontWeight: 600,
+            }}
+          >
+            Loading dashboard data...
+          </div>
+        ) : dashError ? (
+          <div
+            role="alert"
+            style={{
+              background: "#fff3cd",
+              border: "1px solid #ffc107",
+              borderRadius: 10,
+              padding: "12px 16px",
+              marginBottom: 20,
+              color: "#664d03",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <span>{dashError}</span>
+            <button
+              onClick={loadDashboard}
               style={{
-                background: '#fff3cd',
-                border: '1px solid #ffc107',
-                borderRadius: 10,
-                padding: '12px 16px',
-                marginBottom: 20,
-                color: '#664d03',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
+                background: YELLOW,
+                border: "none",
+                cursor: "pointer",
+                fontWeight: 700,
+                color: "#222",
+                fontSize: "0.85rem",
+                borderRadius: 6,
+                padding: "6px 12px",
               }}
             >
-              <span>{dashError}</span>
-              <button
-                onClick={() => setDashError('')}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, color: '#664d03', fontSize: '1rem' }}
-                aria-label="Dismiss"
-              >
-                ✕
-              </button>
-            </div>
-          )}
+              Retry
+            </button>
+          </div>
+        ) : (
+          <>
           {/* Academic Progress Overview */}
           <div
             style={{
@@ -615,8 +654,8 @@ const Dashboard = () => {
 
                   {hasSems && current ? (
                     <table
+                      className="table-fixed-cols"
                       style={{
-                        width: "100%",
                         borderCollapse: "collapse",
                         fontSize: "0.875rem",
                       }}
@@ -624,6 +663,7 @@ const Dashboard = () => {
                       <thead>
                         <tr>
                           <th
+                            className="col-code"
                             style={{
                               textAlign: "left",
                               padding: "0 12px 12px 0",
@@ -635,6 +675,7 @@ const Dashboard = () => {
                             Course Code
                           </th>
                           <th
+                            className="col-name"
                             style={{
                               textAlign: "left",
                               padding: "0 12px 12px",
@@ -646,6 +687,7 @@ const Dashboard = () => {
                             Course Descriptive Title
                           </th>
                           <th
+                            className="col-units"
                             style={{
                               textAlign: "center",
                               padding: "0 12px 12px",
@@ -657,6 +699,7 @@ const Dashboard = () => {
                             Units
                           </th>
                           <th
+                            className="col-grade"
                             style={{
                               textAlign: "center",
                               padding: "0 0 12px 12px",
@@ -758,6 +801,8 @@ const Dashboard = () => {
               </div>
             );
           })()}
+          </>
+        )}
       </div>
     </StudentLayout>
   );

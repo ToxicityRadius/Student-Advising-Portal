@@ -7,8 +7,7 @@ import api from '../../utils/api';
 import { fetchCurriculumsCached } from '../../utils/curriculumsCache';
 import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
-
-const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
+import { getErrorMessage } from '../../utils/errorHelpers';
 
 const StudentList = () => {
   const [loading, setLoading] = useState(true);
@@ -95,7 +94,18 @@ const StudentList = () => {
         <Button onClick={() => setShowCreateModal(true)}>Create New Record</Button>
       </div>
 
-      {alert.message && <Alert variant={alert.variant}>{alert.message}</Alert>}
+      {alert.message && (
+        <Alert variant={alert.variant}>
+          <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+            <span>{alert.message}</span>
+            {alert.variant === 'danger' && (
+              <Button size="sm" variant="outline-danger" onClick={loadData} disabled={loading}>
+                Retry
+              </Button>
+            )}
+          </div>
+        </Alert>
+      )}
 
       <Card className="mb-4 shadow-sm">
         <Card.Body>
@@ -134,16 +144,16 @@ const StudentList = () => {
             </div>
           ) : (
             <>
-              <Table responsive hover>
+              <Table responsive hover className="table-fixed-cols">
                 <thead>
                   <tr>
-                    <th>Student</th>
-                    <th>Student Number</th>
-                    <th>Email</th>
-                    <th>Link Status</th>
-                    <th>Year Level</th>
-                    <th>Curriculum</th>
-                    <th className="text-end">Actions</th>
+                    <th scope="col" style={{ width: '16%' }}>Student</th>
+                    <th scope="col" style={{ width: '14%' }}>Student Number</th>
+                    <th scope="col" style={{ width: '18%' }}>Email</th>
+                    <th scope="col" style={{ width: '10%' }}>Link Status</th>
+                    <th scope="col" style={{ width: '10%' }}>Year Level</th>
+                    <th scope="col" style={{ width: '16%' }}>Curriculum</th>
+                    <th scope="col" className="text-end" style={{ width: '16%' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>

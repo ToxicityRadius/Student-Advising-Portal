@@ -27,8 +27,9 @@ import {
 import api from '../../utils/api';
 import PaginationControls from '../../components/PaginationControls';
 import AdminLayout from '../../components/admin/AdminLayout';
+import useDebouncedValue from '../../utils/useDebouncedValue';
 
-const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
+import { getErrorMessage } from '../../utils/errorHelpers';
 const EMPTY_META = { page: 1, pageSize: 12, totalPages: 1, totalItems: 0 };
 
 const formatTimestamp = (value) => {
@@ -45,14 +46,15 @@ const formatTimestamp = (value) => {
 
 const sortByCourseCode = (a, b) => (a.courseCode || '').localeCompare(b.courseCode || '');
 
-const DemandTable = ({ rows, emptyMessage, countHeader }) => (
-  <Table striped bordered hover responsive>
+const DemandTable = React.memo(({ rows, emptyMessage, countHeader }) => (
+  <Table striped bordered hover responsive className="table-fixed-cols">
     <thead>
       <tr>
-        <th>Course Code</th>
-        <th>Course Name</th>
-        <th>Units</th>
-        <th className="text-end">{countHeader}</th>
+        <th className="col-code">Course Code</th>
+        <th className="col-name">Course Name</th>
+        <th className="col-units">Units</th>
+        <th className="text-end" style={{ width: '14%' }}>{countHeader}</th>
+        <th className="text-end" style={{ width: '16%' }}>Expected Sections</th>
       </tr>
     </thead>
     <tbody>
@@ -62,31 +64,32 @@ const DemandTable = ({ rows, emptyMessage, countHeader }) => (
           <td>{row.courseName}</td>
           <td>{row.units ?? '-'}</td>
           <td className="text-end fw-semibold">{row.studentCount}</td>
+          <td className="text-end fw-semibold">{row.expectedSections ?? '-'}</td>
         </tr>
       )) : (
         <tr>
-          <td colSpan={4} className="text-center text-muted py-4">{emptyMessage}</td>
+          <td colSpan={5} className="text-center text-muted py-4">{emptyMessage}</td>
         </tr>
       )}
     </tbody>
   </Table>
-);
+));
 
-const ComparisonDifference = ({ value }) => {
+const ComparisonDifference = React.memo(({ value }) => {
   const badgeVariant = value > 0 ? 'success' : value < 0 ? 'danger' : 'secondary';
   const prefix = value > 0 ? '+' : '';
 
   return <Badge bg={badgeVariant}>{`${prefix}${value}`}</Badge>;
-};
+});
 
-const SnapshotDemandTable = ({ title, rows, emptyMessage }) => (
+const SnapshotDemandTable = React.memo(({ title, rows, emptyMessage }) => (
   <div className="mb-3">
     <h6 className="mb-2">{title}</h6>
     <DemandTable rows={rows} emptyMessage={emptyMessage} countHeader="Students" />
   </div>
-);
+));
 
-const ChartContainer = ({ title, subtitle, children, emptyMessage, hasData }) => (
+const ChartContainer = React.memo(({ title, subtitle, children, emptyMessage, hasData }) => (
   <Card className="mb-3">
     <Card.Body>
       <div className="mb-2">
@@ -96,7 +99,7 @@ const ChartContainer = ({ title, subtitle, children, emptyMessage, hasData }) =>
       {hasData ? children : <div className="text-muted">{emptyMessage}</div>}
     </Card.Body>
   </Card>
-);
+));
 
 const ForecastDashboard = () => {
   const [tabLoading, setTabLoading] = useState({ current: true, next: false, comparison: false, history: false });
@@ -120,13 +123,23 @@ const ForecastDashboard = () => {
   const [historyQuery, setHistoryQuery] = useState({ page: 1, pageSize: 12, search: '', sortBy: 'createdAt', sortOrder: 'desc' });
   const [chartLimit, setChartLimit] = useState(10);
 
+  const debouncedCurrentSearch = useDebouncedValue(currentQuery.search, 350);
+  const debouncedNextSearch = useDebouncedValue(nextQuery.search, 350);
+  const debouncedComparisonSearch = useDebouncedValue(comparisonQuery.search, 350);
+  const debouncedHistorySearch = useDebouncedValue(historyQuery.search, 350);
+
+  const currentRequestQuery = useMemo(() => ({ ...currentQuery, search: debouncedCurrentSearch }), [currentQuery, debouncedCurrentSearch]);
+  const nextRequestQuery = useMemo(() => ({ ...nextQuery, search: debouncedNextSearch }), [nextQuery, debouncedNextSearch]);
+  const comparisonRequestQuery = useMemo(() => ({ ...comparisonQuery, search: debouncedComparisonSearch }), [comparisonQuery, debouncedComparisonSearch]);
+  const historyRequestQuery = useMemo(() => ({ ...historyQuery, search: debouncedHistorySearch }), [historyQuery, debouncedHistorySearch]);
+
   // ── Current tab ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (tabKey !== 'current') return;
     let cancelled = false;
     setTabLoading((prev) => ({ ...prev, current: true }));
     setNoCurrentTerm(false);
-    api.get('/forecast/current', { params: currentQuery })
+    api.get('/forecast/current', { params: currentRequestQuery })
       .then((res) => {
         if (cancelled) return;
         setCurrentDemand(res.data.items || res.data.data || []);
@@ -144,14 +157,14 @@ const ForecastDashboard = () => {
       })
       .finally(() => { if (!cancelled) setTabLoading((prev) => ({ ...prev, current: false })); });
     return () => { cancelled = true; };
-  }, [tabKey, currentQuery]);
+  }, [tabKey, currentRequestQuery]);
 
   // ── Next tab ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (tabKey !== 'next') return;
     let cancelled = false;
     setTabLoading((prev) => ({ ...prev, next: true }));
-    api.get('/forecast/next', { params: nextQuery })
+    api.get('/forecast/next', { params: nextRequestQuery })
       .then((res) => {
         if (cancelled) return;
         setNextForecast(res.data.items || res.data.data || []);
@@ -164,14 +177,14 @@ const ForecastDashboard = () => {
       })
       .finally(() => { if (!cancelled) setTabLoading((prev) => ({ ...prev, next: false })); });
     return () => { cancelled = true; };
-  }, [tabKey, nextQuery]);
+  }, [tabKey, nextRequestQuery]);
 
   // ── Comparison tab ────────────────────────────────────────────────────────
   useEffect(() => {
     if (tabKey !== 'comparison') return;
     let cancelled = false;
     setTabLoading((prev) => ({ ...prev, comparison: true }));
-    api.get('/forecast/comparison', { params: comparisonQuery })
+    api.get('/forecast/comparison', { params: comparisonRequestQuery })
       .then((res) => {
         if (cancelled) return;
         setComparison(res.data.items || res.data.data || []);
@@ -184,14 +197,14 @@ const ForecastDashboard = () => {
       })
       .finally(() => { if (!cancelled) setTabLoading((prev) => ({ ...prev, comparison: false })); });
     return () => { cancelled = true; };
-  }, [tabKey, comparisonQuery]);
+  }, [tabKey, comparisonRequestQuery]);
 
   // ── History tab ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (tabKey !== 'history') return;
     let cancelled = false;
     setTabLoading((prev) => ({ ...prev, history: true }));
-    api.get('/forecast/history', { params: historyQuery })
+    api.get('/forecast/history', { params: historyRequestQuery })
       .then((res) => {
         if (cancelled) return;
         setHistory(res.data.items || res.data.data || []);
@@ -203,13 +216,14 @@ const ForecastDashboard = () => {
       })
       .finally(() => { if (!cancelled) setTabLoading((prev) => ({ ...prev, history: false })); });
     return () => { cancelled = true; };
-  }, [tabKey, historyQuery]);
+  }, [tabKey, historyRequestQuery]);
 
   const historyCount = useMemo(() => historyMeta.totalItems || history.length, [historyMeta.totalItems, history.length]);
 
-  const currentTotalDemand = useMemo(() => currentDemand.reduce((sum, item) => sum + Number(item.studentCount || 0), 0), [currentDemand]);
-  const nextTotalDemand = useMemo(() => nextForecast.reduce((sum, item) => sum + Number(item.studentCount || 0), 0), [nextForecast]);
+  const currentTotalDemand = Number(meta.current?.validatedSarCount || 0);
+  const nextTotalDemand = Number(meta.next?.validatedSarCount || 0);
   const demandDelta = nextTotalDemand - currentTotalDemand;
+  const currentSectionCap = Number(meta.current?.sectionCap || 40);
 
   const currentChartData = useMemo(
     () => currentDemand.slice().sort((a, b) => Number(b.studentCount) - Number(a.studentCount)).slice(0, chartLimit),
@@ -268,27 +282,36 @@ const ForecastDashboard = () => {
             <Col md={3}>
               <Card className="h-100 border-start border-warning border-5 shadow-sm">
                 <Card.Body>
-                  <div className="text-muted small mb-1">Current Demand Total</div>
+                  <div className="text-muted small mb-1">Validated SAR Records</div>
                   <div className="fw-semibold fs-5">{currentTotalDemand}</div>
-                  <div className="text-muted small">Students across current-demand courses</div>
+                  <div className="text-muted small">Unique validated students in current term</div>
                 </Card.Body>
               </Card>
             </Col>
             <Col md={3}>
               <Card className="h-100 border-start border-success border-5 shadow-sm">
                 <Card.Body>
-                  <div className="text-muted small mb-1">Projected Next-Term Total</div>
+                  <div className="text-muted small mb-1">Projected Validated SARs</div>
                   <div className="fw-semibold fs-5">{nextTotalDemand}</div>
-                  <div className="text-muted small">Students across forecasted courses</div>
+                  <div className="text-muted small">Unique validated students for next-term context</div>
                 </Card.Body>
               </Card>
             </Col>
             <Col md={3}>
               <Card className="h-100 border-start border-info border-5 shadow-sm">
                 <Card.Body>
-                  <div className="text-muted small mb-1">Projected Delta</div>
+                  <div className="text-muted small mb-1">Configured Section Cap</div>
+                  <div className="fw-semibold fs-5">{currentSectionCap}</div>
+                  <div className="text-muted small">Students per section</div>
+                </Card.Body>
+              </Card>
+            </Col>
+            <Col md={3}>
+              <Card className="h-100 border-start border-secondary border-5 shadow-sm">
+                <Card.Body>
+                  <div className="text-muted small mb-1">Validated SAR Delta</div>
                   <div className="fw-semibold fs-5">{demandDelta > 0 ? `+${demandDelta}` : demandDelta}</div>
-                  <div className="text-muted small">Next-term total minus current total</div>
+                  <div className="text-muted small">Next-term validated SARs minus current validated SARs</div>
                 </Card.Body>
               </Card>
             </Col>
@@ -345,6 +368,7 @@ const ForecastDashboard = () => {
                           ? `${meta.current.currentTerm.schoolYear} · ${meta.current.currentTerm.semesterLabel}`
                           : 'No active term available'}
                       </div>
+                      <div className="text-muted small">Expected sections are computed as ceil(student demand / section cap).</div>
                     </div>
                   </div>
                   <div className="d-flex flex-column flex-md-row gap-2 mb-3">
@@ -362,6 +386,7 @@ const ForecastDashboard = () => {
                       <option value="courseName">Sort by Course Name</option>
                       <option value="units">Sort by Units</option>
                       <option value="studentCount">Sort by Students</option>
+                      <option value="expectedSections">Sort by Expected Sections</option>
                     </Form.Select>
                     <Form.Select
                       value={currentQuery.sortOrder}
@@ -412,7 +437,7 @@ const ForecastDashboard = () => {
                 <Card.Body>
                   <div className="mb-3">
                     <h5 className="mb-1">Next Semester Forecast</h5>
-                    <div className="text-muted small">Based on active study plans from the current term context.</div>
+                    <div className="text-muted small">Based on validated SAR records and pending courses in active study plans.</div>
                   </div>
                   <div className="d-flex flex-column flex-md-row gap-2 mb-3">
                     <Form.Control
@@ -429,6 +454,7 @@ const ForecastDashboard = () => {
                       <option value="courseName">Sort by Course Name</option>
                       <option value="units">Sort by Units</option>
                       <option value="studentCount">Sort by Forecasted Students</option>
+                      <option value="expectedSections">Sort by Expected Sections</option>
                     </Form.Select>
                     <Form.Select
                       value={nextQuery.sortOrder}
@@ -540,14 +566,14 @@ const ForecastDashboard = () => {
                       <option value="desc">Descending</option>
                     </Form.Select>
                   </div>
-                  <Table striped bordered hover responsive>
+                  <Table striped bordered hover responsive className="table-fixed-cols">
                     <thead>
                       <tr>
-                        <th>Course Code</th>
-                        <th>Course Name</th>
-                        <th className="text-end">Forecasted</th>
-                        <th className="text-end">Actual</th>
-                        <th className="text-end">Difference</th>
+                        <th className="col-code">Course Code</th>
+                        <th className="col-name">Course Name</th>
+                        <th className="text-end" style={{ width: '14%' }}>Forecasted</th>
+                        <th className="text-end" style={{ width: '12%' }}>Actual</th>
+                        <th className="text-end" style={{ width: '14%' }}>Difference</th>
                       </tr>
                     </thead>
                     <tbody>

@@ -35,7 +35,7 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
           Welcome, <strong>{userEmail}</strong>! Please enter your 7-digit Student Number to continue.
         </p>
         {error && (
-          <Alert variant="danger" dismissible onClose={() => setError('')}>
+          <Alert variant="danger" dismissible onClose={() => setError('')} role="alert" id="student-id-error">
             {error}
           </Alert>
         )}
@@ -49,6 +49,9 @@ const StudentIdModal = ({ onSubmit, userEmail }) => {
               onChange={(e) => setStudentId(e.target.value.replace(/\D/g, '').slice(0, 7))}
               maxLength={7}
               required
+              autoFocus
+              aria-invalid={!!error}
+              aria-describedby={error ? 'student-id-error' : undefined}
             />
             <Form.Text className="text-muted">Must be exactly 7 digits.</Form.Text>
           </Form.Group>

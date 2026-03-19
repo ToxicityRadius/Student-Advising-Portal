@@ -1,9 +1,10 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const isProduction = process.env.NODE_ENV === 'production';
+const API_URL = process.env.REACT_APP_API_URL || (isProduction ? '/api' : 'http://localhost:5000/api');
 
-if (!process.env.REACT_APP_API_URL && process.env.NODE_ENV === 'production') {
-  console.warn('WARNING: REACT_APP_API_URL is not set. Using localhost fallback which will not work in production.');
+if (!process.env.REACT_APP_API_URL && isProduction) {
+  console.warn('WARNING: REACT_APP_API_URL is not set. Falling back to relative /api base URL.');
 }
 
 const api = axios.create({
@@ -26,6 +27,15 @@ const processQueue = (error, token = null) => {
   failedRequestQueue = [];
 };
 
+const isRefreshEndpoint = (url = '') => url.includes('/auth/refresh-token') || url.includes('/auth/refresh');
+
+const CSRF_SAFE_METHODS = new Set(['get', 'head', 'options']);
+
+function getCsrfToken() {
+  const match = document.cookie.split(';').find(c => c.trim().startsWith('csrfToken='));
+  return match ? match.trim().slice('csrfToken='.length) : null;
+}
+
 // Add token to requests
 api.interceptors.request.use(
   (config) => {
@@ -38,6 +48,13 @@ api.interceptors.request.use(
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];
     }
+    // Attach CSRF token on state-changing requests (double-submit cookie pattern)
+    if (!CSRF_SAFE_METHODS.has((config.method || 'get').toLowerCase())) {
+      const csrfToken = getCsrfToken();
+      if (csrfToken) {
+        config.headers['X-CSRF-Token'] = csrfToken;
+      }
+    }
     return config;
   },
   (error) => Promise.reject(error)
@@ -46,16 +63,22 @@ api.interceptors.request.use(
 // Response interceptor: capture refresh tokens and handle 401 with retry (Step 3.3)
 api.interceptors.response.use(
   (response) => {
+    const requestUrl = response?.config?.url || '';
+    const isAuthResponse = requestUrl.includes('/auth/login') || isRefreshEndpoint(requestUrl);
+    const payload = response?.data?.data && typeof response.data.data === 'object'
+      ? response.data.data
+      : response?.data;
+
     // Capture and store refresh tokens returned by any auth endpoint
-    if (response.data?.refreshToken) {
-      localStorage.setItem('refreshToken', response.data.refreshToken);
+    if (isAuthResponse && payload?.refreshToken) {
+      localStorage.setItem('refreshToken', payload.refreshToken);
     }
     return response;
   },
   (error) => {
     const originalRequest = error.config;
     const url = originalRequest?.url || '';
-    const isAuthEndpoint = url.includes('/auth/me') || url.includes('/auth/refresh');
+    const isAuthEndpoint = url.includes('/auth/me') || isRefreshEndpoint(url);
 
     if (error.response?.status === 401 && !isAuthEndpoint && !originalRequest._retry) {
       const storedRefreshToken = localStorage.getItem('refreshToken');
@@ -84,8 +107,9 @@ api.interceptors.response.use(
       return new Promise((resolve, reject) => {
         axios.post(`${API_URL}/auth/refresh-token`, { refreshToken: storedRefreshToken }, { withCredentials: true })
           .then(({ data }) => {
-            const newToken = data.token;
-            const newRefreshToken = data.refreshToken;
+            const payload = data?.data && typeof data.data === 'object' ? data.data : data;
+            const newToken = payload.token;
+            const newRefreshToken = payload.refreshToken;
             localStorage.setItem('token', newToken);
             if (newRefreshToken) localStorage.setItem('refreshToken', newRefreshToken);
             api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;

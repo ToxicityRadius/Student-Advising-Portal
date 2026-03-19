@@ -52,7 +52,7 @@ const ensureBucketExists = async () => {
 
   const { error: createError } = await client.storage.createBucket(bucket, {
     public: true,
-    fileSizeLimit: '5MB'
+    fileSizeLimit: '2MB'
   });
 
   if (createError && !String(createError.message || '').toLowerCase().includes('already exists')) {

@@ -3,13 +3,20 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
-const { sendTokenResponse } = require('../utils/jwt');
+const { sendTokenResponse, clearAuthCookies, getAuthCookieOptions } = require('../utils/jwt');
 const { sendActivationEmail, sendVerificationCode, sendEmailChangeVerificationCode } = require('../utils/email');
 const { linkStudentAccountToSar } = require('../utils/sarLinking');
-const {
-  shouldBypassAdminFirstLoginEnforcement,
-  maskUserFirstLoginFlags
-} = require('../utils/featureFlags');
+const { shouldBypassAdminFirstLoginEnforcement } = require('../utils/featureFlags');
+const { sanitizeUser } = require('../utils/sanitize');
+const audit = require('../utils/auditLog');
+
+// In-memory attempt tracker for verification code brute-force protection.
+// Keys are String(userId); values are { count, resetAt }.
+// This resets on server restart which is acceptable for a single-instance deployment.
+// For clustered deployments, replace with a shared store (e.g., Redis).
+const verifyAttempts = new Map();
+const MAX_VERIFY_ATTEMPTS = 5;
+const VERIFY_LOCKOUT_MS = 15 * 60 * 1000; // 15-minute lockout window
 
 // Helper: generate a cryptographically secure 6-digit verification code
 function generateVerificationCode() {
@@ -26,21 +33,6 @@ function generatePasswordChangeToken(user) {
     process.env.JWT_SECRET,
     { expiresIn: '15m' }
   );
-}
-
-// Helper: strip sensitive fields from a user plain object
-function sanitizeUser(user) {
-  if (!user) return null;
-  const plain = maskUserFirstLoginFlags(user);
-  delete plain.password;
-  delete plain.activationToken;
-  delete plain.activationTokenExpires;
-  delete plain.resetPasswordToken;
-  delete plain.resetPasswordExpires;
-  delete plain.verificationCode;
-  delete plain.verificationCodeExpires;
-  plain.gender = plain.sex ?? null;
-  return plain;
 }
 
 // @desc    Register user
@@ -171,11 +163,17 @@ exports.register = async (req, res, next) => {
     });
 
     if (!isFaculty) {
-      await linkStudentAccountToSar({
-        userId: user.id,
-        email: user.email,
-        studentId: user.studentId
-      });
+      try {
+        await linkStudentAccountToSar({
+          userId: user.id,
+          email: user.email,
+          studentId: user.studentId
+        });
+      } catch (sarErr) {
+        // SAR linking is non-critical — log but do not fail registration
+        const logger = require('../utils/logger');
+        logger.warn({ err: sarErr, userId: user.id }, 'SAR link on register failed (non-fatal)');
+      }
     }
 
     // Send activation email
@@ -369,11 +367,17 @@ exports.login = async (req, res, next) => {
     }
 
     if (user.role === 'student') {
-      await linkStudentAccountToSar({
-        userId: user.id,
-        email: user.email,
-        studentId: user.studentId
-      });
+      try {
+        await linkStudentAccountToSar({
+          userId: user.id,
+          email: user.email,
+          studentId: user.studentId
+        });
+      } catch (sarErr) {
+        // SAR linking is non-critical — log but do not fail login
+        const logger = require('../utils/logger');
+        logger.warn({ err: sarErr, userId: user.id }, 'SAR link on login failed (non-fatal)');
+      }
     }
 
     // Ensure the account role matches the selected login portal
@@ -402,6 +406,7 @@ exports.login = async (req, res, next) => {
         lockUpdate.lockedUntil = Date.now() + 15 * 60 * 1000; // 15-minute lockout
       }
       await User.update(lockUpdate, { where: { id: user.id } });
+      audit.log({ userId: user.id, action: 'LOGIN_FAILURE', resource: 'auth', meta: { ip: req.ip, reason: 'invalid_password' } });
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials. If you signed up with Google, please use the "Sign in with Google" button.'
@@ -429,7 +434,7 @@ exports.login = async (req, res, next) => {
     if (user.mustChangeEmail && !shouldBypassAdminFirstLoginEnforcement(user)) {
       const { generateToken } = require('../utils/jwt');
       const token = generateToken(user);
-      console.log(`[AUDIT] login with mustChangeEmail: user=${user.id} role=${user.role}`);
+      audit.log({ userId: user.id, action: 'LOGIN_FORCE_EMAIL_CHANGE', resource: 'auth', meta: { ip: req.ip } });
       return res.status(200).json({
         success: true,
         mustChangeEmail: true,
@@ -470,6 +475,7 @@ exports.login = async (req, res, next) => {
         updatedAt: Date.now()
       }, { where: { id: user.id } });
       const updatedUser = await User.findByPk(user.id);
+      audit.log({ userId: updatedUser.id, action: 'LOGIN', resource: 'auth', meta: { ip: req.ip, role: updatedUser.role } });
       sendTokenResponse(updatedUser, 200, res);
     }
   } catch (error) {
@@ -491,6 +497,17 @@ exports.verifyCode = async (req, res, next) => {
       });
     }
 
+    // Enforce attempt-based lockout before hitting the database
+    const key = String(userId);
+    const now = Date.now();
+    const attempt = verifyAttempts.get(key);
+    if (attempt && attempt.count >= MAX_VERIFY_ATTEMPTS && now < attempt.resetAt) {
+      return res.status(429).json({
+        success: false,
+        message: 'Too many failed attempts. Please request a new verification code.'
+      });
+    }
+
     const user = await User.findByPk(userId);
 
     if (!user) {
@@ -502,6 +519,13 @@ exports.verifyCode = async (req, res, next) => {
 
     // Check if code matches and hasn't expired
     if (user.verificationCode !== code) {
+      // Increment attempt counter
+      const cur = verifyAttempts.get(key);
+      if (!cur || now >= cur.resetAt) {
+        verifyAttempts.set(key, { count: 1, resetAt: now + VERIFY_LOCKOUT_MS });
+      } else {
+        cur.count++;
+      }
       return res.status(400).json({
         success: false,
         message: 'Invalid verification code'
@@ -514,6 +538,9 @@ exports.verifyCode = async (req, res, next) => {
         message: 'Verification code has expired. Please request a new one.'
       });
     }
+
+    // Successful verification — clear attempt counter
+    verifyAttempts.delete(key);
 
     // Clear verification code and mark as verified
     await User.update({
@@ -574,6 +601,9 @@ exports.resendCode = async (req, res, next) => {
       updatedAt: Date.now()
     }, { where: { id: user.id } });
 
+    // Reset attempt counter so the user gets a fresh set of attempts
+    verifyAttempts.delete(String(userId));
+
     // Send verification code email
     await sendVerificationCode(user.email, verificationCode, user.firstName);
 
@@ -591,10 +621,24 @@ exports.resendCode = async (req, res, next) => {
 // @access  Private
 exports.logout = async (req, res, next) => {
   try {
-    res.cookie('token', 'none', {
-      expires: new Date(Date.now() + 10 * 1000),
-      httpOnly: true
-    });
+    const refreshTokenFromRequest = req.body?.refreshToken || req.cookies?.refreshToken || null;
+
+    if (refreshTokenFromRequest) {
+      const { verifyRefreshToken } = require('../utils/jwt');
+      const decoded = verifyRefreshToken(refreshTokenFromRequest);
+
+      if (decoded?.id) {
+        await User.update({
+          refreshToken: null,
+          refreshTokenExpires: null,
+          updatedAt: Date.now()
+        }, { where: { id: decoded.id } });
+      }
+    }
+
+    clearAuthCookies(res);
+
+    audit.log({ userId: req.user?.id ?? null, action: 'LOGOUT', resource: 'auth', meta: { ip: req.ip } });
 
     res.status(200).json({
       success: true,
@@ -1009,7 +1053,7 @@ exports.resetPassword = async (req, res, next) => {
 // @access  Public
 exports.refreshToken = async (req, res, next) => {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
 
     if (!refreshToken) {
       return res.status(400).json({
@@ -1054,7 +1098,12 @@ exports.refreshToken = async (req, res, next) => {
       updatedAt: Date.now()
     }, { where: { id: user.id } });
 
-    res.json({
+    const cookieOptions = getAuthCookieOptions();
+
+    res
+      .cookie('token', newToken, cookieOptions.token)
+      .cookie('refreshToken', newRefreshToken, cookieOptions.refreshToken)
+      .json({
       success: true,
       token: newToken,
       refreshToken: newRefreshToken,
@@ -1066,7 +1115,7 @@ exports.refreshToken = async (req, res, next) => {
         role: user.role,
         isActive: user.isActive
       }
-    });
+      });
   } catch (error) {
     next(error);
   }

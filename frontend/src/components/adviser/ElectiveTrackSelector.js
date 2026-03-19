@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Button, Card, Form, Spinner } from 'react-bootstrap';
 import api from '../../utils/api';
-
-const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
+import { getErrorMessage } from '../../utils/errorHelpers';
 
 const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSelected }) => {
   const [loading, setLoading] = useState(true);

@@ -3,6 +3,7 @@ import { Alert, Badge, Button, Card, Spinner, Table } from 'react-bootstrap';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
+import { getErrorMessage } from '../../utils/errorHelpers';
 
 const slotLabels = {
   '1-1': 'Year 1 • 1st Semester',
@@ -18,8 +19,6 @@ const slotLabels = {
   '4-2': 'Year 4 • 2nd Semester',
   '4-3': 'Year 4 • Summer'
 };
-
-const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
 const RegenerationReview = () => {
   const location = useLocation();
@@ -153,7 +152,7 @@ const RegenerationReview = () => {
 
           <Card className="shadow-sm mb-4">
             <Card.Body>
-              <Table responsive>
+              <Table responsive className="table-fixed-cols">
                 <thead>
                   <tr>
                     <th style={{ width: '22%' }}>Semester Slot</th>

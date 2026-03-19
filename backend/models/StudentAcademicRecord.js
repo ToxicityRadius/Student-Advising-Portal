@@ -37,7 +37,11 @@ const StudentAcademicRecord = sequelize.define('StudentAcademicRecord', {
   },
   yearLevel: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: false,
+    validate: {
+      min: 1,
+      max: 5
+    }
   },
   createdByAdviserId: {
     type: DataTypes.INTEGER,

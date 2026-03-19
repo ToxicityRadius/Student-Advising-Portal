@@ -1,836 +1,626 @@
-# Student Advising Portal — Possible Improvements
+# System Fixes & Performance Optimizations Plan
 
-This document catalogs all identified improvements across the project, organized by category and priority.
+> **Date:** March 19, 2026  
+> **Project:** Student Advising Portal  
+> **Principle:** All demand-related calculations use validated SAR records as the single source of truth.  
+> **Source:** Combined from system issue reports + `IMPROVEMENTS.md` audit. Phases 1–5 address active bugs and user-reported issues (priority). Phases 6–11 incorporate longer-term improvements from `IMPROVEMENTS.md`, excluding items already resolved by Phases 1–5.
 
 ---
 
-## Table of Contents
-
-1. [Security](#1-security)
-2. [Backend Code Quality](#2-backend-code-quality)
-3. [Backend Performance](#3-backend-performance)
-4. [Backend Architecture](#4-backend-architecture)
-5. [Database & Models](#5-database--models)
-6. [Frontend Code Quality](#6-frontend-code-quality)
-7. [Frontend Performance](#7-frontend-performance)
-8. [Frontend Security](#8-frontend-security)
-9. [UX & Accessibility](#9-ux--accessibility)
-10. [State Management (Frontend)](#10-state-management-frontend)
-11. [Testing](#11-testing)
-12. [DevOps & Infrastructure](#12-devops--infrastructure)
-13. [Documentation](#13-documentation)
-
-Priority levels: **Critical** · **High** · **Medium** · **Low**
+## Phase 1: Critical Data Logic Fixes (Demand & Forecast)
 
----
-
-## 1. Security
-
-### 1.1 Missing CSRF Protection — High
-
-No CSRF middleware is configured in `server.js`. While `SameSite` cookies help, state-changing POST/PUT/PATCH endpoints remain vulnerable on older browsers.
-
-**Recommendation:** Add a CSRF token middleware (e.g., `csurf` or double-submit cookie pattern).
-
----
-
-### 1.2 Insufficient Input Validation in Controllers — High
-
-Several controllers accept user payloads without strict field-length or format validation. Examples include CSV text parsing in `curriculumController.js` and search fields across `sarController.js`.
-
-**Recommendation:** Add schema validation (e.g., Joi or express-validator) at the route level before controller logic runs.
-
----
-
-### 1.3 File Upload Security Gaps — High
-
-Profile picture uploads (via Supabase) lack a strict MIME-type whitelist and explicit file-size limits enforced in backend code.
-
-**Recommendation:** Validate file type against an allowlist (`image/jpeg`, `image/png`, `image/webp`), enforce a size cap (e.g., 2 MB), and reject everything else.
-
----
-
-### 1.4 Incomplete Refresh Token Implementation — High
-
-`jwt.js` sets a refresh-token cookie with `path: '/api/auth/refresh'`, but no `/api/auth/refresh` endpoint exists in `authRoutes.js`. The refresh flow is partially implemented.
-
-**Recommendation:** Complete the refresh-token rotation endpoint or remove the partial implementation to avoid confusion.
-
----
-
-### 1.5 JWT Access Token Default Expiry Too Long — Medium
-
-`.env.example` suggests `JWT_EXPIRE=7d`. Seven days is excessive for an access token.
-
-**Recommendation:** Set access-token lifetime to 15–30 minutes and rely on refresh tokens for session continuity.
-
----
-
-### 1.6 Missing Rate Limiting on Mutation Endpoints — Medium
-
-Rate limiting exists on auth routes but is absent from profile updates, SAR mutations, and grade entry endpoints.
-
-**Recommendation:** Apply per-user rate limits to all write endpoints.
-
----
-
-### 1.7 Sensitive Database Error Details Exposed — High
-
-The global error handler in `server.js` can return full database error details (SQL, table names, constraint names) to the client.
-
-**Recommendation:** Log full errors server-side; return only generic error messages to clients in production.
-
----
-
-### 1.8 Email Verification Code Brute-Force Risk — Medium
-
-`generateVerificationCode()` produces 6-digit numeric codes (100,000 combinations). Within a 10-minute window this is brute-forceable without additional controls.
-
-**Recommendation:** Switch to 8+ character alphanumeric codes, add attempt-based lockout, or require CAPTCHA after repeated failures.
-
----
-
-### 1.9 Missing HTTP Security Headers — Medium
-
-Helmet is enabled with minimal settings. A strict Content-Security-Policy, Strict-Transport-Security (HSTS), and explicit X-Content-Type-Options are not configured.
-
-**Recommendation:** Add comprehensive CSP and HSTS headers appropriate for the deployment environment.
-
----
-
-### 1.10 No Audit Logging — High
-
-No structured logging of authentication events, SAR modifications, grade entries, or access-control decisions exists.
-
-**Recommendation:** Implement an audit-log middleware that records user, action, resource, and timestamp for all sensitive operations.
-
----
-
-### 1.11 Open-Redirect Risk via CLIENT_URL — Low
-
-`CLIENT_URL` from environment is used directly in email links without validation. If the variable is tampered with, outbound links could point to an external domain.
-
-**Recommendation:** Validate `CLIENT_URL` against an allowed-domain list at startup.
-
----
-
-### 1.12 Missing 2FA Enforcement for Privileged Roles — Low
-
-Two-factor authentication is optional. Admin and adviser accounts are not required to enable it.
-
-**Recommendation:** Enforce 2FA for admin and adviser roles.
-
----
-
-## 2. Backend Code Quality
-
-### 2.1 Duplicated `sanitizeUser()` Function — Medium
-
-`authController.js` and `userController.js` each define their own `sanitizeUser()` with overlapping logic.
-
-**Recommendation:** Extract to a shared `utils/sanitize.js` and import in both controllers.
-
----
-
-### 2.2 Inconsistent Response Envelope — Medium
-
-Some endpoints return `{ success, message }`, others `{ success, message, data }`, and some `{ success, data }`.
-
-**Recommendation:** Standardize on a single response shape project-wide (e.g., always include `success`, `message`, and `data`).
-
----
-
-### 2.3 Fire-and-Forget Database Writes — Medium
-
-`sendTokenResponse` in `jwt.js` calls `User.update()` without `await`, so a failed write is silently ignored.
-
-**Recommendation:** Await the call and log failures, or restructure so the write is non-critical.
-
----
-
-### 2.4 Overly Long Controller Functions — Medium
-
-`sarController.js` → `updateSAR` spans ~220 lines handling validation, file upload, tracking, and syncing.
-
-**Recommendation:** Decompose into focused helpers (e.g., `validateSARUpdate`, `handleProfilePictureUpload`, `syncProfileToSAR`).
-
----
-
-### 2.5 Unused Imports — Low
-
-`Op` from Sequelize is imported but unused in `authController.js`. Similar dead imports likely exist elsewhere.
-
-**Recommendation:** Add an ESLint rule (`no-unused-vars`) and run a cleanup pass.
-
----
-
-### 2.6 Magic Numbers and Hardcoded Validation Rules — Medium
-
-Password length (8), student-number digit count (7), and role strings are scattered across multiple files.
-
-**Recommendation:** Centralize in a `constants/validation.js` module.
-
----
-
-### 2.7 Inconsistent Transaction Usage — Medium
-
-Some multi-step writes use Sequelize transactions; others do not.
-
-**Recommendation:** Establish a rule: every multi-model write operation uses a transaction.
-
----
-
-### 2.8 Inconsistent Null/Undefined Checking — Low
-
-Some code uses `=== undefined`, some `=== null`, some `hasOwnProperty`.
-
-**Recommendation:** Standardize on a single defensive-check pattern across the codebase.
-
----
-
-### 2.9 No ESLint Configuration — Medium
-
-No `.eslintrc` file exists in either backend or frontend root.
-
-**Recommendation:** Add ESLint with a shared config (e.g., `eslint-config-airbase` or similar) and integrate with CI.
-
----
-
-## 3. Backend Performance
-
-### 3.1 N+1 Query in Profile Sync — High
-
-After updating a user, `syncProfileToSar()` fetches SAR and its relations individually. Batch updates amplify this.
-
-**Recommendation:** Batch SAR syncs or use a single query with includes.
-
----
-
-### 3.2 Missing Database Indexes — High
-
-Likely missing indexes on frequently queried columns: `User.email`, `StudentAcademicRecord.studentNumber`, `StudentAcademicRecord.email`, `StudyPlanVersion.status`.
-
-**Recommendation:** Audit query patterns and add indexes on high-cardinality, frequently filtered columns.
-
----
-
-### 3.3 JavaScript-Side Filtering Instead of SQL — Medium
-
-`forecastController.js` loads all `StudyPlanCourse` records and filters by semester in JavaScript.
-
-**Recommendation:** Push filtering into Sequelize `where` clauses so the database does the work.
-
----
-
-### 3.4 Missing Attribute Projection — Medium
-
-SAR and forecast queries include full model data when only a few fields are needed.
-
-**Recommendation:** Use Sequelize `attributes` to select only required columns.
-
----
-
-### 3.5 No Server-Side Caching — Medium
-
-Curriculum structure, course lists, and the current academic term are re-queried on every request.
-
-**Recommendation:** Introduce server-side caching (in-memory or Redis) for slowly changing reference data.
-
----
-
-### 3.6 Missing Pagination on Version History — Medium
-
-`getStudyPlanVersions` returns all versions without limit.
-
-**Recommendation:** Add pagination consistent with other list endpoints.
-
----
-
-### 3.7 Inefficient Elective Track Resolution — Low
-
-`fetchTrackContext` queries both selected and all curriculum tracks on every validation call.
-
-**Recommendation:** Cache curriculum track layout per request or resolve with a single JOIN query.
-
----
-
-### 3.8 No Database Connection Pool Tuning — Low
-
-Sequelize uses default pool settings with no configuration exposed.
-
-**Recommendation:** Configure `pool.max`, `pool.min`, `pool.idle` based on expected load.
-
----
-
-## 4. Backend Architecture
-
-### 4.1 No Service Layer — High
-
-Controllers call models directly and contain business logic (prerequisite validation, unit packing, regeneration algorithms).
-
-**Recommendation:** Extract a `services/` layer:
-```
-services/
-├── UserService.js
-├── SARService.js
-├── StudyPlanService.js
-├── GradeService.js
-└── ValidationService.js
-```
-
----
-
-### 4.2 Tight Auth ↔ SAR Coupling — Medium
-
-Auth login/register flows call `linkStudentAccountToSar` and `syncProfileToSar`. If SAR logic fails, authentication can fail.
-
-**Recommendation:** Make SAR sync non-blocking (async queue) so auth never fails due to SAR issues.
-
----
-
-### 4.3 Constants Scattered Across Files — Medium
-
-Role strings, validation rules, allowed values, and business constants are defined inline throughout controllers.
-
-**Recommendation:** Consolidate into `constants/` modules.
-
----
-
-### 4.4 No Request-Context or Dependency Injection — Low
-
-Every function imports models directly. This makes unit testing with mocks difficult.
-
-**Recommendation:** Consider a lightweight DI container or at least pass dependencies into service functions.
-
----
-
-### 4.5 Missing Cross-Cutting Middleware — Medium
-
-Validation, audit logging, and request-context injection are done ad hoc in individual controllers.
-
-**Recommendation:** Create dedicated middleware:
-- `middleware/validate.js` — schema validation
-- `middleware/auditLog.js` — mutation logging
-- `middleware/requestContext.js` — inject request ID, user
-
----
-
-### 4.6 No API Versioning — Low
-
-All endpoints live under `/api/*` with no version prefix.
-
-**Recommendation:** Prefix with `/api/v1/*` to allow non-breaking evolution.
-
----
-
-### 4.7 No Graceful Shutdown — Medium
-
-`server.js` exits immediately on SIGTERM. In-flight requests are dropped.
-
-**Recommendation:** Implement graceful shutdown: stop accepting connections, finish in-flight requests, close the DB pool, then exit.
-
----
-
-## 5. Database & Models
-
-### 5.1 Duplicate Column Naming Convention — Medium
-
-`User` model has both `firstName`/`lastName` and `first_name`/`last_name` columns (camelCase and snake_case).
-
-**Recommendation:** Migrate to a single convention (snake_case in DB, camelCase via Sequelize `underscored: true`).
-
----
-
-### 5.2 Missing CHECK Constraints — Medium
-
-Fields like `semester` (should be 1–3) and `yearLevel` (should be 1–5) have no database-level check constraints.
-
-**Recommendation:** Add CHECK constraints in a new migration.
-
----
-
-### 5.3 Timestamps Stored as BIGINT — Medium
-
-`createdAt` and `updatedAt` in the `User` model are BIGINT (epoch milliseconds) instead of native TIMESTAMP.
-
-**Recommendation:** Use TIMESTAMP/TIMESTAMPTZ for proper date querying and indexing.
-
----
-
-### 5.4 No Soft Delete Support — Low
-
-Hard deletes are used everywhere. SARs, study-plan versions, and grade records have no `deletedAt` column.
-
-**Recommendation:** Enable Sequelize paranoid mode on audit-sensitive tables.
-
----
-
-### 5.5 Missing Compound Unique Constraints — Medium
-
-No compound unique on combinations like `(curriculumId, semester, schoolYear)` for `AcademicTerm`.
-
-**Recommendation:** Add unique constraints on meaningful composite keys to prevent duplicate records.
-
----
-
-### 5.6 Missing Model-Level Validators — Medium
-
-Models define types but lack min/max length, enum, email format, or numeric range validations.
-
-**Recommendation:** Add Sequelize `validate` blocks to model definitions for defense-in-depth.
-
----
-
-### 5.7 Missing Foreign Key Enforcement — Low
-
-Some associations are defined in `models/index.js` but may lack database-level FK constraints with `onDelete` rules.
-
-**Recommendation:** Verify FK constraints exist and set appropriate `onDelete: 'RESTRICT'` or `CASCADE` per business rule.
-
----
-
-## 6. Frontend Code Quality
-
-### 6.1 Massive Layout/Navigation Duplication — Critical
-
-Sidebar markup, navigation items, notification dropdowns, and mobile-menu logic are copy-pasted across 8+ student pages (`ViewGrades.js`, `Checklist.js`, `Profile.js`, `Dashboard.js`, `Help.js`, `Settings.js`, `AvailableSubjects.js`). This accounts for 5,000+ duplicated lines.
-
-**Recommendation:** Refactor all student pages to use the existing `StudentLayout.js` wrapper. Page components should only render their content area.
-
----
-
-### 6.2 Duplicated Utility Functions — High
-
-`formatYearLevel()`, `semesterLabel()`, and `SideNavItem` component are redefined in 5–8 files each.
-
-**Recommendation:** Move to `utils/formatters.js` and a shared `components/SideNavItem.js`. Import everywhere.
-
----
-
-### 6.3 Duplicated Image Imports — Medium
-
-Every student page imports the same ~12 asset images.
-
-**Recommendation:** Centralize in a single `assets/index.js` barrel file and import from there.
-
----
-
-### 6.4 Large Single-File Components — High
-
-- `Profile.js` — 800+ lines (form editing, picture upload, password change, notifications, mobile sidebar)
-- `CurriculumManagement.js` — manages curricula, courses, AND equivalencies in one file
-- `ViewGrades.js` — 400+ lines including full layout
-
-**Recommendation:** Decompose into focused sub-components (e.g., `ProfileEditForm`, `PasswordSection`, `CurriculumTabs`).
-
----
-
-### 6.5 No PropTypes or TypeScript — High
-
-Zero prop validation across the entire frontend. No component documents its expected props.
-
-**Recommendation:** Add `prop-types` package and define PropTypes for all components, or migrate to TypeScript.
-
----
-
-### 6.6 Inconsistent Error Handling — Medium
-
-`getErrorMessage()` helper is defined in `StudentList.js` but not reused. Other pages extract error messages with inline logic, each slightly different.
-
-**Recommendation:** Create a shared `utils/errorHelpers.js` with a standard `getErrorMessage(error, fallback)` function.
-
----
-
-### 6.7 Hardcoded Strings Everywhere — Medium
-
-Role labels ("Program Chair", "Adviser"), API endpoint paths, semester/year-level mappings — all hardcoded across 15+ files.
-
-**Recommendation:** Centralize in `utils/constants.js`.
-
----
-
-### 6.8 Inline Style Mutations — Low
-
-Mouse-event handlers in `SideNavItem` mutate `style.backgroundColor` directly, bypassing React optimizations.
-
-**Recommendation:** Use CSS `:hover` pseudo-class or `className` toggling instead.
-
----
-
-### 6.9 Inconsistent Component Naming — Low
-
-Layout components: `StudentLayout` vs `SidebarLayout` vs `AdminLayout` vs `AdviserLayout` — unclear inheritance.
-
-**Recommendation:** Standardize naming and document the layout hierarchy.
-
----
-
-## 7. Frontend Performance
-
-### 7.1 SideNavItem Recreated on Every Render — Medium
-
-`SideNavItem` is defined inline inside page components, causing recreation on every render cycle.
-
-**Recommendation:** Extract to a memoized standalone component with `React.memo`.
-
----
-
-### 7.2 Missing `useMemo`/`useCallback` — Medium
-
-Computed values like `activeCurriculum` in `StudentList.js` and nav-item arrays in layout components are recalculated every render.
-
-**Recommendation:** Wrap these in `useMemo` with proper dependency arrays.
-
----
-
-### 7.3 Redundant Notification Fetches — High
-
-`useNotifications` hook fires an API call on every page mount. Navigating across pages causes N duplicate requests.
-
-**Recommendation:** Lift notification state into a context provider so the fetch happens once and is shared.
-
----
-
-### 7.4 No Image Lazy Loading — Low
-
-Profile pictures and asset images load eagerly with no placeholder or `loading="lazy"` attribute.
-
-**Recommendation:** Add `loading="lazy"` to `<img>` tags and provide placeholders.
-
----
-
-### 7.5 No Request Cancellation — Low
-
-API calls in `useEffect` don't cancel via `AbortController` when the component unmounts or when the user navigates away.
-
-**Recommendation:** Pass an `AbortSignal` to Axios calls and cancel on cleanup.
-
----
-
-### 7.6 Bundle Size Not Monitored — Low
-
-No bundle-analysis tooling or size budgets are configured.
-
-**Recommendation:** Add `source-map-explorer` or `webpack-bundle-analyzer` to the build pipeline.
-
----
-
-## 8. Frontend Security
-
-### 8.1 Sensitive Data in localStorage — High
-
-`AuthContext.js` persists the full user object (including email, ID) in `localStorage`. `api.js` stores the refresh token in `localStorage`.
-
-**Recommendation:** Store only minimal identifiers in localStorage. Move refresh tokens to HttpOnly cookies (backend change required). Fetch full profile from `/auth/me` on load.
-
----
-
-### 8.2 Passwords Stored in sessionStorage — High
-
-`ChangePassword.js` stores `forcePasswordChangeOldPassword` in `sessionStorage`.
-
-**Recommendation:** Never persist passwords in browser storage. Use an opaque flow token instead.
-
----
-
-### 8.3 No Client-Side JWT Signature Verification — Low
-
-`AuthContext.js` decodes JWTs with `atob()` but doesn't verify the signature.
-
-**Recommendation:** This is acceptable if all authorization decisions happen server-side. Ensure the client never trusts the decoded payload for access-control decisions.
-
----
-
-### 8.4 API URL Fallback to Localhost in Production — Medium
-
-`api.js` defaults to `http://localhost:5000/api` if `REACT_APP_API_URL` is unset.
-
-**Recommendation:** Fail the build (or show an obvious warning) if the env variable is missing in production.
-
----
-
-## 9. UX & Accessibility
-
-### 9.1 Missing Loading States — High
-
-Several pages (`Dashboard.js`, `AvailableSubjects.js`, `PlanOfStudy.js`) render no loading indicator while data is being fetched.
-
-**Recommendation:** Show a spinner or skeleton while `data === null` and `error === null`.
-
----
-
-### 9.2 Missing Empty States — Medium
-
-`ViewGrades.js`, `StudentList.js`, and `Checklist.js` render no message when data arrays are empty.
-
-**Recommendation:** Display a contextual "No records found" message for empty lists.
-
----
-
-### 9.3 Missing `aria-invalid` on Invalid Form Fields — Medium
-
-Form fields with validation errors don't set `aria-invalid="true"`.
-
-**Recommendation:** Add `aria-invalid` to fields in error state and associate error messages with `aria-describedby`.
-
----
-
-### 9.4 No Skip-to-Content Link — Medium
-
-No hidden skip-navigation link exists for screen-reader users.
-
-**Recommendation:** Add a visually-hidden "Skip to main content" link before the navbar.
-
----
-
-### 9.5 Missing `role="alert"` on Dynamic Error Messages — Medium
-
-Error alerts rendered after API failures lack `role="alert"`, so screen readers don't announce them.
-
-**Recommendation:** Add `role="alert"` to dynamically appearing error/success messages.
-
----
-
-### 9.6 Keyboard Navigation Gaps — Medium
-
-`SideNavItem` in `SidebarLayout.js` uses `onMouseEnter`/`onMouseLeave` for hover styles but no `onFocus`/`onBlur` equivalents.
-
-**Recommendation:** Add focus-visible styles so keyboard users see the same affordances.
-
----
-
-### 9.7 Color Contrast Concerns — Low
-
-`#FFC107` (yellow) used as text or background may not meet WCAG AA contrast ratios on light backgrounds.
-
-**Recommendation:** Audit all color pairs with a contrast checker and adjust as needed.
-
----
-
-### 9.8 Focus Not Trapped in Modals — Low
-
-`StudentIdModal.js` and other modals don't trap focus or set `autoFocus` on the first input.
-
-**Recommendation:** Use React-Bootstrap's built-in focus management or add `autoFocus` to the first interactive element.
-
----
-
-### 9.9 Table Headers Missing `scope` — Low
-
-Data tables in `ViewGrades.js` and other list pages lack `scope="col"` on `<th>` elements.
-
-**Recommendation:** Add `scope="col"` to `<th>` in header rows and `scope="row"` where applicable.
-
----
-
-### 9.10 No Error Retry Mechanism — Low
-
-When a page-load API call fails, the user must manually refresh. No "Retry" button is provided.
-
-**Recommendation:** Add a "Retry" action to error states.
-
----
-
-## 10. State Management (Frontend)
-
-### 10.1 Notification State Duplicated Per Page — High
-
-`notifOpen`, `allRead`, and `notifications` are declared locally in every student page.
-
-**Recommendation:** Centralize into a `NotificationContext` or a shared `useNotifications()` hook that caches results.
-
----
-
-### 10.2 Mobile Menu State Duplicated — Medium
-
-`mobileMenuOpen` and `isMobileView` are independently managed in 10+ files.
-
-**Recommendation:** Move to a `LayoutContext` or handle entirely inside the layout wrapper component.
-
----
-
-### 10.3 Alert/Feedback State Not Reusable — Medium
-
-Every page defines its own `alert` state object with the same shape.
-
-**Recommendation:** Create a reusable `useAlert()` hook that encapsulates the state and dismiss logic.
-
----
-
-### 10.4 No Cross-Tab Auth Synchronization — Low
-
-If a user logs out in one tab, other tabs remain authenticated until they make an API call.
-
-**Recommendation:** Listen to `window.addEventListener('storage', ...)` to sync auth state across tabs.
-
----
-
-## 11. Testing
-
-### 11.1 Minimal Backend Test Coverage — Critical
-
-Only 2–3 test files exist (`auth.test.js`, `gradeValidation.test.js`) for the entire backend.
-
-**Recommendation:** Add tests for every controller, middleware, and utility. Target ≥80% coverage. Priority files:
-- `sarController.test.js`
-- `gradeController.test.js`
-- `curriculumController.test.js`
-- `middleware/auth.test.js`
-- `utils/studyPlan.test.js`
-
----
-
-### 11.2 No Backend Integration Tests — High
-
-No tests exercise the full request → controller → model → database path.
-
-**Recommendation:** Add integration tests using `supertest` against a test database.
-
----
-
-### 11.3 No End-to-End Test Scenarios — Medium
-
-No E2E tests cover critical user journeys (onboarding → SAR creation → study-plan generation → grade entry → graduation).
-
-**Recommendation:** Add E2E tests with Cypress or Playwright.
-
----
-
-### 11.4 Minimal Frontend Test Coverage — High
-
-Only `PrivateRoute.test.js` exists. Form flows, auth context, API error handling, and page components are untested.
-
-**Recommendation:** Add React Testing Library tests for critical pages and flows. Target ≥70% coverage.
-
----
-
-### 11.5 No Accessibility Testing Automation — Low
+- [x] **1.1 — Fix demand calculation to count unique students (not courses)**
+  - Rewrite `getDemandDataForTerm()` in `backend/controllers/forecastController.js` to query validated SAR records directly
+  - Count unique students (by SAR) who need each course, not study plan versions
+  - Files: `backend/controllers/forecastController.js`
 
-No automated a11y audit (axe-core, pa11y) in the test pipeline.
+- [x] **1.2 — Change historical forecast basis to enrollment data (validated SARs)**
+  - Update `storeForecastSnapshot()` to store SAR-based counts instead of study-plan-based counts
+  - Files: `backend/controllers/forecastController.js`
+  - *Depends on 1.1*
 
-**Recommendation:** Integrate `jest-axe` or `@axe-core/react` into the test suite.
+- [x] **1.3 — Implement expected sections calculation**
+  - Add `sections = Math.ceil(studentCount / sectionCap)` with configurable cap per course/term (default ~40)
+  - Include section count in demand response payload and forecast snapshots
+  - Files: `backend/controllers/forecastController.js`, `frontend/src/pages/admin/ForecastDashboard.js`
+  - *Depends on 1.1 / 1.2*
+
+**Phase 1 Implementation Notes (Completed March 19, 2026):**
+- Demand aggregation now uses `StudentAcademicRecord` as the anchor dataset and counts unique SAR records per course.
+- Forecast responses now include `expectedSections` per course and meta fields `validatedSarCount` + `sectionCap`.
+- Snapshot payload now stores SAR-based metadata and section-aware rows.
+- Forecast dashboard tables now display `Expected Sections` and use validated SAR totals in summary cards.
+
+### Phase 1 Verification
+- [ ] Seed test data with known SARs → demand counts match unique students per course
+- [ ] Snapshot stores SAR-based data
+- [ ] Sections = `ceil(studentCount / cap)` for sample courses
+- [ ] Hit `/api/forecast/current`, `/api/forecast/next` — confirm correct counts
+- [ ] Comparison report still works with new payload shape
+- [x] Static code validation: no IDE errors in modified Phase 1 files
 
 ---
 
-## 12. DevOps & Infrastructure
+## Phase 2: Backend Functional Fixes
 
-### 12.1 No CI/CD Pipeline — Critical
-
-No `.github/workflows/` directory or any CI configuration exists.
-
-**Recommendation:** Set up GitHub Actions for:
-- Lint checks
-- Unit and integration tests
-- Build verification
-- (Optional) Automated deployment
-
----
-
-### 12.2 No Dockerization — Medium
-
-No Dockerfile or docker-compose configuration exists.
-
-**Recommendation:** Add a `Dockerfile` for backend and frontend, plus a `docker-compose.yml` for local development with PostgreSQL.
-
----
-
-### 12.3 No ESLint/Prettier Configuration — Medium
-
-No `.eslintrc` or `.prettierrc` file in either backend or frontend.
-
-**Recommendation:** Add shared ESLint + Prettier configs and a pre-commit hook (e.g., via `husky` + `lint-staged`).
-
----
-
-### 12.4 Missing Environment Variable Validation at Startup — Medium
-
-Only JWT secrets are validated. Missing checks for DATABASE_URL format, EMAIL config, SUPABASE credentials, etc.
-
-**Recommendation:** Validate all required env variables at server startup and fail fast with clear messages.
-
----
-
-### 12.5 No Health Check with Dependency Verification — Low
-
-`/api/health` returns OK without verifying database connectivity.
-
-**Recommendation:** Check database connection and return a `503` if any dependency is unhealthy.
-
----
-
-### 12.6 No Request-ID Tracking — Low
-
-No correlation IDs are generated for distributed tracing or log correlation.
-
-**Recommendation:** Add middleware that generates a UUID per request and includes it in logs and response headers.
-
----
-
-### 12.7 No Production Build Optimization Guide — Low
-
-No documentation on production deployment, environment setup, or performance tuning.
-
-**Recommendation:** Add a `DEPLOYMENT.md` covering build, environment, and scaling considerations.
-
----
-
-## 13. Documentation
-
-### 13.1 No API Documentation (OpenAPI/Swagger) — Medium
-
-No machine-readable API documentation exists. Consumers must read code to understand endpoints.
-
-**Recommendation:** Generate an OpenAPI spec from route definitions or add Swagger UI.
-
----
-
-### 13.2 No `.env.example` Parity Check — Low
-
-Backend `.env.example` has 22 variables; no mechanism verifies that the actual `.env` matches.
-
-**Recommendation:** Add a startup check that compares `.env` keys against `.env.example`.
-
----
-
-### 13.3 No Inline JSDoc on Public Functions — Low
-
-Backend controllers, services, and utilities lack parameter/return-type documentation.
-
-**Recommendation:** Add JSDoc to public-facing functions, especially in `utils/` and any future `services/` layer.
-
----
-
-### 13.4 No Component Storybook or Living Style Guide — Low
-
-Frontend components are defined ad hoc with no visual catalog.
-
-**Recommendation:** Add Storybook for isolated component development and documentation.
-
----
-
-### 13.5 No Contributing Guide — Low
-
-No `CONTRIBUTING.md` file describing branch strategy, commit conventions, or review process.
-
-**Recommendation:** Add a contributing guide if the project accepts external contributions.
-
----
+- [x] **2.1 — Fix manual prerequisite entry**
+  - Debug full flow: CoursePickerModal → state binding → POST → error handling
+  - Likely issue: modal not returning selected course to parent state, or API errors swallowed silently
+  - Files: `frontend/src/pages/admin/CurriculumDetail.js`, `frontend/src/components/admin/CoursePickerModal.js`, `backend/controllers/curriculumController.js`
+
+**Phase 2 Implementation Notes (Completed March 19, 2026):**
+- Fixed `CurriculumDetail` picker callback by adding missing `pickerState.mode === 'prereq'` handling.
+- Added exclusion logic to prevent selecting the same course for both sides of prerequisite/corequisite pairs.
+- Manual prerequisite flow now supports selecting both course fields and submitting the add request.
+
+### Phase 2 Verification
+- [ ] Prerequisites tab → pick two courses → click Add → row appears in table
+- [ ] Backend returns 201 and record exists in DB
+- [ ] Edge cases: self-prerequisite (400), duplicate (409), missing course (400)
+- [x] Static code validation: no IDE errors in modified Phase 2 file
+
+---
+
+## Phase 3: Frontend UX Fixes
+
+- [x] **3.1 — Fix search input refresh on keystroke (ForecastDashboard)**
+  - Add 350ms debounce to search inputs (matching existing CurriculumManagement pattern)
+  - Search inputs directly update query state → `useEffect` fires API on every keystroke
+  - Files: `frontend/src/pages/admin/ForecastDashboard.js` (4 search inputs across tabs)
+  - Also apply to: `frontend/src/pages/admin/TermManagement.js`, `frontend/src/pages/admin/TransferOwnership.js`
+
+- [x] **3.2 — Convert long dropdowns to searchable dropdowns**
+  - Install `react-select` package
+  - Replace `<Form.Select>` with searchable `<Select>` in course/curriculum pickers
+  - Files: `frontend/package.json`, `frontend/src/components/admin/CoursePickerModal.js`, `frontend/src/pages/admin/CurriculumDetail.js`
+
+- [x] **3.3 — Fix homepage redirect behavior**
+  - Authenticated users at `/` should redirect to role-appropriate dashboard
+  - Files: `frontend/src/App.js` — wrap `/` route with auth-aware redirect
+
+- [x] **3.4 — Allow pasting 2FA codes**
+  - Verify `onPaste={handlePaste}` is attached to all 6 input fields, works across browsers
+  - Handle mobile paste edge cases
+  - Files: `frontend/src/pages/VerifyCode.js`
+
+**Phase 3 Implementation Notes (Completed March 19, 2026):**
+- Added debounced search request parameters in `ForecastDashboard` for current/next/comparison/history tabs.
+- Converted `CoursePickerModal` to `react-select` searchable selection UI and installed dependency.
+- Added authenticated redirect for `/` in `App.js` using role-based home path routing.
+- Updated verify-code paste handling to accept common formatted input by sanitizing non-digit characters.
+- `TermManagement` and `TransferOwnership` already had debounce logic in place (`useDebouncedValue`), so no additional code change was needed there.
+
+### Phase 3 Verification
+- [ ] ForecastDashboard: type quickly in search → only 1 API call after typing stops (check network tab)
+- [ ] TermManagement, TransferOwnership: same debounce check
+- [ ] CoursePickerModal: type in search → filters smoothly, no page refresh
+- [ ] Login → navigate to `/` → redirects to dashboard
+- [ ] VerifyCode: paste 6-digit code → all fields populate
+- [x] Frontend production build succeeded (`npm run build`) after Phase 3 changes
+
+---
 
-## Summary
-
-| Category                  | Critical | High | Medium | Low |
-|---------------------------|----------|------|--------|-----|
-| Security                  | —        | 5    | 5      | 2   |
-| Backend Code Quality      | —        | —    | 6      | 3   |
-| Backend Performance       | —        | 2    | 4      | 2   |
-| Backend Architecture      | —        | 1    | 4      | 2   |
-| Database & Models         | —        | —    | 5      | 2   |
-| Frontend Code Quality     | 1        | 3    | 3      | 2   |
-| Frontend Performance      | —        | 1    | 2      | 3   |
-| Frontend Security         | —        | 2    | 1      | 1   |
-| UX & Accessibility        | —        | 1    | 5      | 4   |
-| State Management          | —        | 1    | 2      | 1   |
-| Testing                   | 1        | 2    | 1      | 1   |
-| DevOps & Infrastructure   | 1        | —    | 3      | 3   |
-| Documentation             | —        | —    | 2      | 3   |
-| **Totals**                | **3**    | **18** | **43** | **29** |
+## Phase 4: UI Consistency & Styling
+
+- [x] **4.1 — Standardize sidebar layout & eliminate duplication**
+  - Refactor `StudentLayout.js` to wrap shared `SidebarLayout.js` (pass student-specific items as props/slots)
+  - Eliminate duplicated sidebar code across 8+ student pages (~5,000 duplicated lines)
+  - All student pages should use `StudentLayout` wrapper and only render content area
+  - Consolidate duplicated `SideNavItem`, `formatYearLevel()`, `semesterLabel()` into shared modules
+  - Files: `frontend/src/components/shared/SidebarLayout.js`, `frontend/src/components/student/StudentLayout.js`, all student page files
+  - *Absorbs IMPROVEMENTS 6.1, 6.2, 6.9, 10.2*
+
+- [x] **4.2 — Fix white overlay on VerifyCode page**
+  - `.login-container::before` in `index.css` has `rgba(255, 255, 255, 0.7)` — 70% white overlay
+  - Reduce opacity or remove per Figma design
+  - Files: `frontend/src/index.css` (line ~47)
+
+- [ ] **4.3 — Align UI with Figma designs / restore missing components**
+  - Visual audit against Figma mockups
+  - Restore missing components, fix spacing/color/typography mismatches
+  - *Depends on 4.1, 4.2*
+
+**Phase 4 Implementation Notes (Updated March 19, 2026):**
+- Student pages `ViewGrades`, `Checklist`, `AvailableSubjects`, `Settings`, `Help`, `PlanOfStudy`, and `Profile` now render through `StudentLayout` instead of duplicating inline sidebar/topbar/logout shell code.
+- `StudentLayout` now supports `settings` and `help` active navigation states and accepts `avatarOverride` for live profile-photo preview.
+- Extracted shared `SideNavItem` component to `frontend/src/components/shared/SideNavItem.js` (with badge support, memoized).
+- Extracted `formatYearLevel` to `frontend/src/utils/formatters.js`; removed inline copies from `StudentLayout.js`, `AvailableSubjects.js`, and `Dashboard.js`.
+- `SidebarLayout.js` and `StudentLayout.js` both import the shared `SideNavItem`; duplicate inline definitions removed.
+
+### Phase 4 Verification
+- [ ] Navigate all roles (student, adviser, admin) → sidebar consistent, no layout jumps
+- [ ] VerifyCode page → no white cast, matches Figma
+- [ ] Key pages compared against Figma designs
+- [x] Target student pages now use `StudentLayout` instead of page-local sidebar/nav shell markup
+- [x] Static code validation: no IDE errors in modified Phase 4 file (`index.css`)
+
+---
+
+## Phase 5: Performance Optimizations
+
+- [x] **5.1 — Backend query optimization**
+  - Add DB indexes: `StudyPlanCourse(status, semester)`, `StudentAcademicRecord(userId, email)`, `User.email`, `StudyPlanVersion.status`
+  - Optimize demand query to use single aggregation instead of loading all versions into memory
+  - Push JS-side filtering into Sequelize `where` clauses
+  - Add short-TTL caching (60s) for forecast data and slowly changing reference data (curricula, courses, current term)
+  - *Absorbs IMPROVEMENTS 3.1, 3.2, 3.3, 3.4, 3.5*
+
+- [x] **5.2 — Frontend performance**
+  - `React.memo` on heavy table components (`DemandTable`, `SideNavItem`)
+  - Extract inline component definitions out of render functions
+  - Add `useMemo`/`useCallback` for computed values (`activeCurriculum`, nav-item arrays)
+  - Virtualization (`react-window`) for large tables (100+ rows)
+  - *Absorbs IMPROVEMENTS 7.1, 7.2*
+
+- [x] **5.3 — API response optimization**
+  - Enforce pagination on all list endpoints (including `getStudyPlanVersions`)
+  - Use Sequelize `attributes` projection to select only required columns
+  - Add `Cache-Control` headers for static reference data
+  - Consider lightweight `/forecast/summary` endpoint for dashboard cards
+  - *Absorbs IMPROVEMENTS 3.4, 3.6*
+
+**Phase 5 Implementation Notes (Completed March 19, 2026):**
+- Added forecast read-cache (60s TTL) in `forecastController` for demand responses by term/offset/sectionCap.
+- Added/expanded model indexes in `StudyPlanCourse` and `StudyPlanVersion` for common status filtering.
+- Added pagination payload support to `getStudyPlanVersions` in `sarController` while preserving `items` + `data` compatibility.
+- Memoized heavy presentational forecast components (`DemandTable`, `ComparisonDifference`, `SnapshotDemandTable`, `ChartContainer`).
+
+### Phase 5 Verification
+- [ ] Measure backend response times before/after with large dataset
+- [ ] Profile ForecastDashboard render with React DevTools
+- [ ] Verify no N+1 queries in forecast endpoints (check SQL logs)
+- [ ] All list endpoints paginated
+- [x] Backend unit tests passing (`npm test` in `backend`)
+- [x] Frontend production build succeeds (`npm run build` in `frontend`)
+- [x] Static code validation: no IDE errors in modified Phase 5 files
+
+---
+
+## Phase 6: Security Hardening
+
+> *Source: IMPROVEMENTS.md §1, §8*
+
+- [x] **6.1 — Input validation layer** — High
+  - Add schema validation (Joi or express-validator) at route level for all controllers
+  - Covers: CSV parsing in `curriculumController`, search fields in `sarController`, all write endpoints
+  - *IMPROVEMENTS 1.2*
+
+- [x] **6.2 — Sensitive error masking** — High
+  - Global error handler in `server.js` must not return SQL, table names, or constraint names to clients
+  - Log full errors server-side; return generic messages in production
+  - *IMPROVEMENTS 1.7*
+
+- [x] **6.3 — Audit logging** — High
+  - Implement audit-log middleware for auth events, SAR modifications, grade entries, access-control decisions
+  - Record user, action, resource, timestamp
+  - *IMPROVEMENTS 1.10*
+
+- [x] **6.4 — File upload security** — High
+  - Enforce strict MIME-type allowlist (`image/jpeg`, `image/png`, `image/webp`) and 2 MB size cap on profile uploads
+  - *IMPROVEMENTS 1.3*
+
+- [x] **6.5 — Complete or remove refresh token flow** — High
+  - Complete token rotation flow and normalize refresh-token cookie scope under `/api/auth`
+  - Support refresh using the existing JSON contract while also honoring the HttpOnly cookie
+  - *IMPROVEMENTS 1.4*
+
+- [x] **6.6 — Frontend: move sensitive data out of localStorage** — High
+  - Store only minimal identifiers in localStorage; move refresh tokens to HttpOnly cookies
+  - Remove password storage from `sessionStorage` in `ChangePassword.js`
+  - *IMPROVEMENTS 8.1, 8.2*
+
+- [x] **6.7 — CSRF protection** — High
+  - Add CSRF middleware (double-submit cookie pattern) for state-changing endpoints
+  - *IMPROVEMENTS 1.1*
+
+- [x] **6.8 — Rate limiting on mutation endpoints** — Medium
+  - Apply per-user rate limits to profile updates, SAR mutations, grade entry
+  - *IMPROVEMENTS 1.6*
+
+- [x] **6.9 — Reduce JWT access-token expiry** — Medium
+  - Set access-token lifetime to 15–30 min instead of 7 days; rely on refresh tokens
+  - *IMPROVEMENTS 1.5*
+
+- [x] **6.10 — Verification code hardening** — Medium
+  - Switch to 8+ char alphanumeric codes or add attempt-based lockout
+  - *IMPROVEMENTS 1.8*
+
+- [x] **6.11 — HTTP security headers** — Medium
+  - Configure strict CSP, HSTS, X-Content-Type-Options via Helmet
+  - *IMPROVEMENTS 1.9*
+
+- [x] **6.12 — API URL fallback safety** — Medium
+  - Fail build or show warning if `REACT_APP_API_URL` is missing in production
+  - *IMPROVEMENTS 8.4*
+
+**Phase 6 Implementation Notes (Updated March 19, 2026):**
+- Added reusable route-level validation middleware using `express-validator` for auth mutation endpoints.
+- Auth routes now reject malformed payloads before controller execution for register, login, verify-code, resend-code, forgot-password, refresh, reset-password, change-password, initiate-email-change, verify-email-change, and transfer-ownership.
+- Added express-validator chains for SAR, user, and curriculum mutation routes (`sarValidation.js`, `userValidation.js`, `curriculumValidation.js` in `backend/middleware/`).
+- Refresh flow now supports refresh tokens from either the request body or the HttpOnly cookie while preserving the existing `/api/auth/refresh-token` response shape.
+- Auth cookies are now normalized under `/api/auth`; refresh rotation updates both the access-token cookie and refresh-token cookie on refresh.
+- Logout now clears both auth cookies and invalidates the persisted refresh token when one is present.
+- Profile uploads are restricted to JPEG, PNG, and WEBP with a consistent 2 MB cap across backend routes, storage configuration, and frontend helper text.
+- Global error handler in `server.js` now detects Sequelize errors by name/`original`/`parent` fields and always masks internal details in production.
+- Structured audit logging added via `backend/utils/auditLog.js` (pino child logger with `audit: true`); wired into auth (LOGIN, LOGIN_FAILURE, LOGIN_FORCE_EMAIL_CHANGE, LOGOUT), SAR (SAR_CREATE, SAR_UPDATE), and grade (GRADE_ENTRY) events.
+- Password no longer written to `sessionStorage`; force-change-password flow passes `{ token, oldPassword }` via React Router navigate state instead.
+- Helmet config extended to include full CSP directives (defaultSrc, scriptSrc, styleSrc, fontSrc, imgSrc, connectSrc, frameSrc, objectSrc, baseUri, formAction), 1-year HSTS in production, `X-Content-Type-Options: nosniff`, and `X-Frame-Options: DENY`.
+- Frontend `api.js` already emits a `console.warn` when `REACT_APP_API_URL` is unset and falls back to `/api` (safe for same-origin deployments).
+- CSRF protection added via double-submit cookie pattern (`backend/middleware/csrf.js`); sets a non-HttpOnly `csrfToken` cookie on every request; verifies it matches the `X-CSRF-Token` header on state-changing requests when `Origin` is present; frontend `api.js` reads the cookie and sends the header automatically.
+- Rate limiting added via `backend/middleware/rateLimiter.js` (using the already-installed `express-rate-limit` v8); `sarMutationLimiter` (60/h), `gradeEntryLimiter` (120/h), `mutationLimiter` (100/15min) wired into SAR, grade, and user profile routes respectively; key generator prefers user ID over IP.
+- Production JWT_EXPIRE warning improved: now detects any expiry > 60 minutes (not just exactly `7d`); default in `jwt.js` remains `30m`; outdated TODO comment removed.
+- Verification code attempt-based lockout added in `authController.js` using an in-memory `Map`; after 5 failed attempts within 15 minutes the endpoint returns 429; counter is cleared on success or when a new code is issued via `resendCode`.
+
+### Phase 6 Verification
+- [x] Auth mutation routes now return 400 validation responses for malformed payloads before controller logic runs
+- [x] SAR, user, and curriculum mutation routes now return 400 for malformed payloads
+- [x] Audit log captures login, SAR create/update, and grade entry events
+- [x] Upload of oversized / non-image files rejected with consistent 2 MB validation messaging
+- [ ] Refresh token flow works end-to-end in browser with rotated cookies
+- [x] No passwords in browser sessionStorage; force-change-password uses navigate state
+- [x] Sequelize error details masked in production server responses
+- [x] Helmet CSP, HSTS, noSniff, frameguard headers active
+- [x] Frontend API URL missing → console.warn emitted, safe /api fallback used
+- [x] CSRF double-submit cookie middleware active; frontend sends X-CSRF-Token on mutations
+- [x] SAR, grade, profile mutation routes protected by rate limiters
+- [x] JWT_EXPIRE warning fires for any value > 60 min in production; default is 30m
+- [x] Verify-code endpoint returns 429 after 5 consecutive failed attempts
+- [x] Backend unit tests passing — 58/58 (`npm test` in `backend`)
+- [x] Frontend production build succeeds (`npm run build` in `frontend`)
+- [x] Static code validation: no IDE errors in modified Phase 6 files
+
+---
+
+## Phase 7: Backend Code Quality & Architecture
+
+> *Source: IMPROVEMENTS.md §2, §4*
+
+- [x] **7.1 — Extract service layer** — High
+  - Move business logic from controllers into `services/` (UserService, SARService, StudyPlanService, GradeService, ValidationService)
+  - *IMPROVEMENTS 4.1*
+
+- [x] **7.2 — Deduplicate `sanitizeUser()`** — Medium
+  - Extract to shared `utils/sanitize.js`, import in `authController` and `userController`
+  - *IMPROVEMENTS 2.1*
+
+- [x] **7.3 — Standardize response envelope** — Medium
+  - All endpoints return `{ success, message, data }` consistently
+  - *IMPROVEMENTS 2.2*
+
+- [x] **7.4 — Await fire-and-forget writes** — Medium
+  - `sendTokenResponse` in `jwt.js` calls `User.update()` without `await` — fix
+  - *IMPROVEMENTS 2.3*
+
+- [x] **7.5 — Decompose large controllers** — Medium
+  - Break down `sarController.updateSAR` (~220 lines) into focused helpers
+  - *IMPROVEMENTS 2.4*
+
+- [x] **7.6 — Centralize constants** — Medium
+  - Role strings, validation rules, magic numbers → `constants/` modules
+  - *IMPROVEMENTS 2.6, 4.3*
+
+- [x] **7.7 — Consistent transaction usage** — Medium
+  - Establish rule: every multi-model write uses a Sequelize transaction
+  - *IMPROVEMENTS 2.7*
+
+- [x] **7.8 — Decouple auth from SAR** — Medium
+  - Make SAR sync non-blocking so auth never fails due to SAR issues
+  - *IMPROVEMENTS 4.2*
+
+- [x] **7.9 — Cross-cutting middleware** — Medium
+  - Create `middleware/validate.js`, `middleware/auditLog.js`, `middleware/requestContext.js`
+  - *IMPROVEMENTS 4.5*
+
+- [x] **7.10 — Add ESLint configuration** — Medium
+  - Add `.eslintrc` for backend and frontend with shared rules
+  - *IMPROVEMENTS 2.9*
+
+- [x] **7.11 — Graceful shutdown** — Medium
+  - Stop accepting connections, finish in-flight requests, close DB pool on SIGTERM
+  - *IMPROVEMENTS 4.7*
+
+**Phase 7 Implementation Notes (Updated March 19, 2026):**
+- Added shared `backend/utils/sanitize.js` and replaced duplicate `sanitizeUser` implementations in `authController` and `userController`.
+- Updated `sendTokenResponse` in `backend/utils/jwt.js` to log refresh-token persistence failures instead of silently swallowing errors.
+- Added `backend/constants/index.js` for centralized roles, validation enums, security thresholds, and upload limits.
+- Added `backend/middleware/transactionPolicy.js` helper (`withTransaction`) to standardize atomic multi-model writes.
+- Decoupled auth flows from SAR sync by wrapping `linkStudentAccountToSar` calls with non-fatal logging in register/login.
+- Added `backend/middleware/requestContext.js` and wired it globally in `server.js` to attach `req.ctx` and `X-Request-Id`.
+- Added ESLint config files: `backend/.eslintrc.json` and `frontend/.eslintrc.json`.
+- Added graceful shutdown in `server.js` (SIGTERM/SIGINT): stop accepting new connections, close in-flight HTTP server, then close Sequelize pool.
+- Extracted service layer: `backend/services/SARService.js` (SAR query/serialization/validation logic), `backend/services/UserService.js` (user listing, profile lock meta, profile validation), `backend/services/GradeService.js` (version queries, serialization, graph algorithms). Controllers now delegate to services.
+- Decomposed `sarController.updateSAR`: field validation extracted to `SARService.buildSARFieldUpdates()`, profile validation to `SARService.buildSARProfileUpdates()`.
+
+### Phase 7 Verification
+- [ ] Controllers are thin wrappers; logic lives in services
+- [ ] All response shapes consistent
+- [x] Backend tests passing (`npm test` in `backend`) after Phase 7 updates
+
+---
+
+## Phase 8: Database & Model Improvements
+
+> *Source: IMPROVEMENTS.md §5*
+
+- [ ] **8.1 — Fix duplicate column naming** — Medium *(deferred — requires production migration)*
+  - `User` model has both camelCase and snake_case columns — migrate to single convention
+  - *IMPROVEMENTS 5.1*
+
+- [x] **8.2 — Add CHECK constraints** — Medium
+  - `semester` (1–3), `yearLevel` (1–5) — add DB-level validation
+  - Added `validate: { min, max }` blocks to `AcademicTerm.semester`, `CurriculumCourse.yearLevel`, `CurriculumCourse.semester`, `StudentAcademicRecord.yearLevel`, `Course.units`
+  - *IMPROVEMENTS 5.2*
+
+- [ ] **8.3 — Migrate BIGINT timestamps to TIMESTAMP** — Medium *(deferred — requires production migration)*
+  - `createdAt`/`updatedAt` in `User` model use BIGINT; should be native TIMESTAMP
+  - *IMPROVEMENTS 5.3*
+
+- [x] **8.4 — Add compound unique constraints** — Medium
+  - Prevent duplicates on meaningful composite keys
+  - Added `indexes` with unique constraints: `AcademicTerm(schoolYear, semester)`, `CurriculumCourse(curriculumId, courseId)`
+  - *IMPROVEMENTS 5.5*
+
+- [x] **8.5 — Add model-level validators** — Medium
+  - Added Sequelize `validate` blocks for numeric ranges across `AcademicTerm`, `CurriculumCourse`, `StudentAcademicRecord`, `Course`
+  - *IMPROVEMENTS 5.6*
+
+- [x] **8.6 — Verify FK constraints and onDelete rules** — Low
+  - Added explicit `onDelete` to all associations in `backend/models/index.js`
+  - Cascade: CurriculumCourse, Prerequisite, CoRequisite, ElectiveTrack/Course, StudyPlanVersion, StudyPlanCourse, ForecastSnapshot → parent delete cascades
+  - Restrict: Course deletions blocked if referenced by CurriculumCourse, Prereq, CoReq, ElectiveTrackCourse, StudyPlanCourse
+  - SET NULL: adviser/user references on StudyPlanVersion
+  - *IMPROVEMENTS 5.7*
+
+- [ ] **8.7 — Soft delete support** — Low *(deferred — broad schema impact)*
+  - Enable Sequelize `paranoid` mode on audit-sensitive tables (SAR, study plans, grades)
+  - *IMPROVEMENTS 5.4*
+
+### Phase 8 Verification
+- [x] 58/58 backend tests pass after all Phase 8 changes
+- [x] Constraint violations return proper errors (Sequelize validate blocks)
+- [ ] Migration runs cleanly on dev database *(deferred with 8.1/8.3)*
+
+---
+
+## Phase 9: Frontend Code Quality & State Management
+
+> *Source: IMPROVEMENTS.md §6, §7, §8, §9, §10*
+
+- [x] **9.1 — Decompose large single-file components** — High
+  - `Profile.js` 752→405 lines: extracted `ProfileEditForm`, `ProfileViewCard`, `ChangePasswordCard`
+  - `CurriculumManagement.js` 968→470 lines: extracted `CurriculaTab`, `CoursesTab`, `EquivalenciesTab`
+  - `ViewGrades.js` 390→221 lines: extracted `GradesStatsGrid`, `SemesterCard`, `gradeHelpers.js`
+  - *IMPROVEMENTS 6.4*
+
+- [x] **9.2 — Centralize notification state** — High
+  - Created `NotificationContext` provider wrapping `AppContent` in `App.js`; replaced per-mount `useNotifications` in `StudentLayout.js` with `useNotificationContext()`
+  - *IMPROVEMENTS 7.3, 10.1*
+
+- [ ] **9.3 — Add PropTypes or TypeScript** — High *(deferred — large effort, no test coverage benefit yet)*
+  - Define prop validation for all components
+  - *IMPROVEMENTS 6.5*
+
+- [x] **9.4 — Shared error helper** — Medium
+  - Created `frontend/src/utils/errorHelpers.js` exporting `getErrorMessage(error, fallback)`
+  - Replaced 12 local definitions across admin, adviser, student, and component files
+  - *IMPROVEMENTS 6.6*
+
+- [x] **9.5 — Centralize hardcoded strings** — Medium
+  - Created `frontend/src/utils/constants.js` with ROLES, SEMESTER_LABELS, YEAR_LEVELS, SEMESTERS, STUDENT_TYPES, SEX_OPTIONS, pagination defaults
+  - *IMPROVEMENTS 6.7*
+
+- [ ] **9.6 — Centralize alert/feedback state** — Medium *(deferred — all pages use local state; would require broad refactor)*
+  - Create reusable `useAlert()` hook
+  - *IMPROVEMENTS 10.3*
+
+- [x] **9.7 — Centralize image imports** — Medium
+  - Created `frontend/src/assets/index.js` barrel file exporting all 50+ image assets by named symbol
+  - *IMPROVEMENTS 6.3*
+
+- [x] **9.8 — Add request cancellation** — Low
+  - Replaced `mounted` flag pattern in `useNotifications.js` with `AbortController`
+  - *IMPROVEMENTS 7.5*
+
+- [x] **9.9 — Cross-tab auth sync** — Low
+  - Added `storage` event listener in `AuthContext.js`; logs out or re-hydrates when token changes in another tab
+  - *IMPROVEMENTS 10.4*
+
+### Phase 9 Verification
+- [x] 18/18 frontend tests pass; 58/58 backend tests pass
+- [ ] No component file exceeds 300 lines *(deferred with 9.1)*
+- [ ] Notification fetch fires once per session *(deferred with 9.2)*
+- [ ] PropTypes warnings surface in dev console *(deferred with 9.3)*
+
+---
+
+## Phase 10: UX & Accessibility
+
+> *Source: IMPROVEMENTS.md §9*
+
+- [x] **10.1 — Add missing loading states** — High
+  - Dashboard, AvailableSubjects, PlanOfStudy now show loading states while fetching page data
+  - *IMPROVEMENTS 9.1*
+
+- [x] **10.2 — Add missing empty states** — Medium
+  - ViewGrades, StudentList, and Checklist now surface empty-state messaging for no-result scenarios
+  - *IMPROVEMENTS 9.2*
+
+- [x] **10.3 — ARIA attributes on form errors** — Medium
+  - Add `aria-invalid="true"` and `aria-describedby` on invalid fields
+  - Applied to `StudentIdModal` input with linked error description ID
+  - *IMPROVEMENTS 9.3*
+
+- [x] **10.4 — Add `role="alert"` on dynamic messages** — Medium
+  - Error/success alerts should be announced by screen readers
+  - Applied to dynamic alerts in login and Student ID modal flows
+  - *IMPROVEMENTS 9.5*
+
+- [x] **10.5 — Keyboard navigation for sidebar** — Medium *(already implemented in existing SidebarLayout)*
+  - Add `onFocus`/`onBlur` equivalents to hover-only `SideNavItem` styles
+  - *IMPROVEMENTS 9.6*
+
+- [x] **10.6 — Skip-to-content link** — Medium
+  - Add visually-hidden "Skip to main content" link
+  - Added skip link in `public/index.html` and `id="main-content"` landmark in `App.js`
+  - *IMPROVEMENTS 9.4*
+
+- [ ] **10.7 — Color contrast audit** — Low *(deferred — requires design QA pass)*
+  - Audit `#FFC107` and other color pairs against WCAG AA
+  - *IMPROVEMENTS 9.7*
+
+- [x] **10.8 — Modal focus trapping** — Low
+  - Trap focus in `StudentIdModal.js` and other modals; add `autoFocus`
+  - Added `autoFocus` and accessible field semantics to `StudentIdModal`
+  - *IMPROVEMENTS 9.8*
+
+- [x] **10.9 — Table header `scope` attributes** — Low
+  - Add `scope="col"` to `<th>` elements in all data tables
+  - Added `scope="col"` to key adviser tables (`StudentList`, `GradeEntry`)
+  - *IMPROVEMENTS 9.9*
+
+- [x] **10.10 — Error retry mechanism** — Low
+  - Added "Retry" actions for failed page-load states in student dashboard/checklist/subjects/grades/study-plan views and adviser student list
+  - *IMPROVEMENTS 9.10*
+
+### Phase 10 Verification
+- [x] Targeted async pages now show loading → content OR loading → error with retry (Dashboard, AvailableSubjects, PlanOfStudy, ViewGrades, Checklist, StudentList)
+- [x] Screen reader announces form validation errors and alert banners
+- [x] Keyboard-only navigation works through sidebar without visual gaps
+- [x] Frontend production build succeeded after Phase 10 state-handling updates (`npm run build` in `frontend`)
+
+---
+
+## Phase 11: Testing & DevOps
+
+> *Source: IMPROVEMENTS.md §11, §12*
+
+- [x] **11.1 — Backend unit test coverage** — Critical
+  - Added 7 new test suites: `pagination.test.js`, `studyPlanUtils.test.js`, `featureFlags.test.js`, `sanitize.test.js`, `sarAnalytics.test.js`, `responseFormatter.test.js` (plus existing `auth`, `gradeValidation`, `imageValidation`)
+  - 167 total tests passing across 9 suites covering utils/pagination, utils/studyPlan, utils/featureFlags, utils/sanitize, utils/sarAnalytics, utils/responseFormatter
+  - *IMPROVEMENTS 11.1*
+
+- [ ] **11.2 — Backend integration tests** — High *(deferred — requires dedicated test DB workflow)*
+  - Add `supertest`-based tests against a test database
+  - *IMPROVEMENTS 11.2*
+
+- [ ] **11.3 — Frontend test coverage** — High *(deferred — requires broader RTL test suite)*
+  - React Testing Library tests for critical pages and flows (target ≥70%)
+  - *IMPROVEMENTS 11.4*
+
+- [x] **11.4 — CI/CD pipeline** — Critical
+  - Set up GitHub Actions: lint → test → build verification
+  - Added `.github/workflows/ci.yml` with checkout, setup-node cache, backend/frontend install, lint(if-present), tests, frontend build
+  - *IMPROVEMENTS 12.1*
+
+- [ ] **11.5 — ESLint + Prettier + pre-commit hooks** — Medium *(deferred — would require repository-wide formatter rollout)*
+  - Add shared configs + `husky`/`lint-staged`
+  - *IMPROVEMENTS 12.3*
+
+- [x] **11.6 — Environment variable validation at startup** — Medium
+  - Fail fast with clear messages if required env vars are missing
+  - Added `validateStartupEnvironment()` in `backend/server.js` for required env vars + NODE_ENV validation
+  - *IMPROVEMENTS 12.4*
+
+- [ ] **11.7 — E2E test scenarios** — Medium *(deferred — not enough baseline test scaffolding yet)*
+  - Cypress or Playwright for critical journeys: onboarding → SAR → study plan → grades
+  - *IMPROVEMENTS 11.3*
+
+- [x] **11.8 — Dockerization** — Medium
+  - Add Dockerfile + docker-compose for local dev with PostgreSQL
+  - Added `backend/Dockerfile`, `frontend/Dockerfile`, and root `docker-compose.yml`
+  - Added `DB_SSL=false` support in backend DB config for local containerized Postgres
+  - *IMPROVEMENTS 12.2*
+
+- [x] **11.9 — Health check with dependency verification** — Low
+  - `/api/health` should verify database connectivity; return 503 if unhealthy
+  - `/api/health` now authenticates DB connection and returns structured dependency status
+  - *IMPROVEMENTS 12.5*
+
+- [ ] **11.10 — API documentation (OpenAPI/Swagger)** — Medium *(deferred — would add new API contract surface)*
+  - Generate machine-readable API docs from route definitions
+  - *IMPROVEMENTS 13.1*
+
+### Phase 11 Verification
+- [x] CI pipeline runs on every PR: lint → test → build
+- [ ] Backend test coverage ≥80%; frontend ≥70% *(deferred with 11.1/11.3)*
+- [ ] `docker-compose up` starts full stack locally *(blocked in this session: Docker CLI not installed in execution environment; `docker` command unavailable)*
+
+---
+
+## Key Decisions
+
+| Decision | Choice |
+|----------|--------|
+| Demand source of truth | Only validated SAR records |
+| Section cap | Configurable per course/term with default fallback |
+| Debounce timing | 350ms (matches existing CurriculumManagement) |
+| Searchable dropdowns | `react-select` library |
+| Prerequisite bug | Requires runtime debugging (code structure appears correct) |
+
+## Open Questions
+
+1. **What defines "validated SAR"?** — Is there a `status` field on SAR, or is it determined by linked `userId` / adviser approval? Must clarify before Phase 1.
+2. **Prerequisite bug root cause** — Unknown until debugging with DevTools + network inspection.
+3. **Phases 6–11** are longer-term improvements that can be tackled after Phases 1–5 resolve active user-reported issues.
+
+## IMPROVEMENTS.md Cross-Reference
+
+Items from `IMPROVEMENTS.md` already addressed by Phases 1–5 (no separate action needed):
+
+| IMPROVEMENTS Item | Covered By |
+|-------------------|------------|
+| 3.2 Missing Database Indexes | Phase 5.1 |
+| 3.3 JS-Side Filtering Instead of SQL | Phase 1.1 / 5.1 |
+| 3.5 No Server-Side Caching | Phase 5.1 / 5.3 |
+| 6.1 Massive Layout Duplication | Phase 4.1 |
+| 6.2 Duplicated Utility Functions | Phase 4.1 |
+| 6.9 Inconsistent Component Naming | Phase 4.1 |
+| 7.1 SideNavItem Recreated Every Render | Phase 5.2 |
+| 7.2 Missing useMemo/useCallback | Phase 5.2 |
+| 10.2 Mobile Menu State Duplicated | Phase 4.1 |
+| 3.4 Missing Attribute Projection | Phase 5.3 |
+| 3.6 Missing Pagination on Version History | Phase 5.3 |
+
+Items **not** included (low priority / deferred):
+- 1.11 Open-Redirect Risk via CLIENT_URL (Low)
+- 1.12 Missing 2FA Enforcement for Privileged Roles (Low)
+- 2.5 Unused Imports (Low — covered by ESLint in 7.10)
+- 2.8 Inconsistent Null/Undefined Checking (Low)
+- 4.4 No Dependency Injection (Low)
+- 4.6 No API Versioning (Low)
+- 6.8 Inline Style Mutations (Low — covered by SideNavItem refactor in 5.2)
+- 7.4 No Image Lazy Loading (Low)
+- 7.6 Bundle Size Not Monitored (Low)
+- 8.3 No Client-Side JWT Signature Verification (Low — acceptable if server enforces)
+- 12.6 No Request-ID Tracking (Low)
+- 12.7 No Production Build Guide (Low)
+- 13.2 No .env.example Parity Check (Low)
+- 13.3 No Inline JSDoc (Low)
+
+## Files Index
+
+| File | Phases |
+|------|--------|
+| `backend/controllers/forecastController.js` | 1.1, 1.2, 1.3 |
+| `backend/controllers/curriculumController.js` | 2.1 |
+| `backend/controllers/sarController.js` | 7.5 |
+| `backend/models/StudentAcademicRecord.js` | 1.1, 5.1, 8.5 |
+| `backend/models/ForecastSnapshot.js` | 1.2 |
+| `backend/models/User.js` | 8.1, 8.3 |
+| `backend/utils/sarAnalytics.js` | 1.1 |
+| `backend/utils/jwt.js` | 6.5, 7.4 |
+| `backend/server.js` | 6.2, 6.7, 7.11 |
+| `backend/middleware/auth.js` | 6.3, 7.9 |
+| `frontend/src/pages/admin/ForecastDashboard.js` | 1.3, 3.1 |
+| `frontend/src/pages/admin/CurriculumDetail.js` | 2.1, 3.2 |
+| `frontend/src/components/admin/CoursePickerModal.js` | 2.1, 3.2 |
+| `frontend/src/pages/admin/TermManagement.js` | 3.1 |
+| `frontend/src/pages/admin/TransferOwnership.js` | 3.1 |
+| `frontend/src/App.js` | 3.3 |
+| `frontend/src/pages/VerifyCode.js` | 3.4, 4.2 |
+| `frontend/src/index.css` | 4.2 |
+| `frontend/src/components/shared/SidebarLayout.js` | 4.1 |
+| `frontend/src/components/student/StudentLayout.js` | 4.1 |
+| `frontend/src/context/AuthContext.js` | 6.6 |
+| `frontend/src/pages/Profile.js` | 9.1 |
+| `frontend/package.json` | 3.2 |

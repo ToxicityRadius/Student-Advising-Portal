@@ -24,61 +24,61 @@ User.belongsTo(Curriculum, { as: 'CurriculumRef', foreignKey: 'curriculum_id', o
 Curriculum.hasMany(User, { as: 'EnrolledStudents', foreignKey: 'curriculum_id', onDelete: 'SET NULL' });
 
 // Curriculum <-> CurriculumCourse <-> Course
-Curriculum.hasMany(CurriculumCourse, { foreignKey: 'curriculumId' });
-CurriculumCourse.belongsTo(Curriculum, { foreignKey: 'curriculumId' });
-CurriculumCourse.belongsTo(Course, { foreignKey: 'courseId' });
-Course.hasMany(CurriculumCourse, { foreignKey: 'courseId' });
+Curriculum.hasMany(CurriculumCourse, { foreignKey: 'curriculumId', onDelete: 'CASCADE' });
+CurriculumCourse.belongsTo(Curriculum, { foreignKey: 'curriculumId', onDelete: 'CASCADE' });
+CurriculumCourse.belongsTo(Course, { foreignKey: 'courseId', onDelete: 'RESTRICT' });
+Course.hasMany(CurriculumCourse, { foreignKey: 'courseId', onDelete: 'RESTRICT' });
 
 // Curriculum <-> Prerequisite
-Curriculum.hasMany(Prerequisite, { foreignKey: 'curriculumId' });
-Prerequisite.belongsTo(Curriculum, { foreignKey: 'curriculumId' });
-Prerequisite.belongsTo(Course, { as: 'Course', foreignKey: 'courseId' });
-Prerequisite.belongsTo(Course, { as: 'PrerequisiteCourse', foreignKey: 'prerequisiteCourseId' });
+Curriculum.hasMany(Prerequisite, { foreignKey: 'curriculumId', onDelete: 'CASCADE' });
+Prerequisite.belongsTo(Curriculum, { foreignKey: 'curriculumId', onDelete: 'CASCADE' });
+Prerequisite.belongsTo(Course, { as: 'Course', foreignKey: 'courseId', onDelete: 'RESTRICT' });
+Prerequisite.belongsTo(Course, { as: 'PrerequisiteCourse', foreignKey: 'prerequisiteCourseId', onDelete: 'RESTRICT' });
 
 // Curriculum <-> CoRequisite
-Curriculum.hasMany(CoRequisite, { foreignKey: 'curriculumId' });
-CoRequisite.belongsTo(Curriculum, { foreignKey: 'curriculumId' });
-CoRequisite.belongsTo(Course, { as: 'Course', foreignKey: 'courseId' });
-CoRequisite.belongsTo(Course, { as: 'CoRequisiteCourse', foreignKey: 'coRequisiteCourseId' });
+Curriculum.hasMany(CoRequisite, { foreignKey: 'curriculumId', onDelete: 'CASCADE' });
+CoRequisite.belongsTo(Curriculum, { foreignKey: 'curriculumId', onDelete: 'CASCADE' });
+CoRequisite.belongsTo(Course, { as: 'Course', foreignKey: 'courseId', onDelete: 'RESTRICT' });
+CoRequisite.belongsTo(Course, { as: 'CoRequisiteCourse', foreignKey: 'coRequisiteCourseId', onDelete: 'RESTRICT' });
 
 // CourseEquivalency
-Course.hasMany(CourseEquivalency, { foreignKey: 'courseId' });
-Course.hasMany(CourseEquivalency, { as: 'EquivalentFor', foreignKey: 'equivalentCourseId' });
-CourseEquivalency.belongsTo(Course, { as: 'Course', foreignKey: 'courseId' });
-CourseEquivalency.belongsTo(Course, { as: 'EquivalentCourse', foreignKey: 'equivalentCourseId' });
+Course.hasMany(CourseEquivalency, { foreignKey: 'courseId', onDelete: 'CASCADE' });
+Course.hasMany(CourseEquivalency, { as: 'EquivalentFor', foreignKey: 'equivalentCourseId', onDelete: 'CASCADE' });
+CourseEquivalency.belongsTo(Course, { as: 'Course', foreignKey: 'courseId', onDelete: 'CASCADE' });
+CourseEquivalency.belongsTo(Course, { as: 'EquivalentCourse', foreignKey: 'equivalentCourseId', onDelete: 'CASCADE' });
 
 // Curriculum <-> ElectiveTrack <-> ElectiveTrackCourse <-> Course
-Curriculum.hasMany(ElectiveTrack, { foreignKey: 'curriculumId' });
-ElectiveTrack.belongsTo(Curriculum, { foreignKey: 'curriculumId' });
-ElectiveTrack.hasMany(ElectiveTrackCourse, { foreignKey: 'electiveTrackId' });
-ElectiveTrackCourse.belongsTo(ElectiveTrack, { foreignKey: 'electiveTrackId' });
-ElectiveTrackCourse.belongsTo(Course, { foreignKey: 'courseId' });
+Curriculum.hasMany(ElectiveTrack, { foreignKey: 'curriculumId', onDelete: 'CASCADE' });
+ElectiveTrack.belongsTo(Curriculum, { foreignKey: 'curriculumId', onDelete: 'CASCADE' });
+ElectiveTrack.hasMany(ElectiveTrackCourse, { foreignKey: 'electiveTrackId', onDelete: 'CASCADE' });
+ElectiveTrackCourse.belongsTo(ElectiveTrack, { foreignKey: 'electiveTrackId', onDelete: 'CASCADE' });
+ElectiveTrackCourse.belongsTo(Course, { foreignKey: 'courseId', onDelete: 'RESTRICT' });
 
 // StudentAcademicRecord associations
 StudentAcademicRecord.belongsTo(User, { as: 'Student', foreignKey: 'userId' });
 StudentAcademicRecord.belongsTo(User, { as: 'CreatedByAdviser', foreignKey: 'createdByAdviserId' });
 StudentAcademicRecord.belongsTo(Curriculum, { foreignKey: 'curriculumId' });
 StudentAcademicRecord.belongsTo(ElectiveTrack, { foreignKey: 'electiveTrackId' });
-StudentAcademicRecord.hasOne(StudyPlan, { foreignKey: 'studentAcademicRecordId' });
+StudentAcademicRecord.hasOne(StudyPlan, { foreignKey: 'studentAcademicRecordId', onDelete: 'CASCADE' });
 
 // StudyPlan associations
-StudyPlan.belongsTo(StudentAcademicRecord, { foreignKey: 'studentAcademicRecordId' });
-StudyPlan.hasMany(StudyPlanVersion, { foreignKey: 'studyPlanId' });
+StudyPlan.belongsTo(StudentAcademicRecord, { foreignKey: 'studentAcademicRecordId', onDelete: 'CASCADE' });
+StudyPlan.hasMany(StudyPlanVersion, { foreignKey: 'studyPlanId', onDelete: 'CASCADE' });
 
 // StudyPlanVersion associations
-StudyPlanVersion.belongsTo(StudyPlan, { foreignKey: 'studyPlanId' });
-StudyPlanVersion.belongsTo(User, { as: 'GeneratedByAdviser', foreignKey: 'generatedByAdviserId' });
-StudyPlanVersion.belongsTo(User, { as: 'ValidatedByAdviser', foreignKey: 'validatedByAdviserId' });
-StudyPlanVersion.hasMany(StudyPlanCourse, { foreignKey: 'studyPlanVersionId' });
+StudyPlanVersion.belongsTo(StudyPlan, { foreignKey: 'studyPlanId', onDelete: 'CASCADE' });
+StudyPlanVersion.belongsTo(User, { as: 'GeneratedByAdviser', foreignKey: 'generatedByAdviserId', onDelete: 'SET NULL' });
+StudyPlanVersion.belongsTo(User, { as: 'ValidatedByAdviser', foreignKey: 'validatedByAdviserId', onDelete: 'SET NULL' });
+StudyPlanVersion.hasMany(StudyPlanCourse, { foreignKey: 'studyPlanVersionId', onDelete: 'CASCADE' });
 
 // StudyPlanCourse associations
-StudyPlanCourse.belongsTo(StudyPlanVersion, { foreignKey: 'studyPlanVersionId' });
-StudyPlanCourse.belongsTo(Course, { foreignKey: 'courseId' });
+StudyPlanCourse.belongsTo(StudyPlanVersion, { foreignKey: 'studyPlanVersionId', onDelete: 'CASCADE' });
+StudyPlanCourse.belongsTo(Course, { foreignKey: 'courseId', onDelete: 'RESTRICT' });
 
 // ForecastSnapshot associations
-ForecastSnapshot.belongsTo(AcademicTerm, { foreignKey: 'academicTermId' });
-ForecastSnapshot.belongsTo(User, { as: 'TriggeredBy', foreignKey: 'triggeredByUserId' });
-AcademicTerm.hasMany(ForecastSnapshot, { foreignKey: 'academicTermId' });
+ForecastSnapshot.belongsTo(AcademicTerm, { foreignKey: 'academicTermId', onDelete: 'CASCADE' });
+ForecastSnapshot.belongsTo(User, { as: 'TriggeredBy', foreignKey: 'triggeredByUserId', onDelete: 'SET NULL' });
+AcademicTerm.hasMany(ForecastSnapshot, { foreignKey: 'academicTermId', onDelete: 'CASCADE' });
 
 // AcademicTerm <-> User (closedBy)
 AcademicTerm.belongsTo(User, { as: 'ClosedBy', foreignKey: 'closedById' });

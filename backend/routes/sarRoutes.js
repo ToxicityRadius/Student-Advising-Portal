@@ -5,7 +5,7 @@ const ctrl = require('../controllers/sarController');
 
 const router = express.Router();
 const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-const MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_PROFILE_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
 
 const upload = multer({
 	storage: multer.memoryStorage(),
@@ -29,9 +29,9 @@ const uploadProfilePicture = (req, res, next) => {
 		if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
 			return res.status(400).json({
 				success: false,
-				message: 'Profile image must not exceed 5 MB',
+				message: 'Profile image must not exceed 2 MB',
 				errors: {
-					profile_picture: 'Profile image must not exceed 5 MB'
+					profile_picture: 'Profile image must not exceed 2 MB'
 				}
 			});
 		}
@@ -46,16 +46,25 @@ const uploadProfilePicture = (req, res, next) => {
 	});
 };
 
+const validate = require('../middleware/validate');
+const {
+	createSARValidation,
+	updateSARValidation,
+	updateSARElectiveTrackValidation,
+	sarIdParamValidation
+} = require('../middleware/sarValidation');
+const { sarMutationLimiter } = require('../middleware/rateLimiter');
+
 const adviserOrAdmin = [protect, requireRole('adviser', 'admin')];
 const anyRole = [protect, requireRole('adviser', 'admin', 'student')];
 
-router.post('/', adviserOrAdmin, ctrl.createSAR);
+router.post('/', sarMutationLimiter, adviserOrAdmin, validate(createSARValidation), ctrl.createSAR);
 router.get('/autofill', adviserOrAdmin, ctrl.getSarAutofillByEmail);
 router.get('/', anyRole, ctrl.getSARs);
-router.post('/:id/study-plan/generate', adviserOrAdmin, ctrl.generateInitialStudyPlan);
-router.get('/:id/study-plan/versions', anyRole, ctrl.getStudyPlanVersions);
-router.get('/:id', anyRole, ctrl.getSARById);
-router.patch('/:id/elective-track', adviserOrAdmin, ctrl.updateSARElectiveTrack);
-router.put('/:id', adviserOrAdmin, uploadProfilePicture, ctrl.updateSAR);
+router.post('/:id/study-plan/generate', sarMutationLimiter, adviserOrAdmin, validate(sarIdParamValidation), ctrl.generateInitialStudyPlan);
+router.get('/:id/study-plan/versions', anyRole, validate(sarIdParamValidation), ctrl.getStudyPlanVersions);
+router.get('/:id', anyRole, validate(sarIdParamValidation), ctrl.getSARById);
+router.patch('/:id/elective-track', sarMutationLimiter, adviserOrAdmin, validate(updateSARElectiveTrackValidation), ctrl.updateSARElectiveTrack);
+router.put('/:id', sarMutationLimiter, adviserOrAdmin, validate(updateSARValidation), uploadProfilePicture, ctrl.updateSAR);
 
 module.exports = router;

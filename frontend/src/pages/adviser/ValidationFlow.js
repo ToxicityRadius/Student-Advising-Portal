@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import ElectiveTrackSelector from '../../components/adviser/ElectiveTrackSelector';
 import api from '../../utils/api';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
+import { getErrorMessage } from '../../utils/errorHelpers';
 
 const slotLabels = {
   '1-1': 'Year 1 • 1st Semester',
@@ -27,8 +28,6 @@ const statusVariant = {
   dropped: 'warning',
   incomplete: 'dark'
 };
-
-const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
 const isElectiveTrackSelectionRequired = (yearLevel, semester) => {
   const parsedYearLevel = Number(yearLevel || 0);
@@ -217,7 +216,7 @@ const ValidationFlow = () => {
 
           <Card className="shadow-sm mb-4">
             <Card.Body>
-              <Table responsive>
+              <Table responsive className="table-fixed-cols">
                 <thead>
                   <tr>
                     <th style={{ width: '22%' }}>Semester Slot</th>

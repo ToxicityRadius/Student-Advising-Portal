@@ -18,6 +18,7 @@ import CoursePickerModal from '../../components/admin/CoursePickerModal';
 import ConfirmModal from '../../components/ConfirmModal';
 import AdminLayout from '../../components/admin/AdminLayout';
 import api from '../../utils/api';
+import { getErrorMessage } from '../../utils/errorHelpers';
 
 const YEARS = [1, 2, 3, 4];
 const SEMESTERS = [
@@ -25,10 +26,6 @@ const SEMESTERS = [
   { value: 2, label: 'Semester 2' },
   { value: 3, label: 'Summer' }
 ];
-
-const getErrorMessage = (error, fallback) => {
-  return error?.response?.data?.message || fallback;
-};
 
 const emptyTrackForm = { name: '', description: '' };
 
@@ -182,6 +179,12 @@ const CurriculumDetail = () => {
         });
         setAddStructureAsElective(false);
         await loadBaseData();
+      } else if (pickerState.mode === 'prereq') {
+        if (pickerState.target === 'course') {
+          setSelectedPrereq((prev) => ({ ...prev, course }));
+        } else {
+          setSelectedPrereq((prev) => ({ ...prev, prerequisite: course }));
+        }
       } else if (pickerState.mode === 'coreq') {
         if (pickerState.target === 'course') {
           setSelectedCoreq((prev) => ({ ...prev, course }));
@@ -378,6 +381,26 @@ const CurriculumDetail = () => {
       }
     });
   };
+
+  const pickerExcludedCourseIds = useMemo(() => {
+    if (pickerState.mode === 'prereq') {
+      if (pickerState.target === 'course') {
+        return selectedPrereq.prerequisite ? [selectedPrereq.prerequisite.id] : [];
+      }
+
+      return selectedPrereq.course ? [selectedPrereq.course.id] : [];
+    }
+
+    if (pickerState.mode === 'coreq') {
+      if (pickerState.target === 'course') {
+        return selectedCoreq.corequisite ? [selectedCoreq.corequisite.id] : [];
+      }
+
+      return selectedCoreq.course ? [selectedCoreq.course.id] : [];
+    }
+
+    return [];
+  }, [pickerState.mode, pickerState.target, selectedPrereq.course, selectedPrereq.prerequisite, selectedCoreq.course, selectedCoreq.corequisite]);
 
   const saveAllTrackCourseSlots = async () => {
     if (dirtyTrackSlotIds.length === 0) {
@@ -587,12 +610,12 @@ const CurriculumDetail = () => {
             </Card.Body>
           </Card>
 
-          <Table striped bordered hover responsive>
+          <Table striped bordered hover responsive className="table-fixed-cols">
             <thead>
               <tr>
-                <th>Course</th>
-                <th>Prerequisite</th>
-                <th className="text-end">Actions</th>
+                <th style={{ width: '40%' }}>Course</th>
+                <th style={{ width: '40%' }}>Prerequisite</th>
+                <th className="text-end" style={{ width: '20%' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -652,12 +675,12 @@ const CurriculumDetail = () => {
             </Card.Body>
           </Card>
 
-          <Table striped bordered hover responsive>
+          <Table striped bordered hover responsive className="table-fixed-cols">
             <thead>
               <tr>
-                <th>Course</th>
-                <th>Co-Requisite</th>
-                <th className="text-end">Actions</th>
+                <th style={{ width: '40%' }}>Course</th>
+                <th style={{ width: '40%' }}>Co-Requisite</th>
+                <th className="text-end" style={{ width: '20%' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -851,6 +874,7 @@ const CurriculumDetail = () => {
         courses={courses}
         onSelect={handlePickerSelect}
         title={pickerState.title || 'Select Course'}
+        excludeCourseIds={pickerExcludedCourseIds}
       />
 
       <ConfirmModal

@@ -84,6 +84,18 @@ describe('Auth API', () => {
   // ------- POST /api/auth/login -------
 
   describe('POST /api/auth/login', () => {
+    test('returns 400 for invalid email format before controller logic runs', async () => {
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'not-an-email', password: 'Password1!' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe('Validation failed');
+      expect(res.body.errors.email).toBe('Email must be valid');
+      expect(User.findOne).not.toHaveBeenCalled();
+    });
+
     test('returns 400 when email or password is missing', async () => {
       const res = await request(app)
         .post('/api/auth/login')
@@ -178,6 +190,19 @@ describe('Auth API', () => {
 
       expect(res.status).toBe(401);
       expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('POST /api/auth/refresh-token', () => {
+    test('returns 400 when neither body nor cookie includes a refresh token', async () => {
+      const res = await request(app)
+        .post('/api/auth/refresh-token')
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe('Validation failed');
+      expect(res.body.errors.request).toBe('Refresh token is required');
     });
   });
 

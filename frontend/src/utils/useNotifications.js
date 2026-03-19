@@ -5,22 +5,21 @@ export default function useNotifications() {
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
-    let mounted = true;
+    const abortController = new AbortController();
 
     api
-      .get('/users/me/notifications')
+      .get('/users/me/notifications', { signal: abortController.signal })
       .then((response) => {
-        if (!mounted) return;
         const payload = Array.isArray(response.data?.data) ? response.data.data : [];
         setNotifications(payload);
       })
-      .catch(() => {
-        if (!mounted) return;
+      .catch((err) => {
+        if (err.name === 'CanceledError' || err.name === 'AbortError') return;
         setNotifications([]);
       });
 
     return () => {
-      mounted = false;
+      abortController.abort();
     };
   }, []);
 

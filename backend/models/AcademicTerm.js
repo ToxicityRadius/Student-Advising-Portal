@@ -13,7 +13,11 @@ const AcademicTerm = sequelize.define('AcademicTerm', {
   },
   semester: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: false,
+    validate: {
+      min: 1,
+      max: 3
+    }
   },
   isCurrent: {
     type: DataTypes.BOOLEAN,
@@ -34,7 +38,11 @@ const AcademicTerm = sequelize.define('AcademicTerm', {
   }
 }, {
   tableName: 'academic_terms',
-  timestamps: false
+  timestamps: false,
+  indexes: [
+    // Prevent duplicate active terms for the same school year and semester
+    { unique: true, fields: ['schoolYear', 'semester'], name: 'academic_terms_school_year_semester' }
+  ]
 });
 
 module.exports = AcademicTerm;

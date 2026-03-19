@@ -11,11 +11,27 @@ dotenv.config();
 
 const logger = require('./utils/logger');
 
-// Validate required secrets at startup
-if (!process.env.JWT_SECRET) {
-  logger.fatal('JWT_SECRET is not set. Refusing to start.');
-  process.exit(1);
+const ALLOWED_NODE_ENVS = ['development', 'test', 'production'];
+
+function validateStartupEnvironment() {
+  const missingAlwaysRequired = ['JWT_SECRET', 'DATABASE_URL'].filter((key) => !process.env[key]);
+  if (missingAlwaysRequired.length > 0) {
+    logger.fatal({ missing: missingAlwaysRequired }, 'Missing required environment variables');
+    process.exit(1);
+  }
+
+  if (process.env.NODE_ENV && !ALLOWED_NODE_ENVS.includes(process.env.NODE_ENV)) {
+    logger.fatal(
+      { nodeEnv: process.env.NODE_ENV, allowed: ALLOWED_NODE_ENVS },
+      'Invalid NODE_ENV value'
+    );
+    process.exit(1);
+  }
 }
+
+validateStartupEnvironment();
+
+// Validate required secrets at startup
 if (!process.env.JWT_REFRESH_SECRET) {
   logger.warn('JWT_REFRESH_SECRET is not set. Falling back to JWT_SECRET — set a separate value for production.');
 } else if (process.env.JWT_REFRESH_SECRET === process.env.JWT_SECRET) {
@@ -30,14 +46,27 @@ if (process.env.NODE_ENV === 'production') {
     logger.fatal({ missing }, 'Missing required production env vars');
     process.exit(1);
   }
-  if (!process.env.JWT_EXPIRE || process.env.JWT_EXPIRE === '7d') {
-    logger.warn('JWT_EXPIRE should be 15-30 minutes in production, not 7d.');
+  // Warn when JWT_EXPIRE is too long (> 60 minutes).
+  // Access tokens should be short-lived; refresh tokens handle session continuity.
+  const jwtExpire = process.env.JWT_EXPIRE || '30m';
+  const isLongLived =
+    jwtExpire.endsWith('d') ||
+    (jwtExpire.endsWith('h') && parseInt(jwtExpire, 10) > 1) ||
+    (jwtExpire.endsWith('m') && parseInt(jwtExpire, 10) > 60);
+  if (isLongLived) {
+    logger.warn(
+      { JWT_EXPIRE: jwtExpire },
+      'JWT_EXPIRE is too long for production. Recommended: 15-30 min.'
+    );
   }
 }
 
 // Import models (centralized associations)
 const { sequelize } = require('./models');
 const { protect } = require('./middleware/auth');
+const csrf = require('./middleware/csrf');
+const requestContext = require('./middleware/requestContext');
+const responseEnvelope = require('./middleware/responseEnvelope');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -54,14 +83,53 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 
 const app = express();
 
+// Attach per-request context (requestId, startTime, ip) before any other middleware
+app.use(requestContext);
+
 // Middleware
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  // Strict-Transport-Security: require HTTPS for 1 year in production
+  strictTransportSecurity: process.env.NODE_ENV === 'production'
+    ? { maxAge: 31536000, includeSubDomains: true }
+    : false,
+  // Prevent browsers from MIME-sniffing away from the declared content-type
+  noSniff: true,
+  // X-Frame-Options: block clickjacking
+  frameguard: { action: 'deny' },
+  // Content-Security-Policy: restrictive baseline; CDN fonts/icons whitelisted
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        // Google Sign-In
+        'https://accounts.google.com'
+      ],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: [
+        "'self'",
+        // Allow the frontend origin(s) to call the API (e.g. in CSP-restricted browsers)
+        ...(process.env.CLIENT_URL || '')
+          .split(',')
+          .map(o => o.trim())
+          .filter(o => o.length > 0)
+      ],
+      frameSrc: ['https://accounts.google.com'],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"]
+    }
+  }
 }));
 app.use(morgan('combined'));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
+app.use(csrf);
+app.use(responseEnvelope);
 // Support multiple allowed origins via comma-separated CLIENT_URL
 const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000')
   .split(',')
@@ -114,18 +182,40 @@ app.use('/uploads', (req, res) => {
   res.status(403).json({ success: false, message: 'Access denied' });
 });
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
+// Health check with dependency verification
+app.get('/api/health', async (req, res) => {
+  try {
+    await sequelize.authenticate();
+    const statusCode = isShuttingDown ? 503 : 200;
+    return res.status(statusCode).json({
+      status: isShuttingDown ? 'DEGRADED' : 'OK',
+      message: isShuttingDown ? 'Server is shutting down' : 'Server is running',
+      dependencies: {
+        database: 'up'
+      }
+    });
+  } catch (err) {
+    logger.error({ err }, 'Health check failed: database unavailable');
+    return res.status(503).json({
+      status: 'UNHEALTHY',
+      message: 'Database connectivity check failed',
+      dependencies: {
+        database: 'down'
+      }
+    });
+  }
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const statusCode = err.statusCode || err.status || 500;
+
   const errorPayload = {
     name: err.name,
     message: err.message,
     code: err.code,
-    statusCode: err.statusCode,
+    statusCode,
     stack: err.stack
   };
 
@@ -151,13 +241,31 @@ app.use((err, req, res, next) => {
     path: req.originalUrl,
     ...errorPayload
   }, 'Request failed');
-  res.status(err.statusCode || 500).json({
+
+  // Mask Sequelize / database errors regardless of status code in production.
+  // These errors can expose table names, column names, and constraint names.
+  const isSequelizeError = err.name && (
+    err.name.startsWith('Sequelize') ||
+    err.original != null ||
+    err.parent != null
+  );
+
+  let clientMessage;
+  if (statusCode >= 500 || (isProduction && isSequelizeError)) {
+    clientMessage = 'Internal Server Error';
+  } else {
+    clientMessage = err.message || 'Internal Server Error';
+  }
+
+  res.status(statusCode).json({
     success: false,
-    message: err.message || 'Internal Server Error'
+    message: clientMessage
   });
 });
 
 const PORT = process.env.PORT || 5000;
+let server;
+let isShuttingDown = false;
 
 // Sync database and start server
 const syncOptions = process.env.NODE_ENV === 'production'
@@ -169,12 +277,51 @@ const syncOptions = process.env.NODE_ENV === 'production'
   : sequelize.sync(syncOptions)
 ).then(() => {
   logger.info('Database connected successfully');
-  app.listen(PORT, () => {
+  server = app.listen(PORT, () => {
     logger.info({ port: PORT }, 'Server running');
   });
 }).catch((err) => {
   logger.fatal({ err }, 'Failed to connect to database');
 });
+
+const gracefulShutdown = (signal) => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  logger.info({ signal }, 'Graceful shutdown started');
+
+  if (!server) {
+    sequelize.close()
+      .then(() => process.exit(0))
+      .catch(() => process.exit(1));
+    return;
+  }
+
+  // Stop accepting new connections and wait for in-flight requests to complete.
+  server.close(async (closeErr) => {
+    if (closeErr) {
+      logger.error({ err: closeErr }, 'HTTP server close failed during shutdown');
+    }
+
+    try {
+      await sequelize.close();
+      logger.info('Database connection closed');
+      process.exit(closeErr ? 1 : 0);
+    } catch (dbErr) {
+      logger.error({ err: dbErr }, 'Failed to close database connection during shutdown');
+      process.exit(1);
+    }
+  });
+
+  // Force-exit if shutdown hangs.
+  setTimeout(() => {
+    logger.error('Graceful shutdown timeout reached; forcing exit');
+    process.exit(1);
+  }, 10000).unref();
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Graceful handling of unhandled async errors to prevent silent crashes
 process.on('unhandledRejection', (reason, promise) => {

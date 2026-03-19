@@ -3,6 +3,7 @@ import { Alert, Badge, Button, Card, Form, Spinner, Table } from 'react-bootstra
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
+import { getErrorMessage } from '../../utils/errorHelpers';
 
 const slotLabels = {
   '1-1': 'Year 1 • 1st Semester',
@@ -26,8 +27,6 @@ const statusVariant = {
   dropped: 'warning',
   incomplete: 'dark'
 };
-
-const getErrorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
 const buildEditableRows = (planVersion) => (planVersion?.StudyPlanCourses || []).map((courseEntry) => ({
   ...courseEntry,
@@ -214,7 +213,7 @@ const StudyPlanView = () => {
 
           <Card className="shadow-sm">
             <Card.Body>
-              <Table responsive>
+              <Table responsive className="table-fixed-cols">
                 <thead>
                   <tr>
                     <th style={{ width: '22%' }}>Semester Slot</th>

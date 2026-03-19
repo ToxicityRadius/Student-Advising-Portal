@@ -3,13 +3,16 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
+  Navigate,
   useLocation,
 } from "react-router-dom";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { NotificationProvider } from "./context/NotificationContext";
 import Navbar from "./components/Navbar";
 import PrivateRoute from "./components/PrivateRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { getHomePathForRole } from "./utils/roleRedirect";
 import "./index.css";
 
 // Public / auth pages
@@ -60,6 +63,13 @@ const PageFallback = () => (
 
 function AppContent() {
   const location = useLocation();
+  const { user, isAuthenticated, loading } = useAuth();
+  const homeElement = loading
+    ? <Landing />
+    : (isAuthenticated
+      ? <Navigate to={getHomePathForRole(user?.role)} replace />
+      : <Landing />);
+
   const hideNavbar =
     location.pathname === "/login" ||
     location.pathname === "/register" ||
@@ -83,9 +93,10 @@ function AppContent() {
   return (
     <>
       {!hideNavbar && <Navbar />}
-      <Suspense fallback={<PageFallback />}>
-        <Routes>
-        <Route path="/" element={<Landing />} />
+      <main id="main-content">
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
+        <Route path="/" element={homeElement} />
         <Route path="/about" element={<AboutUs />} />
         <Route path="/purpose" element={<Purpose />} />
         <Route path="/login" element={<Login />} />
@@ -263,6 +274,7 @@ function AppContent() {
         <Route path="*" element={<NotFound />} />
       </Routes>
       </Suspense>
+      </main>
     </>
   );
 }
@@ -280,7 +292,9 @@ function App() {
           <Router
             future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
           >
-            <AppContent />
+            <NotificationProvider>
+              <AppContent />
+            </NotificationProvider>
           </Router>
         </AuthProvider>
       </ErrorBoundary>
