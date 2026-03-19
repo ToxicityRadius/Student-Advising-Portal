@@ -21,6 +21,7 @@ const {
 const { VALID_STATUSES, parseGradeInput, parseGradePayload, formatQuarterGrade } = require('../utils/gradeValidation');
 const audit = require('../utils/auditLog');
 const GradeService = require('../services/GradeService');
+const NotificationService = require('../services/NotificationService');
 
 const personAttributes = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId'];
 
@@ -116,6 +117,18 @@ exports.enterGrades = async (req, res, next) => {
       resourceId: req.params.id,
       meta: { gradeCount: grades.length, activeVersionId: activeVersion.id }
     });
+
+    // Notify the student that grades were entered
+    if (sar.userId) {
+      NotificationService.notify({
+        recipientId: sar.userId,
+        actorId: req.user.id,
+        category: 'grades_entered',
+        resourceType: 'study_plan_version',
+        resourceId: activeVersion.id,
+        meta: { gradeCount: grades.length }
+      });
+    }
 
     const refreshedVersion = await StudyPlanVersion.findByPk(activeVersion.id, {
       include: includeRelationsForVersion
@@ -479,6 +492,18 @@ exports.triggerRegeneration = async (req, res, next) => {
     );
 
     await transaction.commit();
+
+    // Notify the student that a new draft was generated
+    if (sar.userId) {
+      NotificationService.notify({
+        recipientId: sar.userId,
+        actorId: req.user.id,
+        category: 'study_plan_regenerated',
+        resourceType: 'study_plan_version',
+        resourceId: newVersion.id,
+        meta: { versionNumber: newVersion.versionNumber }
+      });
+    }
 
     const createdVersion = await StudyPlanVersion.findByPk(newVersion.id, {
       include: includeRelationsForVersion

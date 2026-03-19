@@ -740,43 +740,76 @@ exports.getMyNotifications = async (req, res, next) => {
       });
     }
 
-    const notifications = [];
+    // Profile-completion hints (ephemeral — not persisted)
+    const hints = [];
 
     if (!user.profile_picture) {
-      notifications.push({
+      hints.push({
         id: 'profile-picture-missing',
         type: 'info',
+        category: 'profile_incomplete',
         title: 'Add a profile photo',
-        body: 'Upload a profile photo to complete your account identity.'
+        body: 'Upload a profile photo to complete your account identity.',
+        isRead: false,
+        createdAt: null
       });
     }
 
     if (!user.contact_number) {
-      notifications.push({
+      hints.push({
         id: 'contact-missing',
         type: 'info',
+        category: 'profile_incomplete',
         title: 'Contact number missing',
-        body: 'Add your contact number in Profile so advisers can reach you.'
+        body: 'Add your contact number in Profile so advisers can reach you.',
+        isRead: false,
+        createdAt: null
       });
     }
 
     if (user.role === 'student' && !user.program) {
-      notifications.push({
+      hints.push({
         id: 'program-missing',
         type: 'error',
+        category: 'profile_incomplete',
         title: 'Program not set',
-        body: 'Set your program in Profile to unlock complete advising features.'
+        body: 'Set your program in Profile to unlock complete advising features.',
+        isRead: false,
+        createdAt: null
       });
     }
 
     if (user.role === 'student' && !user.current_year_level && !user.year_level) {
-      notifications.push({
+      hints.push({
         id: 'year-level-missing',
         type: 'info',
+        category: 'profile_incomplete',
         title: 'Year level missing',
-        body: 'Set your year level in Profile for more accurate dashboard tracking.'
+        body: 'Set your year level in Profile for more accurate dashboard tracking.',
+        isRead: false,
+        createdAt: null
       });
     }
+
+    // Persisted notifications (newest first)
+    const NotificationService = require('../services/NotificationService');
+    const { items } = await NotificationService.getNotifications(req.user.id, { page: 1, pageSize: 20, unreadOnly: false });
+
+    const persisted = items.map((n) => ({
+      id: n.id,
+      type: n.type,
+      category: n.category,
+      title: n.title,
+      body: n.body,
+      isRead: n.isRead,
+      actor: n.Actor ? { id: n.Actor.id, firstName: n.Actor.firstName, lastName: n.Actor.lastName, role: n.Actor.role } : null,
+      resourceType: n.resourceType,
+      resourceId: n.resourceId,
+      createdAt: n.createdAt
+    }));
+
+    // Hints first, then persisted (newest first)
+    const notifications = [...hints, ...persisted];
 
     return res.status(200).json({
       success: true,

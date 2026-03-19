@@ -54,7 +54,7 @@ const StudentLayout = ({
 }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { notifications, notifCount } = useNotificationContext();
+  const { notifications, notifCount, unreadCount, markAsRead, markAllAsRead } = useNotificationContext();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -491,7 +491,7 @@ const StudentLayout = ({
                   display: "block",
                 }}
               />
-              {notifCount > 0 && (
+              {unreadCount > 0 && (
                 <span
                   style={{
                     position: "absolute",
@@ -512,7 +512,7 @@ const StudentLayout = ({
                     lineHeight: 1,
                   }}
                 >
-                  {notifCount}
+                  {unreadCount}
                 </span>
               )}
             </button>
@@ -562,8 +562,8 @@ const StudentLayout = ({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setAllRead((v) => !v)}
-                    aria-label={allRead ? "All notifications marked as read" : "Mark all notifications as read"}
+                    onClick={() => { setAllRead(true); markAllAsRead(); }}
+                    aria-label={unreadCount === 0 ? "All notifications marked as read" : "Mark all notifications as read"}
                     style={{
                       background: "none",
                       border: "none",
@@ -572,7 +572,7 @@ const StudentLayout = ({
                     }}
                   >
                     <img
-                      src={allRead ? boxCheckImg : boxUncheckImg}
+                      src={unreadCount === 0 || allRead ? boxCheckImg : boxUncheckImg}
                       alt=""
                       style={{
                         width: 26,
@@ -629,17 +629,20 @@ const StudentLayout = ({
                         },
                       };
                       const c = colors[n.type] || colors.info;
+                      const isRead = n.isRead || allRead;
                       return (
                         <div
                           key={n.id}
+                          onClick={() => { if (!isRead && typeof n.id === 'number') markAsRead(n.id); }}
                           style={{
                             display: "flex",
                             alignItems: "stretch",
                             borderRadius: 8,
                             overflow: "hidden",
                             background: c.bg,
-                            opacity: allRead ? 0.5 : 1,
+                            opacity: isRead ? 0.5 : 1,
                             transition: "opacity 0.2s",
+                            cursor: isRead ? 'default' : 'pointer',
                           }}
                         >
                           <div

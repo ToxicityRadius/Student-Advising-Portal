@@ -14,6 +14,7 @@ const StudyPlan = require('./StudyPlan');
 const StudyPlanVersion = require('./StudyPlanVersion');
 const StudyPlanCourse = require('./StudyPlanCourse');
 const ForecastSnapshot = require('./ForecastSnapshot');
+const Notification = require('./Notification');
 
 // Self-referential adviser relationship (still used by profile fields)
 User.hasMany(User, { as: 'Advisees', foreignKey: 'adviserId', onDelete: 'SET NULL' });
@@ -86,6 +87,11 @@ AcademicTerm.belongsTo(User, { as: 'ClosedBy', foreignKey: 'closedById' });
 // Curriculum <-> User (createdBy)
 Curriculum.belongsTo(User, { as: 'CreatedBy', foreignKey: 'createdById' });
 
+// Notification associations
+Notification.belongsTo(User, { as: 'Recipient', foreignKey: 'recipientId', onDelete: 'CASCADE' });
+Notification.belongsTo(User, { as: 'Actor', foreignKey: 'actorId', onDelete: 'SET NULL' });
+User.hasMany(Notification, { as: 'Notifications', foreignKey: 'recipientId', onDelete: 'CASCADE' });
+
 module.exports = {
   sequelize,
   User,
@@ -102,5 +108,6 @@ module.exports = {
   StudyPlan,
   StudyPlanVersion,
   StudyPlanCourse,
-  ForecastSnapshot
+  ForecastSnapshot,
+  Notification
 };

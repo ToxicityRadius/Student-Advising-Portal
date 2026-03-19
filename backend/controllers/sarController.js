@@ -22,6 +22,7 @@ const { buildElectiveTrackPlan } = require('../utils/studyPlan');
 const { uploadProfilePicture: uploadProfilePictureAsset, deleteProfilePictureAsset } = require('../utils/profileStorage');
 const { validateUploadedImageFile } = require('../utils/imageValidation');
 const SARService = require('../services/SARService');
+const NotificationService = require('../services/NotificationService');
 
 const tipEmailPattern = /@tip\.edu\.ph$/i;
 
@@ -321,6 +322,17 @@ exports.createSAR = async (req, res, next) => {
       resourceId: createdSar.id,
       meta: { studentNumber: createdSar.studentNumber, email: createdSar.email }
     });
+
+    // Notify the student that their academic record was created
+    if (matchedStudent) {
+      NotificationService.notify({
+        recipientId: matchedStudent.id,
+        actorId: req.user.id,
+        category: 'sar_created',
+        resourceType: 'sar',
+        resourceId: createdSar.id
+      });
+    }
 
     return res.status(201).json({ success: true, data: serializeSar(createdSar) });
   } catch (error) {

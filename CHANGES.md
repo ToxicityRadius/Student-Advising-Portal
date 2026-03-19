@@ -215,8 +215,58 @@
 - [x] Test and CI maturity significantly increased
 - [x] Delivery tooling improved with Docker + workflow automation
 
+---
+
+## Phase 8: Notification System
+
+- [x] Added persistent Notification model with recipientId, actorId, type, category, title, body, isRead, resourceType/Id, and BIGINT createdAt
+- [x] Added NotificationService with `notify()`, `notifyMany()`, `getNotifications()`, `markAsRead()`, `markAllAsRead()`, `getUnreadCount()`, and category-based templates
+- [x] Added notification REST controller with paginated list, unread count, mark-read, and mark-all-read endpoints
+- [x] Added `/api/notifications` route group (all protected via `protect` middleware)
+- [x] Wired Notification model associations (Recipient, Actor) and export in model index
+- [x] Added notification triggers after study plan validation, grade entry, study plan regeneration, and SAR creation
+- [x] Rewrote `getMyNotifications` to merge ephemeral profile-completion hints with persisted notifications
+- [x] Rewrote NotificationContext with `unreadCount`, `markAsRead()`, `markAllAsRead()`, and 60-second polling
+- [x] Updated StudentLayout bell to use `unreadCount` badge, per-item mark-as-read on click, and wired mark-all-read
+- [x] Added full notification bell + dropdown to SidebarLayout for adviser/admin views
+
+**Key files:**
+- `backend/models/Notification.js` *(new)*
+- `backend/services/NotificationService.js` *(new)*
+- `backend/controllers/notificationController.js` *(new)*
+- `backend/routes/notificationRoutes.js` *(new)*
+- `backend/models/index.js`
+- `backend/server.js`
+- `backend/controllers/userController.js`
+- `backend/controllers/validationController.js`
+- `backend/controllers/gradeController.js`
+- `backend/controllers/sarController.js`
+- `frontend/src/context/NotificationContext.js`
+- `frontend/src/components/student/StudentLayout.js`
+- `frontend/src/components/shared/SidebarLayout.js`
+
+**Implementation notes:**
+- Notifications are persisted in a `notifications` table (auto-created by Sequelize sync; migration needed if using strict migration mode).
+- `NotificationService.notify()` is fire-and-forget (non-blocking) so it never delays the primary response.
+- Notification triggers fire after transaction commits to avoid notifying on rolled-back operations.
+- Ephemeral profile-completion hints (no DB row) are merged client-side with persisted notifications in the feed.
+- Adviser and admin views now have the same bell + dropdown UI that students already had.
+
+**Notification trigger points:**
+
+| Event | Category | Recipient | Controller |
+|---|---|---|---|
+| Study plan validated | `study_plan_validated` | Student | `validationController` |
+| Grades entered | `grades_entered` | Student | `gradeController` |
+| Study plan regenerated | `study_plan_regenerated` | Student | `gradeController` |
+| SAR created | `sar_created` | Student | `sarController` |
+
+---
+
 ## Follow-up Recommendation
 
 1. Run full backend and frontend verification (tests + production build) after merge to confirm no environment-specific regressions.
 2. Add integration/E2E coverage next to validate the new middleware/service interactions under realistic request flows.
 3. Keep this summary synchronized with future commits that continue the same phased workstream.
+4. Add a Sequelize migration for the `notifications` table if not relying on auto-sync.
+5. Consider adding notification triggers for adviser-facing events (e.g., student submits elective track selection, student updates profile).

@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useNotificationContext } from "../../context/NotificationContext";
 import LogoutConfirmModal from "../LogoutConfirmModal";
 import SideNavItem from "./SideNavItem";
 import { buildProfileImageUrl } from "../../utils/profileImage";
 
 import logo from "../../assets/images/STUDENT ADVISING LOGO 1.png";
+import bellIconImg from "../../assets/images/Bell White Gradient.png";
+import goldBellImg from "../../assets/images/Gold Bell Gradient.png";
+import boxCheckImg from "../../assets/images/Box Check.png";
+import boxUncheckImg from "../../assets/images/Box Uncheck.png";
 import goldSettingsImg from "../../assets/images/Gold Settings.png";
 import goldHelpImg from "../../assets/images/Gold Help & Support.png";
 import goldLogoutImg from "../../assets/images/Gold Logout.png";
@@ -31,9 +36,13 @@ const imgIcon = (src, size = 22) => (
 const SidebarLayout = ({ activePage, pageTitle, navItems, roleLabel, children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificationContext();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [allRead, setAllRead] = useState(false);
+  const notifRef = useRef(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -41,6 +50,17 @@ const SidebarLayout = ({ activePage, pageTitle, navItems, roleLabel, children })
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Close notif dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   const handleLogout = async () => {
@@ -228,6 +248,168 @@ const SidebarLayout = ({ activePage, pageTitle, navItems, roleLabel, children })
               <span style={{ color: "rgba(0,0,0,0.4)", margin: "0 2px" }}>›</span>
               <span style={{ color: "#111", fontWeight: 800 }}>{pageTitle}</span>
             </div>
+          </div>
+
+          {/* Bell / notifications */}
+          <div ref={notifRef} style={{ position: "relative" }}>
+            <button
+              type="button"
+              aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+              aria-expanded={notifOpen}
+              style={{
+                position: "relative",
+                padding: 10,
+                cursor: "pointer",
+                borderRadius: 10,
+                transition: "background-color 0.15s, opacity 0.15s",
+                background: "none",
+                border: "none",
+              }}
+              onClick={() => setNotifOpen((o) => !o)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.18)";
+                e.currentTarget.style.opacity = "0.82";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.opacity = "1";
+              }}
+            >
+              <img
+                src={bellIconImg}
+                alt="Notifications"
+                style={{
+                  width: 32,
+                  height: 32,
+                  objectFit: "contain",
+                  display: "block",
+                }}
+              />
+              {unreadCount > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    right: 4,
+                    background: "#e53935",
+                    color: "#fff",
+                    borderRadius: "50%",
+                    minWidth: 20,
+                    height: 20,
+                    padding: "0 4px",
+                    fontSize: "0.68rem",
+                    fontWeight: 800,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
+                    lineHeight: 1,
+                  }}
+                >
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Notification dropdown */}
+            {notifOpen && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 10px)",
+                  right: 0,
+                  width: 380,
+                  background: "#fff",
+                  borderRadius: 16,
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+                  zIndex: 9999,
+                  overflow: "hidden",
+                  border: "1px solid #f0f0f0",
+                }}
+              >
+                {/* Header */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "18px 20px 14px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <img src={goldBellImg} alt="" style={{ width: 28, height: 28, objectFit: "contain" }} />
+                    <span style={{ fontWeight: 800, fontSize: "1.1rem", color: "#111" }}>Notifications</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setAllRead(true); markAllAsRead(); }}
+                    aria-label={unreadCount === 0 ? "All notifications marked as read" : "Mark all notifications as read"}
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                  >
+                    <img
+                      src={unreadCount === 0 || allRead ? boxCheckImg : boxUncheckImg}
+                      alt=""
+                      style={{ width: 26, height: 26, objectFit: "contain" }}
+                    />
+                  </button>
+                </div>
+
+                {/* Items */}
+                <div
+                  style={{
+                    padding: "0 16px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                    maxHeight: 320,
+                    overflowY: "auto",
+                    paddingBottom: 16,
+                  }}
+                >
+                  {notifications.length === 0 ? (
+                    <div style={{ padding: "18px 12px", textAlign: "center", color: "#888", fontSize: "0.85rem", fontWeight: 600 }}>
+                      No notifications yet.
+                    </div>
+                  ) : (
+                    notifications.map((n) => {
+                      const colors = {
+                        error: { bg: "#fff0f0", border: "#e53935", text: "#c62828", sub: "#e57373" },
+                        info: { bg: "#f0f4ff", border: "#1e88e5", text: "#1565c0", sub: "#64b5f6" },
+                        success: { bg: "#f0fff4", border: "#43a047", text: "#2e7d32", sub: "#81c784" },
+                      };
+                      const c = colors[n.type] || colors.info;
+                      const isRead = n.isRead || allRead;
+                      return (
+                        <div
+                          key={n.id}
+                          onClick={() => { if (!isRead && typeof n.id === 'number') markAsRead(n.id); }}
+                          style={{
+                            display: "flex",
+                            alignItems: "stretch",
+                            borderRadius: 8,
+                            overflow: "hidden",
+                            background: c.bg,
+                            opacity: isRead ? 0.5 : 1,
+                            transition: "opacity 0.2s",
+                            cursor: isRead ? 'default' : 'pointer',
+                          }}
+                        >
+                          <div style={{ width: 5, background: c.border, flexShrink: 0 }} />
+                          <div style={{ padding: "12px 14px", flex: 1 }}>
+                            <div style={{ fontWeight: 700, fontSize: "0.88rem", color: c.text, marginBottom: 3 }}>
+                              {n.title}
+                            </div>
+                            <div style={{ fontSize: "0.78rem", color: c.sub }}>
+                              {n.body}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </header>
 

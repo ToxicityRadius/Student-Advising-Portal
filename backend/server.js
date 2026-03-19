@@ -80,6 +80,7 @@ const validationRoutes = require('./routes/validationRoutes');
 const exportRoutes = require('./routes/exportRoutes');
 const forecastRoutes = require('./routes/forecastRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
 
@@ -171,6 +172,7 @@ app.use('/api', validationRoutes);
 app.use('/api', exportRoutes);
 app.use('/api/forecast', forecastRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Serve uploaded files
 // Profile pictures are public so they can be displayed in the frontend without auth.

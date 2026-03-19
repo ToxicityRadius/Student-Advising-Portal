@@ -15,6 +15,7 @@ const {
   buildElectiveTrackPlan,
   isElectiveTrackSelectionRequired
 } = require('../utils/studyPlan');
+const NotificationService = require('../services/NotificationService');
 
 const personAttributes = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId'];
 
@@ -412,6 +413,18 @@ exports.validateVersion = async (req, res, next) => {
     );
 
     await transaction.commit();
+
+    // Notify the student that their study plan was validated
+    if (sar.userId) {
+      NotificationService.notify({
+        recipientId: sar.userId,
+        actorId: req.user.id,
+        category: 'study_plan_validated',
+        resourceType: 'study_plan_version',
+        resourceId: studyPlanVersion.id,
+        meta: { versionNumber: studyPlanVersion.versionNumber }
+      });
+    }
 
     const updatedVersion = await StudyPlanVersion.findByPk(studyPlanVersion.id, {
       include: includeRelationsForVersion
