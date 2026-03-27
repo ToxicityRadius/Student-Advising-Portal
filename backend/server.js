@@ -129,9 +129,9 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
-app.use(csrf);
-app.use(responseEnvelope);
 // Support multiple allowed origins via comma-separated CLIENT_URL
+// CORS must be registered before CSRF so that error responses always
+// include the correct Access-Control-Allow-Origin header.
 const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000')
   .split(',')
   .map(o => o.trim());
@@ -159,6 +159,8 @@ app.use(cors({
   },
   credentials: true
 }));
+app.use(csrf);
+app.use(responseEnvelope);
 
 // Routes
 app.use('/api/auth', authRoutes);
