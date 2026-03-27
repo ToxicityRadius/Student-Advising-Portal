@@ -7,5 +7,8 @@
     "backend:dev": "npm --prefix backend run dev",
     "frontend:start": "npm --prefix frontend start",
     "frontend:build": "npm --prefix frontend run build"
+  },
+  "dependencies": {
+    "pino-pretty": "^13.1.3"
   }
 }

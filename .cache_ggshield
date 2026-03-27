@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"name": "Generic Password - c:\\Users\\Dexter Soriano\\Documents\\GitHub\\Student-Advising-Portal\\docker-compose.yml", "match": "6e0d657eb1f0fbc40cf0b8f3c3873ef627cc9cb7c4108d1c07d979c04bc8a4bb"}]}
+{"last_found_secrets": [{"match": "03fa1831aeba7edb409909b55eb479a08e5bad472ae0f829cd88b8466b972b78", "name": "SMTP credentials - c:\\Users\\Dexter Soriano\\Documents\\GitHub\\Student-Advising-Portal\\Deployment.md"}]}
