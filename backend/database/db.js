@@ -7,7 +7,6 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const isProduction = process.env.NODE_ENV === 'production';
 const useSsl = process.env.DB_SSL === 'false' ? false : true;
 
 const sequelize = new Sequelize(connectionString, {
@@ -16,7 +15,7 @@ const sequelize = new Sequelize(connectionString, {
     ? {
       ssl: {
         require: true,
-        rejectUnauthorized: isProduction
+        rejectUnauthorized: false
       }
     }
     : {},
