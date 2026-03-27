@@ -167,14 +167,18 @@ const Login = () => {
 
   const handleStudentIdSubmit = async (studentId) => {
     try {
-      const response = await api.patch(`/users/${pendingGoogleUser.userId}/update-student-id`, { studentId });
-      const data = response.data;
+      // Temporarily store the Google token so the protect middleware can
+      // authenticate the request (token is not yet in localStorage at this point).
+      localStorage.setItem('token', pendingGoogleUser.token);
+      await api.patch('/users/update-student-id', { studentId });
 
       setShowStudentIdModal(false);
       setPendingGoogleUser(null);
-      const result = await login(data.token);
-      navigate(getHomePathForRole(result?.role || data.user?.role));
+      // Use the already-issued Google token to complete the login flow.
+      const result = await login(pendingGoogleUser.token);
+      navigate(getHomePathForRole(result?.role));
     } catch (err) {
+      localStorage.removeItem('token');
       throw new Error(err.response?.data?.message || 'Failed to update Student Number');
     }
   };
