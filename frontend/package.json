@@ -6,9 +6,6 @@
     "@react-oauth/google": "^0.13.4",
     "axios": "^1.6.2",
     "bootstrap": "^5.3.8",
-    "google-auth-library": "^10.5.0",
-    "jspdf": "^4.2.0",
-    "jspdf-autotable": "^5.0.7",
     "jwt-decode": "^4.0.0",
     "react": "^18.2.0",
     "react-bootstrap": "^2.10.10",
@@ -50,7 +47,6 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
-    "nodemon": "^3.1.11"
+    "@testing-library/user-event": "^14.6.1"
   }
 }

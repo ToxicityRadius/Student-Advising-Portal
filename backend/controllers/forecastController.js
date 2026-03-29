@@ -496,10 +496,6 @@ exports.getComparisonReport = async (req, res, next) => {
   }
 };
 
-exports.__clearForecastCacheForTests = () => {
-  demandResponseCache.clear();
-};
-
 // @desc   Get stored forecast history
 // @route  GET /api/forecast/history
 // @access admin, adviser

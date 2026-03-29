@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Badge, Button, Card, Spinner, Table } from 'react-bootstrap';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import api from '../../utils/api';
+import useSarData from '../../hooks/useSarData';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
 import { getErrorMessage } from '../../utils/errorHelpers';
 
@@ -25,53 +25,33 @@ const RegenerationReview = () => {
   const navigate = useNavigate();
   const { sarId, versionId } = useParams();
 
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [sar, setSar] = useState(null);
   const [regeneratedVersion, setRegeneratedVersion] = useState(location.state?.regeneratedVersion || null);
   const [previousVersion, setPreviousVersion] = useState(location.state?.previousVersion || null);
+  const { sar, versions, loading, error: sarFetchError } = useSarData(sarId);
 
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      setError('');
-
-      try {
-        const [sarResponse, versionsResponse] = await Promise.all([
-          api.get(`/sars/${sarId}`),
-          api.get(`/sars/${sarId}/study-plan/versions`)
-        ]);
-
-        const versions = versionsResponse.data?.data || [];
-        const current = versions.find((version) => String(version.id) === String(versionId)) || null;
-
-        if (!current) {
-          setError('Regenerated study plan version not found.');
-          setSar(sarResponse.data?.data || null);
-          setRegeneratedVersion(null);
-          setPreviousVersion(null);
-          return;
-        }
-
-        const fallbackPrevious = versions
-          .filter((item) => Number(item.versionNumber) < Number(current.versionNumber))
-          .sort((left, right) => Number(right.versionNumber) - Number(left.versionNumber))[0] || null;
-
-        setSar(sarResponse.data?.data || null);
-        setRegeneratedVersion(current);
-        setPreviousVersion(location.state?.previousVersion || fallbackPrevious);
-      } catch (loadError) {
-        setError(getErrorMessage(loadError, 'Failed to load regeneration review data.'));
-        setSar(null);
-        setRegeneratedVersion(null);
-        setPreviousVersion(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadData();
-  }, [sarId, versionId, location.state?.previousVersion]);
+    if (loading) return;
+    if (sarFetchError) {
+      setError(getErrorMessage(sarFetchError, 'Failed to load regeneration review data.'));
+      setRegeneratedVersion(null);
+      setPreviousVersion(null);
+      return;
+    }
+    const current = versions.find((version) => String(version.id) === String(versionId)) || null;
+    if (!current) {
+      setError('Regenerated study plan version not found.');
+      setRegeneratedVersion(null);
+      setPreviousVersion(null);
+      return;
+    }
+    const fallbackPrevious = versions
+      .filter((item) => Number(item.versionNumber) < Number(current.versionNumber))
+      .sort((left, right) => Number(right.versionNumber) - Number(left.versionNumber))[0] || null;
+    setError('');
+    setRegeneratedVersion(current);
+    setPreviousVersion(location.state?.previousVersion || fallbackPrevious);
+  }, [loading, versions, versionId, sarFetchError, location.state?.previousVersion]);
 
   const previousSlotsByCourseId = useMemo(() => {
     const map = new Map();

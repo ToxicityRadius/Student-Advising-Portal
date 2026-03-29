@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import EditSARModal from '../../components/adviser/EditSARModal';
 import SARLayout from '../../components/sar/SARLayout';
 import api from '../../utils/api';
+import useSarData from '../../hooks/useSarData';
 import { fetchCurriculumsCached } from '../../utils/curriculumsCache';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
 import { getErrorMessage } from '../../utils/errorHelpers';
@@ -14,40 +15,26 @@ const StudentDetail = () => {
   const navigate = useNavigate();
   const { sarId } = useParams();
 
-  const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [alert, setAlert] = useState({ variant: '', message: '' });
-  const [sar, setSar] = useState(null);
-  const [versions, setVersions] = useState([]);
   const [curriculums, setCurriculums] = useState([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const { sar, versions, loading, error: sarFetchError, reload } = useSarData(sarId);
 
   const canExportPdf = user?.role === 'adviser' || user?.role === 'admin';
   const canEditSar = user?.role === 'adviser' || user?.role === 'admin';
 
   const loadSarData = useCallback(async () => {
-    setLoading(true);
     setAlert({ variant: '', message: '' });
-    try {
-      const [sarResponse, versionsResponse] = await Promise.all([
-        api.get(`/sars/${sarId}`),
-        api.get(`/sars/${sarId}/study-plan/versions`),
-      ]);
-      setSar(sarResponse.data?.data || null);
-      setVersions(versionsResponse.data?.data || []);
-    } catch (error) {
-      setAlert({ variant: 'danger', message: getErrorMessage(error, 'Failed to load the student academic record.') });
-      setSar(null);
-      setVersions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [sarId]);
+    await reload();
+  }, [reload]);
 
   useEffect(() => {
-    loadSarData();
-  }, [loadSarData]);
+    if (sarFetchError) {
+      setAlert({ variant: 'danger', message: getErrorMessage(sarFetchError, 'Failed to load the student academic record.') });
+    }
+  }, [sarFetchError]);
 
   useEffect(() => {
     fetchCurriculumsCached({ page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' })

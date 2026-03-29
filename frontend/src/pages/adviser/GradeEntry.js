@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Badge, Button, Card, Form, Spinner, Table } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../../utils/api';
+import useSarData from '../../hooks/useSarData';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
 import { getErrorMessage } from '../../utils/errorHelpers';
 
@@ -68,64 +69,44 @@ const GradeEntry = () => {
   const navigate = useNavigate();
   const { sarId } = useParams();
 
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [alert, setAlert] = useState({ variant: '', message: '' });
-  const [sar, setSar] = useState(null);
   const [activeVersion, setActiveVersion] = useState(null);
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
+  const { sar, versions, loading, error: sarFetchError, reload } = useSarData(sarId);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setAlert({ variant: '', message: '' });
-
-    try {
-      const [sarResponse, versionsResponse] = await Promise.all([
-        api.get(`/sars/${sarId}`),
-        api.get(`/sars/${sarId}/study-plan/versions`)
-      ]);
-
-      const allVersions = versionsResponse.data?.data || [];
-      const active = allVersions.find((version) => version.status === 'active') || null;
-
-      setSar(sarResponse.data?.data || null);
-      setActiveVersion(active);
-
-      if (!active) {
-        setRows([]);
-        return;
-      }
-
-      setRows(
-        (active.StudyPlanCourses || []).map((courseEntry) => ({
-          id: courseEntry.id,
-          courseId: courseEntry.courseId,
-          code: courseEntry.Course?.code || 'No code',
-          name: courseEntry.Course?.name || 'Unnamed course',
-          units: Number(courseEntry.Course?.units || 0),
-          yearLevel: courseEntry.yearLevel,
-          semester: courseEntry.semester,
-          specialChoice: normalizeSpecialOption(courseEntry.grade),
-          numericGrade: normalizeSpecialOption(courseEntry.grade) ? '' : (courseEntry.grade || ''),
-          status: courseEntry.status || deriveStatusFromGrade(courseEntry.grade)
-        }))
-      );
-    } catch (error) {
-      setAlert({ variant: 'danger', message: getErrorMessage(error, 'Failed to load grade entry data.') });
-      setSar(null);
+  useEffect(() => {
+    if (loading) return;
+    if (sarFetchError) {
+      setAlert({ variant: 'danger', message: getErrorMessage(sarFetchError, 'Failed to load grade entry data.') });
       setActiveVersion(null);
       setRows([]);
       setSummary(null);
-    } finally {
-      setLoading(false);
+      return;
     }
-  }, [sarId]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+    const active = versions.find((v) => v.status === 'active') || null;
+    setActiveVersion(active);
+    if (!active) {
+      setRows([]);
+      return;
+    }
+    setRows(
+      (active.StudyPlanCourses || []).map((courseEntry) => ({
+        id: courseEntry.id,
+        courseId: courseEntry.courseId,
+        code: courseEntry.Course?.code || 'No code',
+        name: courseEntry.Course?.name || 'Unnamed course',
+        units: Number(courseEntry.Course?.units || 0),
+        yearLevel: courseEntry.yearLevel,
+        semester: courseEntry.semester,
+        specialChoice: normalizeSpecialOption(courseEntry.grade),
+        numericGrade: normalizeSpecialOption(courseEntry.grade) ? '' : (courseEntry.grade || ''),
+        status: courseEntry.status || deriveStatusFromGrade(courseEntry.grade)
+      }))
+    );
+  }, [loading, versions, sarFetchError]);
 
   const unresolvedCount = useMemo(
     () => rows.filter((row) => ['failed', 'dropped', 'incomplete'].includes(deriveStatusFromGrade(row.specialChoice || row.numericGrade))).length,
@@ -165,7 +146,7 @@ const GradeEntry = () => {
       const serverSummary = response.data?.summary || null;
 
       setAlert({ variant: 'success', message: 'Grades saved successfully.' });
-      await loadData();
+      await reload();
       setSummary(serverSummary);
     } catch (error) {
       setAlert({ variant: 'danger', message: getErrorMessage(error, 'Failed to save grades.') });

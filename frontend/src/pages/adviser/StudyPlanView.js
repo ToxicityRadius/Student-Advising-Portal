@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Badge, Button, Card, Form, Spinner, Table } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
+import useSarData from '../../hooks/useSarData';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
 import { getErrorMessage } from '../../utils/errorHelpers';
 
@@ -36,52 +37,31 @@ const buildEditableRows = (planVersion) => (planVersion?.StudyPlanCourses || [])
 
 const StudyPlanView = () => {
   const { sarId, versionId } = useParams();
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [alert, setAlert] = useState({ variant: '', message: '' });
   const [saving, setSaving] = useState(false);
-  const [sar, setSar] = useState(null);
   const [version, setVersion] = useState(null);
   const [draftCourses, setDraftCourses] = useState([]);
+  const { sar, versions, loading, error: sarFetchError } = useSarData(sarId);
 
   useEffect(() => {
-    const loadPlan = async () => {
-      setLoading(true);
-      setError('');
-      setAlert({ variant: '', message: '' });
-
-      try {
-        const [sarResponse, versionsResponse] = await Promise.all([
-          api.get(`/sars/${sarId}`),
-          api.get(`/sars/${sarId}/study-plan/versions`)
-        ]);
-
-        const matchedVersion = (versionsResponse.data?.data || []).find(
-          (item) => String(item.id) === String(versionId)
-        );
-
-        if (!matchedVersion) {
-          setError('Study plan version not found.');
-          setSar(sarResponse.data?.data || null);
-          setVersion(null);
-          return;
-        }
-
-        setSar(sarResponse.data?.data || null);
-        setVersion(matchedVersion);
-        setDraftCourses(buildEditableRows(matchedVersion));
-      } catch (loadError) {
-        setError(getErrorMessage(loadError, 'Failed to load the study plan version.'));
-        setSar(null);
-        setVersion(null);
-        setDraftCourses([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadPlan();
-  }, [sarId, versionId]);
+    if (loading) return;
+    if (sarFetchError) {
+      setError(getErrorMessage(sarFetchError, 'Failed to load the study plan version.'));
+      setVersion(null);
+      setDraftCourses([]);
+      return;
+    }
+    const matchedVersion = versions.find((item) => String(item.id) === String(versionId)) || null;
+    if (!matchedVersion) {
+      setError('Study plan version not found.');
+      setVersion(null);
+      return;
+    }
+    setError('');
+    setVersion(matchedVersion);
+    setDraftCourses(buildEditableRows(matchedVersion));
+  }, [loading, versions, versionId, sarFetchError]);
 
   const editable = version?.status === 'draft';
 
