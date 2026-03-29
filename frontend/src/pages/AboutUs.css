@@ -1,75 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,700&family=Source+Sans+3:wght@300;400;600;700&display=swap');
+
 /* ===== About Us Page ===== */
 .about-page {
+  --au-navy: #0d1b2a;
+  --au-navy-light: #1b2d45;
+  --au-cream: #faf8f0;
+  --au-gold: #d4a012;
+  --au-gold-light: #f6ba00;
+  --au-muted: #8d99ae;
+  --au-serif: 'Cormorant Garamond', Georgia, serif;
+  --au-sans: 'Source Sans 3', 'Segoe UI', sans-serif;
   height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   position: relative;
-  background: url('../assets/images/casal.png') center/cover no-repeat;
-  background-color: #1a1a1a;
-  color: white;
+  background:
+    linear-gradient(160deg, rgba(13, 27, 42, 0.94) 0%, rgba(27, 45, 69, 0.88) 50%, rgba(212, 160, 18, 0.12) 100%),
+    url('../assets/images/casal.png') center/cover no-repeat;
+  background-color: var(--au-navy);
+  color: var(--au-cream);
+  font-family: var(--au-sans);
   overflow: hidden;
 }
 
-.about-page::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to right, rgba(243, 185, 10, 0.85), rgba(243, 185, 10, 0.15));
-  z-index: 0;
-  pointer-events: none;
-}
-
-.about-page > * {
-  position: relative;
-  z-index: 1;
-}
-
-.about-page .top-nav {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  padding: 40px 80px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.about-page .nav-links {
-  display: flex;
-  gap: 60px;
-}
-
-.about-page .nav-link-btn {
-  color: white;
-  text-decoration: none;
-  font-weight: 700;
-  font-size: 18px;
-  letter-spacing: 1.5px;
-  transition: opacity 0.3s;
-  cursor: pointer;
-}
-
-.about-page .nav-link-btn:hover {
-  opacity: 0.8;
-}
-
-.nav-link-active {
-  color: #f3b90a !important;
-  text-shadow: 0 0 1px rgba(255,255,255,0.3);
-}
-
 .about-title {
-  font-size: 2.2rem;
-  font-weight: 900;
-  font-style: italic;
+  font-family: var(--au-serif);
+  font-size: 2.8rem;
+  font-weight: 700;
   text-transform: uppercase;
-  text-shadow: 2px 3px 6px rgba(0,0,0,0.15);
-  margin: 10px 0 10px 0;
-  padding-top: 70px;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  margin: 10px 0 10px;
+  padding-top: 80px;
   text-align: center;
+  color: var(--au-cream);
 }
 
-/* ===== Carousel ===== */
+/* ===== Carousel (mechanics preserved) ===== */
 .carousel-container {
   display: flex;
   align-items: center;
@@ -112,7 +80,7 @@
 
 .dev-card-side {
   transform: scale(0.88);
-  opacity: 0.85;
+  opacity: 0.7;
 }
 
 .dev-card-center {
@@ -121,14 +89,16 @@
   opacity: 1;
 }
 
+/* Card photo — restyled */
 .dev-card > div:first-child,
 .dev-card > .dev-photo {
-  background: white;
-  border-radius: 16px;
+  background: var(--au-cream);
+  border-radius: 14px;
   width: 100%;
   aspect-ratio: 3 / 4;
   overflow: hidden;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  border: 2px solid rgba(212, 160, 18, 0.15);
 }
 
 .dev-photo img {
@@ -140,39 +110,50 @@
 .dev-photo-placeholder {
   width: 100%;
   height: 100%;
-  background: white;
+  background: var(--au-cream);
 }
 
 .dev-name {
-  margin: 12px 0 2px;
-  font-size: 1rem;
+  font-family: var(--au-serif);
+  margin: 14px 0 2px;
+  font-size: 1.1rem;
   font-weight: 700;
   text-align: center;
+  color: var(--au-cream);
 }
 
 .dev-role {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 400;
-  opacity: 0.9;
+  color: var(--au-gold-light);
   text-align: center;
   margin: 0;
+  letter-spacing: 0.5px;
 }
 
-/* Arrows */
+/* Arrows — restyled */
 .carousel-arrow {
-  background: none;
-  border: none;
-  color: white;
-  font-size: 2.2rem;
+  background: rgba(250, 248, 240, 0.06);
+  border: 1px solid rgba(212, 160, 18, 0.2);
+  border-radius: 50%;
+  color: var(--au-gold);
+  font-size: 1.4rem;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  padding: 10px;
-  transition: opacity 0.2s, transform 0.2s;
+  padding: 0;
+  transition: all 0.3s ease;
   flex-shrink: 0;
   z-index: 2;
 }
 
 .carousel-arrow:hover:not(:disabled) {
-  transform: scale(1.15);
+  background: rgba(212, 160, 18, 0.15);
+  border-color: var(--au-gold);
+  transform: scale(1.08);
 }
 
 .carousel-arrow:disabled {
@@ -183,43 +164,23 @@
 /* Footer logo */
 .about-footer-logo {
   margin-top: auto;
-  padding: 10px 0 15px;
+  padding: 12px 0 20px;
   text-align: center;
 }
 
 .footer-logo-img {
-  width: 100px;
+  width: 90px;
   height: auto;
-  opacity: 1;
+  opacity: 0.7;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
 }
 
 /* ===== Responsive ===== */
-@media (max-width: 992px) {
-  .about-page .top-nav {
-    padding: 30px 40px;
-  }
-
-  .about-page .nav-links {
-    gap: 45px;
-  }
-}
-
 @media (max-width: 768px) {
-  .about-page .top-nav {
-    padding: 20px 25px;
-  }
-
-  .about-page .nav-links {
-    gap: 30px;
-  }
-
-  .about-page .nav-link-btn {
-    font-size: 12px;
-  }
-
   .about-title {
-    font-size: 1.6rem;
-    margin-bottom: 20px;
+    font-size: 1.8rem;
+    padding-top: 80px;
+    margin-bottom: 10px;
   }
 
   .dev-card {
@@ -228,25 +189,20 @@
   }
 
   .carousel-arrow {
-    font-size: 1.6rem;
-    padding: 6px;
+    width: 38px;
+    height: 38px;
+    font-size: 1.1rem;
   }
 }
 
 @media (max-width: 480px) {
-  .about-page .top-nav {
-    padding: 15px 20px;
-  }
-
-  .about-page .nav-links {
-    gap: 15px;
-  }
-
-  .about-page .nav-link-btn {
-    font-size: 11px;
-  }
-
   .about-title {
-    font-size: 1.3rem;
+    font-size: 1.5rem;
+  }
+
+  .carousel-arrow {
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
   }
 }

@@ -1,71 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,700&family=Source+Sans+3:wght@300;400;600;700&display=swap');
+
 /* ===== Purpose Page ===== */
 .purpose-page {
-  height: 100vh;
+  --pp-navy: #0d1b2a;
+  --pp-navy-light: #1b2d45;
+  --pp-cream: #faf8f0;
+  --pp-gold: #d4a012;
+  --pp-gold-light: #f6ba00;
+  --pp-muted: #8d99ae;
+  --pp-serif: 'Cormorant Garamond', Georgia, serif;
+  --pp-sans: 'Source Sans 3', 'Segoe UI', sans-serif;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   position: relative;
-  background: url('../assets/images/casal.png') center/cover no-repeat;
-    background-color: #1a1a1a;
-  color: white;
+  background:
+    linear-gradient(160deg, rgba(13, 27, 42, 0.94) 0%, rgba(27, 45, 69, 0.88) 50%, rgba(212, 160, 18, 0.12) 100%),
+    url('../assets/images/casal.png') center/cover no-repeat;
+  background-color: var(--pp-navy);
+  color: var(--pp-cream);
+  font-family: var(--pp-sans);
   overflow: hidden;
 }
 
-.purpose-page::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to right, rgba(243, 185, 10, 0.85), rgba(243, 185, 10, 0.15));
-  z-index: 0;
-  pointer-events: none;
-}
-
-.purpose-page > * {
-  position: relative;
-  z-index: 1;
-}
-
-.purpose-page .top-nav {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  padding: 40px 80px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.purpose-page .nav-links {
-  display: flex;
-  gap: 60px;
-}
-
-.purpose-page .nav-link-btn {
-  color: white;
-  text-decoration: none;
-  font-weight: 700;
-  font-size: 18px;
-  letter-spacing: 1.5px;
-  transition: opacity 0.3s;
-  cursor: pointer;
-}
-
-.purpose-page .nav-link-btn:hover {
-  opacity: 0.8;
-}
-
-.purpose-page .nav-link-active {
-  color: #f3b90a !important;
-  text-shadow: 0 0 1px rgba(255,255,255,0.3);
-}
-
 .purpose-title {
-  font-size: 2.2rem;
-  font-weight: 900;
-  font-style: italic;
+  font-family: var(--pp-serif);
+  font-size: 2.8rem;
+  font-weight: 700;
   text-transform: uppercase;
-  text-shadow: 2px 3px 6px rgba(0,0,0,0.15);
-  margin: 0 0 30px 0;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  margin: 0 0 36px;
   text-align: center;
+  color: var(--pp-cream);
 }
 
 .purpose-content {
@@ -75,23 +43,31 @@
   align-items: center;
   justify-content: center;
   padding: 0 10%;
-  max-width: 800px;
-  margin-top: 60px;
+  max-width: 780px;
+  margin-top: 80px;
 }
 
 .purpose-card {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(8px);
+  background: rgba(250, 248, 240, 0.06);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(212, 160, 18, 0.12);
   border-radius: 16px;
-  padding: 40px 50px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  padding: 48px 56px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2);
   text-align: center;
-  line-height: 1.8;
+  line-height: 1.85;
   font-size: 1.1rem;
+  color: rgba(250, 248, 240, 0.85);
+}
+
+.purpose-card strong {
+  color: var(--pp-gold-light);
+  font-weight: 700;
 }
 
 .purpose-card p {
-  margin: 0 0 16px;
+  margin: 0 0 20px;
 }
 
 .purpose-card p:last-child {
@@ -100,69 +76,41 @@
 
 /* Footer logo */
 .purpose-footer-logo {
-  padding: 20px 0 30px;
+  padding: 24px 0 36px;
   text-align: center;
 }
 
 .purpose-footer-logo .footer-logo-img {
-  width: 120px;
+  width: 100px;
   height: auto;
-  opacity: 0.9;
+  opacity: 0.7;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
 }
 
 /* ===== Responsive ===== */
-@media (max-width: 992px) {
-  .purpose-page .top-nav {
-    padding: 30px 40px;
-  }
-
-  .purpose-page .nav-links {
-    gap: 45px;
-  }
-}
-
 @media (max-width: 768px) {
-  .purpose-page .top-nav {
-    padding: 20px 25px;
-  }
-
-  .purpose-page .nav-links {
-    gap: 30px;
-  }
-
-  .purpose-page .nav-link-btn {
-    font-size: 12px;
-  }
-
   .purpose-title {
-    font-size: 1.6rem;
+    font-size: 2rem;
+  }
+
+  .purpose-content {
+    margin-top: 80px;
+    padding: 0 6%;
   }
 
   .purpose-card {
-    padding: 25px 30px;
+    padding: 32px 28px;
     font-size: 1rem;
   }
 }
 
 @media (max-width: 480px) {
-  .purpose-page .top-nav {
-    padding: 15px 20px;
-  }
-
-  .purpose-page .nav-links {
-    gap: 15px;
-  }
-
-  .purpose-page .nav-link-btn {
-    font-size: 11px;
-  }
-
   .purpose-title {
-    font-size: 1.3rem;
+    font-size: 1.6rem;
   }
 
   .purpose-card {
-    padding: 20px;
+    padding: 24px 20px;
     font-size: 0.95rem;
   }
 }
