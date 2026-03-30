@@ -1,14 +1,19 @@
-const { User } = require('../models');
+﻿const { User } = require('../models');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const { sendTokenResponse, clearAuthCookies, getAuthCookieOptions } = require('../utils/jwt');
-const { sendActivationEmail, sendVerificationCode, sendEmailChangeVerificationCode } = require('../utils/email');
+const {
+  sendActivationEmail,
+  sendVerificationCode,
+  sendEmailChangeVerificationCode,
+} = require('../utils/email');
 const { linkStudentAccountToSar } = require('../utils/sarLinking');
 const { shouldBypassAdminFirstLoginEnforcement } = require('../utils/featureFlags');
 const { sanitizeUser } = require('../utils/sanitize');
 const audit = require('../utils/auditLog');
+const logger = require('../utils/logger');
 
 // In-memory attempt tracker for verification code brute-force protection.
 // Keys are String(userId); values are { count, resetAt }.
@@ -28,10 +33,10 @@ function generatePasswordChangeToken(user) {
     {
       id: user.id,
       role: user.role,
-      purpose: 'password_change'
+      purpose: 'password_change',
     },
     process.env.JWT_SECRET,
-    { expiresIn: '15m' }
+    { expiresIn: '15m' },
   );
 }
 
@@ -40,8 +45,17 @@ function generatePasswordChangeToken(user) {
 // @access  Public
 exports.register = async (req, res, next) => {
   try {
-    const { studentId, firstName, lastName, email, password, role: requestedRole, gender } = req.body;
-    const normalizedRequestedRole = requestedRole === 'adviser' ? 'adviser' : requestedRole === 'admin' ? 'admin' : 'student';
+    const {
+      studentId,
+      firstName,
+      lastName,
+      email,
+      password,
+      role: requestedRole,
+      gender,
+    } = req.body;
+    const normalizedRequestedRole =
+      requestedRole === 'adviser' ? 'adviser' : requestedRole === 'admin' ? 'admin' : 'student';
     const isFaculty = normalizedRequestedRole === 'adviser';
     const emailLower = (email || '').toLowerCase();
 
@@ -49,7 +63,7 @@ exports.register = async (req, res, next) => {
     if (!firstName || !lastName || !email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all required fields'
+        message: 'Please provide all required fields',
       });
     }
 
@@ -57,29 +71,30 @@ exports.register = async (req, res, next) => {
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 8 characters'
+        message: 'Password must be at least 8 characters',
       });
     }
 
     if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
       return res.status(400).json({
         success: false,
-        message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
+        message:
+          'Password must contain at least one uppercase letter, one lowercase letter, and one number',
       });
     }
 
     // Validate Student ID format (7 digits only) - only for students
-    if (!isFaculty && studentId && (!/^\d{7}$/.test(studentId))) {
+    if (!isFaculty && studentId && !/^\d{7}$/.test(studentId)) {
       return res.status(400).json({
         success: false,
-        message: 'Student ID must be exactly 7 digits'
+        message: 'Student ID must be exactly 7 digits',
       });
     }
 
     if (normalizedRequestedRole === 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Admin account creation is restricted.'
+        message: 'Admin account creation is restricted.',
       });
     }
 
@@ -87,21 +102,21 @@ exports.register = async (req, res, next) => {
     if (!emailLower.endsWith('@tip.edu.ph')) {
       return res.status(400).json({
         success: false,
-        message: 'Only T.I.P. email addresses (@tip.edu.ph) are allowed to register.'
+        message: 'Only T.I.P. email addresses (@tip.edu.ph) are allowed to register.',
       });
     }
 
     if (isFaculty && !emailLower.endsWith('.cpe@tip.edu.ph')) {
       return res.status(400).json({
         success: false,
-        message: 'Faculty email must end with .cpe@tip.edu.ph'
+        message: 'Faculty email must end with .cpe@tip.edu.ph',
       });
     }
 
     if (!isFaculty && emailLower.endsWith('.cpe@tip.edu.ph')) {
       return res.status(400).json({
         success: false,
-        message: 'Student registration does not allow faculty department email addresses.'
+        message: 'Student registration does not allow faculty department email addresses.',
       });
     }
 
@@ -112,25 +127,29 @@ exports.register = async (req, res, next) => {
         const activationToken = crypto.randomBytes(32).toString('hex');
         const activationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
 
-        await User.update({
-          activationToken,
-          activationTokenExpires,
-          updatedAt: Date.now()
-        }, { where: { id: existingUser.id } });
+        await User.update(
+          {
+            activationToken,
+            activationTokenExpires,
+            updatedAt: Date.now(),
+          },
+          { where: { id: existingUser.id } },
+        );
 
         await sendActivationEmail(existingUser.email, activationToken);
 
         return res.status(200).json({
           success: true,
-          message: 'Account already exists but is not activated. A new activation email has been sent.',
+          message:
+            'Account already exists but is not activated. A new activation email has been sent.',
           userId: existingUser.id,
-          alreadyRegistered: true
+          alreadyRegistered: true,
         });
       }
 
       return res.status(400).json({
         success: false,
-        message: 'Email already registered'
+        message: 'Email already registered',
       });
     }
 
@@ -159,7 +178,7 @@ exports.register = async (req, res, next) => {
       activationToken,
       activationTokenExpires,
       createdAt: Date.now(),
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
     });
 
     if (!isFaculty) {
@@ -167,11 +186,10 @@ exports.register = async (req, res, next) => {
         await linkStudentAccountToSar({
           userId: user.id,
           email: user.email,
-          studentId: user.studentId
+          studentId: user.studentId,
         });
       } catch (sarErr) {
         // SAR linking is non-critical — log but do not fail registration
-        const logger = require('../utils/logger');
         logger.warn({ err: sarErr, userId: user.id }, 'SAR link on register failed (non-fatal)');
       }
     }
@@ -182,7 +200,7 @@ exports.register = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: 'Registration successful! Please check your email to activate your account.',
-      userId: user.id
+      userId: user.id,
     });
   } catch (error) {
     if (error?.name === 'SequelizeUniqueConstraintError') {
@@ -193,26 +211,31 @@ exports.register = async (req, res, next) => {
           const activationToken = crypto.randomBytes(32).toString('hex');
           const activationTokenExpires = Date.now() + 24 * 60 * 60 * 1000;
 
-          await User.update({
-            activationToken,
-            activationTokenExpires,
-            updatedAt: Date.now()
-          }, { where: { id: existingUser.id } });
+          await User.update(
+            {
+              activationToken,
+              activationTokenExpires,
+              updatedAt: Date.now(),
+            },
+            { where: { id: existingUser.id } },
+          );
 
           await sendActivationEmail(existingUser.email, activationToken);
 
           return res.status(200).json({
             success: true,
-            message: 'Account already exists but is not activated. A new activation email has been sent.',
+            message:
+              'Account already exists but is not activated. A new activation email has been sent.',
             userId: existingUser.id,
-            alreadyRegistered: true
+            alreadyRegistered: true,
           });
         }
       }
 
       return res.status(400).json({
         success: false,
-        message: 'Email already registered. If this is your account, activate it or use forgot password.'
+        message:
+          'Email already registered. If this is your account, activate it or use forgot password.',
       });
     }
 
@@ -231,23 +254,26 @@ exports.activateAccount = async (req, res, next) => {
     const user = await User.findOne({
       where: {
         activationToken: token,
-        activationTokenExpires: { [Op.gt]: now }
-      }
+        activationTokenExpires: { [Op.gt]: now },
+      },
     });
 
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid or expired activation token'
+        message: 'Invalid or expired activation token',
       });
     }
 
-    await User.update({
-      isActive: true,
-      activationToken: null,
-      activationTokenExpires: null,
-      updatedAt: Date.now()
-    }, { where: { id: user.id } });
+    await User.update(
+      {
+        isActive: true,
+        activationToken: null,
+        activationTokenExpires: null,
+        updatedAt: Date.now(),
+      },
+      { where: { id: user.id } },
+    );
 
     const updatedUser = await User.findByPk(user.id);
 
@@ -270,7 +296,7 @@ exports.activateAccount = async (req, res, next) => {
       h1 { margin: 0 0 12px; font-size: 24px; }
       p { line-height: 1.5; }
       .row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
-      a.btn { text-decoration: none; background: #111; color: #fff; padding: 12px 16px; border-radius: 8px; display: inline-block; }
+      a.btn { text-decoration: none; background: #FFC107; color: #111; padding: 12px 16px; border-radius: 8px; display: inline-block; }
       a.alt { background: #e9e9e9; color: #111; }
       .small { margin-top: 16px; color: #555; font-size: 13px; word-break: break-all; }
     </style>
@@ -312,7 +338,7 @@ exports.login = async (req, res, next) => {
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide email and password'
+        message: 'Please provide email and password',
       });
     }
 
@@ -322,13 +348,13 @@ exports.login = async (req, res, next) => {
     if (selectedRole === 'faculty' && !emailLower.endsWith('.cpe@tip.edu.ph')) {
       return res.status(403).json({
         success: false,
-        message: 'Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).'
+        message: 'Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).',
       });
     }
     if (selectedRole === 'student' && emailLower.endsWith('.cpe@tip.edu.ph')) {
       return res.status(403).json({
         success: false,
-        message: 'Please use the Faculty login for department email addresses.'
+        message: 'Please use the Faculty login for department email addresses.',
       });
     }
 
@@ -338,7 +364,8 @@ exports.login = async (req, res, next) => {
       user = await User.findOne({ where: { email: emailLower } });
     } catch (queryError) {
       const dbErr = queryError?.original || queryError?.parent || queryError;
-      const missingColumn = dbErr?.code === '42703' || /column .* does not exist/i.test(dbErr?.message || '');
+      const missingColumn =
+        dbErr?.code === '42703' || /column .* does not exist/i.test(dbErr?.message || '');
 
       if (!missingColumn) {
         throw queryError;
@@ -346,14 +373,14 @@ exports.login = async (req, res, next) => {
 
       user = await User.findOne({
         where: { email: emailLower },
-        attributes: ['id', 'email', 'password', 'role', 'studentId', 'isActive']
+        attributes: ['id', 'email', 'password', 'role', 'studentId', 'isActive'],
       });
     }
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid credentials',
       });
     }
 
@@ -362,7 +389,7 @@ exports.login = async (req, res, next) => {
       const secondsRemaining = Math.ceil((user.lockedUntil - Date.now()) / 1000);
       return res.status(429).json({
         success: false,
-        message: `Account temporarily locked due to too many failed login attempts. Try again in ${secondsRemaining} seconds.`
+        message: `Account temporarily locked due to too many failed login attempts. Try again in ${secondsRemaining} seconds.`,
       });
     }
 
@@ -371,11 +398,10 @@ exports.login = async (req, res, next) => {
         await linkStudentAccountToSar({
           userId: user.id,
           email: user.email,
-          studentId: user.studentId
+          studentId: user.studentId,
         });
       } catch (sarErr) {
         // SAR linking is non-critical — log but do not fail login
-        const logger = require('../utils/logger');
         logger.warn({ err: sarErr, userId: user.id }, 'SAR link on login failed (non-fatal)');
       }
     }
@@ -385,13 +411,13 @@ exports.login = async (req, res, next) => {
     if (selectedRole === 'faculty' && !isFacultyRole) {
       return res.status(403).json({
         success: false,
-        message: 'This account is not registered as Faculty or Admin.'
+        message: 'This account is not registered as Faculty or Admin.',
       });
     }
     if (selectedRole === 'student' && isFacultyRole) {
       return res.status(403).json({
         success: false,
-        message: 'Please use the Faculty login for this account.'
+        message: 'Please use the Faculty login for this account.',
       });
     }
 
@@ -406,10 +432,16 @@ exports.login = async (req, res, next) => {
         lockUpdate.lockedUntil = Date.now() + 15 * 60 * 1000; // 15-minute lockout
       }
       await User.update(lockUpdate, { where: { id: user.id } });
-      audit.log({ userId: user.id, action: 'LOGIN_FAILURE', resource: 'auth', meta: { ip: req.ip, reason: 'invalid_password' } });
+      audit.log({
+        userId: user.id,
+        action: 'LOGIN_FAILURE',
+        resource: 'auth',
+        meta: { ip: req.ip, reason: 'invalid_password' },
+      });
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials. If you signed up with Google, please use the "Sign in with Google" button.'
+        message:
+          'Invalid credentials. If you signed up with Google, please use the "Sign in with Google" button.',
       });
     }
 
@@ -417,7 +449,7 @@ exports.login = async (req, res, next) => {
     if (!user.isActive) {
       return res.status(401).json({
         success: false,
-        message: 'Please activate your account. Check your email for activation link.'
+        message: 'Please activate your account. Check your email for activation link.',
       });
     }
 
@@ -426,7 +458,7 @@ exports.login = async (req, res, next) => {
       return res.status(200).json({
         success: true,
         mustChangePassword: true,
-        token: generatePasswordChangeToken(user)
+        token: generatePasswordChangeToken(user),
       });
     }
 
@@ -434,12 +466,17 @@ exports.login = async (req, res, next) => {
     if (user.mustChangeEmail && !shouldBypassAdminFirstLoginEnforcement(user)) {
       const { generateToken } = require('../utils/jwt');
       const token = generateToken(user);
-      audit.log({ userId: user.id, action: 'LOGIN_FORCE_EMAIL_CHANGE', resource: 'auth', meta: { ip: req.ip } });
+      audit.log({
+        userId: user.id,
+        action: 'LOGIN_FORCE_EMAIL_CHANGE',
+        resource: 'auth',
+        meta: { ip: req.ip },
+      });
       return res.status(200).json({
         success: true,
         mustChangeEmail: true,
         token,
-        user: sanitizeUser(user)
+        user: sanitizeUser(user),
       });
     }
 
@@ -449,12 +486,15 @@ exports.login = async (req, res, next) => {
       const verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
       // Update user with verification code
-      await User.update({
-        verificationCode,
-        verificationCodeExpires,
-        isVerified: false,
-        updatedAt: Date.now()
-      }, { where: { id: user.id } });
+      await User.update(
+        {
+          verificationCode,
+          verificationCodeExpires,
+          isVerified: false,
+          updatedAt: Date.now(),
+        },
+        { where: { id: user.id } },
+      );
 
       // Send verification code email
       await sendVerificationCode(user.email, verificationCode, user.firstName);
@@ -464,18 +504,26 @@ exports.login = async (req, res, next) => {
         success: true,
         message: 'Verification code sent to your email. Please check your inbox.',
         userId: user.id,
-        requiresVerification: true
+        requiresVerification: true,
       });
     } else {
       // 2FA disabled - log in directly; reset lockout counters on success (Step 3.1)
-      await User.update({
-        lastLogin: Date.now(),
-        failedLoginAttempts: 0,
-        lockedUntil: null,
-        updatedAt: Date.now()
-      }, { where: { id: user.id } });
+      await User.update(
+        {
+          lastLogin: Date.now(),
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+          updatedAt: Date.now(),
+        },
+        { where: { id: user.id } },
+      );
       const updatedUser = await User.findByPk(user.id);
-      audit.log({ userId: updatedUser.id, action: 'LOGIN', resource: 'auth', meta: { ip: req.ip, role: updatedUser.role } });
+      audit.log({
+        userId: updatedUser.id,
+        action: 'LOGIN',
+        resource: 'auth',
+        meta: { ip: req.ip, role: updatedUser.role },
+      });
       sendTokenResponse(updatedUser, 200, res);
     }
   } catch (error) {
@@ -493,7 +541,7 @@ exports.verifyCode = async (req, res, next) => {
     if (!userId || !code) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide user ID and verification code'
+        message: 'Please provide user ID and verification code',
       });
     }
 
@@ -504,7 +552,7 @@ exports.verifyCode = async (req, res, next) => {
     if (attempt && attempt.count >= MAX_VERIFY_ATTEMPTS && now < attempt.resetAt) {
       return res.status(429).json({
         success: false,
-        message: 'Too many failed attempts. Please request a new verification code.'
+        message: 'Too many failed attempts. Please request a new verification code.',
       });
     }
 
@@ -513,7 +561,7 @@ exports.verifyCode = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
       });
     }
 
@@ -528,14 +576,14 @@ exports.verifyCode = async (req, res, next) => {
       }
       return res.status(400).json({
         success: false,
-        message: 'Invalid verification code'
+        message: 'Invalid verification code',
       });
     }
 
     if (Date.now() > user.verificationCodeExpires) {
       return res.status(400).json({
         success: false,
-        message: 'Verification code has expired. Please request a new one.'
+        message: 'Verification code has expired. Please request a new one.',
       });
     }
 
@@ -543,13 +591,16 @@ exports.verifyCode = async (req, res, next) => {
     verifyAttempts.delete(key);
 
     // Clear verification code and mark as verified
-    await User.update({
-      verificationCode: null,
-      verificationCodeExpires: null,
-      isVerified: true,
-      lastLogin: Date.now(),
-      updatedAt: Date.now()
-    }, { where: { id: user.id } });
+    await User.update(
+      {
+        verificationCode: null,
+        verificationCodeExpires: null,
+        isVerified: true,
+        lastLogin: Date.now(),
+        updatedAt: Date.now(),
+      },
+      { where: { id: user.id } },
+    );
 
     const updatedUser = await User.findByPk(user.id);
 
@@ -557,7 +608,7 @@ exports.verifyCode = async (req, res, next) => {
       return res.status(200).json({
         success: true,
         mustChangePassword: true,
-        token: generatePasswordChangeToken(updatedUser)
+        token: generatePasswordChangeToken(updatedUser),
       });
     }
 
@@ -577,7 +628,7 @@ exports.resendCode = async (req, res, next) => {
     if (!userId) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide user ID'
+        message: 'Please provide user ID',
       });
     }
 
@@ -586,7 +637,7 @@ exports.resendCode = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
       });
     }
 
@@ -595,11 +646,14 @@ exports.resendCode = async (req, res, next) => {
     const verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
     // Update user with new verification code
-    await User.update({
-      verificationCode,
-      verificationCodeExpires,
-      updatedAt: Date.now()
-    }, { where: { id: user.id } });
+    await User.update(
+      {
+        verificationCode,
+        verificationCodeExpires,
+        updatedAt: Date.now(),
+      },
+      { where: { id: user.id } },
+    );
 
     // Reset attempt counter so the user gets a fresh set of attempts
     verifyAttempts.delete(String(userId));
@@ -609,7 +663,7 @@ exports.resendCode = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'New verification code sent to your email'
+      message: 'New verification code sent to your email',
     });
   } catch (error) {
     next(error);
@@ -628,21 +682,29 @@ exports.logout = async (req, res, next) => {
       const decoded = verifyRefreshToken(refreshTokenFromRequest);
 
       if (decoded?.id) {
-        await User.update({
-          refreshToken: null,
-          refreshTokenExpires: null,
-          updatedAt: Date.now()
-        }, { where: { id: decoded.id } });
+        await User.update(
+          {
+            refreshToken: null,
+            refreshTokenExpires: null,
+            updatedAt: Date.now(),
+          },
+          { where: { id: decoded.id } },
+        );
       }
     }
 
     clearAuthCookies(res);
 
-    audit.log({ userId: req.user?.id ?? null, action: 'LOGOUT', resource: 'auth', meta: { ip: req.ip } });
+    audit.log({
+      userId: req.user?.id ?? null,
+      action: 'LOGOUT',
+      resource: 'auth',
+      meta: { ip: req.ip },
+    });
 
     res.status(200).json({
       success: true,
-      message: 'Logged out successfully'
+      message: 'Logged out successfully',
     });
   } catch (error) {
     next(error);
@@ -658,7 +720,7 @@ exports.getMe = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      user: sanitizeUser(user)
+      user: sanitizeUser(user),
     });
   } catch (error) {
     next(error);
@@ -675,21 +737,22 @@ exports.changePassword = async (req, res, next) => {
     if (!oldPassword || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'Old password and new password are required'
+        message: 'Old password and new password are required',
       });
     }
 
     if (newPassword.length < 8) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 8 characters'
+        message: 'Password must be at least 8 characters',
       });
     }
 
     if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
       return res.status(400).json({
         success: false,
-        message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
+        message:
+          'Password must contain at least one uppercase letter, one lowercase letter, and one number',
       });
     }
 
@@ -697,7 +760,7 @@ exports.changePassword = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
       });
     }
 
@@ -705,26 +768,29 @@ exports.changePassword = async (req, res, next) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Old password is incorrect'
+        message: 'Old password is incorrect',
       });
     }
 
     if (oldPassword === newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'New password must be different from old password'
+        message: 'New password must be different from old password',
       });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    await User.update({
-      password: hashedPassword,
-      mustChangePassword: false,
-      passwordUpdatedAt: Date.now(),
-      updatedAt: Date.now()
-    }, { where: { id: user.id } });
+    await User.update(
+      {
+        password: hashedPassword,
+        mustChangePassword: false,
+        passwordUpdatedAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+      { where: { id: user.id } },
+    );
 
     const updatedUser = await User.findByPk(user.id);
 
@@ -732,16 +798,19 @@ exports.changePassword = async (req, res, next) => {
     if (updatedUser.mustChangeEmail && !shouldBypassAdminFirstLoginEnforcement(updatedUser)) {
       const { generateToken } = require('../utils/jwt');
       const token = generateToken(updatedUser);
-      console.log(`[AUDIT] password rotated for user=${updatedUser.id} role=${updatedUser.role}, email change still required`);
+      logger.info(
+        { userId: updatedUser.id, role: updatedUser.role },
+        '[AUDIT] password rotated, email change still required',
+      );
       return res.status(200).json({
         success: true,
         mustChangeEmail: true,
         token,
-        user: sanitizeUser(updatedUser)
+        user: sanitizeUser(updatedUser),
       });
     }
 
-    console.log(`[AUDIT] password changed for user=${updatedUser.id} role=${updatedUser.role}`);
+    logger.info({ userId: updatedUser.id, role: updatedUser.role }, '[AUDIT] password changed');
     sendTokenResponse(updatedUser, 200, res);
   } catch (error) {
     next(error);
@@ -757,7 +826,9 @@ exports.initiateEmailChange = async (req, res, next) => {
     const user = await User.findByPk(req.user.id);
 
     if (!user || !user.mustChangeEmail) {
-      return res.status(400).json({ success: false, message: 'Email change not required for this account' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Email change not required for this account' });
     }
 
     const newEmailLower = (newEmail || '').toLowerCase().trim();
@@ -768,38 +839,52 @@ exports.initiateEmailChange = async (req, res, next) => {
 
     // Validate institutional email format
     if (!newEmailLower.endsWith('@tip.edu.ph')) {
-      return res.status(400).json({ success: false, message: 'Only @tip.edu.ph email addresses are allowed' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Only @tip.edu.ph email addresses are allowed' });
     }
 
     // Program Chair must use department email
     if (user.role === 'admin' && !newEmailLower.endsWith('.cpe@tip.edu.ph')) {
-      return res.status(400).json({ success: false, message: 'Program Chair email must end with .cpe@tip.edu.ph' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Program Chair email must end with .cpe@tip.edu.ph' });
     }
 
     // Must differ from current email
     if (newEmailLower === user.email.toLowerCase()) {
-      return res.status(400).json({ success: false, message: 'New email must be different from current email' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'New email must be different from current email' });
     }
 
     // Must be unique
     const existing = await User.findOne({ where: { email: newEmailLower } });
     if (existing) {
-      return res.status(400).json({ success: false, message: 'This email address is already in use' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'This email address is already in use' });
     }
 
     const code = generateVerificationCode();
     const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-    await User.update({
-      pendingEmail: newEmailLower,
-      emailChangeCode: code,
-      emailChangeCodeExpires: expires,
-      updatedAt: Date.now()
-    }, { where: { id: user.id } });
+    await User.update(
+      {
+        pendingEmail: newEmailLower,
+        emailChangeCode: code,
+        emailChangeCodeExpires: expires,
+        updatedAt: Date.now(),
+      },
+      { where: { id: user.id } },
+    );
 
     await sendEmailChangeVerificationCode(newEmailLower, code, user.firstName);
 
-    console.log(`[AUDIT] email change initiated: user=${user.id} role=${user.role} pendingEmail=${newEmailLower}`);
+    logger.info(
+      { userId: user.id, role: user.role, pendingEmail: newEmailLower },
+      '[AUDIT] email change initiated',
+    );
 
     res.status(200).json({ success: true, message: 'Verification code sent to new email address' });
   } catch (error) {
@@ -816,11 +901,18 @@ exports.verifyEmailChange = async (req, res, next) => {
     const user = await User.findByPk(req.user.id);
 
     if (!user || !user.mustChangeEmail) {
-      return res.status(400).json({ success: false, message: 'Email change not required for this account' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Email change not required for this account' });
     }
 
     if (!user.pendingEmail || !user.emailChangeCode) {
-      return res.status(400).json({ success: false, message: 'No pending email change. Please submit your new email first.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: 'No pending email change. Please submit your new email first.',
+        });
     }
 
     if (!code) {
@@ -832,24 +924,35 @@ exports.verifyEmailChange = async (req, res, next) => {
     }
 
     if (Date.now() > Number(user.emailChangeCodeExpires)) {
-      return res.status(400).json({ success: false, message: 'Verification code has expired. Please request a new one.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: 'Verification code has expired. Please request a new one.',
+        });
     }
 
     const oldEmail = user.email;
     const newEmail = user.pendingEmail;
 
-    await User.update({
-      email: newEmail,
-      pendingEmail: null,
-      emailChangeCode: null,
-      emailChangeCodeExpires: null,
-      mustChangeEmail: false,
-      updatedAt: Date.now()
-    }, { where: { id: user.id } });
+    await User.update(
+      {
+        email: newEmail,
+        pendingEmail: null,
+        emailChangeCode: null,
+        emailChangeCodeExpires: null,
+        mustChangeEmail: false,
+        updatedAt: Date.now(),
+      },
+      { where: { id: user.id } },
+    );
 
     const updatedUser = await User.findByPk(user.id);
 
-    console.log(`[AUDIT] email change completed: user=${user.id} role=${user.role} oldEmail=${oldEmail} newEmail=${newEmail}`);
+    logger.info(
+      { userId: user.id, role: user.role, oldEmail, newEmail },
+      '[AUDIT] email change completed',
+    );
 
     sendTokenResponse(updatedUser, 200, res);
   } catch (error) {
@@ -865,25 +968,37 @@ exports.resendEmailChangeCode = async (req, res, next) => {
     const user = await User.findByPk(req.user.id);
 
     if (!user || !user.mustChangeEmail) {
-      return res.status(400).json({ success: false, message: 'Email change not required for this account' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Email change not required for this account' });
     }
 
     if (!user.pendingEmail) {
-      return res.status(400).json({ success: false, message: 'No pending email found. Please submit your new email address first.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: 'No pending email found. Please submit your new email address first.',
+        });
     }
 
     const code = generateVerificationCode();
     const expires = Date.now() + 10 * 60 * 1000;
 
-    await User.update({
-      emailChangeCode: code,
-      emailChangeCodeExpires: expires,
-      updatedAt: Date.now()
-    }, { where: { id: user.id } });
+    await User.update(
+      {
+        emailChangeCode: code,
+        emailChangeCodeExpires: expires,
+        updatedAt: Date.now(),
+      },
+      { where: { id: user.id } },
+    );
 
     await sendEmailChangeVerificationCode(user.pendingEmail, code, user.firstName);
 
-    res.status(200).json({ success: true, message: 'New verification code sent to your new email address' });
+    res
+      .status(200)
+      .json({ success: true, message: 'New verification code sent to your new email address' });
   } catch (error) {
     next(error);
   }
@@ -899,7 +1014,7 @@ exports.transferOwnership = async (req, res, next) => {
     if (!targetUserId) {
       return res.status(400).json({
         success: false,
-        message: 'targetUserId is required'
+        message: 'targetUserId is required',
       });
     }
 
@@ -907,7 +1022,7 @@ exports.transferOwnership = async (req, res, next) => {
     if (!requester || requester.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Only current Program Chair can transfer ownership'
+        message: 'Only current Program Chair can transfer ownership',
       });
     }
 
@@ -915,14 +1030,14 @@ exports.transferOwnership = async (req, res, next) => {
     if (!targetUser) {
       return res.status(404).json({
         success: false,
-        message: 'Target user not found'
+        message: 'Target user not found',
       });
     }
 
     if (targetUser.role !== 'adviser') {
       return res.status(400).json({
         success: false,
-        message: 'Ownership can only be transferred to an adviser'
+        message: 'Ownership can only be transferred to an adviser',
       });
     }
 
@@ -931,7 +1046,7 @@ exports.transferOwnership = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Program Chair ownership transferred successfully'
+      message: 'Program Chair ownership transferred successfully',
     });
   } catch (error) {
     next(error);
@@ -948,7 +1063,7 @@ exports.forgotPassword = async (req, res, next) => {
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide an email address'
+        message: 'Please provide an email address',
       });
     }
 
@@ -958,7 +1073,7 @@ exports.forgotPassword = async (req, res, next) => {
       // Return success regardless to prevent account enumeration (Step 3.7)
       return res.status(200).json({
         success: true,
-        message: 'If an account exists with that email, a password reset link has been sent.'
+        message: 'If an account exists with that email, a password reset link has been sent.',
       });
     }
 
@@ -967,11 +1082,14 @@ exports.forgotPassword = async (req, res, next) => {
     const resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
     const resetPasswordExpires = Date.now() + 30 * 60 * 1000; // 30 minutes
 
-    await User.update({
-      resetPasswordToken,
-      resetPasswordExpires,
-      updatedAt: Date.now()
-    }, { where: { id: user.id } });
+    await User.update(
+      {
+        resetPasswordToken,
+        resetPasswordExpires,
+        updatedAt: Date.now(),
+      },
+      { where: { id: user.id } },
+    );
 
     // Send password reset email
     const { sendPasswordResetEmail } = require('../utils/email');
@@ -979,7 +1097,7 @@ exports.forgotPassword = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Password reset link sent to your email'
+      message: 'Password reset link sent to your email',
     });
   } catch (error) {
     next(error);
@@ -997,14 +1115,15 @@ exports.resetPassword = async (req, res, next) => {
     if (!password || password.length < 8) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 8 characters'
+        message: 'Password must be at least 8 characters',
       });
     }
 
     if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
       return res.status(400).json({
         success: false,
-        message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number'
+        message:
+          'Password must contain at least one uppercase letter, one lowercase letter, and one number',
       });
     }
 
@@ -1016,14 +1135,14 @@ exports.resetPassword = async (req, res, next) => {
     const result = await User.findOne({
       where: {
         resetPasswordToken,
-        resetPasswordExpires: { [Op.gt]: now }
-      }
+        resetPasswordExpires: { [Op.gt]: now },
+      },
     });
 
     if (!result) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid or expired reset token'
+        message: 'Invalid or expired reset token',
       });
     }
 
@@ -1032,16 +1151,19 @@ exports.resetPassword = async (req, res, next) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Update user password and clear reset token
-    await User.update({
-      password: hashedPassword,
-      resetPasswordToken: null,
-      resetPasswordExpires: null,
-      updatedAt: Date.now()
-    }, { where: { id: result.id } });
+    await User.update(
+      {
+        password: hashedPassword,
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+        updatedAt: Date.now(),
+      },
+      { where: { id: result.id } },
+    );
 
     return res.status(200).json({
       success: true,
-      message: 'Password has been reset successfully. Please log in with your new password.'
+      message: 'Password has been reset successfully. Please log in with your new password.',
     });
   } catch (error) {
     next(error);
@@ -1058,7 +1180,7 @@ exports.refreshToken = async (req, res, next) => {
     if (!refreshToken) {
       return res.status(400).json({
         success: false,
-        message: 'Refresh token is required'
+        message: 'Refresh token is required',
       });
     }
 
@@ -1068,7 +1190,7 @@ exports.refreshToken = async (req, res, next) => {
     if (!decoded) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid or expired refresh token'
+        message: 'Invalid or expired refresh token',
       });
     }
 
@@ -1076,7 +1198,7 @@ exports.refreshToken = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
       });
     }
 
@@ -1084,7 +1206,7 @@ exports.refreshToken = async (req, res, next) => {
     if (!user.refreshToken || user.refreshToken !== refreshToken) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid or expired refresh token'
+        message: 'Invalid or expired refresh token',
       });
     }
 
@@ -1092,11 +1214,14 @@ exports.refreshToken = async (req, res, next) => {
     const newRefreshToken = generateRefreshToken(user.id);
 
     // Invalidate old token by overwriting with the newly issued one
-    await User.update({
-      refreshToken: newRefreshToken,
-      refreshTokenExpires: Date.now() + (30 * 24 * 60 * 60 * 1000),
-      updatedAt: Date.now()
-    }, { where: { id: user.id } });
+    await User.update(
+      {
+        refreshToken: newRefreshToken,
+        refreshTokenExpires: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        updatedAt: Date.now(),
+      },
+      { where: { id: user.id } },
+    );
 
     const cookieOptions = getAuthCookieOptions();
 
@@ -1104,17 +1229,17 @@ exports.refreshToken = async (req, res, next) => {
       .cookie('token', newToken, cookieOptions.token)
       .cookie('refreshToken', newRefreshToken, cookieOptions.refreshToken)
       .json({
-      success: true,
-      token: newToken,
-      refreshToken: newRefreshToken,
-      user: {
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        role: user.role,
-        isActive: user.isActive
-      }
+        success: true,
+        token: newToken,
+        refreshToken: newRefreshToken,
+        user: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+          isActive: user.isActive,
+        },
       });
   } catch (error) {
     next(error);

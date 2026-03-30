@@ -10,7 +10,8 @@
     "seed:users-only": "node scripts/seed_users_only.js",
     "normalize": "node scripts/normalize_curricula_csv.js",
     "generate:import-csvs": "node scripts/generate_import_csvs.js",
-    "test": "jest --forceExit --detectOpenHandles",
+    "test": "jest --forceExit --detectOpenHandles --testPathIgnorePatterns=integration",
+    "test:integration": "jest --forceExit --detectOpenHandles --runInBand --testPathPatterns=integration --testPathIgnorePatterns=support",
     "db:migrate": "npx sequelize-cli db:migrate",
     "db:migrate:undo": "npx sequelize-cli db:migrate:undo"
   },
@@ -37,7 +38,9 @@
     "pg": "^8.16.3",
     "pino": "^10.3.1",
     "pino-pretty": "^11.2.2",
-    "sequelize": "^6.37.7"
+    "sequelize": "^6.37.7",
+    "swagger-ui-express": "^5.0.1",
+    "umzug": "^3.8.2"
   },
   "devDependencies": {
     "jest": "^30.3.0",

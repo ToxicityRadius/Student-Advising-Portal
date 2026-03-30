@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import useSarData from '../../hooks/useSarData';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
+import BulkGradeImportModal from '../../components/adviser/BulkGradeImportModal';
 import { getErrorMessage } from '../../utils/errorHelpers';
 
 const statusVariant = {
@@ -11,7 +12,7 @@ const statusVariant = {
   passed: 'success',
   failed: 'danger',
   dropped: 'warning',
-  incomplete: 'dark'
+  incomplete: 'dark',
 };
 
 const normalizeSpecialOption = (value) => {
@@ -71,6 +72,8 @@ const GradeEntry = () => {
 
   const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [bulkImporting, setBulkImporting] = useState(false);
   const [alert, setAlert] = useState({ variant: '', message: '' });
   const [activeVersion, setActiveVersion] = useState(null);
   const [rows, setRows] = useState([]);
@@ -80,7 +83,10 @@ const GradeEntry = () => {
   useEffect(() => {
     if (loading) return;
     if (sarFetchError) {
-      setAlert({ variant: 'danger', message: getErrorMessage(sarFetchError, 'Failed to load grade entry data.') });
+      setAlert({
+        variant: 'danger',
+        message: getErrorMessage(sarFetchError, 'Failed to load grade entry data.'),
+      });
       setActiveVersion(null);
       setRows([]);
       setSummary(null);
@@ -102,24 +108,35 @@ const GradeEntry = () => {
         yearLevel: courseEntry.yearLevel,
         semester: courseEntry.semester,
         specialChoice: normalizeSpecialOption(courseEntry.grade),
-        numericGrade: normalizeSpecialOption(courseEntry.grade) ? '' : (courseEntry.grade || ''),
-        status: courseEntry.status || deriveStatusFromGrade(courseEntry.grade)
-      }))
+        numericGrade: normalizeSpecialOption(courseEntry.grade) ? '' : courseEntry.grade || '',
+        status: courseEntry.status || deriveStatusFromGrade(courseEntry.grade),
+      })),
     );
   }, [loading, versions, sarFetchError]);
 
   const unresolvedCount = useMemo(
-    () => rows.filter((row) => ['failed', 'dropped', 'incomplete'].includes(deriveStatusFromGrade(row.specialChoice || row.numericGrade))).length,
-    [rows]
+    () =>
+      rows.filter((row) =>
+        ['failed', 'dropped', 'incomplete'].includes(
+          deriveStatusFromGrade(row.specialChoice || row.numericGrade),
+        ),
+      ).length,
+    [rows],
   );
 
   const allPassed = useMemo(
-    () => rows.length > 0 && rows.every((row) => deriveStatusFromGrade(row.specialChoice || row.numericGrade) === 'passed'),
-    [rows]
+    () =>
+      rows.length > 0 &&
+      rows.every(
+        (row) => deriveStatusFromGrade(row.specialChoice || row.numericGrade) === 'passed',
+      ),
+    [rows],
   );
 
   const updateRow = (rowId, updates) => {
-    setRows((currentRows) => currentRows.map((row) => (row.id === rowId ? { ...row, ...updates } : row)));
+    setRows((currentRows) =>
+      currentRows.map((row) => (row.id === rowId ? { ...row, ...updates } : row)),
+    );
   };
 
   const handleSave = async () => {
@@ -138,11 +155,13 @@ const GradeEntry = () => {
         return {
           studyPlanCourseId: row.id,
           grade: chosenGrade || null,
-          status
+          status,
         };
       });
 
-      const response = await api.put(`/sars/${sarId}/study-plan/active-version/grades`, { grades: payload });
+      const response = await api.put(`/sars/${sarId}/study-plan/active-version/grades`, {
+        grades: payload,
+      });
       const serverSummary = response.data?.summary || null;
 
       setAlert({ variant: 'success', message: 'Grades saved successfully.' });
@@ -174,13 +193,37 @@ const GradeEntry = () => {
       navigate(`/adviser/students/${sarId}/plan/${newVersion.id}/review`, {
         state: {
           previousVersion: activeVersion,
-          regeneratedVersion: newVersion
-        }
+          regeneratedVersion: newVersion,
+        },
       });
     } catch (error) {
-      setAlert({ variant: 'danger', message: getErrorMessage(error, 'Failed to regenerate study plan.') });
+      setAlert({
+        variant: 'danger',
+        message: getErrorMessage(error, 'Failed to regenerate study plan.'),
+      });
     } finally {
       setRegenerating(false);
+    }
+  };
+
+  const handleBulkImportComplete = async (grades) => {
+    setBulkImporting(true);
+    setAlert({ variant: '', message: '' });
+    try {
+      const res = await api.post(`/sars/${sarId}/study-plan/active-version/grades/bulk-import`, {
+        rows: grades,
+      });
+      const result = res.data || {};
+      setAlert({
+        variant: 'success',
+        message: `Imported ${result.imported ?? grades.length} grades successfully.`,
+      });
+      setShowBulkImport(false);
+      await reload();
+    } catch (error) {
+      setAlert({ variant: 'danger', message: getErrorMessage(error, 'Bulk import failed.') });
+    } finally {
+      setBulkImporting(false);
     }
   };
 
@@ -189,7 +232,9 @@ const GradeEntry = () => {
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
           <h2 className="mb-1">Grade Entry</h2>
-          <p className="text-muted mb-0">Enter transcript grades for the active study plan version.</p>
+          <p className="text-muted mb-0">
+            Enter transcript grades for the active study plan version.
+          </p>
         </div>
         <Button as={Link} to={`/adviser/students/${sarId}`} variant="outline-secondary">
           Back to Record
@@ -205,7 +250,9 @@ const GradeEntry = () => {
       ) : !activeVersion ? (
         <Card className="shadow-sm">
           <Card.Body>
-            <p className="mb-0 text-muted">No active study plan version exists for this student yet.</p>
+            <p className="mb-0 text-muted">
+              No active study plan version exists for this student yet.
+            </p>
           </Card.Body>
         </Card>
       ) : (
@@ -234,17 +281,31 @@ const GradeEntry = () => {
               <Table responsive hover className="table-fixed-cols">
                 <thead>
                   <tr>
-                    <th scope="col" style={{ width: '28%' }}>Course</th>
-                    <th scope="col" style={{ width: '8%' }}>Units</th>
-                    <th scope="col" style={{ width: '12%' }}>Slot</th>
-                    <th scope="col" style={{ width: '20%' }}>Numeric Grade</th>
-                    <th scope="col" style={{ width: '18%' }}>Special</th>
-                    <th scope="col" style={{ width: '14%' }}>Status</th>
+                    <th scope="col" style={{ width: '28%' }}>
+                      Course
+                    </th>
+                    <th scope="col" style={{ width: '8%' }}>
+                      Units
+                    </th>
+                    <th scope="col" style={{ width: '12%' }}>
+                      Slot
+                    </th>
+                    <th scope="col" style={{ width: '20%' }}>
+                      Numeric Grade
+                    </th>
+                    <th scope="col" style={{ width: '18%' }}>
+                      Special
+                    </th>
+                    <th scope="col" style={{ width: '14%' }}>
+                      Status
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row) => {
-                    const derivedStatus = deriveStatusFromGrade(row.specialChoice || row.numericGrade);
+                    const derivedStatus = deriveStatusFromGrade(
+                      row.specialChoice || row.numericGrade,
+                    );
 
                     return (
                       <tr key={row.id}>
@@ -253,7 +314,9 @@ const GradeEntry = () => {
                           <div className="text-muted small">{row.name}</div>
                         </td>
                         <td>{row.units}</td>
-                        <td>Y{row.yearLevel} • S{row.semester}</td>
+                        <td>
+                          Y{row.yearLevel} • S{row.semester}
+                        </td>
                         <td>
                           <Form.Control
                             type="number"
@@ -262,7 +325,9 @@ const GradeEntry = () => {
                             step="0.25"
                             value={row.numericGrade}
                             disabled={Boolean(row.specialChoice)}
-                            onChange={(event) => updateRow(row.id, { numericGrade: event.target.value })}
+                            onChange={(event) =>
+                              updateRow(row.id, { numericGrade: event.target.value })
+                            }
                             placeholder="e.g. 2.00"
                           />
                         </td>
@@ -273,7 +338,7 @@ const GradeEntry = () => {
                               const nextSpecial = event.target.value;
                               updateRow(row.id, {
                                 specialChoice: nextSpecial,
-                                numericGrade: nextSpecial ? '' : row.numericGrade
+                                numericGrade: nextSpecial ? '' : row.numericGrade,
                               });
                             }}
                           >
@@ -284,7 +349,10 @@ const GradeEntry = () => {
                           </Form.Select>
                         </td>
                         <td>
-                          <Badge bg={statusVariant[derivedStatus] || 'secondary'} className="text-uppercase">
+                          <Badge
+                            bg={statusVariant[derivedStatus] || 'secondary'}
+                            className="text-uppercase"
+                          >
                             {derivedStatus}
                           </Badge>
                         </td>
@@ -308,8 +376,19 @@ const GradeEntry = () => {
             <Button onClick={handleSave} disabled={saving || rows.length === 0}>
               {saving ? 'Saving...' : 'Save Grades'}
             </Button>
+            <Button
+              variant="outline-primary"
+              onClick={() => setShowBulkImport(true)}
+              disabled={saving || regenerating}
+            >
+              Import CSV
+            </Button>
             {unresolvedCount > 0 ? (
-              <Button variant="warning" onClick={handleRegenerate} disabled={regenerating || saving}>
+              <Button
+                variant="warning"
+                onClick={handleRegenerate}
+                disabled={regenerating || saving}
+              >
                 {regenerating ? 'Regenerating...' : 'Regenerate Study Plan'}
               </Button>
             ) : (
@@ -318,6 +397,14 @@ const GradeEntry = () => {
               </Button>
             )}
           </div>
+
+          <BulkGradeImportModal
+            show={showBulkImport}
+            onHide={() => setShowBulkImport(false)}
+            onImport={handleBulkImportComplete}
+            sarId={sarId}
+            importing={bulkImporting}
+          />
         </>
       )}
     </AdviserLayout>

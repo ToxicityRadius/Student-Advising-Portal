@@ -1,4 +1,4 @@
-const { Op } = require('sequelize');
+﻿const { Op } = require('sequelize');
 const {
   sequelize,
   Curriculum,
@@ -10,9 +10,10 @@ const {
   ElectiveTrack,
   ElectiveTrackCourse,
   StudyPlanCourse,
-  User
+  User,
 } = require('../models');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
+const logger = require('../utils/logger');
 
 const CURRICULUM_CSV_COLUMNS = [
   'exportVersion',
@@ -27,7 +28,7 @@ const CURRICULUM_CSV_COLUMNS = [
   'isElective',
   'relatedCourseCode',
   'trackName',
-  'notes'
+  'notes',
 ];
 
 const ALLOWED_ROW_TYPES = new Set([
@@ -37,11 +38,13 @@ const ALLOWED_ROW_TYPES = new Set([
   'corequisite',
   'equivalency',
   'elective_track',
-  'elective_track_course'
+  'elective_track_course',
 ]);
 
 const parseBoolean = (value) => {
-  const normalized = String(value || '').trim().toLowerCase();
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
   if (!normalized) return false;
   return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'y';
 };
@@ -64,7 +67,9 @@ const escapeCsvValue = (value) => {
 
 const serializeCsv = (rows) => {
   const header = CURRICULUM_CSV_COLUMNS.join(',');
-  const lines = rows.map((row) => CURRICULUM_CSV_COLUMNS.map((column) => escapeCsvValue(row[column])).join(','));
+  const lines = rows.map((row) =>
+    CURRICULUM_CSV_COLUMNS.map((column) => escapeCsvValue(row[column])).join(','),
+  );
   return [header, ...lines].join('\n');
 };
 
@@ -126,7 +131,7 @@ const validateAndNormalizeCsvRows = ({ csvRows, expectedCurriculumId }) => {
   if (!Array.isArray(csvRows) || csvRows.length === 0) {
     return {
       errors: [{ rowNumber: 1, message: 'CSV file is empty.' }],
-      normalizedRows: []
+      normalizedRows: [],
     };
   }
 
@@ -134,8 +139,13 @@ const validateAndNormalizeCsvRows = ({ csvRows, expectedCurriculumId }) => {
   const missingColumns = CURRICULUM_CSV_COLUMNS.filter((column) => !headers.includes(column));
   if (missingColumns.length > 0) {
     return {
-      errors: [{ rowNumber: 1, message: `CSV header is missing required columns: ${missingColumns.join(', ')}` }],
-      normalizedRows: []
+      errors: [
+        {
+          rowNumber: 1,
+          message: `CSV header is missing required columns: ${missingColumns.join(', ')}`,
+        },
+      ],
+      normalizedRows: [],
     };
   }
 
@@ -166,7 +176,7 @@ const validateAndNormalizeCsvRows = ({ csvRows, expectedCurriculumId }) => {
       isElective: parseBoolean(pick('isElective')),
       relatedCourseCode: pick('relatedCourseCode').toUpperCase(),
       trackName: pick('trackName'),
-      notes: pick('notes')
+      notes: pick('notes'),
     };
 
     if (!normalized.rowType || !ALLOWED_ROW_TYPES.has(normalized.rowType)) {
@@ -174,43 +184,111 @@ const validateAndNormalizeCsvRows = ({ csvRows, expectedCurriculumId }) => {
       continue;
     }
 
-    if (normalized.curriculumId && Number(normalized.curriculumId) !== Number(expectedCurriculumId)) {
+    if (
+      normalized.curriculumId &&
+      Number(normalized.curriculumId) !== Number(expectedCurriculumId)
+    ) {
       errors.push({
         rowNumber,
         rowType: normalized.rowType,
-        message: `curriculumId ${normalized.curriculumId} does not match selected curriculum ${expectedCurriculumId}.`
+        message: `curriculumId ${normalized.curriculumId} does not match selected curriculum ${expectedCurriculumId}.`,
       });
       continue;
     }
 
     if (normalized.rowType === 'structure') {
-      if (!normalized.courseCode) errors.push({ rowNumber, rowType: normalized.rowType, message: 'courseCode is required for structure rows.' });
-      if (!normalized.courseName) errors.push({ rowNumber, rowType: normalized.rowType, message: 'courseName is required for structure rows.' });
-      if (!normalized.units || normalized.units < 1 || normalized.units > 9) errors.push({ rowNumber, rowType: normalized.rowType, message: 'units must be 1-9 for structure rows.' });
-      if (!normalized.yearLevel || normalized.yearLevel < 1 || normalized.yearLevel > 5) errors.push({ rowNumber, rowType: normalized.rowType, message: 'yearLevel is required for structure rows.' });
-      if (!normalized.semester || ![1, 2, 3].includes(normalized.semester)) errors.push({ rowNumber, rowType: normalized.rowType, message: 'semester must be 1, 2, or 3 for structure rows.' });
+      if (!normalized.courseCode)
+        errors.push({
+          rowNumber,
+          rowType: normalized.rowType,
+          message: 'courseCode is required for structure rows.',
+        });
+      if (!normalized.courseName)
+        errors.push({
+          rowNumber,
+          rowType: normalized.rowType,
+          message: 'courseName is required for structure rows.',
+        });
+      if (!normalized.units || normalized.units < 1 || normalized.units > 9)
+        errors.push({
+          rowNumber,
+          rowType: normalized.rowType,
+          message: 'units must be 1-9 for structure rows.',
+        });
+      if (!normalized.yearLevel || normalized.yearLevel < 1 || normalized.yearLevel > 5)
+        errors.push({
+          rowNumber,
+          rowType: normalized.rowType,
+          message: 'yearLevel is required for structure rows.',
+        });
+      if (!normalized.semester || ![1, 2, 3].includes(normalized.semester))
+        errors.push({
+          rowNumber,
+          rowType: normalized.rowType,
+          message: 'semester must be 1, 2, or 3 for structure rows.',
+        });
     }
 
-    if (normalized.rowType === 'prerequisite' || normalized.rowType === 'corequisite' || normalized.rowType === 'equivalency') {
-      if (!normalized.courseCode) errors.push({ rowNumber, rowType: normalized.rowType, message: 'courseCode is required.' });
-      if (!normalized.relatedCourseCode) errors.push({ rowNumber, rowType: normalized.rowType, message: 'relatedCourseCode is required.' });
-      if (normalized.courseCode && normalized.relatedCourseCode && normalized.courseCode === normalized.relatedCourseCode) {
-        errors.push({ rowNumber, rowType: normalized.rowType, message: 'courseCode and relatedCourseCode cannot be the same.' });
+    if (
+      normalized.rowType === 'prerequisite' ||
+      normalized.rowType === 'corequisite' ||
+      normalized.rowType === 'equivalency'
+    ) {
+      if (!normalized.courseCode)
+        errors.push({ rowNumber, rowType: normalized.rowType, message: 'courseCode is required.' });
+      if (!normalized.relatedCourseCode)
+        errors.push({
+          rowNumber,
+          rowType: normalized.rowType,
+          message: 'relatedCourseCode is required.',
+        });
+      if (
+        normalized.courseCode &&
+        normalized.relatedCourseCode &&
+        normalized.courseCode === normalized.relatedCourseCode
+      ) {
+        errors.push({
+          rowNumber,
+          rowType: normalized.rowType,
+          message: 'courseCode and relatedCourseCode cannot be the same.',
+        });
       }
     }
 
     if (normalized.rowType === 'elective_track' && !normalized.trackName) {
-      errors.push({ rowNumber, rowType: normalized.rowType, message: 'trackName is required for elective_track rows.' });
+      errors.push({
+        rowNumber,
+        rowType: normalized.rowType,
+        message: 'trackName is required for elective_track rows.',
+      });
     }
 
     if (normalized.rowType === 'elective_track_course') {
-      if (!normalized.trackName) errors.push({ rowNumber, rowType: normalized.rowType, message: 'trackName is required for elective_track_course rows.' });
-      if (!normalized.courseCode) errors.push({ rowNumber, rowType: normalized.rowType, message: 'courseCode is required for elective_track_course rows.' });
+      if (!normalized.trackName)
+        errors.push({
+          rowNumber,
+          rowType: normalized.rowType,
+          message: 'trackName is required for elective_track_course rows.',
+        });
+      if (!normalized.courseCode)
+        errors.push({
+          rowNumber,
+          rowType: normalized.rowType,
+          message: 'courseCode is required for elective_track_course rows.',
+        });
       if (normalized.yearLevel && (normalized.yearLevel < 1 || normalized.yearLevel > 5)) {
-        errors.push({ rowNumber, rowType: normalized.rowType, message: 'yearLevel must be between 1 and 5.' });
+        errors.push({
+          rowNumber,
+          rowType: normalized.rowType,
+          message: 'yearLevel must be between 1 and 5.',
+        });
       }
       if (normalized.semester && ![1, 2, 3].includes(normalized.semester)) {
-        errors.push({ rowNumber, rowType: normalized.rowType, message: 'semester must be 1, 2, or 3 when provided.' });
+        errors.push({
+          rowNumber,
+          rowType: normalized.rowType,
+          message: 'semester must be 1, 2, or 3 when provided.',
+        });
       }
     }
 
@@ -220,40 +298,49 @@ const validateAndNormalizeCsvRows = ({ csvRows, expectedCurriculumId }) => {
   return { errors, normalizedRows };
 };
 
-const summarizeRows = (rows) => rows.reduce((acc, row) => {
-  acc.totalRows += 1;
-  acc.byType[row.rowType] = (acc.byType[row.rowType] || 0) + 1;
-  return acc;
-}, { totalRows: 0, byType: {} });
+const summarizeRows = (rows) =>
+  rows.reduce(
+    (acc, row) => {
+      acc.totalRows += 1;
+      acc.byType[row.rowType] = (acc.byType[row.rowType] || 0) + 1;
+      return acc;
+    },
+    { totalRows: 0, byType: {} },
+  );
 
 const resolveCourseByCodeMap = async ({ rows, transaction }) => {
-  const courseCodes = [...new Set(
-    rows
-      .flatMap((row) => [row.courseCode, row.relatedCourseCode])
-      .filter(Boolean)
-      .map((value) => value.toUpperCase())
-  )];
+  const courseCodes = [
+    ...new Set(
+      rows
+        .flatMap((row) => [row.courseCode, row.relatedCourseCode])
+        .filter(Boolean)
+        .map((value) => value.toUpperCase()),
+    ),
+  ];
 
   const existingCourses = await Course.findAll({
     where: { code: { [Op.in]: courseCodes } },
-    transaction
+    transaction,
   });
 
   const map = new Map(existingCourses.map((course) => [course.code.toUpperCase(), course]));
 
-  const createRows = rows.filter((row) =>
-    row.rowType === 'structure' || row.rowType === 'elective_track_course'
+  const createRows = rows.filter(
+    (row) => row.rowType === 'structure' || row.rowType === 'elective_track_course',
   );
   for (const row of createRows) {
     if (!row.courseCode || map.has(row.courseCode)) {
       continue;
     }
 
-    const created = await Course.create({
-      code: row.courseCode,
-      name: row.courseName,
-      units: row.units
-    }, { transaction });
+    const created = await Course.create(
+      {
+        code: row.courseCode,
+        name: row.courseName,
+        units: row.units,
+      },
+      { transaction },
+    );
 
     map.set(created.code.toUpperCase(), created);
   }
@@ -276,7 +363,7 @@ exports.createCurriculum = async (req, res, next) => {
       name: name.trim(),
       description: description || null,
       isActive: false,
-      createdById: req.user.id
+      createdById: req.user.id,
     });
     return res.status(201).json({ success: true, data: curriculum });
   } catch (err) {
@@ -289,35 +376,43 @@ exports.createCurriculum = async (req, res, next) => {
 // @access admin, adviser
 exports.getCurriculums = async (req, res, next) => {
   try {
-    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
-      defaultSortBy: 'createdAt',
-      allowedSortBy: ['createdAt', 'name', 'isActive']
-    });
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
+      req.query,
+      {
+        defaultSortBy: 'createdAt',
+        allowedSortBy: ['createdAt', 'name', 'isActive'],
+      },
+    );
     const compact = String(req.query.compact || 'false').toLowerCase() === 'true';
 
     const where = search
       ? {
-        [Op.or]: [
-          { name: { [Op.iLike]: `%${search}%` } },
-          { description: { [Op.iLike]: `%${search}%` } }
-        ]
-      }
+          [Op.or]: [
+            { name: { [Op.iLike]: `%${search}%` } },
+            { description: { [Op.iLike]: `%${search}%` } },
+          ],
+        }
       : {};
 
     const { rows, count } = await Curriculum.findAndCountAll({
       where,
       attributes: compact ? ['id', 'name', 'description', 'isActive'] : undefined,
-      include: compact ? [] : [{ model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] }],
-      order: [[sortBy, sortOrder], ['id', 'DESC']],
+      include: compact
+        ? []
+        : [{ model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] }],
+      order: [
+        [sortBy, sortOrder],
+        ['id', 'DESC'],
+      ],
       offset,
-      limit
+      limit,
     });
 
     const payload = buildPaginatedPayload({
       items: rows,
       page,
       pageSize,
-      totalItems: count
+      totalItems: count,
     });
 
     res.set('Cache-Control', compact ? 'private, no-store' : 'private, max-age=30');
@@ -341,17 +436,17 @@ exports.getCurriculumsMap = async (req, res, next) => {
           include: [
             {
               model: Course,
-              attributes: ['id', 'code', 'name', 'units']
-            }
-          ]
-        }
+              attributes: ['id', 'code', 'name', 'units'],
+            },
+          ],
+        },
       ],
       order: [
         ['name', 'ASC'],
         [CurriculumCourse, 'yearLevel', 'ASC'],
         [CurriculumCourse, 'semester', 'ASC'],
-        [CurriculumCourse, Course, 'code', 'ASC']
-      ]
+        [CurriculumCourse, Course, 'code', 'ASC'],
+      ],
     });
 
     const data = curriculums.map((curriculum) => ({
@@ -367,8 +462,8 @@ exports.getCurriculumsMap = async (req, res, next) => {
         isElective: entry.isElective,
         code: entry.Course?.code || null,
         name: entry.Course?.name || null,
-        units: entry.Course?.units || null
-      }))
+        units: entry.Course?.units || null,
+      })),
     }));
 
     res.set('Cache-Control', 'private, max-age=120');
@@ -385,39 +480,41 @@ exports.getCurriculumById = async (req, res, next) => {
   try {
     const compact = String(req.query.compact || 'false').toLowerCase() === 'true';
     const curriculum = await Curriculum.findByPk(req.params.id, {
-      attributes: compact ? ['id', 'name', 'description', 'isActive', 'createdAt', 'updatedAt'] : undefined,
+      attributes: compact
+        ? ['id', 'name', 'description', 'isActive', 'createdAt', 'updatedAt']
+        : undefined,
       include: compact
         ? [{ model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] }]
         : [
-          { model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] },
-          {
-            model: CurriculumCourse,
-            include: [{ model: Course }]
-          },
-          {
-            model: Prerequisite,
-            include: [
-              { model: Course, as: 'Course' },
-              { model: Course, as: 'PrerequisiteCourse' }
-            ]
-          },
-          {
-            model: CoRequisite,
-            include: [
-              { model: Course, as: 'Course' },
-              { model: Course, as: 'CoRequisiteCourse' }
-            ]
-          },
-          {
-            model: ElectiveTrack,
-            include: [
-              {
-                model: ElectiveTrackCourse,
-                include: [{ model: Course }]
-              }
-            ]
-          }
-        ]
+            { model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] },
+            {
+              model: CurriculumCourse,
+              include: [{ model: Course }],
+            },
+            {
+              model: Prerequisite,
+              include: [
+                { model: Course, as: 'Course' },
+                { model: Course, as: 'PrerequisiteCourse' },
+              ],
+            },
+            {
+              model: CoRequisite,
+              include: [
+                { model: Course, as: 'Course' },
+                { model: Course, as: 'CoRequisiteCourse' },
+              ],
+            },
+            {
+              model: ElectiveTrack,
+              include: [
+                {
+                  model: ElectiveTrackCourse,
+                  include: [{ model: Course }],
+                },
+              ],
+            },
+          ],
     });
     if (!curriculum) {
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
@@ -444,7 +541,7 @@ exports.updateCurriculum = async (req, res, next) => {
     }
     await curriculum.update({
       ...(name !== undefined && { name: name.trim() }),
-      ...(description !== undefined && { description })
+      ...(description !== undefined && { description }),
     });
     return res.status(200).json({ success: true, data: curriculum });
   } catch (err) {
@@ -484,19 +581,25 @@ exports.createCourse = async (req, res, next) => {
   try {
     const { code, name, units } = req.body;
     if (!code || !name || units === undefined) {
-      return res.status(400).json({ success: false, message: 'code, name, and units are required' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'code, name, and units are required' });
     }
     if (!Number.isInteger(Number(units)) || Number(units) < 1 || Number(units) > 9) {
-      return res.status(400).json({ success: false, message: 'units must be an integer between 1 and 9' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'units must be an integer between 1 and 9' });
     }
     const existing = await Course.findOne({ where: { code: code.trim().toUpperCase() } });
     if (existing) {
-      return res.status(409).json({ success: false, message: 'A course with that code already exists' });
+      return res
+        .status(409)
+        .json({ success: false, message: 'A course with that code already exists' });
     }
     const course = await Course.create({
       code: code.trim().toUpperCase(),
       name: name.trim(),
-      units: Number(units)
+      units: Number(units),
     });
     return res.status(201).json({ success: true, data: course });
   } catch (err) {
@@ -509,51 +612,62 @@ exports.createCourse = async (req, res, next) => {
 // @access admin, adviser
 exports.getCourses = async (req, res, next) => {
   try {
-    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
-      defaultSortBy: 'code',
-      allowedSortBy: ['code', 'name', 'units', 'createdAt']
-    });
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
+      req.query,
+      {
+        defaultSortBy: 'code',
+        allowedSortBy: ['code', 'name', 'units', 'createdAt'],
+      },
+    );
 
     const where = search
       ? {
-        [Op.or]: [
-          { code: { [Op.iLike]: `%${search}%` } },
-          { name: { [Op.iLike]: `%${search}%` } }
-        ]
-      }
+          [Op.or]: [
+            { code: { [Op.iLike]: `%${search}%` } },
+            { name: { [Op.iLike]: `%${search}%` } },
+          ],
+        }
       : {};
 
     const { rows, count } = await Course.findAndCountAll({
       where,
-      include: [{
-        model: CurriculumCourse,
-        attributes: ['id', 'curriculumId'],
-        required: false,
-        include: [{
-          model: Curriculum,
-          attributes: ['id', 'name']
-        }]
-      }],
+      include: [
+        {
+          model: CurriculumCourse,
+          attributes: ['id', 'curriculumId'],
+          required: false,
+          include: [
+            {
+              model: Curriculum,
+              attributes: ['id', 'name'],
+            },
+          ],
+        },
+      ],
       distinct: true,
-      order: [[sortBy, sortOrder], ['id', 'ASC']],
+      order: [
+        [sortBy, sortOrder],
+        ['id', 'ASC'],
+      ],
       offset,
-      limit
+      limit,
     });
 
     const courseIds = rows.map((course) => course.id);
-    const electiveTrackRows = courseIds.length > 0
-      ? await ElectiveTrackCourse.findAll({
-        attributes: ['courseId'],
-        where: { courseId: { [Op.in]: courseIds } }
-      })
-      : [];
+    const electiveTrackRows =
+      courseIds.length > 0
+        ? await ElectiveTrackCourse.findAll({
+            attributes: ['courseId'],
+            where: { courseId: { [Op.in]: courseIds } },
+          })
+        : [];
     const electiveCourseIds = new Set(electiveTrackRows.map((item) => Number(item.courseId)));
 
     const items = rows.map((course) => {
       const plainCourse = course.get({ plain: true });
       return {
         ...plainCourse,
-        isElective: electiveCourseIds.has(Number(course.id))
+        isElective: electiveCourseIds.has(Number(course.id)),
       };
     });
 
@@ -561,7 +675,7 @@ exports.getCourses = async (req, res, next) => {
       items,
       page,
       pageSize,
-      totalItems: count
+      totalItems: count,
     });
 
     return res.status(200).json({ success: true, ...payload });
@@ -582,21 +696,25 @@ exports.updateCourse = async (req, res, next) => {
     const { code, name, units } = req.body;
     if (units !== undefined) {
       if (!Number.isInteger(Number(units)) || Number(units) < 1 || Number(units) > 9) {
-        return res.status(400).json({ success: false, message: 'units must be an integer between 1 and 9' });
+        return res
+          .status(400)
+          .json({ success: false, message: 'units must be an integer between 1 and 9' });
       }
     }
     if (code !== undefined) {
       const existing = await Course.findOne({
-        where: { code: code.trim().toUpperCase(), id: { [Op.ne]: course.id } }
+        where: { code: code.trim().toUpperCase(), id: { [Op.ne]: course.id } },
       });
       if (existing) {
-        return res.status(409).json({ success: false, message: 'A course with that code already exists' });
+        return res
+          .status(409)
+          .json({ success: false, message: 'A course with that code already exists' });
       }
     }
     await course.update({
       ...(code !== undefined && { code: code.trim().toUpperCase() }),
       ...(name !== undefined && { name: name.trim() }),
-      ...(units !== undefined && { units: Number(units) })
+      ...(units !== undefined && { units: Number(units) }),
     });
     return res.status(200).json({ success: true, data: course });
   } catch (err) {
@@ -616,18 +734,19 @@ exports.deleteCourse = async (req, res, next) => {
     const [ccCount, prereqCount, coreqCount, etcCount, spcCount] = await Promise.all([
       CurriculumCourse.count({ where: { courseId: course.id } }),
       Prerequisite.count({
-        where: { [Op.or]: [{ courseId: course.id }, { prerequisiteCourseId: course.id }] }
+        where: { [Op.or]: [{ courseId: course.id }, { prerequisiteCourseId: course.id }] },
       }),
       CoRequisite.count({
-        where: { [Op.or]: [{ courseId: course.id }, { coRequisiteCourseId: course.id }] }
+        where: { [Op.or]: [{ courseId: course.id }, { coRequisiteCourseId: course.id }] },
       }),
       ElectiveTrackCourse.count({ where: { courseId: course.id } }),
-      StudyPlanCourse.count({ where: { courseId: course.id } })
+      StudyPlanCourse.count({ where: { courseId: course.id } }),
     ]);
     if (ccCount + prereqCount + coreqCount + etcCount + spcCount > 0) {
       return res.status(409).json({
         success: false,
-        message: 'Course is referenced in one or more curricula or study plans and cannot be deleted'
+        message:
+          'Course is referenced in one or more curricula or study plans and cannot be deleted',
       });
     }
     await course.destroy();
@@ -650,24 +769,28 @@ exports.addCourseToCurriculum = async (req, res, next) => {
     }
     const { courseId, yearLevel, semester, isElective } = req.body;
     if (!courseId || !yearLevel || !semester) {
-      return res.status(400).json({ success: false, message: 'courseId, yearLevel, and semester are required' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'courseId, yearLevel, and semester are required' });
     }
     const course = await Course.findByPk(courseId);
     if (!course) {
       return res.status(404).json({ success: false, message: 'Course not found' });
     }
     const existing = await CurriculumCourse.findOne({
-      where: { curriculumId: req.params.id, courseId }
+      where: { curriculumId: req.params.id, courseId },
     });
     if (existing) {
-      return res.status(409).json({ success: false, message: 'Course is already in this curriculum' });
+      return res
+        .status(409)
+        .json({ success: false, message: 'Course is already in this curriculum' });
     }
     const cc = await CurriculumCourse.create({
       curriculumId: req.params.id,
       courseId,
       yearLevel,
       semester,
-      isElective: isElective || false
+      isElective: isElective || false,
     });
     const result = await CurriculumCourse.findByPk(cc.id, { include: [{ model: Course }] });
     return res.status(201).json({ success: true, data: result });
@@ -701,37 +824,44 @@ exports.getCurriculumCourses = async (req, res, next) => {
     if (!curriculum) {
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
     }
-    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
-      defaultSortBy: 'yearLevel',
-      allowedSortBy: ['yearLevel', 'semester', 'id']
-    });
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
+      req.query,
+      {
+        defaultSortBy: 'yearLevel',
+        allowedSortBy: ['yearLevel', 'semester', 'id'],
+      },
+    );
 
     const where = {
       curriculumId: req.params.id,
       ...(search
         ? {
-          [Op.or]: [
-            { '$Course.code$': { [Op.iLike]: `%${search}%` } },
-            { '$Course.name$': { [Op.iLike]: `%${search}%` } }
-          ]
-        }
-        : {})
+            [Op.or]: [
+              { '$Course.code$': { [Op.iLike]: `%${search}%` } },
+              { '$Course.name$': { [Op.iLike]: `%${search}%` } },
+            ],
+          }
+        : {}),
     };
 
     const { rows, count } = await CurriculumCourse.findAndCountAll({
       where,
       include: [{ model: Course }],
-      order: [[sortBy, sortOrder], ['semester', 'ASC'], ['id', 'ASC']],
+      order: [
+        [sortBy, sortOrder],
+        ['semester', 'ASC'],
+        ['id', 'ASC'],
+      ],
       offset,
       limit,
-      distinct: true
+      distinct: true,
     });
 
     const payload = buildPaginatedPayload({
       items: rows,
       page,
       pageSize,
-      totalItems: count
+      totalItems: count,
     });
 
     return res.status(200).json({ success: true, ...payload });
@@ -753,27 +883,33 @@ exports.addPrerequisite = async (req, res, next) => {
     }
     const { courseId, prerequisiteCourseId } = req.body;
     if (!courseId || !prerequisiteCourseId) {
-      return res.status(400).json({ success: false, message: 'courseId and prerequisiteCourseId are required' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'courseId and prerequisiteCourseId are required' });
     }
     if (String(courseId) === String(prerequisiteCourseId)) {
-      return res.status(400).json({ success: false, message: 'A course cannot be its own prerequisite' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'A course cannot be its own prerequisite' });
     }
     const existing = await Prerequisite.findOne({
-      where: { curriculumId: req.params.id, courseId, prerequisiteCourseId }
+      where: { curriculumId: req.params.id, courseId, prerequisiteCourseId },
     });
     if (existing) {
-      return res.status(409).json({ success: false, message: 'This prerequisite relationship already exists' });
+      return res
+        .status(409)
+        .json({ success: false, message: 'This prerequisite relationship already exists' });
     }
     const prereq = await Prerequisite.create({
       curriculumId: req.params.id,
       courseId,
-      prerequisiteCourseId
+      prerequisiteCourseId,
     });
     const result = await Prerequisite.findByPk(prereq.id, {
       include: [
         { model: Course, as: 'Course' },
-        { model: Course, as: 'PrerequisiteCourse' }
-      ]
+        { model: Course, as: 'PrerequisiteCourse' },
+      ],
     });
     return res.status(201).json({ success: true, data: result });
   } catch (err) {
@@ -806,42 +942,48 @@ exports.getPrerequisites = async (req, res, next) => {
     if (!curriculum) {
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
     }
-    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
-      defaultSortBy: 'id',
-      allowedSortBy: ['id']
-    });
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
+      req.query,
+      {
+        defaultSortBy: 'id',
+        allowedSortBy: ['id'],
+      },
+    );
 
     const where = {
       curriculumId: req.params.id,
       ...(search
         ? {
-          [Op.or]: [
-            { '$Course.code$': { [Op.iLike]: `%${search}%` } },
-            { '$Course.name$': { [Op.iLike]: `%${search}%` } },
-            { '$PrerequisiteCourse.code$': { [Op.iLike]: `%${search}%` } },
-            { '$PrerequisiteCourse.name$': { [Op.iLike]: `%${search}%` } }
-          ]
-        }
-        : {})
+            [Op.or]: [
+              { '$Course.code$': { [Op.iLike]: `%${search}%` } },
+              { '$Course.name$': { [Op.iLike]: `%${search}%` } },
+              { '$PrerequisiteCourse.code$': { [Op.iLike]: `%${search}%` } },
+              { '$PrerequisiteCourse.name$': { [Op.iLike]: `%${search}%` } },
+            ],
+          }
+        : {}),
     };
 
     const { rows, count } = await Prerequisite.findAndCountAll({
       where,
       include: [
         { model: Course, as: 'Course' },
-        { model: Course, as: 'PrerequisiteCourse' }
+        { model: Course, as: 'PrerequisiteCourse' },
       ],
-      order: [[sortBy, sortOrder], ['id', 'DESC']],
+      order: [
+        [sortBy, sortOrder],
+        ['id', 'DESC'],
+      ],
       offset,
       limit,
-      distinct: true
+      distinct: true,
     });
 
     const payload = buildPaginatedPayload({
       items: rows,
       page,
       pageSize,
-      totalItems: count
+      totalItems: count,
     });
 
     return res.status(200).json({ success: true, ...payload });
@@ -863,27 +1005,33 @@ exports.addCoRequisite = async (req, res, next) => {
     }
     const { courseId, coRequisiteCourseId } = req.body;
     if (!courseId || !coRequisiteCourseId) {
-      return res.status(400).json({ success: false, message: 'courseId and coRequisiteCourseId are required' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'courseId and coRequisiteCourseId are required' });
     }
     if (String(courseId) === String(coRequisiteCourseId)) {
-      return res.status(400).json({ success: false, message: 'A course cannot be its own co-requisite' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'A course cannot be its own co-requisite' });
     }
     const existing = await CoRequisite.findOne({
-      where: { curriculumId: req.params.id, courseId, coRequisiteCourseId }
+      where: { curriculumId: req.params.id, courseId, coRequisiteCourseId },
     });
     if (existing) {
-      return res.status(409).json({ success: false, message: 'This co-requisite relationship already exists' });
+      return res
+        .status(409)
+        .json({ success: false, message: 'This co-requisite relationship already exists' });
     }
     const coreq = await CoRequisite.create({
       curriculumId: req.params.id,
       courseId,
-      coRequisiteCourseId
+      coRequisiteCourseId,
     });
     const result = await CoRequisite.findByPk(coreq.id, {
       include: [
         { model: Course, as: 'Course' },
-        { model: Course, as: 'CoRequisiteCourse' }
-      ]
+        { model: Course, as: 'CoRequisiteCourse' },
+      ],
     });
     return res.status(201).json({ success: true, data: result });
   } catch (err) {
@@ -916,42 +1064,48 @@ exports.getCoRequisites = async (req, res, next) => {
     if (!curriculum) {
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
     }
-    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
-      defaultSortBy: 'id',
-      allowedSortBy: ['id']
-    });
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
+      req.query,
+      {
+        defaultSortBy: 'id',
+        allowedSortBy: ['id'],
+      },
+    );
 
     const where = {
       curriculumId: req.params.id,
       ...(search
         ? {
-          [Op.or]: [
-            { '$Course.code$': { [Op.iLike]: `%${search}%` } },
-            { '$Course.name$': { [Op.iLike]: `%${search}%` } },
-            { '$CoRequisiteCourse.code$': { [Op.iLike]: `%${search}%` } },
-            { '$CoRequisiteCourse.name$': { [Op.iLike]: `%${search}%` } }
-          ]
-        }
-        : {})
+            [Op.or]: [
+              { '$Course.code$': { [Op.iLike]: `%${search}%` } },
+              { '$Course.name$': { [Op.iLike]: `%${search}%` } },
+              { '$CoRequisiteCourse.code$': { [Op.iLike]: `%${search}%` } },
+              { '$CoRequisiteCourse.name$': { [Op.iLike]: `%${search}%` } },
+            ],
+          }
+        : {}),
     };
 
     const { rows, count } = await CoRequisite.findAndCountAll({
       where,
       include: [
         { model: Course, as: 'Course' },
-        { model: Course, as: 'CoRequisiteCourse' }
+        { model: Course, as: 'CoRequisiteCourse' },
       ],
-      order: [[sortBy, sortOrder], ['id', 'DESC']],
+      order: [
+        [sortBy, sortOrder],
+        ['id', 'DESC'],
+      ],
       offset,
       limit,
-      distinct: true
+      distinct: true,
     });
 
     const payload = buildPaginatedPayload({
       items: rows,
       page,
       pageSize,
-      totalItems: count
+      totalItems: count,
     });
 
     return res.status(200).json({ success: true, ...payload });
@@ -969,21 +1123,29 @@ exports.addEquivalency = async (req, res, next) => {
   try {
     const { courseId, equivalentCourseId, notes } = req.body;
     if (!courseId || !equivalentCourseId) {
-      return res.status(400).json({ success: false, message: 'courseId and equivalentCourseId are required' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'courseId and equivalentCourseId are required' });
     }
     if (String(courseId) === String(equivalentCourseId)) {
-      return res.status(400).json({ success: false, message: 'A course cannot be equivalent to itself' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'A course cannot be equivalent to itself' });
     }
     const existing = await CourseEquivalency.findOne({ where: { courseId, equivalentCourseId } });
     if (existing) {
       return res.status(409).json({ success: false, message: 'This equivalency already exists' });
     }
-    const equiv = await CourseEquivalency.create({ courseId, equivalentCourseId, notes: notes || null });
+    const equiv = await CourseEquivalency.create({
+      courseId,
+      equivalentCourseId,
+      notes: notes || null,
+    });
     const result = await CourseEquivalency.findByPk(equiv.id, {
       include: [
         { model: Course, as: 'Course' },
-        { model: Course, as: 'EquivalentCourse' }
-      ]
+        { model: Course, as: 'EquivalentCourse' },
+      ],
     });
     return res.status(201).json({ success: true, data: result });
   } catch (err) {
@@ -1012,40 +1174,46 @@ exports.removeEquivalency = async (req, res, next) => {
 // @access admin, adviser
 exports.getEquivalencies = async (req, res, next) => {
   try {
-    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
-      defaultSortBy: 'id',
-      allowedSortBy: ['id']
-    });
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
+      req.query,
+      {
+        defaultSortBy: 'id',
+        allowedSortBy: ['id'],
+      },
+    );
 
     const where = search
       ? {
-        [Op.or]: [
-          { '$Course.code$': { [Op.iLike]: `%${search}%` } },
-          { '$Course.name$': { [Op.iLike]: `%${search}%` } },
-          { '$EquivalentCourse.code$': { [Op.iLike]: `%${search}%` } },
-          { '$EquivalentCourse.name$': { [Op.iLike]: `%${search}%` } },
-          { notes: { [Op.iLike]: `%${search}%` } }
-        ]
-      }
+          [Op.or]: [
+            { '$Course.code$': { [Op.iLike]: `%${search}%` } },
+            { '$Course.name$': { [Op.iLike]: `%${search}%` } },
+            { '$EquivalentCourse.code$': { [Op.iLike]: `%${search}%` } },
+            { '$EquivalentCourse.name$': { [Op.iLike]: `%${search}%` } },
+            { notes: { [Op.iLike]: `%${search}%` } },
+          ],
+        }
       : {};
 
     const { rows, count } = await CourseEquivalency.findAndCountAll({
       where,
       include: [
         { model: Course, as: 'Course' },
-        { model: Course, as: 'EquivalentCourse' }
+        { model: Course, as: 'EquivalentCourse' },
       ],
-      order: [[sortBy, sortOrder], ['id', 'DESC']],
+      order: [
+        [sortBy, sortOrder],
+        ['id', 'DESC'],
+      ],
       offset,
       limit,
-      distinct: true
+      distinct: true,
     });
 
     const payload = buildPaginatedPayload({
       items: rows,
       page,
       pageSize,
-      totalItems: count
+      totalItems: count,
     });
 
     return res.status(200).json({ success: true, ...payload });
@@ -1072,7 +1240,7 @@ exports.createElectiveTrack = async (req, res, next) => {
     const track = await ElectiveTrack.create({
       curriculumId: req.params.id,
       name: name.trim(),
-      description: description || null
+      description: description || null,
     });
     return res.status(201).json({ success: true, data: track });
   } catch (err) {
@@ -1089,21 +1257,24 @@ exports.getElectiveTracks = async (req, res, next) => {
     if (!curriculum) {
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
     }
-    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
-      defaultSortBy: 'name',
-      allowedSortBy: ['name', 'id']
-    });
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
+      req.query,
+      {
+        defaultSortBy: 'name',
+        allowedSortBy: ['name', 'id'],
+      },
+    );
 
     const where = {
       curriculumId: req.params.id,
       ...(search
         ? {
-          [Op.or]: [
-            { name: { [Op.iLike]: `%${search}%` } },
-            { description: { [Op.iLike]: `%${search}%` } }
-          ]
-        }
-        : {})
+            [Op.or]: [
+              { name: { [Op.iLike]: `%${search}%` } },
+              { description: { [Op.iLike]: `%${search}%` } },
+            ],
+          }
+        : {}),
     };
 
     const { rows, count } = await ElectiveTrack.findAndCountAll({
@@ -1111,20 +1282,23 @@ exports.getElectiveTracks = async (req, res, next) => {
       include: [
         {
           model: ElectiveTrackCourse,
-          include: [{ model: Course }]
-        }
+          include: [{ model: Course }],
+        },
       ],
-      order: [[sortBy, sortOrder], ['id', 'DESC']],
+      order: [
+        [sortBy, sortOrder],
+        ['id', 'DESC'],
+      ],
       offset,
       limit,
-      distinct: true
+      distinct: true,
     });
 
     const payload = buildPaginatedPayload({
       items: rows,
       page,
       pageSize,
-      totalItems: count
+      totalItems: count,
     });
 
     return res.status(200).json({ success: true, ...payload });
@@ -1148,7 +1322,7 @@ exports.updateElectiveTrack = async (req, res, next) => {
     }
     await track.update({
       ...(name !== undefined && { name: name.trim() }),
-      ...(description !== undefined && { description })
+      ...(description !== undefined && { description }),
     });
     return res.status(200).json({ success: true, data: track });
   } catch (err) {
@@ -1190,16 +1364,18 @@ exports.addCourseToTrack = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Course not found' });
     }
     const existing = await ElectiveTrackCourse.findOne({
-      where: { electiveTrackId: req.params.id, courseId }
+      where: { electiveTrackId: req.params.id, courseId },
     });
     if (existing) {
-      return res.status(409).json({ success: false, message: 'Course is already in this elective track' });
+      return res
+        .status(409)
+        .json({ success: false, message: 'Course is already in this elective track' });
     }
     const etc = await ElectiveTrackCourse.create({
       electiveTrackId: req.params.id,
       courseId,
       yearLevel: yearLevel || null,
-      semester: semester || null
+      semester: semester || null,
     });
     const result = await ElectiveTrackCourse.findByPk(etc.id, { include: [{ model: Course }] });
     return res.status(201).json({ success: true, data: result });
@@ -1215,24 +1391,35 @@ exports.updateTrackCourse = async (req, res, next) => {
   try {
     const etc = await ElectiveTrackCourse.findByPk(req.params.etcId);
     if (!etc || String(etc.electiveTrackId) !== String(req.params.id)) {
-      return res.status(404).json({ success: false, message: 'Elective track course entry not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Elective track course entry not found' });
     }
 
     const rawYearLevel = req.body?.yearLevel;
     const rawSemester = req.body?.semester;
-    const yearLevel = rawYearLevel === '' || rawYearLevel === null || rawYearLevel === undefined
-      ? null
-      : Number(rawYearLevel);
-    const semester = rawSemester === '' || rawSemester === null || rawSemester === undefined
-      ? null
-      : Number(rawSemester);
+    const yearLevel =
+      rawYearLevel === '' || rawYearLevel === null || rawYearLevel === undefined
+        ? null
+        : Number(rawYearLevel);
+    const semester =
+      rawSemester === '' || rawSemester === null || rawSemester === undefined
+        ? null
+        : Number(rawSemester);
 
     if ((yearLevel === null) !== (semester === null)) {
-      return res.status(400).json({ success: false, message: 'yearLevel and semester must both be provided, or both be empty' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: 'yearLevel and semester must both be provided, or both be empty',
+        });
     }
 
     if (yearLevel !== null && (!Number.isInteger(yearLevel) || yearLevel < 1)) {
-      return res.status(400).json({ success: false, message: 'yearLevel must be a positive integer' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'yearLevel must be a positive integer' });
     }
 
     if (semester !== null && ![1, 2, 3].includes(semester)) {
@@ -1241,7 +1428,7 @@ exports.updateTrackCourse = async (req, res, next) => {
 
     await etc.update({
       yearLevel,
-      semester
+      semester,
     });
 
     const result = await ElectiveTrackCourse.findByPk(etc.id, { include: [{ model: Course }] });
@@ -1258,7 +1445,9 @@ exports.removeCourseFromTrack = async (req, res, next) => {
   try {
     const etc = await ElectiveTrackCourse.findByPk(req.params.etcId);
     if (!etc || String(etc.electiveTrackId) !== String(req.params.id)) {
-      return res.status(404).json({ success: false, message: 'Elective track course entry not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Elective track course entry not found' });
     }
     await etc.destroy();
     return res.status(204).send();
@@ -1284,34 +1473,51 @@ exports.exportCurriculumCsv = async (req, res, next) => {
       CurriculumCourse.findAll({
         where: { curriculumId },
         include: [{ model: Course }],
-        order: [['yearLevel', 'ASC'], ['semester', 'ASC'], ['id', 'ASC']]
+        order: [
+          ['yearLevel', 'ASC'],
+          ['semester', 'ASC'],
+          ['id', 'ASC'],
+        ],
       }),
       Prerequisite.findAll({
         where: { curriculumId },
-        include: [{ model: Course, as: 'Course' }, { model: Course, as: 'PrerequisiteCourse' }],
-        order: [['id', 'ASC']]
+        include: [
+          { model: Course, as: 'Course' },
+          { model: Course, as: 'PrerequisiteCourse' },
+        ],
+        order: [['id', 'ASC']],
       }),
       CoRequisite.findAll({
         where: { curriculumId },
-        include: [{ model: Course, as: 'Course' }, { model: Course, as: 'CoRequisiteCourse' }],
-        order: [['id', 'ASC']]
+        include: [
+          { model: Course, as: 'Course' },
+          { model: Course, as: 'CoRequisiteCourse' },
+        ],
+        order: [['id', 'ASC']],
       }),
       ElectiveTrack.findAll({
         where: { curriculumId },
-        include: [{
-          model: ElectiveTrackCourse,
-          include: [{ model: Course }],
-          required: false
-        }],
-        order: [['name', 'ASC']]
+        include: [
+          {
+            model: ElectiveTrackCourse,
+            include: [{ model: Course }],
+            required: false,
+          },
+        ],
+        order: [['name', 'ASC']],
       }),
       CourseEquivalency.findAll({
-        include: [{ model: Course, as: 'Course' }, { model: Course, as: 'EquivalentCourse' }],
-        order: [['id', 'ASC']]
-      })
+        include: [
+          { model: Course, as: 'Course' },
+          { model: Course, as: 'EquivalentCourse' },
+        ],
+        order: [['id', 'ASC']],
+      }),
     ]);
 
-    const curriculumCourseCodes = new Set(structureRows.map((row) => row.Course?.code).filter(Boolean));
+    const curriculumCourseCodes = new Set(
+      structureRows.map((row) => row.Course?.code).filter(Boolean),
+    );
     const relevantEquivalencies = equivalencies.filter((row) => {
       const left = row.Course?.code;
       const right = row.EquivalentCourse?.code;
@@ -1332,7 +1538,7 @@ exports.exportCurriculumCsv = async (req, res, next) => {
         isElective: '',
         relatedCourseCode: '',
         trackName: '',
-        notes: `generatedAt=${Date.now()}`
+        notes: `generatedAt=${Date.now()}`,
       },
       ...structureRows.map((row) => ({
         exportVersion: '1',
@@ -1347,7 +1553,7 @@ exports.exportCurriculumCsv = async (req, res, next) => {
         isElective: row.isElective ? 'true' : 'false',
         relatedCourseCode: '',
         trackName: '',
-        notes: ''
+        notes: '',
       })),
       ...prereqRows.map((row) => ({
         exportVersion: '1',
@@ -1362,7 +1568,7 @@ exports.exportCurriculumCsv = async (req, res, next) => {
         isElective: '',
         relatedCourseCode: row.PrerequisiteCourse?.code || '',
         trackName: '',
-        notes: ''
+        notes: '',
       })),
       ...coreqRows.map((row) => ({
         exportVersion: '1',
@@ -1377,7 +1583,7 @@ exports.exportCurriculumCsv = async (req, res, next) => {
         isElective: '',
         relatedCourseCode: row.CoRequisiteCourse?.code || '',
         trackName: '',
-        notes: ''
+        notes: '',
       })),
       ...trackRows.flatMap((track) => {
         const trackHeaderRow = {
@@ -1393,7 +1599,7 @@ exports.exportCurriculumCsv = async (req, res, next) => {
           isElective: '',
           relatedCourseCode: '',
           trackName: track.name,
-          notes: track.description || ''
+          notes: track.description || '',
         };
 
         const trackCourseRows = (track.ElectiveTrackCourses || []).map((entry) => ({
@@ -1409,7 +1615,7 @@ exports.exportCurriculumCsv = async (req, res, next) => {
           isElective: '',
           relatedCourseCode: '',
           trackName: track.name,
-          notes: ''
+          notes: '',
         }));
 
         return [trackHeaderRow, ...trackCourseRows];
@@ -1427,13 +1633,15 @@ exports.exportCurriculumCsv = async (req, res, next) => {
         isElective: '',
         relatedCourseCode: row.EquivalentCourse?.code || '',
         trackName: '',
-        notes: row.notes || ''
-      }))
+        notes: row.notes || '',
+      })),
     ];
 
     const csv = serializeCsv(rows);
     const timestamp = new Date().toISOString().slice(0, 10);
-    const safeName = String(curriculum.name || 'curriculum').replace(/[^a-zA-Z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const safeName = String(curriculum.name || 'curriculum')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
     const fileName = `${safeName || 'curriculum'}-${curriculumId}-${timestamp}.csv`;
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -1447,8 +1655,10 @@ exports.exportCurriculumCsv = async (req, res, next) => {
 const parseImportRowsFromRequest = (req, curriculumId) => {
   if (!req.file || !req.file.buffer) {
     return {
-      errors: [{ rowNumber: 0, message: 'CSV file is required. Upload with form-data field name "file".' }],
-      normalizedRows: []
+      errors: [
+        { rowNumber: 0, message: 'CSV file is required. Upload with form-data field name "file".' },
+      ],
+      normalizedRows: [],
     };
   }
 
@@ -1479,8 +1689,8 @@ exports.previewCurriculumImportCsv = async (req, res, next) => {
         curriculumName: curriculum.name,
         summary,
         hasErrors: errors.length > 0,
-        rowErrors: errors
-      }
+        rowErrors: errors,
+      },
     });
   } catch (err) {
     next(err);
@@ -1511,8 +1721,8 @@ exports.applyCurriculumImportCsv = async (req, res, next) => {
           dryRun: false,
           hasErrors: true,
           rowErrors: errors,
-          summary: summarizeRows(normalizedRows)
-        }
+          summary: summarizeRows(normalizedRows),
+        },
       });
     }
 
@@ -1521,10 +1731,18 @@ exports.applyCurriculumImportCsv = async (req, res, next) => {
     const unresolvedCourseErrors = [];
     normalizedRows.forEach((row) => {
       if (row.courseCode && !courseByCode.has(row.courseCode)) {
-        unresolvedCourseErrors.push({ rowNumber: row.rowNumber, rowType: row.rowType, message: `Unknown courseCode: ${row.courseCode}` });
+        unresolvedCourseErrors.push({
+          rowNumber: row.rowNumber,
+          rowType: row.rowType,
+          message: `Unknown courseCode: ${row.courseCode}`,
+        });
       }
       if (row.relatedCourseCode && !courseByCode.has(row.relatedCourseCode)) {
-        unresolvedCourseErrors.push({ rowNumber: row.rowNumber, rowType: row.rowType, message: `Unknown relatedCourseCode: ${row.relatedCourseCode}` });
+        unresolvedCourseErrors.push({
+          rowNumber: row.rowNumber,
+          rowType: row.rowType,
+          message: `Unknown relatedCourseCode: ${row.relatedCourseCode}`,
+        });
       }
     });
 
@@ -1537,8 +1755,8 @@ exports.applyCurriculumImportCsv = async (req, res, next) => {
           dryRun: false,
           hasErrors: true,
           rowErrors: unresolvedCourseErrors,
-          summary: summarizeRows(normalizedRows)
-        }
+          summary: summarizeRows(normalizedRows),
+        },
       });
     }
 
@@ -1556,49 +1774,66 @@ exports.applyCurriculumImportCsv = async (req, res, next) => {
         courseId: courseByCode.get(row.courseCode).id,
         yearLevel: row.yearLevel,
         semester: row.semester,
-        isElective: row.isElective
+        isElective: row.isElective,
       }));
       await CurriculumCourse.bulkCreate(structurePayload, { transaction: tx });
     }
 
     await Prerequisite.destroy({ where: { curriculumId }, transaction: tx });
     if (prereqRows.length > 0) {
-      await Prerequisite.bulkCreate(prereqRows.map((row) => ({
-        curriculumId,
-        courseId: courseByCode.get(row.courseCode).id,
-        prerequisiteCourseId: courseByCode.get(row.relatedCourseCode).id
-      })), { transaction: tx });
+      await Prerequisite.bulkCreate(
+        prereqRows.map((row) => ({
+          curriculumId,
+          courseId: courseByCode.get(row.courseCode).id,
+          prerequisiteCourseId: courseByCode.get(row.relatedCourseCode).id,
+        })),
+        { transaction: tx },
+      );
     }
 
     await CoRequisite.destroy({ where: { curriculumId }, transaction: tx });
     if (coreqRows.length > 0) {
-      await CoRequisite.bulkCreate(coreqRows.map((row) => ({
-        curriculumId,
-        courseId: courseByCode.get(row.courseCode).id,
-        coRequisiteCourseId: courseByCode.get(row.relatedCourseCode).id
-      })), { transaction: tx });
+      await CoRequisite.bulkCreate(
+        coreqRows.map((row) => ({
+          curriculumId,
+          courseId: courseByCode.get(row.courseCode).id,
+          coRequisiteCourseId: courseByCode.get(row.relatedCourseCode).id,
+        })),
+        { transaction: tx },
+      );
     }
 
-    const existingTracks = await ElectiveTrack.findAll({ where: { curriculumId }, transaction: tx });
+    const existingTracks = await ElectiveTrack.findAll({
+      where: { curriculumId },
+      transaction: tx,
+    });
     const existingTrackIds = existingTracks.map((track) => track.id);
     if (existingTrackIds.length > 0) {
-      await ElectiveTrackCourse.destroy({ where: { electiveTrackId: { [Op.in]: existingTrackIds } }, transaction: tx });
+      await ElectiveTrackCourse.destroy({
+        where: { electiveTrackId: { [Op.in]: existingTrackIds } },
+        transaction: tx,
+      });
     }
     await ElectiveTrack.destroy({ where: { curriculumId }, transaction: tx });
 
     const trackByName = new Map();
-    const trackNames = new Set([
-      ...trackHeaderRows.map((row) => row.trackName),
-      ...trackCourseRows.map((row) => row.trackName)
-    ].filter(Boolean));
+    const trackNames = new Set(
+      [
+        ...trackHeaderRows.map((row) => row.trackName),
+        ...trackCourseRows.map((row) => row.trackName),
+      ].filter(Boolean),
+    );
 
     for (const name of trackNames) {
       const fromHeader = trackHeaderRows.find((row) => row.trackName === name);
-      const createdTrack = await ElectiveTrack.create({
-        curriculumId,
-        name,
-        description: fromHeader?.notes || null
-      }, { transaction: tx });
+      const createdTrack = await ElectiveTrack.create(
+        {
+          curriculumId,
+          name,
+          description: fromHeader?.notes || null,
+        },
+        { transaction: tx },
+      );
       trackByName.set(name, createdTrack);
     }
 
@@ -1615,18 +1850,21 @@ exports.applyCurriculumImportCsv = async (req, res, next) => {
             rowErrors: missingTrackRows.map((row) => ({
               rowNumber: row.rowNumber,
               rowType: row.rowType,
-              message: `Unknown trackName: ${row.trackName}`
-            }))
-          }
+              message: `Unknown trackName: ${row.trackName}`,
+            })),
+          },
         });
       }
 
-      await ElectiveTrackCourse.bulkCreate(trackCourseRows.map((row) => ({
-        electiveTrackId: trackByName.get(row.trackName).id,
-        courseId: courseByCode.get(row.courseCode).id,
-        yearLevel: row.yearLevel,
-        semester: row.semester
-      })), { transaction: tx });
+      await ElectiveTrackCourse.bulkCreate(
+        trackCourseRows.map((row) => ({
+          electiveTrackId: trackByName.get(row.trackName).id,
+          courseId: courseByCode.get(row.courseCode).id,
+          yearLevel: row.yearLevel,
+          semester: row.semester,
+        })),
+        { transaction: tx },
+      );
     }
 
     for (const row of equivRows) {
@@ -1635,7 +1873,7 @@ exports.applyCurriculumImportCsv = async (req, res, next) => {
       const [record] = await CourseEquivalency.findOrCreate({
         where: { courseId, equivalentCourseId },
         defaults: { notes: row.notes || null },
-        transaction: tx
+        transaction: tx,
       });
 
       if (row.notes && record.notes !== row.notes) {
@@ -1645,13 +1883,10 @@ exports.applyCurriculumImportCsv = async (req, res, next) => {
 
     await tx.commit();
 
-    console.log('[curriculumImport]', {
-      action: 'apply',
-      curriculumId,
-      curriculumName: curriculum.name,
-      importedBy: req.user?.id,
-      summary: summarizeRows(normalizedRows)
-    });
+    logger.info(
+      { action: 'apply', curriculumId, curriculumName: curriculum.name, importedBy: req.user?.id },
+      '[curriculumImport] applied',
+    );
 
     return res.status(200).json({
       success: true,
@@ -1660,9 +1895,9 @@ exports.applyCurriculumImportCsv = async (req, res, next) => {
         curriculumName: curriculum.name,
         summary: summarizeRows(normalizedRows),
         hasErrors: false,
-        rowErrors: []
+        rowErrors: [],
       },
-      message: 'Curriculum CSV import applied successfully.'
+      message: 'Curriculum CSV import applied successfully.',
     });
   } catch (err) {
     await tx.rollback();

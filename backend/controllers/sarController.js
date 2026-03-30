@@ -13,13 +13,16 @@ const {
   Course,
   ElectiveTrack,
   ElectiveTrackCourse,
-  User
+  User,
 } = require('../models');
 const { syncSarToProfile } = require('../utils/sarLinking');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
 const { computeSarAnalytics } = require('../utils/sarAnalytics');
 const { buildElectiveTrackPlan } = require('../utils/studyPlan');
-const { uploadProfilePicture: uploadProfilePictureAsset, deleteProfilePictureAsset } = require('../utils/profileStorage');
+const {
+  uploadProfilePicture: uploadProfilePictureAsset,
+  deleteProfilePictureAsset,
+} = require('../utils/profileStorage');
 const { validateUploadedImageFile } = require('../utils/imageValidation');
 const SARService = require('../services/SARService');
 const NotificationService = require('../services/NotificationService');
@@ -53,7 +56,7 @@ const personAttributes = [
   'emergency_contact_name',
   'emergency_contact_relationship',
   'emergency_contact_number',
-  'profile_updated_at'
+  'profile_updated_at',
 ];
 const curriculumAttributes = ['id', 'name', 'description', 'isActive'];
 const electiveTrackAttributes = ['id', 'name', 'description'];
@@ -62,14 +65,17 @@ const ALLOWED_STUDENT_TYPES = ['regular', 'irregular', 'transferee', 'ladderized
 const MAX_PROFILE_IMAGE_WIDTH = 2000;
 const MAX_PROFILE_IMAGE_HEIGHT = 2000;
 
-const buildSarIncludes = () => ([
+const buildSarIncludes = () => [
   { model: Curriculum, attributes: curriculumAttributes },
   { model: ElectiveTrack, attributes: electiveTrackAttributes },
   { model: User, as: 'Student', attributes: personAttributes },
-  { model: User, as: 'CreatedByAdviser', attributes: personAttributes }
-]);
+  { model: User, as: 'CreatedByAdviser', attributes: personAttributes },
+];
 
-const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+const normalizeEmail = (email) =>
+  String(email || '')
+    .trim()
+    .toLowerCase();
 
 const parseYearLevel = (value) => Number(value);
 
@@ -144,7 +150,7 @@ const serializeSar = (sar) => {
   return {
     ...plainSar,
     isLinkedToAccount,
-    linkStatus: isLinkedToAccount ? 'linked' : 'unlinked'
+    linkStatus: isLinkedToAccount ? 'linked' : 'unlinked',
   };
 };
 
@@ -176,12 +182,10 @@ const resolveMatchedStudent = async ({ email, studentNumber }) => {
   const normalizedStudentNumber = String(studentNumber || '').trim();
 
   const [matchedByEmail, matchedByStudentNumber] = await Promise.all([
-    normalizedEmail
-      ? User.findOne({ where: { email: normalizedEmail, role: 'student' } })
-      : null,
+    normalizedEmail ? User.findOne({ where: { email: normalizedEmail, role: 'student' } }) : null,
     normalizedStudentNumber
       ? User.findOne({ where: { studentId: normalizedStudentNumber, role: 'student' } })
-      : null
+      : null,
   ]);
 
   if (
@@ -189,7 +193,9 @@ const resolveMatchedStudent = async ({ email, studentNumber }) => {
     matchedByStudentNumber &&
     String(matchedByEmail.id) !== String(matchedByStudentNumber.id)
   ) {
-    const error = new Error('Student email and student number match different existing student accounts');
+    const error = new Error(
+      'Student email and student number match different existing student accounts',
+    );
     error.statusCode = 409;
     throw error;
   }
@@ -201,21 +207,21 @@ const serializeStudyPlanVersion = (version) => {
   const plainVersion = version.get ? version.get({ plain: true }) : version;
   const studyPlanCourses = Array.isArray(plainVersion.StudyPlanCourses)
     ? [...plainVersion.StudyPlanCourses].sort((left, right) => {
-      if (left.yearLevel !== right.yearLevel) {
-        return Number(left.yearLevel || 0) - Number(right.yearLevel || 0);
-      }
+        if (left.yearLevel !== right.yearLevel) {
+          return Number(left.yearLevel || 0) - Number(right.yearLevel || 0);
+        }
 
-      if (left.semester !== right.semester) {
-        return Number(left.semester || 0) - Number(right.semester || 0);
-      }
+        if (left.semester !== right.semester) {
+          return Number(left.semester || 0) - Number(right.semester || 0);
+        }
 
-      return String(left.Course?.code || '').localeCompare(String(right.Course?.code || ''));
-    })
+        return String(left.Course?.code || '').localeCompare(String(right.Course?.code || ''));
+      })
     : [];
 
   return {
     ...plainVersion,
-    StudyPlanCourses: studyPlanCourses
+    StudyPlanCourses: studyPlanCourses,
   };
 };
 
@@ -227,10 +233,13 @@ const fetchStudyPlanVersionsForStudyPlan = async (studyPlanId) => {
       { model: User, as: 'ValidatedByAdviser', attributes: personAttributes },
       {
         model: StudyPlanCourse,
-        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-      }
+        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+      },
     ],
-    order: [['versionNumber', 'DESC'], ['createdAt', 'DESC']]
+    order: [
+      ['versionNumber', 'DESC'],
+      ['createdAt', 'DESC'],
+    ],
   });
 
   return versions.map(serializeStudyPlanVersion);
@@ -249,44 +258,59 @@ exports.createSAR = async (req, res, next) => {
     if (!studentName || !studentNumber || !email || !req.body.yearLevel) {
       return res.status(400).json({
         success: false,
-        message: 'studentName, studentNumber, email, and yearLevel are required'
+        message: 'studentName, studentNumber, email, and yearLevel are required',
       });
     }
 
     if (!tipEmailPattern.test(email)) {
-      return res.status(400).json({ success: false, message: 'Student email must end in @tip.edu.ph' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Student email must end in @tip.edu.ph' });
     }
 
     if (!isValidYearLevel(yearLevel)) {
-      return res.status(400).json({ success: false, message: 'yearLevel must be an integer from 1 to 4' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'yearLevel must be an integer from 1 to 4' });
     }
 
     const curriculum = await getAssignedCurriculum(req.body.curriculumId);
     if (!curriculum) {
       return res.status(400).json({
         success: false,
-        message: 'No curriculum was provided and there is no active curriculum to use as default'
+        message: 'No curriculum was provided and there is no active curriculum to use as default',
       });
     }
 
     const [existingStudentNumber, existingEmail, matchedStudent] = await Promise.all([
       StudentAcademicRecord.findOne({ where: { studentNumber } }),
       StudentAcademicRecord.findOne({ where: { email } }),
-      resolveMatchedStudent({ email, studentNumber })
+      resolveMatchedStudent({ email, studentNumber }),
     ]);
 
     if (existingStudentNumber) {
-      return res.status(409).json({ success: false, message: 'A student academic record already exists for that student number' });
+      return res.status(409).json({
+        success: false,
+        message: 'A student academic record already exists for that student number',
+      });
     }
 
     if (existingEmail) {
-      return res.status(409).json({ success: false, message: 'A student academic record already exists for that email address' });
+      return res.status(409).json({
+        success: false,
+        message: 'A student academic record already exists for that email address',
+      });
     }
 
     if (matchedStudent) {
-      const existingStudentSar = await StudentAcademicRecord.findOne({ where: { userId: matchedStudent.id } });
+      const existingStudentSar = await StudentAcademicRecord.findOne({
+        where: { userId: matchedStudent.id },
+      });
       if (existingStudentSar) {
-        return res.status(409).json({ success: false, message: 'This student account is already linked to another academic record' });
+        return res.status(409).json({
+          success: false,
+          message: 'This student account is already linked to another academic record',
+        });
       }
     }
 
@@ -299,11 +323,11 @@ exports.createSAR = async (req, res, next) => {
       yearLevel,
       createdByAdviserId: req.user.id,
       createdAt: Date.now(),
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
     });
 
     const createdSar = await StudentAcademicRecord.findByPk(sar.id, {
-      include: buildSarIncludes()
+      include: buildSarIncludes(),
     });
 
     // SAR → Profile sync: mirror identity fields to linked student profile
@@ -320,7 +344,7 @@ exports.createSAR = async (req, res, next) => {
       action: 'SAR_CREATE',
       resource: 'sar',
       resourceId: createdSar.id,
-      meta: { studentNumber: createdSar.studentNumber, email: createdSar.email }
+      meta: { studentNumber: createdSar.studentNumber, email: createdSar.email },
     });
 
     // Notify the student that their academic record was created
@@ -330,12 +354,163 @@ exports.createSAR = async (req, res, next) => {
         actorId: req.user.id,
         category: 'sar_created',
         resourceType: 'sar',
-        resourceId: createdSar.id
+        resourceId: createdSar.id,
       });
     }
 
     return res.status(201).json({ success: true, data: serializeSar(createdSar) });
   } catch (error) {
+    next(error);
+  }
+};
+
+// @desc   Bulk create student academic records from array
+// @route  POST /api/sars/bulk-create
+// @access adviser, admin
+exports.bulkCreateSARs = async (req, res, next) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { records } = req.body;
+
+    if (!Array.isArray(records) || records.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'records must be a non-empty array' });
+    }
+
+    if (records.length > 100) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot create more than 100 records in a single request',
+      });
+    }
+
+    const errors = [];
+    const created = [];
+
+    for (let i = 0; i < records.length; i++) {
+      const item = records[i];
+      const lineNum = i + 1;
+
+      const studentName = String(item.studentName || '').trim();
+      const studentNumber = String(item.studentNumber || '').trim();
+      const email = normalizeEmail(item.email);
+      const yearLevel = parseYearLevel(item.yearLevel);
+
+      if (!studentName || !studentNumber || !email || !item.yearLevel) {
+        errors.push({
+          line: lineNum,
+          message: 'studentName, studentNumber, email, and yearLevel are required',
+        });
+        continue;
+      }
+
+      if (!tipEmailPattern.test(email)) {
+        errors.push({
+          line: lineNum,
+          studentNumber,
+          message: 'Student email must end in @tip.edu.ph',
+        });
+        continue;
+      }
+
+      if (!isValidYearLevel(yearLevel)) {
+        errors.push({
+          line: lineNum,
+          studentNumber,
+          message: 'yearLevel must be an integer from 1 to 5',
+        });
+        continue;
+      }
+
+      const existingByNumber = await StudentAcademicRecord.findOne({
+        where: { studentNumber },
+        transaction,
+      });
+      if (existingByNumber) {
+        errors.push({
+          line: lineNum,
+          studentNumber,
+          message: 'A record already exists for this student number',
+        });
+        continue;
+      }
+
+      const existingByEmail = await StudentAcademicRecord.findOne({
+        where: { email },
+        transaction,
+      });
+      if (existingByEmail) {
+        errors.push({
+          line: lineNum,
+          studentNumber,
+          message: 'A record already exists for this email',
+        });
+        continue;
+      }
+
+      const curriculum = await getAssignedCurriculum(item.curriculumId);
+      if (!curriculum) {
+        errors.push({
+          line: lineNum,
+          studentNumber,
+          message: 'No curriculum provided and no active curriculum available',
+        });
+        continue;
+      }
+
+      let matchedStudent = null;
+      try {
+        matchedStudent = await resolveMatchedStudent({ email, studentNumber });
+      } catch (matchErr) {
+        errors.push({ line: lineNum, studentNumber, message: matchErr.message });
+        continue;
+      }
+
+      const sar = await StudentAcademicRecord.create(
+        {
+          userId: matchedStudent?.id || null,
+          curriculumId: curriculum.id,
+          studentName,
+          studentNumber,
+          email,
+          yearLevel,
+          createdByAdviserId: req.user.id,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        { transaction },
+      );
+
+      created.push({ id: sar.id, studentNumber, studentName, email });
+    }
+
+    if (created.length === 0) {
+      await transaction.rollback();
+      return res
+        .status(400)
+        .json({ success: false, message: 'All records failed validation', errors });
+    }
+
+    await transaction.commit();
+
+    audit.log({
+      userId: req.user.id,
+      action: 'SAR_BULK_CREATE',
+      resource: 'sar',
+      meta: { created: created.length, failed: errors.length },
+    });
+
+    return res.status(201).json({
+      success: true,
+      created: created.length,
+      failed: errors.length,
+      data: created,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (error) {
+    await transaction.rollback();
     next(error);
   }
 };
@@ -347,9 +522,12 @@ exports.getSARs = async (req, res, next) => {
   try {
     const paginationParams = parsePaginationParams(req.query, {
       defaultSortBy: 'studentName',
-      allowedSortBy: ['studentName', 'studentNumber', 'email', 'yearLevel', 'createdAt']
+      allowedSortBy: ['studentName', 'studentNumber', 'email', 'yearLevel', 'createdAt'],
     });
-    const { items, count, page, pageSize } = await SARService.listSARs({ user: req.user, paginationParams });
+    const { items, count, page, pageSize } = await SARService.listSARs({
+      user: req.user,
+      paginationParams,
+    });
     const payload = buildPaginatedPayload({ items, page, pageSize, totalItems: count });
     return res.status(200).json({ success: true, ...payload });
   } catch (error) {
@@ -392,7 +570,9 @@ exports.updateSARElectiveTrack = async (req, res, next) => {
 
     const trackId = Number(electiveTrackId);
     if (!Number.isInteger(trackId) || trackId <= 0) {
-      return res.status(400).json({ success: false, message: 'electiveTrackId must be a positive integer' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'electiveTrackId must be a positive integer' });
     }
 
     const track = await ElectiveTrack.findByPk(trackId);
@@ -403,7 +583,7 @@ exports.updateSARElectiveTrack = async (req, res, next) => {
     await sar.update({ electiveTrackId: track.id, updatedAt: Date.now() });
 
     const updatedSar = await StudentAcademicRecord.findByPk(sar.id, {
-      include: buildSarIncludes()
+      include: buildSarIncludes(),
     });
 
     return res.status(200).json({ success: true, data: serializeSar(updatedSar) });
@@ -428,16 +608,23 @@ exports.updateSAR = async (req, res, next) => {
     // Build SAR-level field updates (studentName, studentNumber, yearLevel, curriculumId)
     const { updates, error: sarFieldError } = await SARService.buildSARFieldUpdates(req.body, sar);
     if (sarFieldError) {
-      return res.status(sarFieldError.status).json({ success: false, message: sarFieldError.message });
+      return res
+        .status(sarFieldError.status)
+        .json({ success: false, message: sarFieldError.message });
     }
 
     // Build student profile updates from studentProfile body field
-    const { profileUpdates, error: profileError } = SARService.buildSARProfileUpdates(req.body.studentProfile);
+    const { profileUpdates, error: profileError } = SARService.buildSARProfileUpdates(
+      req.body.studentProfile,
+    );
     if (profileError) {
-      return res.status(profileError.status).json({ success: false, message: profileError.message });
+      return res
+        .status(profileError.status)
+        .json({ success: false, message: profileError.message });
     }
 
-    const removeProfilePicture = String(req.body.remove_profile_picture || '').toLowerCase() === 'true';
+    const removeProfilePicture =
+      String(req.body.remove_profile_picture || '').toLowerCase() === 'true';
 
     if (
       Object.keys(updates).length === 0 &&
@@ -445,7 +632,9 @@ exports.updateSAR = async (req, res, next) => {
       !req.file &&
       !removeProfilePicture
     ) {
-      return res.status(400).json({ success: false, message: 'No valid SAR fields were provided for update' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'No valid SAR fields were provided for update' });
     }
 
     // Handle profile picture / linked student updates
@@ -454,13 +643,16 @@ exports.updateSAR = async (req, res, next) => {
       if (!sar.userId) {
         return res.status(400).json({
           success: false,
-          message: 'Cannot update profile details because this SAR is not linked to a student account'
+          message:
+            'Cannot update profile details because this SAR is not linked to a student account',
         });
       }
 
       linkedStudent = await User.findByPk(sar.userId);
       if (!linkedStudent) {
-        return res.status(404).json({ success: false, message: 'Linked student account not found' });
+        return res
+          .status(404)
+          .json({ success: false, message: 'Linked student account not found' });
       }
 
       if (req.file) {
@@ -473,10 +665,15 @@ exports.updateSAR = async (req, res, next) => {
         const width = Number(dimensions?.width || 0);
         const height = Number(dimensions?.height || 0);
 
-        if (!width || !height || width > MAX_PROFILE_IMAGE_WIDTH || height > MAX_PROFILE_IMAGE_HEIGHT) {
+        if (
+          !width ||
+          !height ||
+          width > MAX_PROFILE_IMAGE_WIDTH ||
+          height > MAX_PROFILE_IMAGE_HEIGHT
+        ) {
           return res.status(400).json({
             success: false,
-            message: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.'
+            message: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.',
           });
         }
 
@@ -506,11 +703,12 @@ exports.updateSAR = async (req, res, next) => {
     }
 
     const updatedSar = await StudentAcademicRecord.findByPk(sar.id, {
-      include: buildSarIncludes()
+      include: buildSarIncludes(),
     });
 
     // SAR → Profile sync: mirror identity field changes to linked student profile
-    const identityChanged = updates.studentName !== undefined || updates.studentNumber !== undefined;
+    const identityChanged =
+      updates.studentName !== undefined || updates.studentNumber !== undefined;
     if (identityChanged && updatedSar.userId) {
       try {
         await syncSarToProfile(updatedSar.get({ plain: true }));
@@ -524,7 +722,7 @@ exports.updateSAR = async (req, res, next) => {
       action: 'SAR_UPDATE',
       resource: 'sar',
       resourceId: updatedSar.id,
-      meta: { changedFields: Object.keys(updates) }
+      meta: { changedFields: Object.keys(updates) },
     });
 
     return res.status(200).json({ success: true, data: serializeSar(updatedSar) });
@@ -542,7 +740,7 @@ exports.generateInitialStudyPlan = async (req, res, next) => {
   try {
     const sar = await StudentAcademicRecord.findByPk(req.params.id, {
       transaction,
-      lock: transaction.LOCK.UPDATE
+      lock: transaction.LOCK.UPDATE,
     });
 
     if (!sar) {
@@ -553,47 +751,63 @@ exports.generateInitialStudyPlan = async (req, res, next) => {
     const existingStudyPlan = await StudyPlan.findOne({
       where: { studentAcademicRecordId: sar.id },
       transaction,
-      lock: transaction.LOCK.UPDATE
+      lock: transaction.LOCK.UPDATE,
     });
 
     if (existingStudyPlan) {
       await transaction.rollback();
-      return res.status(409).json({ success: false, message: 'Initial study plan has already been generated for this student' });
+      return res.status(409).json({
+        success: false,
+        message: 'Initial study plan has already been generated for this student',
+      });
     }
 
     const [curriculumCourses, selectedTrackCourses, curriculumTrackCourses] = await Promise.all([
       CurriculumCourse.findAll({
         where: { curriculumId: sar.curriculumId },
         include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
-        order: [['yearLevel', 'ASC'], ['semester', 'ASC'], [Course, 'code', 'ASC']],
-        transaction
+        order: [
+          ['yearLevel', 'ASC'],
+          ['semester', 'ASC'],
+          [Course, 'code', 'ASC'],
+        ],
+        transaction,
       }),
       sar.electiveTrackId
         ? ElectiveTrackCourse.findAll({
-          where: { electiveTrackId: sar.electiveTrackId },
-          include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
-          transaction
-        })
+            where: { electiveTrackId: sar.electiveTrackId },
+            include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+            transaction,
+          })
         : [],
       ElectiveTrackCourse.findAll({
-        include: [{
-          model: ElectiveTrack,
-          attributes: ['id', 'curriculumId'],
-          where: { curriculumId: sar.curriculumId }
-        }],
-        transaction
-      })
+        include: [
+          {
+            model: ElectiveTrack,
+            attributes: ['id', 'curriculumId'],
+            where: { curriculumId: sar.curriculumId },
+          },
+        ],
+        transaction,
+      }),
     ]);
 
     if (curriculumCourses.length === 0) {
       await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'The assigned curriculum has no courses to generate a study plan from' });
+      return res.status(400).json({
+        success: false,
+        message: 'The assigned curriculum has no courses to generate a study plan from',
+      });
     }
 
     const selectedTrackPlan = buildElectiveTrackPlan(selectedTrackCourses || []);
-    const selectedTrackPlanByCourseId = new Map(selectedTrackPlan.map((item) => [String(item.courseId), item]));
+    const selectedTrackPlanByCourseId = new Map(
+      selectedTrackPlan.map((item) => [String(item.courseId), item]),
+    );
     const selectedTrackCourseIds = new Set(selectedTrackPlan.map((item) => String(item.courseId)));
-    const curriculumTrackCourseIds = new Set((curriculumTrackCourses || []).map((item) => String(item.courseId)));
+    const curriculumTrackCourseIds = new Set(
+      (curriculumTrackCourses || []).map((item) => String(item.courseId)),
+    );
     const generatedRows = [];
     const includedCourseIds = new Set();
 
@@ -607,7 +821,7 @@ exports.generateInitialStudyPlan = async (req, res, next) => {
       generatedRows.push({
         courseId: curriculumCourse.courseId,
         yearLevel: selectedTrackPlacement?.yearLevel || curriculumCourse.yearLevel,
-        semester: selectedTrackPlacement?.semester || curriculumCourse.semester
+        semester: selectedTrackPlacement?.semester || curriculumCourse.semester,
       });
       includedCourseIds.add(courseId);
     });
@@ -621,30 +835,39 @@ exports.generateInitialStudyPlan = async (req, res, next) => {
       generatedRows.push({
         courseId: item.courseId,
         yearLevel: item.yearLevel,
-        semester: item.semester
+        semester: item.semester,
       });
     });
 
-    generatedRows.sort((left, right) => left.yearLevel - right.yearLevel
-      || left.semester - right.semester
-      || left.courseId - right.courseId);
+    generatedRows.sort(
+      (left, right) =>
+        left.yearLevel - right.yearLevel ||
+        left.semester - right.semester ||
+        left.courseId - right.courseId,
+    );
 
     const now = Date.now();
 
-    const studyPlan = await StudyPlan.create({
-      studentAcademicRecordId: sar.id,
-      createdAt: now,
-      updatedAt: now
-    }, { transaction });
+    const studyPlan = await StudyPlan.create(
+      {
+        studentAcademicRecordId: sar.id,
+        createdAt: now,
+        updatedAt: now,
+      },
+      { transaction },
+    );
 
-    const version = await StudyPlanVersion.create({
-      studyPlanId: studyPlan.id,
-      versionNumber: 1,
-      status: 'draft',
-      generatedByAdviserId: req.user.id,
-      createdAt: now,
-      updatedAt: now
-    }, { transaction });
+    const version = await StudyPlanVersion.create(
+      {
+        studyPlanId: studyPlan.id,
+        versionNumber: 1,
+        status: 'draft',
+        generatedByAdviserId: req.user.id,
+        createdAt: now,
+        updatedAt: now,
+      },
+      { transaction },
+    );
 
     await StudyPlanCourse.bulkCreate(
       generatedRows.map((curriculumCourse) => ({
@@ -655,9 +878,9 @@ exports.generateInitialStudyPlan = async (req, res, next) => {
         grade: null,
         status: 'pending',
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       })),
-      { transaction }
+      { transaction },
     );
 
     await transaction.commit();
@@ -667,14 +890,14 @@ exports.generateInitialStudyPlan = async (req, res, next) => {
         { model: User, as: 'GeneratedByAdviser', attributes: personAttributes },
         {
           model: StudyPlanCourse,
-          include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-        }
-      ]
+          include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+        },
+      ],
     });
 
     return res.status(201).json({
       success: true,
-      data: serializeStudyPlanVersion(createdVersion)
+      data: serializeStudyPlanVersion(createdVersion),
     });
   } catch (error) {
     await transaction.rollback();
@@ -689,11 +912,16 @@ exports.getStudyPlanVersions = async (req, res, next) => {
   try {
     const { page, pageSize } = parsePaginationParams(req.query, {
       defaultSortBy: 'createdAt',
-      allowedSortBy: ['versionNumber', 'createdAt', 'status']
+      allowedSortBy: ['versionNumber', 'createdAt', 'status'],
     });
 
     const sar = await StudentAcademicRecord.findByPk(req.params.id, {
-      include: [{ model: StudyPlan, attributes: ['id', 'studentAcademicRecordId', 'createdAt', 'updatedAt'] }]
+      include: [
+        {
+          model: StudyPlan,
+          attributes: ['id', 'studentAcademicRecordId', 'createdAt', 'updatedAt'],
+        },
+      ],
     });
 
     if (!sar) {
@@ -709,7 +937,7 @@ exports.getStudyPlanVersions = async (req, res, next) => {
         items: [],
         page,
         pageSize,
-        totalItems: 0
+        totalItems: 0,
       });
       return res.status(200).json({ success: true, ...payload });
     }
@@ -722,7 +950,7 @@ exports.getStudyPlanVersions = async (req, res, next) => {
       items,
       page,
       pageSize,
-      totalItems
+      totalItems,
     });
 
     return res.status(200).json({ success: true, ...payload });

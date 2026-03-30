@@ -1,7 +1,11 @@
-const { Op } = require('sequelize');
+﻿const { Op } = require('sequelize');
 const { StudentAcademicRecord, User } = require('../models');
+const logger = require('./logger');
 
-const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+const normalizeEmail = (email) =>
+  String(email || '')
+    .trim()
+    .toLowerCase();
 
 const normalizeStudentId = (studentId) => String(studentId || '').trim();
 
@@ -36,10 +40,13 @@ exports.linkStudentAccountToSar = async ({ userId, email, studentId, transaction
   const matchedSar = await StudentAcademicRecord.findOne({
     where: {
       userId: null,
-      [Op.or]: conditions
+      [Op.or]: conditions,
     },
-    order: [['updatedAt', 'DESC'], ['id', 'DESC']],
-    transaction
+    order: [
+      ['updatedAt', 'DESC'],
+      ['id', 'DESC'],
+    ],
+    transaction,
   });
 
   if (!matchedSar) {
@@ -107,7 +114,9 @@ exports.syncSarToProfile = async (sar, options = {}) => {
   await User.update(updates, { where: { id: sar.userId }, transaction });
 
   const syncedFields = Object.keys(updates).filter((k) => k !== 'updatedAt');
-  console.log(`[sarSync] SAR ${sar.id} → User ${sar.userId}: synced fields [${syncedFields.join(', ')}]`);
+  logger.info(
+    `[sarSync] SAR ${sar.id} → User ${sar.userId}: synced fields [${syncedFields.join(', ')}]`,
+  );
   return { synced: true, fields: syncedFields };
 };
 
@@ -120,7 +129,10 @@ exports.syncSarToProfile = async (sar, options = {}) => {
  * Looks up SAR by userId first; falls back to an unlinked SAR matched by email
  * (and auto-links it when found). Idempotent — no-op when values already match.
  */
-exports.syncProfileToSar = async ({ userId, email, firstName, lastName, studentId } = {}, options = {}) => {
+exports.syncProfileToSar = async (
+  { userId, email, firstName, lastName, studentId } = {},
+  options = {},
+) => {
   const { transaction } = options;
 
   if (!userId) {
@@ -135,8 +147,11 @@ exports.syncProfileToSar = async ({ userId, email, firstName, lastName, studentI
     const normalizedEmail = normalizeEmail(email);
     sar = await StudentAcademicRecord.findOne({
       where: { email: normalizedEmail, userId: null },
-      order: [['updatedAt', 'DESC'], ['id', 'DESC']],
-      transaction
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
+      transaction,
     });
     if (sar) {
       await sar.update({ userId, updatedAt: Date.now() }, { transaction });
@@ -173,6 +188,8 @@ exports.syncProfileToSar = async ({ userId, email, firstName, lastName, studentI
   await sar.update(updates, { transaction });
 
   const syncedFields = Object.keys(updates).filter((k) => k !== 'updatedAt');
-  console.log(`[sarSync] User ${userId} → SAR ${sar.id}: synced fields [${syncedFields.join(', ')}]`);
+  logger.info(
+    `[sarSync] User ${userId} → SAR ${sar.id}: synced fields [${syncedFields.join(', ')}]`,
+  );
   return { synced: true, sarId: sar.id, fields: syncedFields };
 };

@@ -22,15 +22,34 @@ const auditLogger = logger.child({ audit: true });
  * @param {string|number|null} [event.resourceId] - Primary key of the affected resource when applicable
  * @param {object}             [event.meta]   - Additional non-sensitive context (IP, method, path, etc.)
  */
-const log = ({ userId = null, action, resource, resourceId = null, meta = {} }) => {
+const log = ({ userId = null, action, resource, resourceId = null, meta = {}, ip = null }) => {
   auditLogger.info({
     userId,
     action,
     resource,
     resourceId,
     timestamp: new Date().toISOString(),
-    ...meta
+    ...meta,
   });
+
+  // Persist to database asynchronously (fire-and-forget so audit writes never block the request)
+  if (process.env.DATABASE_URL) {
+    try {
+      const AuditLog = require('../models/AuditLog');
+      AuditLog.create({
+        userId: userId || null,
+        action,
+        resource,
+        resourceId: resourceId != null ? String(resourceId) : null,
+        metadata: meta,
+        ipAddress: ip || meta.ip || null,
+      }).catch((err) => {
+        auditLogger.error({ err: err.message }, 'Failed to persist audit log to database');
+      });
+    } catch (_) {
+      // Model not yet loaded — silently skip DB write
+    }
+  }
 };
 
 module.exports = { log };

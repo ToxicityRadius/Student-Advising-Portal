@@ -1,4 +1,5 @@
-const nodemailer = require('nodemailer');
+﻿const nodemailer = require('nodemailer');
+const logger = require('./logger');
 
 // CLIENT_URL may contain comma-separated origins; use the first one.
 function getClientUrl() {
@@ -17,7 +18,9 @@ function buildActivationUrl(token) {
     return `${clientUrl}/activate/${token}`;
   }
 
-  const serverPublicUrl = (process.env.SERVER_PUBLIC_URL || `http://localhost:${process.env.PORT || 5000}`).trim();
+  const serverPublicUrl = (
+    process.env.SERVER_PUBLIC_URL || `http://localhost:${process.env.PORT || 5000}`
+  ).trim();
   return `${serverPublicUrl.replace(/\/$/, '')}/api/auth/activate/${token}`;
 }
 
@@ -34,8 +37,8 @@ const createTransporter = () => {
     requireTLS: !useImplicitTls,
     auth: {
       user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD
-    }
+      pass: process.env.EMAIL_PASSWORD,
+    },
   });
 };
 
@@ -84,15 +87,15 @@ exports.sendActivationEmail = async (email, token) => {
         </div>
       </body>
       </html>
-    `
+    `,
   };
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log('Activation email sent to:', email);
+    logger.info({ email }, 'activation email sent');
   } catch (error) {
     console.error('Error sending activation email:', error);
-    throw new Error('Failed to send activation email');
+    throw new Error('Failed to send activation email', { cause: error });
   }
 };
 
@@ -128,7 +131,7 @@ exports.sendWelcomeEmail = async (email, firstName) => {
         </div>
       </body>
       </html>
-    `
+    `,
   };
 
   try {
@@ -195,15 +198,15 @@ exports.sendVerificationCode = async (email, code, firstName) => {
         </div>
       </body>
       </html>
-    `
+    `,
   };
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log('Verification code sent to:', email);
+    logger.info({ email }, 'verification code sent');
   } catch (error) {
     console.error('Error sending verification code:', error);
-    throw new Error('Failed to send verification code');
+    throw new Error('Failed to send verification code', { cause: error });
   }
 };
 
@@ -266,15 +269,15 @@ exports.sendPasswordResetEmail = async (email, token, firstName) => {
         </div>
       </body>
       </html>
-    `
+    `,
   };
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log('Password reset email sent to:', email);
+    logger.info({ email }, 'password reset email sent');
   } catch (error) {
     console.error('Error sending password reset email:', error);
-    throw new Error('Failed to send password reset email');
+    throw new Error('Failed to send password reset email', { cause: error });
   }
 };
 
@@ -334,15 +337,14 @@ exports.sendEmailChangeVerificationCode = async (newEmail, code, firstName) => {
         </div>
       </body>
       </html>
-    `
+    `,
   };
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log('[AUDIT] Email change verification code sent to:', newEmail);
+    logger.info({ email: newEmail }, 'email change verification code sent');
   } catch (error) {
     console.error('Error sending email change verification code:', error);
-    throw new Error('Failed to send email verification code');
+    throw new Error('Failed to send email verification code', { cause: error });
   }
 };
-

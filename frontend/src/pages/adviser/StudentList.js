@@ -1,7 +1,18 @@
 import React, { useCallback, useDeferredValue, useEffect, useState } from 'react';
-import { Alert, Badge, Button, Card, Form, Image, InputGroup, Spinner, Table } from 'react-bootstrap';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Form,
+  Image,
+  InputGroup,
+  Spinner,
+  Table,
+} from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import CreateSARModal from '../../components/adviser/CreateSARModal';
+import BulkSARImportModal from '../../components/adviser/BulkSARImportModal';
 import PaginationControls from '../../components/PaginationControls';
 import api from '../../utils/api';
 import { fetchCurriculumsCached } from '../../utils/curriculumsCache';
@@ -24,6 +35,8 @@ const StudentList = () => {
   const [sortOrder, setSortOrder] = useState('asc');
   const [meta, setMeta] = useState({ page: 1, pageSize: 12, totalItems: 0, totalPages: 1 });
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [bulkImporting, setBulkImporting] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -37,17 +50,20 @@ const StudentList = () => {
             pageSize,
             search: deferredSearch.trim(),
             sortBy,
-            sortOrder
-          }
+            sortOrder,
+          },
         }),
-        fetchCurriculumsCached({ page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' })
+        fetchCurriculumsCached({ page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' }),
       ]);
 
       setSars(sarResponse.data?.items || sarResponse.data?.data || []);
       setMeta(sarResponse.data?.meta || { page: 1, pageSize, totalItems: 0, totalPages: 1 });
       setCurriculums(curriculumData?.items || curriculumData?.data || []);
     } catch (error) {
-      setAlert({ variant: 'danger', message: getErrorMessage(error, 'Failed to load student records.') });
+      setAlert({
+        variant: 'danger',
+        message: getErrorMessage(error, 'Failed to load student records.'),
+      });
     } finally {
       setLoading(false);
     }
@@ -72,7 +88,10 @@ const StudentList = () => {
       await loadData();
       setAlert({ variant: 'success', message: 'Student academic record created successfully.' });
     } catch (error) {
-      setAlert({ variant: 'danger', message: getErrorMessage(error, 'Failed to create the student academic record.') });
+      setAlert({
+        variant: 'danger',
+        message: getErrorMessage(error, 'Failed to create the student academic record.'),
+      });
       throw error;
     } finally {
       setSubmitting(false);
@@ -84,14 +103,40 @@ const StudentList = () => {
     return response.data?.data || null;
   };
 
+  const handleBulkImportComplete = async (students) => {
+    setBulkImporting(true);
+    setAlert({ variant: '', message: '' });
+    try {
+      const res = await api.post('/sars/bulk-create', { records: students });
+      const result = res.data || {};
+      setAlert({
+        variant: 'success',
+        message: `Successfully created ${result.created ?? students.length} student records.`,
+      });
+      setShowBulkImport(false);
+      await loadData();
+    } catch (error) {
+      setAlert({ variant: 'danger', message: getErrorMessage(error, 'Bulk import failed.') });
+    } finally {
+      setBulkImporting(false);
+    }
+  };
+
   return (
     <AdviserLayout activePage="students" pageTitle="Student Academic Records">
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
           <h2 className="mb-1">Student Academic Records</h2>
-          <p className="text-muted mb-0">Search, review, and initialize study plans for students.</p>
+          <p className="text-muted mb-0">
+            Search, review, and initialize study plans for students.
+          </p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)}>Create New Record</Button>
+        <div className="d-flex gap-2">
+          <Button onClick={() => setShowCreateModal(true)}>Create New Record</Button>
+          <Button variant="outline-primary" onClick={() => setShowBulkImport(true)}>
+            Import CSV
+          </Button>
+        </div>
       </div>
 
       {alert.message && (
@@ -118,20 +163,30 @@ const StudentList = () => {
             />
           </InputGroup>
           <div className="d-flex flex-column flex-md-row gap-2 mt-3">
-            <Form.Select value={sortBy} onChange={(event) => setSortBy(event.target.value)} style={{ maxWidth: 220 }}>
+            <Form.Select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value)}
+              style={{ maxWidth: 220 }}
+            >
               <option value="studentName">Sort by Name</option>
               <option value="studentNumber">Sort by Student Number</option>
               <option value="email">Sort by Email</option>
               <option value="yearLevel">Sort by Year Level</option>
               <option value="createdAt">Sort by Created Date</option>
             </Form.Select>
-            <Form.Select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} style={{ maxWidth: 180 }}>
+            <Form.Select
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value)}
+              style={{ maxWidth: 180 }}
+            >
               <option value="asc">Ascending</option>
               <option value="desc">Descending</option>
             </Form.Select>
           </div>
           <div className="text-muted small mt-2">
-            {activeCurriculum ? `Active curriculum default: ${activeCurriculum.name}` : 'No active curriculum is currently set.'}
+            {activeCurriculum
+              ? `Active curriculum default: ${activeCurriculum.name}`
+              : 'No active curriculum is currently set.'}
           </div>
         </Card.Body>
       </Card>
@@ -147,13 +202,27 @@ const StudentList = () => {
               <Table responsive hover className="table-fixed-cols">
                 <thead>
                   <tr>
-                    <th scope="col" style={{ width: '16%' }}>Student</th>
-                    <th scope="col" style={{ width: '14%' }}>Student Number</th>
-                    <th scope="col" style={{ width: '18%' }}>Email</th>
-                    <th scope="col" style={{ width: '10%' }}>Link Status</th>
-                    <th scope="col" style={{ width: '10%' }}>Year Level</th>
-                    <th scope="col" style={{ width: '16%' }}>Curriculum</th>
-                    <th scope="col" className="text-end" style={{ width: '16%' }}>Actions</th>
+                    <th scope="col" style={{ width: '16%' }}>
+                      Student
+                    </th>
+                    <th scope="col" style={{ width: '14%' }}>
+                      Student Number
+                    </th>
+                    <th scope="col" style={{ width: '18%' }}>
+                      Email
+                    </th>
+                    <th scope="col" style={{ width: '10%' }}>
+                      Link Status
+                    </th>
+                    <th scope="col" style={{ width: '10%' }}>
+                      Year Level
+                    </th>
+                    <th scope="col" style={{ width: '16%' }}>
+                      Curriculum
+                    </th>
+                    <th scope="col" className="text-end" style={{ width: '16%' }}>
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -172,7 +241,12 @@ const StudentList = () => {
                           ) : (
                             <div
                               className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center"
-                              style={{ width: 32, height: 32, fontSize: '0.75rem', fontWeight: 700 }}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                              }}
                             >
                               {getInitials(sar.studentName)}
                             </div>
@@ -183,14 +257,22 @@ const StudentList = () => {
                       <td>{sar.studentNumber}</td>
                       <td>{sar.email}</td>
                       <td>
-                        <Badge bg={sar.isLinkedToAccount ? 'success' : 'secondary'} className="text-uppercase">
+                        <Badge
+                          bg={sar.isLinkedToAccount ? 'success' : 'secondary'}
+                          className="text-uppercase"
+                        >
                           {sar.isLinkedToAccount ? 'linked' : 'unlinked'}
                         </Badge>
                       </td>
                       <td>Year {sar.yearLevel}</td>
                       <td>{sar.Curriculum?.name || 'Unassigned'}</td>
                       <td className="text-end">
-                        <Button as={Link} to={`/adviser/students/${sar.id}`} size="sm" variant="outline-primary">
+                        <Button
+                          as={Link}
+                          to={`/adviser/students/${sar.id}`}
+                          size="sm"
+                          variant="outline-primary"
+                        >
                           View Record
                         </Button>
                       </td>
@@ -230,6 +312,14 @@ const StudentList = () => {
         curriculums={curriculums}
         defaultCurriculumId={activeCurriculum?.id}
         submitting={submitting}
+      />
+
+      <BulkSARImportModal
+        show={showBulkImport}
+        onHide={() => setShowBulkImport(false)}
+        onImport={handleBulkImportComplete}
+        curriculumId={activeCurriculum?.id}
+        importing={bulkImporting}
       />
     </AdviserLayout>
   );

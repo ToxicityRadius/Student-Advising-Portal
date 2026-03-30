@@ -23,9 +23,40 @@ function validateStartupEnvironment() {
   if (process.env.NODE_ENV && !ALLOWED_NODE_ENVS.includes(process.env.NODE_ENV)) {
     logger.fatal(
       { nodeEnv: process.env.NODE_ENV, allowed: ALLOWED_NODE_ENVS },
-      'Invalid NODE_ENV value'
+      'Invalid NODE_ENV value',
     );
     process.exit(1);
+  }
+
+  // Warn about optional but recommended configs
+  const smtpVars = ['EMAIL_HOST', 'EMAIL_USER', 'EMAIL_PASS'];
+  const missingSMTP = smtpVars.filter((k) => !process.env[k]);
+  if (missingSMTP.length > 0 && missingSMTP.length < smtpVars.length) {
+    logger.warn({ missing: missingSMTP }, 'Partial SMTP config — email sending may fail');
+  }
+
+  const oauthVars = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'];
+  const missingOAuth = oauthVars.filter((k) => !process.env[k]);
+  if (missingOAuth.length > 0) {
+    logger.warn(
+      { missing: missingOAuth },
+      'Google OAuth credentials not set — Google Sign-In will be unavailable',
+    );
+  }
+
+  // Verify upload directory exists and is writable
+  const fs = require('fs');
+  const uploadDir = path.join(__dirname, 'uploads');
+  if (!fs.existsSync(uploadDir)) {
+    try {
+      fs.mkdirSync(uploadDir, { recursive: true });
+      logger.info({ path: uploadDir }, 'Created uploads directory');
+    } catch (err) {
+      logger.warn(
+        { path: uploadDir, err: err.message },
+        'Could not create uploads directory — file uploads may fail',
+      );
+    }
   }
 }
 
@@ -33,7 +64,9 @@ validateStartupEnvironment();
 
 // Validate required secrets at startup
 if (!process.env.JWT_REFRESH_SECRET) {
-  logger.warn('JWT_REFRESH_SECRET is not set. Falling back to JWT_SECRET — set a separate value for production.');
+  logger.warn(
+    'JWT_REFRESH_SECRET is not set. Falling back to JWT_SECRET — set a separate value for production.',
+  );
 } else if (process.env.JWT_REFRESH_SECRET === process.env.JWT_SECRET) {
   logger.warn('JWT_REFRESH_SECRET is identical to JWT_SECRET. Use distinct secrets in production.');
 }
@@ -41,7 +74,7 @@ if (!process.env.JWT_REFRESH_SECRET) {
 // Additional production-mode checks
 if (process.env.NODE_ENV === 'production') {
   const required = ['DATABASE_URL', 'CLIENT_URL', 'JWT_SECRET', 'JWT_REFRESH_SECRET'];
-  const missing = required.filter(k => !process.env[k]);
+  const missing = required.filter((k) => !process.env[k]);
   if (missing.length > 0) {
     logger.fatal({ missing }, 'Missing required production env vars');
     process.exit(1);
@@ -56,7 +89,7 @@ if (process.env.NODE_ENV === 'production') {
   if (isLongLived) {
     logger.warn(
       { JWT_EXPIRE: jwtExpire },
-      'JWT_EXPIRE is too long for production. Recommended: 15-30 min.'
+      'JWT_EXPIRE is too long for production. Recommended: 15-30 min.',
     );
   }
 }
@@ -81,50 +114,56 @@ const exportRoutes = require('./routes/exportRoutes');
 const forecastRoutes = require('./routes/forecastRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const auditRoutes = require('./routes/auditRoutes');
+const { setupSwagger } = require('./docs/swagger');
 
 const app = express();
+
+// Swagger API docs — mount before other middleware so /api/docs has no auth
+setupSwagger(app);
 
 // Attach per-request context (requestId, startTime, ip) before any other middleware
 app.use(requestContext);
 
 // Middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-  // Strict-Transport-Security: require HTTPS for 1 year in production
-  strictTransportSecurity: process.env.NODE_ENV === 'production'
-    ? { maxAge: 31536000, includeSubDomains: true }
-    : false,
-  // Prevent browsers from MIME-sniffing away from the declared content-type
-  noSniff: true,
-  // X-Frame-Options: block clickjacking
-  frameguard: { action: 'deny' },
-  // Content-Security-Policy: restrictive baseline; CDN fonts/icons whitelisted
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: [
-        "'self'",
-        // Google Sign-In
-        'https://accounts.google.com'
-      ],
-      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-      imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: [
-        "'self'",
-        // Allow the frontend origin(s) to call the API (e.g. in CSP-restricted browsers)
-        ...(process.env.CLIENT_URL || '')
-          .split(',')
-          .map(o => o.trim())
-          .filter(o => o.length > 0)
-      ],
-      frameSrc: ['https://accounts.google.com'],
-      objectSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'"]
-    }
-  }
-}));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    // Strict-Transport-Security: require HTTPS for 1 year in production
+    strictTransportSecurity:
+      process.env.NODE_ENV === 'production' ? { maxAge: 31536000, includeSubDomains: true } : false,
+    // Prevent browsers from MIME-sniffing away from the declared content-type
+    noSniff: true,
+    // X-Frame-Options: block clickjacking
+    frameguard: { action: 'deny' },
+    // Content-Security-Policy: restrictive baseline; CDN fonts/icons whitelisted
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          // Google Sign-In
+          'https://accounts.google.com',
+        ],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        connectSrc: [
+          "'self'",
+          // Allow the frontend origin(s) to call the API (e.g. in CSP-restricted browsers)
+          ...(process.env.CLIENT_URL || '')
+            .split(',')
+            .map((o) => o.trim())
+            .filter((o) => o.length > 0),
+        ],
+        frameSrc: ['https://accounts.google.com'],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+  }),
+);
 app.use(morgan('combined'));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
@@ -134,31 +173,34 @@ app.use(cookieParser());
 // include the correct Access-Control-Allow-Origin header.
 const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000')
   .split(',')
-  .map(o => o.trim());
+  .map((o) => o.trim());
 
-app.use(cors({
-  origin: function (origin, callback) {
-    // allow requests with no origin like mobile apps or curl
-    if (!origin) return callback(null, true);
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // allow requests with no origin like mobile apps or curl
+      if (!origin) return callback(null, true);
 
-    // In development, allow localhost/127.0.0.1 on any port (Expo/Web dev servers).
-    const isDevLocalOrigin = process.env.NODE_ENV !== 'production'
-      && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
+      // In development, allow localhost/127.0.0.1 on any port (Expo/Web dev servers).
+      const isDevLocalOrigin =
+        process.env.NODE_ENV !== 'production' &&
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
 
-    if (isDevLocalOrigin) {
-      return callback(null, true);
-    }
+      if (isDevLocalOrigin) {
+        return callback(null, true);
+      }
 
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
 
-    const corsErr = new Error('Not allowed by CORS');
-    corsErr.statusCode = 403;
-    return callback(corsErr);
-  },
-  credentials: true
-}));
+      const corsErr = new Error('Not allowed by CORS');
+      corsErr.statusCode = 403;
+      return callback(corsErr);
+    },
+    credentials: true,
+  }),
+);
 app.use(csrf);
 app.use(responseEnvelope);
 
@@ -175,6 +217,7 @@ app.use('/api', exportRoutes);
 app.use('/api/forecast', forecastRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/admin/audit-logs', auditRoutes);
 
 // Serve uploaded files
 // Profile pictures are public so they can be displayed in the frontend without auth.
@@ -195,8 +238,8 @@ app.get('/api/health', async (req, res) => {
       status: isShuttingDown ? 'DEGRADED' : 'OK',
       message: isShuttingDown ? 'Server is shutting down' : 'Server is running',
       dependencies: {
-        database: 'up'
-      }
+        database: 'up',
+      },
     });
   } catch (err) {
     logger.error({ err }, 'Health check failed: database unavailable');
@@ -204,8 +247,8 @@ app.get('/api/health', async (req, res) => {
       status: 'UNHEALTHY',
       message: 'Database connectivity check failed',
       dependencies: {
-        database: 'down'
-      }
+        database: 'down',
+      },
     });
   }
 });
@@ -220,7 +263,7 @@ app.use((err, req, res, next) => {
     message: err.message,
     code: err.code,
     statusCode,
-    stack: err.stack
+    stack: err.stack,
   };
 
   // Include useful DB diagnostics when available.
@@ -236,23 +279,23 @@ app.use((err, req, res, next) => {
       constraint: dbErr.constraint,
       schema: dbErr.schema,
       routine: dbErr.routine,
-      sql: err.sql
+      sql: err.sql,
     };
   }
 
-  logger.error({
-    method: req.method,
-    path: req.originalUrl,
-    ...errorPayload
-  }, 'Request failed');
+  logger.error(
+    {
+      method: req.method,
+      path: req.originalUrl,
+      ...errorPayload,
+    },
+    'Request failed',
+  );
 
   // Mask Sequelize / database errors regardless of status code in production.
   // These errors can expose table names, column names, and constraint names.
-  const isSequelizeError = err.name && (
-    err.name.startsWith('Sequelize') ||
-    err.original != null ||
-    err.parent != null
-  );
+  const isSequelizeError =
+    err.name && (err.name.startsWith('Sequelize') || err.original != null || err.parent != null);
 
   let clientMessage;
   if (statusCode >= 500 || (isProduction && isSequelizeError)) {
@@ -263,7 +306,7 @@ app.use((err, req, res, next) => {
 
   res.status(statusCode).json({
     success: false,
-    message: clientMessage
+    message: clientMessage,
   });
 });
 
@@ -272,21 +315,63 @@ let server;
 let isShuttingDown = false;
 
 // Sync database and start server
-const syncOptions = process.env.NODE_ENV === 'production'
-  ? {} // production: authenticate only, use migrations
-  : { alter: { drop: false } }; // dev: auto-alter tables
+const syncOptions =
+  process.env.NODE_ENV === 'production'
+    ? {} // production: authenticate only, use migrations
+    : { alter: { drop: false } }; // dev: auto-alter tables
 
-(process.env.NODE_ENV === 'production'
-  ? sequelize.authenticate()
-  : sequelize.sync(syncOptions)
-).then(() => {
-  logger.info('Database connected successfully');
-  server = app.listen(PORT, () => {
-    logger.info({ port: PORT }, 'Server running');
+async function runPendingMigrations() {
+  const { Umzug, SequelizeStorage } = require('umzug');
+  const Sequelize = require('sequelize');
+  const umzug = new Umzug({
+    migrations: {
+      glob: path.join(__dirname, 'migrations/*.js'),
+      resolve: ({ name, path: migrationPath, context }) => {
+        const migration = require(migrationPath);
+        return {
+          name,
+          up: async () => migration.up(context, Sequelize),
+          down: async () => migration.down(context, Sequelize),
+        };
+      },
+    },
+    context: sequelize.getQueryInterface(),
+    storage: new SequelizeStorage({ sequelize }),
+    logger: {
+      info: (msg) => logger.info(msg, 'migration'),
+      warn: (msg) => logger.warn(msg, 'migration'),
+      error: (msg) => logger.error(msg, 'migration'),
+      debug: () => {},
+    },
   });
-}).catch((err) => {
-  logger.fatal({ err }, 'Failed to connect to database');
-});
+  const pending = await umzug.pending();
+  if (pending.length > 0) {
+    logger.info(
+      { count: pending.length, names: pending.map((m) => m.name) },
+      'Running pending migrations',
+    );
+    await umzug.up();
+    logger.info('Migrations completed successfully');
+  } else {
+    logger.info('No pending migrations');
+  }
+}
+
+(process.env.NODE_ENV === 'production' ? sequelize.authenticate() : sequelize.sync(syncOptions))
+  .then(async () => {
+    logger.info('Database connected successfully');
+    try {
+      await runPendingMigrations();
+    } catch (migErr) {
+      logger.error({ err: migErr }, 'Migration failed — server starting without migration');
+    }
+    server = app.listen(PORT, () => {
+      logger.info({ port: PORT }, 'Server running');
+    });
+  })
+  .catch((err) => {
+    logger.fatal({ err }, 'Failed to connect to database');
+  });
 
 const gracefulShutdown = (signal) => {
   if (isShuttingDown) return;
@@ -295,7 +380,8 @@ const gracefulShutdown = (signal) => {
   logger.info({ signal }, 'Graceful shutdown started');
 
   if (!server) {
-    sequelize.close()
+    sequelize
+      .close()
       .then(() => process.exit(0))
       .catch(() => process.exit(1));
     return;

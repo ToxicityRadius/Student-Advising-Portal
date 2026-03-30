@@ -12,17 +12,18 @@ import studentIcon from '../assets/images/student yellow.png';
 import teacherIcon from '../assets/images/teacher yellow.png';
 import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 
-
 const Login = () => {
   const [formData, setFormData] = useState({
     email: '',
-    password: ''
+    password: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showStudentIdModal, setShowStudentIdModal] = useState(false);
   const [pendingGoogleUser, setPendingGoogleUser] = useState(null);
-  const [selectedRole, setSelectedRole] = useState(() => sessionStorage.getItem('loginRole') || null);
+  const [selectedRole, setSelectedRole] = useState(
+    () => sessionStorage.getItem('loginRole') || null,
+  );
 
   const selectRole = (role) => {
     sessionStorage.setItem('loginRole', role);
@@ -40,7 +41,7 @@ const Login = () => {
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
@@ -64,22 +65,24 @@ const Login = () => {
       const response = await api.post('/auth/login', {
         email: formData.email,
         password: formData.password,
-        selectedRole
+        selectedRole,
       });
 
       const data = response.data;
 
       if (data.requiresVerification) {
         sessionStorage.removeItem('loginRole');
-        navigate('/verify-code', { 
-          state: { 
+        navigate('/verify-code', {
+          state: {
             userId: data.userId,
-            email: formData.email 
-          } 
+            email: formData.email,
+          },
         });
       } else if (data.mustChangePassword) {
         sessionStorage.removeItem('loginRole');
-        navigate('/change-password', { state: { token: data.token, oldPassword: formData.password } });
+        navigate('/change-password', {
+          state: { token: data.token, oldPassword: formData.password },
+        });
       } else if (data.mustChangeEmail) {
         sessionStorage.removeItem('loginRole');
         sessionStorage.setItem('forceEmailChangeToken', data.token);
@@ -102,7 +105,7 @@ const Login = () => {
       // Decode the JWT token from Google
       const decoded = jwtDecode(credentialResponse.credential);
       const emailLower = decoded.email.toLowerCase();
-      
+
       // Check if email ends with @tip.edu.ph
       if (!emailLower.endsWith('@tip.edu.ph')) {
         setError('Only TIP email addresses (@tip.edu.ph) are allowed to sign in.');
@@ -135,11 +138,11 @@ const Login = () => {
 
       if (data.requiresVerification) {
         sessionStorage.removeItem('loginRole');
-        navigate('/verify-code', { 
-          state: { 
+        navigate('/verify-code', {
+          state: {
             userId: data.userId,
-            email: decoded.email 
-          } 
+            email: decoded.email,
+          },
         });
       } else if (data.mustChangePassword) {
         sessionStorage.removeItem('loginRole');
@@ -186,41 +189,58 @@ const Login = () => {
   // Role selector screen
   if (!selectedRole) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundImage: `url(${backgroundImage})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        position: 'relative'
-      }}>
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)'
-        }}/>
-        <div style={{
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundImage: `url(${backgroundImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
           position: 'relative',
-          zIndex: 1,
-          background: 'white',
-          borderRadius: '22px',
-          padding: '60px 70px',
-          textAlign: 'center',
-          maxWidth: '720px',
-          width: '90%',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-        }}>
-          <img src={studentAdvisingLogo} alt="Student Advising" style={{ width: '220px', marginBottom: '22px' }}/>
-          <h2 style={{ fontWeight: 800, fontSize: '2rem', marginBottom: '40px', color: '#222' }}>Welcome Back!</h2>
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+          }}
+        />
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            background: 'white',
+            borderRadius: '22px',
+            padding: '60px 70px',
+            textAlign: 'center',
+            maxWidth: '720px',
+            width: '90%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}
+        >
+          <img
+            src={studentAdvisingLogo}
+            alt="Student Advising"
+            style={{ width: '220px', marginBottom: '22px' }}
+          />
+          <h2 style={{ fontWeight: 800, fontSize: '2rem', marginBottom: '40px', color: '#222' }}>
+            Welcome Back!
+          </h2>
           <div style={{ display: 'flex', gap: '40px', justifyContent: 'center' }}>
             <div
               onClick={() => selectRole('student')}
               role="button"
               tabIndex={0}
               aria-label="Login as Student"
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectRole('student'); } }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  selectRole('student');
+                }
+              }}
               style={{
                 cursor: 'pointer',
                 padding: '36px 30px 26px',
@@ -228,22 +248,54 @@ const Login = () => {
                 border: '2px solid #eee',
                 width: '240px',
                 transition: 'all 0.2s',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
               }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.borderColor = '#F5B800'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.borderColor = '#eee'; }}
-              onFocus={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.borderColor = '#F5B800'; }}
-              onBlur={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.borderColor = '#eee'; }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.borderColor = '#F5B800';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.borderColor = '#eee';
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.borderColor = '#F5B800';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.borderColor = '#eee';
+              }}
             >
-              <img src={studentIcon} alt="Student" style={{ width: '110px', height: '110px', objectFit: 'contain' }}/>
-              <p style={{ color: '#D4A000', fontWeight: 700, fontSize: '0.95rem', marginTop: '18px', letterSpacing: '0.5px', marginBottom: 0 }}>LOGIN AS STUDENT</p>
+              <img
+                src={studentIcon}
+                alt="Student"
+                style={{ width: '110px', height: '110px', objectFit: 'contain' }}
+              />
+              <p
+                style={{
+                  color: '#8B6914',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  marginTop: '18px',
+                  letterSpacing: '0.5px',
+                  marginBottom: 0,
+                }}
+              >
+                LOGIN AS STUDENT
+              </p>
             </div>
             <div
               onClick={() => selectRole('faculty')}
               role="button"
               tabIndex={0}
               aria-label="Login as Faculty"
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectRole('faculty'); } }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  selectRole('faculty');
+                }
+              }}
               style={{
                 cursor: 'pointer',
                 padding: '36px 30px 26px',
@@ -251,15 +303,42 @@ const Login = () => {
                 border: '2px solid #eee',
                 width: '240px',
                 transition: 'all 0.2s',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
               }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.borderColor = '#F5B800'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.borderColor = '#eee'; }}
-              onFocus={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.borderColor = '#F5B800'; }}
-              onBlur={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.borderColor = '#eee'; }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.borderColor = '#F5B800';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.borderColor = '#eee';
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.borderColor = '#F5B800';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.borderColor = '#eee';
+              }}
             >
-              <img src={teacherIcon} alt="Instructor" style={{ width: '110px', height: '110px', objectFit: 'contain' }}/>
-              <p style={{ color: '#D4A000', fontWeight: 700, fontSize: '0.95rem', marginTop: '18px', letterSpacing: '0.5px', marginBottom: 0 }}>LOGIN AS FACULTY</p>
+              <img
+                src={teacherIcon}
+                alt="Instructor"
+                style={{ width: '110px', height: '110px', objectFit: 'contain' }}
+              />
+              <p
+                style={{
+                  color: '#8B6914',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  marginTop: '18px',
+                  letterSpacing: '0.5px',
+                  marginBottom: 0,
+                }}
+              >
+                LOGIN AS FACULTY
+              </p>
             </div>
           </div>
         </div>
@@ -267,53 +346,71 @@ const Login = () => {
     );
   }
 
-
   return (
-    <div 
-      className="min-vh-100 d-flex align-items-center justify-content-center position-relative" 
-      style={{ 
+    <div
+      className="min-vh-100 d-flex align-items-center justify-content-center position-relative"
+      style={{
         backgroundImage: `url(${backgroundImage})`,
         backgroundSize: 'cover',
-        backgroundPosition: 'center'
+        backgroundPosition: 'center',
       }}
     >
-      
       {showStudentIdModal && pendingGoogleUser && (
-        <StudentIdModal
-          onSubmit={handleStudentIdSubmit}
-          userEmail={pendingGoogleUser.email}
-        />
+        <StudentIdModal onSubmit={handleStudentIdSubmit} userEmail={pendingGoogleUser.email} />
       )}
 
-      
       <Container className="position-relative" style={{ zIndex: 1 }}>
         <Row className="justify-content-center">
           <Col xs={13} sm={10} md={8} lg={6} xl={5} style={{ maxWidth: '380px' }}>
-            <Card className="shadow-lg border-0" style={{ position: 'relative', zIndex: 3, borderRadius: '20px', overflow: 'hidden' }}>
+            <Card
+              className="shadow-lg border-0"
+              style={{ position: 'relative', zIndex: 3, borderRadius: '20px', overflow: 'hidden' }}
+            >
               <Card.Body className="p-3 p-md-4">
-                <div className="text-center mb-3" style={{ marginTop: '30px', marginBottom: '30px' }}>
-                  <img src={studentAdvisingLogo} alt="Student Advising Logo" style={{ maxWidth: '300px', height: 'auto', display: 'block', margin: '0 auto' }} />
+                <div
+                  className="text-center mb-3"
+                  style={{ marginTop: '30px', marginBottom: '30px' }}
+                >
+                  <img
+                    src={studentAdvisingLogo}
+                    alt="Student Advising Logo"
+                    style={{
+                      maxWidth: '300px',
+                      height: 'auto',
+                      display: 'block',
+                      margin: '0 auto',
+                    }}
+                  />
                 </div>
-                
+
                 <div className="text-start mb-2">
-                  <button 
-                    onClick={() => clearRole()} 
+                  <button
+                    onClick={() => clearRole()}
                     type="button"
-                    style={{ cursor: 'pointer', color: '#666', fontSize: '0.8rem', background: 'none', border: 'none', padding: 0 }}
+                    style={{
+                      cursor: 'pointer',
+                      color: '#666',
+                      fontSize: '0.8rem',
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                    }}
                     aria-label="Go back to role selection"
                   >
                     ← Back
                   </button>
                 </div>
-                <h2 className="mb-3 text-start" style={{ fontSize: '1.3rem' }}>Sign in{selectedRole === 'faculty' ? ' as Instructor' : ' as Student'}</h2>
-                
+                <h2 className="mb-3 text-start" style={{ fontSize: '1.3rem' }}>
+                  Sign in{selectedRole === 'faculty' ? ' as Instructor' : ' as Student'}
+                </h2>
+
                 {error && (
                   <Alert variant="danger" dismissible onClose={() => setError('')} role="alert">
                     <i className="bi bi-exclamation-triangle-fill me-2"></i>
                     {error}
                   </Alert>
                 )}
-                
+
                 <Form onSubmit={handleSubmit}>
                   <Form.Group className="mb-3">
                     <Form.Control
@@ -325,7 +422,7 @@ const Login = () => {
                       placeholder="Email Address"
                     />
                   </Form.Group>
-                  
+
                   <Form.Group className="mb-3">
                     <Form.Control
                       type="password"
@@ -336,13 +433,17 @@ const Login = () => {
                       placeholder="Password"
                     />
                   </Form.Group>
-                  
+
                   <div className="text-end mb-3">
-                    <Link to="/forgot-password" className="text-decoration-none" style={{ fontSize: '0.82rem' }}>
+                    <Link
+                      to="/forgot-password"
+                      className="text-decoration-none"
+                      style={{ fontSize: '0.82rem' }}
+                    >
                       Forgot your password?
                     </Link>
                   </div>
-                  
+
                   <Button
                     type="submit"
                     variant="warning"
@@ -352,22 +453,22 @@ const Login = () => {
                     style={{
                       backgroundColor: '#FFC107',
                       borderColor: '#FFC107',
-                      color: '#000'
+                      color: '#000',
                     }}
                   >
                     {loading ? 'Logging in...' : 'Login'}
                   </Button>
-                  
+
                   <div className="position-relative text-center mb-3">
                     <hr />
-                    <span 
+                    <span
                       className="position-absolute top-50 start-50 translate-middle bg-white px-3"
                       style={{ color: '#666' }}
                     >
                       or
                     </span>
                   </div>
-                  
+
                   <div className="d-flex justify-content-center">
                     <GoogleLogin
                       onSuccess={handleGoogleSuccess}
@@ -377,10 +478,14 @@ const Login = () => {
                       size="large"
                     />
                   </div>
-                  
+
                   <div className="text-center mt-3" style={{ fontSize: '0.82rem' }}>
                     <span className="text-muted">New to Student Advising Portal? </span>
-                    <Link to="/register" state={{ role: selectedRole }} className="text-decoration-none fw-bold">
+                    <Link
+                      to="/register"
+                      state={{ role: selectedRole }}
+                      className="text-decoration-none fw-bold"
+                    >
                       Create an Account
                     </Link>
                   </div>

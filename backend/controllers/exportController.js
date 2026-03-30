@@ -14,11 +14,14 @@ const {
   AcademicTerm,
   Course,
   ElectiveTrack,
-  User
+  User,
 } = require('../models');
 const { computeSarAnalytics } = require('../utils/sarAnalytics');
 
-const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+const normalizeEmail = (email) =>
+  String(email || '')
+    .trim()
+    .toLowerCase();
 
 const isSarOwnedByUser = (sar, user) => {
   if (!sar || !user) {
@@ -57,6 +60,28 @@ const semesterLabel = (semester) => {
 
 const PAGE_PADDING_BOTTOM = 24;
 
+// ─── Brand Colors ─────────────────────────────────────────────────────────────
+const BRAND = {
+  gold: '#D4A017',
+  goldLight: '#FDF6E3',
+  goldBorder: '#E8C547',
+  dark: '#1A1A1A',
+  muted: '#555555',
+  subtle: '#888888',
+  tableBorder: '#D6D6D6',
+  tableStripe: '#FAFAF8',
+  tableHeaderBg: '#F5F1E8',
+  groupBg: '#1A1A1A',
+  groupText: '#FFFFFF',
+  sectionAccent: '#D4A017',
+  cardBg: '#FDFCF9',
+  cardBorder: '#E2DDCF',
+  tagBg: '#FDF6E3',
+  tagBorder: '#E8C547',
+  failBg: '#FFF1F0',
+  failBorder: '#FFCCC7',
+};
+
 const ensureSpace = (doc, minHeight = 40) => {
   const maxY = doc.page.height - doc.page.margins.bottom;
   if (doc.y + minHeight > maxY) {
@@ -70,38 +95,60 @@ const drawSectionTitle = (doc, title, subtitle = '') => {
   doc.x = doc.page.margins.left;
   ensureSpace(doc, 36);
   doc.moveDown(0.7);
-  doc.fontSize(11.5).font('Helvetica-Bold').fillColor('#111111').text(title);
+
+  // Gold accent bar
+  const barY = doc.y;
+  doc.save();
+  doc.rect(doc.page.margins.left, barY, 3, subtitle ? 28 : 16).fill(BRAND.sectionAccent);
+  doc.restore();
+
+  doc
+    .fontSize(11.5)
+    .font('Helvetica-Bold')
+    .fillColor(BRAND.dark)
+    .text(title, doc.page.margins.left + 10);
   if (subtitle) {
-    doc.moveDown(0.1);
-    doc.fontSize(9).font('Helvetica').fillColor('#4B5563').text(subtitle);
+    doc.moveDown(0.05);
+    doc
+      .fontSize(8.5)
+      .font('Helvetica')
+      .fillColor(BRAND.muted)
+      .text(subtitle, doc.page.margins.left + 10);
   }
-  doc.moveDown(0.2);
+  doc.moveDown(0.3);
   const lineY = doc.y;
-  doc.moveTo(doc.page.margins.left, lineY)
+  doc
+    .moveTo(doc.page.margins.left, lineY)
     .lineTo(doc.page.width - doc.page.margins.right, lineY)
-    .lineWidth(0.7)
-    .strokeColor('#D1D5DB')
+    .lineWidth(0.5)
+    .strokeColor(BRAND.tableBorder)
     .stroke();
   doc.moveDown(0.5);
   doc.x = doc.page.margins.left;
-  doc.fillColor('#111111').fontSize(9.5).font('Helvetica');
+  doc.fillColor(BRAND.dark).fontSize(9.5).font('Helvetica');
 };
 
 const drawTag = (doc, text, options = {}) => {
   const tagText = String(text || 'N/A');
   const x = options.x ?? doc.x;
   const y = options.y ?? doc.y;
-  const paddingX = 6;
+  const paddingX = 7;
   const paddingY = 3;
-  const width = doc.widthOfString(tagText, { font: 'Helvetica-Bold', size: 8.5 }) + paddingX * 2;
+  const width = doc.widthOfString(tagText, { font: 'Helvetica-Bold', size: 8 }) + paddingX * 2;
   const height = 16;
 
   doc.save();
-  doc.roundedRect(x, y, width, height, 3).fillAndStroke(options.background || '#F3F4F6', options.border || '#D1D5DB');
-  doc.fillColor(options.color || '#111111').font('Helvetica-Bold').fontSize(8.5).text(tagText, x + paddingX, y + paddingY + 0.5, {
-    width: width - paddingX * 2,
-    align: 'center'
-  });
+  doc
+    .roundedRect(x, y, width, height, 3)
+    .fillAndStroke(options.background || BRAND.tagBg, options.border || BRAND.tagBorder);
+  doc
+    .fillColor(options.color || BRAND.dark)
+    .font('Helvetica-Bold')
+    .fontSize(8)
+    .text(tagText, x + paddingX, y + paddingY + 0.5, {
+      width: width - paddingX * 2,
+      align: 'center',
+    });
   doc.restore();
 
   return { width, height };
@@ -123,22 +170,39 @@ const drawKpiCards = (doc, cards) => {
   cards.forEach((card, index) => {
     const x = startX + index * (cardWidth + gap);
     doc.save();
-    doc.roundedRect(x, startY, cardWidth, cardHeight, 6).fillAndStroke('#F9FAFB', '#E5E7EB');
-    doc.fillColor('#6B7280').font('Helvetica').fontSize(8.5).text(card.label || 'Metric', x + 8, startY + 8, {
-      width: cardWidth - 16
-    });
-    doc.fillColor('#111111').font('Helvetica-Bold').fontSize(14).text(card.value || 'N/A', x + 8, startY + 24, {
-      width: cardWidth - 16
-    });
-    if (card.hint) {
-      doc.fillColor('#4B5563').font('Helvetica').fontSize(8).text(card.hint, x + 8, startY + 43, {
-        width: cardWidth - 16
+    doc
+      .roundedRect(x, startY, cardWidth, cardHeight, 5)
+      .fillAndStroke(BRAND.cardBg, BRAND.cardBorder);
+    // Gold top accent stripe
+    doc.rect(x + 1, startY + 1, cardWidth - 2, 2.5).fill(BRAND.gold);
+    doc
+      .fillColor(BRAND.subtle)
+      .font('Helvetica')
+      .fontSize(8)
+      .text((card.label || 'Metric').toUpperCase(), x + 10, startY + 10, {
+        width: cardWidth - 20,
+        characterSpacing: 0.4,
       });
+    doc
+      .fillColor(BRAND.dark)
+      .font('Helvetica-Bold')
+      .fontSize(15)
+      .text(card.value || 'N/A', x + 10, startY + 24, {
+        width: cardWidth - 20,
+      });
+    if (card.hint) {
+      doc
+        .fillColor(BRAND.muted)
+        .font('Helvetica')
+        .fontSize(7.5)
+        .text(card.hint, x + 10, startY + 43, {
+          width: cardWidth - 20,
+        });
     }
     doc.restore();
   });
 
-  doc.y = startY + cardHeight + 6;
+  doc.y = startY + cardHeight + 8;
 };
 
 const drawKeyValueGrid = (doc, rows) => {
@@ -170,19 +234,20 @@ const drawKeyValueItem = (doc, x, y, width, item) => {
   const label = item?.label || 'Field';
   const value = item?.value || 'N/A';
 
-  doc.font('Helvetica-Bold').fontSize(8.3).fillColor('#4B5563').text(label.toUpperCase(), x, y, {
-    width
+  doc.font('Helvetica-Bold').fontSize(7.8).fillColor(BRAND.subtle).text(label.toUpperCase(), x, y, {
+    width,
+    characterSpacing: 0.3,
   });
 
   const valueY = y + 11;
-  doc.font('Helvetica').fontSize(9.5).fillColor('#111111').text(value, x, valueY, {
+  doc.font('Helvetica').fontSize(9.5).fillColor(BRAND.dark).text(value, x, valueY, {
     width,
-    lineGap: 1
+    lineGap: 1,
   });
 
   const valueHeight = doc.heightOfString(value, {
     width,
-    lineGap: 1
+    lineGap: 1,
   });
 
   return valueHeight + 14;
@@ -210,58 +275,59 @@ const PRIVATE_IP_PATTERN = /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|16
 const MAX_REMOTE_IMAGE_BYTES = 5 * 1024 * 1024;
 const REMOTE_IMAGE_TIMEOUT_MS = 5000;
 
-const downloadImageBuffer = (url) => new Promise((resolve, reject) => {
-  // Only allow HTTPS to prevent cleartext transmission and SSRF via redirects
-  if (!url.startsWith('https://')) {
-    return reject(new Error('Only HTTPS image URLs are permitted'));
-  }
-
-  let hostname;
-  try {
-    hostname = new URL(url).hostname;
-  } catch {
-    return reject(new Error('Invalid image URL'));
-  }
-
-  // Block SSRF against localhost and private/internal network addresses
-  if (hostname === 'localhost' || PRIVATE_IP_PATTERN.test(hostname)) {
-    return reject(new Error('Image URL targets a blocked address'));
-  }
-
-  const request = https.get(url, (response) => {
-    if (response.statusCode && response.statusCode >= 400) {
-      response.resume();
-      reject(new Error(`Image request failed with status ${response.statusCode}`));
-      return;
+const downloadImageBuffer = (url) =>
+  new Promise((resolve, reject) => {
+    // Only allow HTTPS to prevent cleartext transmission and SSRF via redirects
+    if (!url.startsWith('https://')) {
+      return reject(new Error('Only HTTPS image URLs are permitted'));
     }
 
-    const contentLength = parseInt(response.headers['content-length'] || '0', 10);
-    if (contentLength > MAX_REMOTE_IMAGE_BYTES) {
-      response.resume();
-      reject(new Error('Remote image exceeds maximum allowed size'));
-      return;
+    let hostname;
+    try {
+      hostname = new URL(url).hostname;
+    } catch {
+      return reject(new Error('Invalid image URL'));
     }
 
-    const chunks = [];
-    let totalBytes = 0;
-    response.on('data', (chunk) => {
-      totalBytes += chunk.length;
-      if (totalBytes > MAX_REMOTE_IMAGE_BYTES) {
-        response.destroy();
+    // Block SSRF against localhost and private/internal network addresses
+    if (hostname === 'localhost' || PRIVATE_IP_PATTERN.test(hostname)) {
+      return reject(new Error('Image URL targets a blocked address'));
+    }
+
+    const request = https.get(url, (response) => {
+      if (response.statusCode && response.statusCode >= 400) {
+        response.resume();
+        reject(new Error(`Image request failed with status ${response.statusCode}`));
+        return;
+      }
+
+      const contentLength = parseInt(response.headers['content-length'] || '0', 10);
+      if (contentLength > MAX_REMOTE_IMAGE_BYTES) {
+        response.resume();
         reject(new Error('Remote image exceeds maximum allowed size'));
         return;
       }
-      chunks.push(chunk);
-    });
-    response.on('end', () => resolve(Buffer.concat(chunks)));
-  });
 
-  request.setTimeout(REMOTE_IMAGE_TIMEOUT_MS, () => {
-    request.destroy();
-    reject(new Error('Image download timed out'));
+      const chunks = [];
+      let totalBytes = 0;
+      response.on('data', (chunk) => {
+        totalBytes += chunk.length;
+        if (totalBytes > MAX_REMOTE_IMAGE_BYTES) {
+          response.destroy();
+          reject(new Error('Remote image exceeds maximum allowed size'));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on('end', () => resolve(Buffer.concat(chunks)));
+    });
+
+    request.setTimeout(REMOTE_IMAGE_TIMEOUT_MS, () => {
+      request.destroy();
+      reject(new Error('Image download timed out'));
+    });
+    request.on('error', reject);
   });
-  request.on('error', reject);
-});
 
 const drawProfilePhoto = async (doc, profilePicturePath) => {
   const photoSize = 72;
@@ -274,7 +340,7 @@ const drawProfilePhoto = async (doc, profilePicturePath) => {
       doc.image(localImagePath, drawX, drawY, {
         fit: [photoSize, photoSize],
         align: 'center',
-        valign: 'center'
+        valign: 'center',
       });
     } catch {
       // Skip photo rendering if PDFKit cannot parse the image.
@@ -293,7 +359,7 @@ const drawProfilePhoto = async (doc, profilePicturePath) => {
     doc.image(remoteBuffer, drawX, drawY, {
       fit: [photoSize, photoSize],
       align: 'center',
-      valign: 'center'
+      valign: 'center',
     });
   } catch {
     // Skip photo rendering if remote image cannot be downloaded or parsed.
@@ -301,15 +367,22 @@ const drawProfilePhoto = async (doc, profilePicturePath) => {
 };
 
 const drawTableHeader = (doc, columns, y) => {
+  const tableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   doc.save();
-  doc.roundedRect(doc.page.margins.left, y, doc.page.width - doc.page.margins.left - doc.page.margins.right, 18, 4)
-    .fillAndStroke('#F3F4F6', '#E5E7EB');
+  doc.rect(doc.page.margins.left, y, tableWidth, 18).fill(BRAND.tableHeaderBg);
+  doc
+    .moveTo(doc.page.margins.left, y + 18)
+    .lineTo(doc.page.margins.left + tableWidth, y + 18)
+    .lineWidth(0.8)
+    .strokeColor(BRAND.gold)
+    .stroke();
 
-  doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#111111');
+  doc.fontSize(7.5).font('Helvetica-Bold').fillColor(BRAND.muted);
   columns.forEach((column) => {
-    doc.text(column.label, column.x, y + 5, {
+    doc.text(column.label.toUpperCase(), column.x, y + 5.5, {
       width: column.width,
-      align: column.align || 'left'
+      align: column.align || 'left',
+      characterSpacing: 0.5,
     });
   });
   doc.restore();
@@ -317,11 +390,58 @@ const drawTableHeader = (doc, columns, y) => {
 
 const drawStudyPlanRows = (doc, courses) => {
   if (!Array.isArray(courses) || courses.length === 0) {
-    doc.fontSize(9.5).font('Helvetica').fillColor('#4B5563').text('No courses found in the active study plan version.');
+    doc
+      .fontSize(9.5)
+      .font('Helvetica')
+      .fillColor(BRAND.muted)
+      .text('No courses found in the active study plan version.');
     return;
   }
 
-  const sortedCourses = [...courses].sort((left, right) => {
+  // Filter out courses that already have grades (only show remaining/pending courses)
+  const isGraded = (course) => {
+    const grade = String(course.grade || '')
+      .trim()
+      .toLowerCase();
+    const status = String(course.status || '')
+      .trim()
+      .toLowerCase();
+    return grade && grade !== 'pending' && grade !== 'n/a' && grade !== '' && status !== 'pending';
+  };
+
+  const pendingCourses = courses.filter((c) => !isGraded(c));
+  const gradedCount = courses.length - pendingCourses.length;
+
+  if (pendingCourses.length === 0) {
+    doc
+      .fontSize(9.5)
+      .font('Helvetica')
+      .fillColor(BRAND.muted)
+      .text('All courses in the study plan have been graded.');
+    if (gradedCount > 0) {
+      doc
+        .fontSize(8.5)
+        .font('Helvetica')
+        .fillColor(BRAND.subtle)
+        .text(
+          `${gradedCount} course${gradedCount !== 1 ? 's' : ''} with grades excluded from this view.`,
+        );
+    }
+    return;
+  }
+
+  if (gradedCount > 0) {
+    doc
+      .fontSize(8.5)
+      .font('Helvetica')
+      .fillColor(BRAND.subtle)
+      .text(
+        `${gradedCount} course${gradedCount !== 1 ? 's' : ''} with existing grades excluded. Showing ${pendingCourses.length} remaining.`,
+      );
+    doc.moveDown(0.3);
+  }
+
+  const sortedCourses = [...pendingCourses].sort((left, right) => {
     if (Number(left.yearLevel) !== Number(right.yearLevel)) {
       return Number(left.yearLevel) - Number(right.yearLevel);
     }
@@ -335,14 +455,13 @@ const drawStudyPlanRows = (doc, courses) => {
 
   const tableX = doc.page.margins.left;
   const tableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const fixedColumnsWidth = 82 + 44 + 54 + 74;
-  const courseNameWidth = Math.max(140, tableWidth - fixedColumnsWidth);
+  const fixedColumnsWidth = 82 + 44 + 74;
+  const courseNameWidth = Math.max(180, tableWidth - fixedColumnsWidth);
   const columns = [
     { key: 'code', label: 'Code', width: 82, align: 'left' },
     { key: 'name', label: 'Course Name', width: courseNameWidth, align: 'left' },
     { key: 'units', label: 'Units', width: 44, align: 'right' },
-    { key: 'grade', label: 'Grade', width: 54, align: 'right' },
-    { key: 'status', label: 'Status', width: 74, align: 'right' }
+    { key: 'status', label: 'Status', width: 74, align: 'right' },
   ];
 
   let cursorX = tableX;
@@ -369,14 +488,30 @@ const drawStudyPlanRows = (doc, courses) => {
     return leftSemester - rightSemester;
   });
 
-  const drawGroupHeader = (y, groupLabel, isContinued = false) => {
+  const drawGroupHeader = (y, groupLabel, groupUnits, isContinued = false) => {
     const label = isContinued ? `${groupLabel} (continued)` : groupLabel;
     doc.save();
-    doc.roundedRect(tableX, y, tableWidth, 16, 4).fillAndStroke('#EEF2FF', '#C7D2FE');
-    doc.font('Helvetica-Bold').fontSize(8.6).fillColor('#1F2937').text(label, tableX + 8, y + 4, {
-      width: tableWidth - 16,
-      align: 'left'
-    });
+    doc.rect(tableX, y, tableWidth, 18).fill(BRAND.groupBg);
+    // Gold left accent strip on group header
+    doc.rect(tableX, y, 3, 18).fill(BRAND.gold);
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(8.5)
+      .fillColor(BRAND.groupText)
+      .text(label, tableX + 10, y + 4.5, {
+        width: tableWidth - 20,
+        align: 'left',
+      });
+    if (!isContinued && groupUnits > 0) {
+      doc
+        .font('Helvetica')
+        .fontSize(8)
+        .fillColor('#CCCCCC')
+        .text(`${groupUnits} units`, tableX + 10, y + 4.5, {
+          width: tableWidth - 20,
+          align: 'right',
+        });
+    }
     doc.restore();
   };
 
@@ -387,11 +522,12 @@ const drawStudyPlanRows = (doc, courses) => {
     const [yearLevel, semester] = groupKey.split('-').map(Number);
     const groupLabel = `Year ${yearLevel} — ${semesterLabel(semester)}`;
     const groupItems = groupedCourses[groupKey] || [];
+    const groupUnits = groupItems.reduce((sum, c) => sum + (Number(c.Course?.units) || 0), 0);
 
-    ensureSpace(doc, 40);
+    ensureSpace(doc, 44);
     currentY = doc.y;
-    drawGroupHeader(currentY, groupLabel);
-    currentY += 20;
+    drawGroupHeader(currentY, groupLabel, groupUnits);
+    currentY += 22;
     drawTableHeader(doc, columns, currentY);
     currentY += 22;
 
@@ -400,21 +536,20 @@ const drawStudyPlanRows = (doc, courses) => {
         code: String(course.Course?.code || 'N/A'),
         name: String(course.Course?.name || 'N/A'),
         units: String(course.Course?.units ?? ''),
-        grade: String(course.grade || 'Pending'),
-        status: String((course.status || 'pending').toUpperCase())
+        status: String((course.status || 'pending').toUpperCase()),
       };
 
       const nameHeight = doc.heightOfString(rowValues.name, {
         width: columns[1].width,
-        lineGap: 1
+        lineGap: 1,
       });
       const rowHeight = Math.max(18, nameHeight + 6);
 
       if (currentY + rowHeight > doc.page.height - doc.page.margins.bottom - PAGE_PADDING_BOTTOM) {
         doc.addPage();
         currentY = doc.page.margins.top;
-        drawGroupHeader(currentY, groupLabel, true);
-        currentY += 20;
+        drawGroupHeader(currentY, groupLabel, groupUnits, true);
+        currentY += 22;
         drawTableHeader(doc, columns, currentY);
         currentY += 22;
       }
@@ -423,41 +558,74 @@ const drawStudyPlanRows = (doc, courses) => {
       const isFailStatus = String(course.status || '').toLowerCase() === 'failed';
 
       doc.save();
-      if (rowIndex % 2 === 1 && !isFailStatus) {
-        doc.rect(tableX, rowY - 1, tableWidth, rowHeight).fill('#FAFAFB');
-      }
       if (isFailStatus) {
-        doc.roundedRect(tableX, rowY - 1, tableWidth, rowHeight, 3).fill('#FEF2F2');
+        doc.rect(tableX, rowY - 1, tableWidth, rowHeight).fill(BRAND.failBg);
+        doc
+          .moveTo(tableX, rowY - 1)
+          .lineTo(tableX, rowY - 1 + rowHeight)
+          .lineWidth(2)
+          .strokeColor(BRAND.failBorder)
+          .stroke();
+      } else if (rowIndex % 2 === 1) {
+        doc.rect(tableX, rowY - 1, tableWidth, rowHeight).fill(BRAND.tableStripe);
       }
       doc.restore();
 
-      doc.font('Helvetica').fontSize(8.6).fillColor('#111111');
-      doc.text(rowValues.code, columns[0].x, rowY + 3, { width: columns[0].width, align: columns[0].align, lineBreak: false });
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(BRAND.dark);
+      doc.text(rowValues.code, columns[0].x, rowY + 3, {
+        width: columns[0].width,
+        align: columns[0].align,
+        lineBreak: false,
+      });
+      doc.font('Helvetica').fontSize(8.5).fillColor(BRAND.dark);
       doc.text(rowValues.name, columns[1].x, rowY + 3, {
         width: columns[1].width,
         align: columns[1].align,
-        lineGap: 1
+        lineGap: 1,
       });
-      doc.text(rowValues.units, columns[2].x, rowY + 3, { width: columns[2].width, align: columns[2].align, lineBreak: false });
-      doc.text(rowValues.grade, columns[3].x, rowY + 3, { width: columns[3].width, align: columns[3].align, lineBreak: false });
-      doc.font('Helvetica-Bold').text(rowValues.status, columns[4].x, rowY + 3, {
-        width: columns[4].width,
-        align: columns[4].align,
-        lineBreak: false
+      doc.font('Helvetica').fontSize(8.5).fillColor(BRAND.muted);
+      doc.text(rowValues.units, columns[2].x, rowY + 3, {
+        width: columns[2].width,
+        align: columns[2].align,
+        lineBreak: false,
+      });
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(8)
+        .fillColor(isFailStatus ? '#CF1322' : BRAND.subtle);
+      doc.text(rowValues.status, columns[3].x, rowY + 3, {
+        width: columns[3].width,
+        align: columns[3].align,
+        lineBreak: false,
       });
 
       doc.save();
-      doc.moveTo(tableX, rowY + rowHeight)
+      doc
+        .moveTo(tableX, rowY + rowHeight)
         .lineTo(tableX + tableWidth, rowY + rowHeight)
-        .lineWidth(0.4)
-        .strokeColor('#E5E7EB')
+        .lineWidth(0.3)
+        .strokeColor(BRAND.tableBorder)
         .stroke();
       doc.restore();
 
       currentY += rowHeight;
     });
 
-    doc.y = currentY + 8;
+    // Semester subtotal row
+    doc.save();
+    doc.rect(tableX, currentY, tableWidth, 16).fill(BRAND.tableHeaderBg);
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(8)
+      .fillColor(BRAND.muted)
+      .text(`${groupItems.length} courses · ${groupUnits} units`, tableX + 8, currentY + 4, {
+        width: tableWidth - 16,
+        align: 'right',
+      });
+    doc.restore();
+    currentY += 20;
+
+    doc.y = currentY + 4;
   });
 
   doc.x = doc.page.margins.left;
@@ -466,28 +634,40 @@ const drawStudyPlanRows = (doc, courses) => {
 
 const drawPrerequisiteHighlights = (doc, analytics) => {
   const unmetSubjects = Array.isArray(analytics?.prerequisiteChecking?.subjects)
-    ? analytics.prerequisiteChecking.subjects.filter((subject) => Array.isArray(subject.unmetPrerequisites) && subject.unmetPrerequisites.length > 0)
+    ? analytics.prerequisiteChecking.subjects.filter(
+        (subject) =>
+          Array.isArray(subject.unmetPrerequisites) && subject.unmetPrerequisites.length > 0,
+      )
     : [];
 
   const total = Array.isArray(analytics?.prerequisiteChecking?.subjects)
     ? analytics.prerequisiteChecking.subjects.length
     : 0;
 
-  const met = analytics?.prerequisiteChecking?.metSubjects ?? Math.max(total - unmetSubjects.length, 0);
+  const met =
+    analytics?.prerequisiteChecking?.metSubjects ?? Math.max(total - unmetSubjects.length, 0);
 
   drawKeyValueGrid(doc, [
     { label: 'Prerequisite Coverage', value: `${met} met / ${total} evaluated` },
-    { label: 'Subjects With Unmet Prerequisites', value: String(unmetSubjects.length) }
+    { label: 'Subjects With Unmet Prerequisites', value: String(unmetSubjects.length) },
   ]);
 
   if (unmetSubjects.length === 0) {
     doc.moveDown(0.1);
-    doc.font('Helvetica').fontSize(9.2).fillColor('#065F46').text('No unmet prerequisite risks detected in the current active plan.');
+    doc
+      .font('Helvetica')
+      .fontSize(9.2)
+      .fillColor('#2D6A4F')
+      .text('No unmet prerequisite risks detected in the current active plan.');
     return;
   }
 
   doc.moveDown(0.2);
-  doc.font('Helvetica-Bold').fontSize(9.3).fillColor('#111111').text('Top prerequisite risk subjects');
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(9.3)
+    .fillColor(BRAND.dark)
+    .text('Top prerequisite risk subjects');
   doc.moveDown(0.2);
 
   unmetSubjects.slice(0, 8).forEach((subject) => {
@@ -497,8 +677,16 @@ const drawPrerequisiteHighlights = (doc, analytics) => {
       .filter(Boolean)
       .join(', ');
 
-    doc.font('Helvetica-Bold').fontSize(8.9).fillColor('#111111').text(`${subject.courseCode || 'N/A'} — ${subject.courseName || 'Untitled Subject'}`);
-    doc.font('Helvetica').fontSize(8.7).fillColor('#4B5563').text(`Unmet prerequisites: ${unmetCodes || 'N/A'}`);
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(8.9)
+      .fillColor(BRAND.dark)
+      .text(`${subject.courseCode || 'N/A'} — ${subject.courseName || 'Untitled Subject'}`);
+    doc
+      .font('Helvetica')
+      .fontSize(8.7)
+      .fillColor(BRAND.muted)
+      .text(`Unmet prerequisites: ${unmetCodes || 'N/A'}`);
     doc.moveDown(0.2);
   });
 };
@@ -521,7 +709,11 @@ exports.exportSARPDF = async (req, res, next) => {
         { model: Curriculum, attributes: ['id', 'name'] },
         { model: ElectiveTrack, attributes: ['id', 'name'] },
         { model: User, as: 'Student', attributes: ['id', 'profile_picture'] },
-        { model: User, as: 'CreatedByAdviser', attributes: ['id', 'firstName', 'lastName', 'email'] },
+        {
+          model: User,
+          as: 'CreatedByAdviser',
+          attributes: ['id', 'firstName', 'lastName', 'email'],
+        },
         {
           model: StudyPlan,
           attributes: ['id'],
@@ -531,16 +723,20 @@ exports.exportSARPDF = async (req, res, next) => {
               where: { status: 'active' },
               required: false,
               include: [
-                { model: User, as: 'ValidatedByAdviser', attributes: ['id', 'firstName', 'lastName', 'email'] },
+                {
+                  model: User,
+                  as: 'ValidatedByAdviser',
+                  attributes: ['id', 'firstName', 'lastName', 'email'],
+                },
                 {
                   model: StudyPlanCourse,
-                  include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-                }
-              ]
-            }
-          ]
-        }
-      ]
+                  include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
     });
 
     if (!sar) {
@@ -558,36 +754,54 @@ exports.exportSARPDF = async (req, res, next) => {
     if (req.user.role === 'student' && !activeVersion?.validatedAt) {
       return res.status(403).json({
         success: false,
-        message: 'Study plan PDF can only be exported after adviser validation.'
+        message: 'Study plan PDF can only be exported after adviser validation.',
       });
     }
 
     const allVersions = sar.StudyPlan?.id
       ? await StudyPlanVersion.findAll({
-        where: { studyPlanId: sar.StudyPlan.id },
-        include: [
-          { model: User, as: 'GeneratedByAdviser', attributes: ['id', 'firstName', 'lastName', 'email'] },
-          { model: User, as: 'ValidatedByAdviser', attributes: ['id', 'firstName', 'lastName', 'email'] },
-          {
-            model: StudyPlanCourse,
-            include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-          }
-        ],
-        order: [['versionNumber', 'DESC'], ['createdAt', 'DESC']]
-      })
+          where: { studyPlanId: sar.StudyPlan.id },
+          include: [
+            {
+              model: User,
+              as: 'GeneratedByAdviser',
+              attributes: ['id', 'firstName', 'lastName', 'email'],
+            },
+            {
+              model: User,
+              as: 'ValidatedByAdviser',
+              attributes: ['id', 'firstName', 'lastName', 'email'],
+            },
+            {
+              model: StudyPlanCourse,
+              include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+            },
+          ],
+          order: [
+            ['versionNumber', 'DESC'],
+            ['createdAt', 'DESC'],
+          ],
+        })
       : [];
 
     const [curriculumCourses, prerequisites, currentTerm] = await Promise.all([
       CurriculumCourse.findAll({
         where: { curriculumId: sar.curriculumId },
         include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
-        order: [['yearLevel', 'ASC'], ['semester', 'ASC'], [Course, 'code', 'ASC']]
+        order: [
+          ['yearLevel', 'ASC'],
+          ['semester', 'ASC'],
+          [Course, 'code', 'ASC'],
+        ],
       }),
       Prerequisite.findAll({
         where: { curriculumId: sar.curriculumId },
-        include: [{ model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] }]
+        include: [{ model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] }],
       }),
-      AcademicTerm.findOne({ where: { isCurrent: true }, attributes: ['id', 'schoolYear', 'semester'] })
+      AcademicTerm.findOne({
+        where: { isCurrent: true },
+        attributes: ['id', 'schoolYear', 'semester'],
+      }),
     ]);
 
     const analytics = computeSarAnalytics({
@@ -596,50 +810,82 @@ exports.exportSARPDF = async (req, res, next) => {
       activeStudyPlanVersion: activeVersion,
       curriculumCourses,
       prerequisites,
-      currentTerm
+      currentTerm,
     });
 
     const validatingAdviserName = activeVersion?.ValidatedByAdviser
       ? `${activeVersion.ValidatedByAdviser.firstName} ${activeVersion.ValidatedByAdviser.lastName}`
       : 'N/A';
 
-    const filenameSafeStudentNumber = String(sar.studentNumber || 'unknown').replace(/[^a-z0-9-_]/gi, '_');
+    const filenameSafeStudentNumber = String(sar.studentNumber || 'unknown').replace(
+      /[^a-z0-9-_]/gi,
+      '_',
+    );
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="SAR-${filenameSafeStudentNumber}.pdf"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="SAR-${filenameSafeStudentNumber}.pdf"`,
+    );
 
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
     doc.pipe(res);
 
     await drawProfilePhoto(doc, sar.Student?.profile_picture);
 
-    doc.fontSize(17).font('Helvetica-Bold').fillColor('#111111').text('Technological Institute of the Philippines', {
-      align: 'center'
-    });
-    doc.fontSize(13.5).font('Helvetica-Bold').fillColor('#1F2937').text('Student Academic Record Summary Report', {
-      align: 'center'
-    });
-    doc.moveDown(0.2);
+    // Gold accent bar at top of page
+    doc.save();
+    doc
+      .rect(
+        doc.page.margins.left,
+        doc.page.margins.top - 10,
+        doc.page.width - doc.page.margins.left - doc.page.margins.right,
+        4,
+      )
+      .fill(BRAND.gold);
+    doc.restore();
+    doc.y = doc.page.margins.top + 2;
+
+    doc
+      .fontSize(16)
+      .font('Helvetica-Bold')
+      .fillColor(BRAND.dark)
+      .text('Technological Institute of the Philippines', {
+        align: 'center',
+      });
+    doc
+      .fontSize(10)
+      .font('Helvetica')
+      .fillColor(BRAND.muted)
+      .text('Student Academic Record Summary Report', {
+        align: 'center',
+        characterSpacing: 0.6,
+      });
+    doc.moveDown(0.3);
 
     const tagStartX = doc.page.margins.left;
     const tagY = doc.y;
-    const roleTag = drawTag(doc, req.user.role === 'admin' ? 'Program Chair Access' : `${req.user.role} Access`, {
-      x: tagStartX,
-      y: tagY,
-      background: '#FEF3C7',
-      border: '#FCD34D'
-    });
+    const roleTag = drawTag(
+      doc,
+      req.user.role === 'admin' ? 'Program Chair Access' : `${req.user.role} Access`,
+      {
+        x: tagStartX,
+        y: tagY,
+        background: BRAND.goldLight,
+        border: BRAND.goldBorder,
+      },
+    );
     const versionTag = drawTag(doc, formatVersionMetadata(activeVersion), {
       x: tagStartX + roleTag.width + 8,
       y: tagY,
-      background: '#DBEAFE',
-      border: '#93C5FD'
+      background: '#F0F4F8',
+      border: '#CBD5E0',
     });
     drawTag(doc, `Generated ${new Date().toLocaleString()}`, {
       x: tagStartX + roleTag.width + versionTag.width + 16,
       y: tagY,
-      background: '#F3F4F6',
-      border: '#D1D5DB'
+      background: '#F7F7F5',
+      border: '#E0DED8',
     });
 
     doc.y = tagY + 20;
@@ -651,7 +897,7 @@ exports.exportSARPDF = async (req, res, next) => {
       { label: 'Email', value: sar.email },
       { label: 'Year Level', value: `Year ${sar.yearLevel || 'N/A'}` },
       { label: 'Curriculum', value: sar.Curriculum?.name || 'N/A' },
-      { label: 'Elective Track', value: sar.ElectiveTrack?.name || 'Not selected' }
+      { label: 'Elective Track', value: sar.ElectiveTrack?.name || 'Not selected' },
     ]);
 
     drawSectionTitle(doc, 'Progress Snapshot', 'Core completion and performance indicators');
@@ -659,34 +905,42 @@ exports.exportSARPDF = async (req, res, next) => {
       {
         label: 'Completion',
         value: `${Number(analytics.progress?.completionPercentage || 0).toFixed(2)}%`,
-        hint: analytics.progress?.unitsCompletedVsTotal || 'Units summary unavailable'
+        hint: analytics.progress?.unitsCompletedVsTotal || 'Units summary unavailable',
       },
       {
         label: 'Remaining Units',
         value: String(analytics.progress?.remainingUnits ?? 'N/A'),
-        hint: `Remaining semesters: ${analytics.remainingSemestersTracking?.estimatedRemainingSemesters ?? 'N/A'}`
+        hint: `Remaining semesters: ${analytics.remainingSemestersTracking?.estimatedRemainingSemesters ?? 'N/A'}`,
       },
       {
         label: 'Current GWA',
         value: analytics.gpaMonitoring?.gwa != null ? String(analytics.gpaMonitoring.gwa) : 'N/A',
-        hint: `${analytics.subjectsTakenSummary?.passed ?? 0} passed / ${analytics.subjectsTakenSummary?.failed ?? 0} failed`
-      }
+        hint: `${analytics.subjectsTakenSummary?.passed ?? 0} passed / ${analytics.subjectsTakenSummary?.failed ?? 0} failed`,
+      },
     ]);
 
-    drawSectionTitle(doc, 'Academic Intelligence', 'Eligibility, risk, and projected graduation timeline');
+    drawSectionTitle(
+      doc,
+      'Academic Intelligence',
+      'Eligibility, risk, and projected graduation timeline',
+    );
     drawKeyValueGrid(doc, [
       {
         label: 'Estimated Graduation',
-        value: analytics.estimatedGraduationDate?.label || 'N/A'
+        value: analytics.estimatedGraduationDate?.label || 'N/A',
       },
       {
         label: 'Review Workflow',
-        value: analytics.adviserReviewWorkflow?.reviewStatus || 'N/A'
-      }
+        value: analytics.adviserReviewWorkflow?.reviewStatus || 'N/A',
+      },
     ]);
     drawPrerequisiteHighlights(doc, analytics);
 
-    drawSectionTitle(doc, 'Active Study Plan', 'Current version coursework and status');
+    drawSectionTitle(
+      doc,
+      'Remaining Coursework',
+      'Courses without grades from the active study plan version',
+    );
     drawStudyPlanRows(doc, activeVersion?.StudyPlanCourses || []);
 
     drawSectionTitle(doc, 'Validation & Metadata', 'Adviser validation and generation context');
@@ -694,14 +948,26 @@ exports.exportSARPDF = async (req, res, next) => {
       { label: 'Validating Adviser', value: validatingAdviserName },
       { label: 'Validated At', value: formatTimestamp(activeVersion?.validatedAt) },
       { label: 'Record ID', value: String(sar.id || 'N/A') },
-      { label: 'Version Metadata', value: formatVersionMetadata(activeVersion) }
+      { label: 'Version Metadata', value: formatVersionMetadata(activeVersion) },
     ]);
 
-    doc.moveDown(0.8);
-    doc.fontSize(8.3).fillColor('#6B7280').font('Helvetica').text(
-      `Generated by Student Advising Portal • ${new Date().toLocaleString()} • Curriculum: ${sar.Curriculum?.name || 'N/A'}`,
-      { align: 'left' }
-    );
+    doc.moveDown(0.6);
+    const footerLineY = doc.y;
+    doc
+      .moveTo(doc.page.margins.left, footerLineY)
+      .lineTo(doc.page.width - doc.page.margins.right, footerLineY)
+      .lineWidth(0.5)
+      .strokeColor(BRAND.gold)
+      .stroke();
+    doc.moveDown(0.3);
+    doc
+      .fontSize(7.8)
+      .fillColor(BRAND.subtle)
+      .font('Helvetica')
+      .text(
+        `Generated by Student Advising Portal  •  ${new Date().toLocaleString()}  •  Curriculum: ${sar.Curriculum?.name || 'N/A'}`,
+        { align: 'center' },
+      );
 
     doc.end();
   } catch (error) {

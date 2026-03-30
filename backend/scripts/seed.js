@@ -5,8 +5,8 @@
  *   1. Truncates every table in the public schema (except SequelizeMeta),
  *      resetting all identity sequences.
  *   2. Creates the three default user accounts (admin, adviser, student).
- *   3. Imports all BS CPE curricula (2018, 2023, 2025) from the pre-built
- *      normalized CSVs in data/curriculum_normalized/.
+ *   3. Imports all BS CPE curricula (2018, 2023, 2025) from the single-file
+ *      import-ready CSVs in data/curriculum_import_ready/.
  *
  * Usage (from repo root):
  *   node backend/scripts/seed.js
@@ -29,22 +29,31 @@ const {
   CurriculumCourse,
   Prerequisite,
   ElectiveTrack,
-  ElectiveTrackCourse
+  ElectiveTrackCourse,
 } = require('../models');
 
-const normalizedDir = path.resolve(__dirname, '..', '..', 'data', 'curriculum_normalized');
+const importReadyDir = path.resolve(__dirname, '..', '..', 'data', 'curriculum_import_ready');
 
 // ─── CSV helpers ────────────────────────────────────────────────────────────
 
-const parseCsvLine = (line) => {
-  const result = [];
+const parseCsvText = (text) => {
+  const rows = [];
   let current = '';
+  let row = [];
   let inQuotes = false;
 
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
-    const nextChar = line[i + 1];
+  const pushCell = () => {
+    row.push(current);
+    current = '';
+  };
+  const pushRow = () => {
+    if (row.length > 1 || (row.length === 1 && row[0] !== '')) rows.push(row);
+    row = [];
+  };
 
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const nextChar = text[i + 1];
     if (char === '"') {
       if (inQuotes && nextChar === '"') {
         current += '"';
@@ -54,42 +63,69 @@ const parseCsvLine = (line) => {
       }
       continue;
     }
-
     if (char === ',' && !inQuotes) {
-      result.push(current);
-      current = '';
+      pushCell();
       continue;
     }
-
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && nextChar === '\n') i += 1;
+      pushCell();
+      pushRow();
+      continue;
+    }
     current += char;
   }
-
-  result.push(current);
-  return result;
+  pushCell();
+  pushRow();
+  return rows;
 };
 
-const readCsv = (fileName) => {
-  const filePath = path.join(normalizedDir, fileName);
-  const raw = fs.readFileSync(filePath, 'utf8');
-  const lines = raw.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  const headers = parseCsvLine(lines[0]);
-
-  return lines.slice(1).map((line) => {
-    const cells = parseCsvLine(line);
-    const row = {};
-    headers.forEach((header, index) => {
-      row[header] = cells[index] ?? '';
-    });
-    return row;
-  });
+const parseBoolean = (value) => {
+  const v = String(value || '')
+    .trim()
+    .toLowerCase();
+  return v === 'true' || v === '1' || v === 'yes' || v === 'y';
 };
-
-const toBoolean = (value) => String(value || '').trim().toLowerCase() === 'true';
 
 const toIntOrNull = (value) => {
-  if (value === undefined || value === null || String(value).trim() === '') return null;
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? Math.trunc(numeric) : null;
+  const v = String(value ?? '').trim();
+  if (!v) return null;
+  const n = Number(v);
+  return Number.isInteger(n) ? n : null;
+};
+
+/**
+ * Parses a curriculum import-ready CSV file and returns normalized rows.
+ * Columns: exportVersion, rowType, curriculumId, curriculumName,
+ *          courseCode, courseName, units, yearLevel, semester,
+ *          isElective, relatedCourseCode, trackName, notes
+ */
+const readImportCsv = (fileName) => {
+  const filePath = path.join(importReadyDir, fileName);
+  const text = fs.readFileSync(filePath, 'utf8');
+  const rawRows = parseCsvText(text);
+  if (rawRows.length === 0) return [];
+
+  const headers = rawRows[0].map((h) => String(h || '').trim());
+  const idx = headers.reduce((acc, col, i) => {
+    acc[col] = i;
+    return acc;
+  }, {});
+  const pick = (rawRow, col) => String(rawRow[idx[col]] ?? '').trim();
+
+  return rawRows.slice(1).map((rawRow) => ({
+    rowType: pick(rawRow, 'rowType').toLowerCase(),
+    curriculumName: pick(rawRow, 'curriculumName'),
+    courseCode: pick(rawRow, 'courseCode').toUpperCase(),
+    courseName: pick(rawRow, 'courseName'),
+    units: toIntOrNull(pick(rawRow, 'units')),
+    yearLevel: toIntOrNull(pick(rawRow, 'yearLevel')),
+    semester: toIntOrNull(pick(rawRow, 'semester')),
+    isElective: parseBoolean(pick(rawRow, 'isElective')),
+    relatedCourseCode: pick(rawRow, 'relatedCourseCode').toUpperCase(),
+    trackName: pick(rawRow, 'trackName'),
+    notes: pick(rawRow, 'notes'),
+  }));
 };
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -101,7 +137,7 @@ const toIntOrNull = (value) => {
 
     // ── 1. Truncate all tables ───────────────────────────────────────────────
     const [tableRows] = await sequelize.query(
-      "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('SequelizeMeta') ORDER BY tablename"
+      "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('SequelizeMeta') ORDER BY tablename",
     );
 
     if (tableRows.length > 0) {
@@ -128,7 +164,7 @@ const toIntOrNull = (value) => {
         mustChangePassword: true,
         mustChangeEmail: true,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         firstName: 'Student',
@@ -139,7 +175,7 @@ const toIntOrNull = (value) => {
         isActive: true,
         isVerified: true,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         studentId: '1234567',
@@ -151,135 +187,171 @@ const toIntOrNull = (value) => {
         isActive: true,
         isVerified: true,
         createdAt: now,
-        updatedAt: now
-      }
+        updatedAt: now,
+      },
     ]);
 
     console.log('[seed] default users created (admin, adviser, student)');
 
-    // ── 3. Curriculum import from normalized CSVs ────────────────────────────
-    console.log('[seed] loading normalized csv files...');
-
-    const [curriculumRows, courseRows, curriculumCourseRows, prerequisiteRows, trackRows, trackCourseRows] = [
-      readCsv('curriculums.csv'),
-      readCsv('courses.csv'),
-      readCsv('curriculum_courses.csv'),
-      readCsv('prerequisites.csv'),
-      readCsv('elective_tracks.csv'),
-      readCsv('elective_track_courses.csv')
+    // ── 3. Curriculum import from import-ready CSVs ─────────────────────────
+    const importFiles = [
+      { file: 'bs_cpe_curriculum_2018_import.csv', isActive: false },
+      { file: 'bs_cpe_curriculum_2023_import.csv', isActive: false },
+      { file: 'bs_cpe_curriculum_2025_import.csv', isActive: true },
     ];
+
+    console.log('[seed] loading import-ready csv files...');
 
     const transaction = await sequelize.transaction();
 
     try {
       await sequelize.query("SET LOCAL statement_timeout = '120000ms'", { transaction });
 
-      const admin = await User.findOne({ where: { role: 'admin' }, order: [['id', 'ASC']], transaction });
+      const admin = await User.findOne({
+        where: { role: 'admin' },
+        order: [['id', 'ASC']],
+        transaction,
+      });
       const createdById = admin?.id || null;
 
-      // Curricula
-      console.log('[seed] inserting curriculums...');
-      const curriculumIdByCode = new Map();
-
-      for (const row of curriculumRows) {
-        const curriculum = await Curriculum.create({
-          name: row.name,
-          description: row.description || null,
-          isActive: toBoolean(row.is_active),
-          createdById,
-          createdAt: now,
-          updatedAt: now
-        }, { transaction });
-
-        curriculumIdByCode.set(row.curriculum_code, curriculum.id);
-      }
-
-      // Courses
-      console.log('[seed] inserting courses...');
+      // Shared course map: course code → Course DB id (courses are global)
       const courseIdByCode = new Map();
 
-      for (const row of courseRows) {
-        const course = await Course.create({
-          code: row.course_code,
-          name: row.course_title,
-          units: toIntOrNull(row.credit_units) || 0,
-          createdAt: now,
-          updatedAt: now
-        }, { transaction });
+      for (const { file, isActive } of importFiles) {
+        console.log(`[seed] importing ${file}...`);
+        const rows = readImportCsv(file);
 
-        courseIdByCode.set(row.course_code, course.id);
+        const metaRow = rows.find((r) => r.rowType === 'metadata');
+        const curriculumName = metaRow?.curriculumName || path.basename(file, '.csv');
+
+        // Create the curriculum record
+        const curriculum = await Curriculum.create(
+          {
+            name: curriculumName,
+            description: null,
+            isActive,
+            createdById,
+            createdAt: now,
+            updatedAt: now,
+          },
+          { transaction },
+        );
+
+        const curriculumId = curriculum.id;
+
+        const structureRows = rows.filter((r) => r.rowType === 'structure');
+        const prereqRows = rows.filter((r) => r.rowType === 'prerequisite');
+        const trackHeaderRows = rows.filter((r) => r.rowType === 'elective_track');
+        const trackCourseRows = rows.filter((r) => r.rowType === 'elective_track_course');
+
+        // Resolve / create courses referenced in this file
+        const allCodes = [
+          ...new Set(rows.flatMap((r) => [r.courseCode, r.relatedCourseCode]).filter(Boolean)),
+        ];
+
+        // Find codes already in DB (from a prior curriculum file)
+        const needLookup = allCodes.filter((c) => !courseIdByCode.has(c));
+
+        if (needLookup.length > 0) {
+          const existing = await Course.findAll({
+            where: { code: needLookup },
+            transaction,
+          });
+          for (const c of existing) courseIdByCode.set(c.code.toUpperCase(), c.id);
+        }
+
+        // Create any courses that are still missing (structure + elective_track_course rows only)
+        const createTypes = new Set(['structure', 'elective_track_course']);
+        for (const row of rows) {
+          if (
+            !createTypes.has(row.rowType) ||
+            !row.courseCode ||
+            courseIdByCode.has(row.courseCode)
+          )
+            continue;
+          const created = await Course.create(
+            {
+              code: row.courseCode,
+              name: row.courseName,
+              units: row.units || 0,
+            },
+            { transaction },
+          );
+          courseIdByCode.set(created.code.toUpperCase(), created.id);
+        }
+
+        // CurriculumCourse (structure rows)
+        if (structureRows.length > 0) {
+          await CurriculumCourse.bulkCreate(
+            structureRows
+              .filter((r) => courseIdByCode.has(r.courseCode))
+              .map((r) => ({
+                curriculumId,
+                courseId: courseIdByCode.get(r.courseCode),
+                yearLevel: r.yearLevel,
+                semester: r.semester,
+                isElective: r.isElective,
+              })),
+            { transaction },
+          );
+        }
+
+        // Prerequisites
+        if (prereqRows.length > 0) {
+          await Prerequisite.bulkCreate(
+            prereqRows
+              .filter(
+                (r) => courseIdByCode.has(r.courseCode) && courseIdByCode.has(r.relatedCourseCode),
+              )
+              .map((r) => ({
+                curriculumId,
+                courseId: courseIdByCode.get(r.courseCode),
+                prerequisiteCourseId: courseIdByCode.get(r.relatedCourseCode),
+              })),
+            { transaction },
+          );
+        }
+
+        // Elective tracks and their courses
+        const trackByName = new Map();
+        const trackNames = new Set(
+          [
+            ...trackHeaderRows.map((r) => r.trackName),
+            ...trackCourseRows.map((r) => r.trackName),
+          ].filter(Boolean),
+        );
+
+        for (const name of trackNames) {
+          const header = trackHeaderRows.find((r) => r.trackName === name);
+          const track = await ElectiveTrack.create(
+            {
+              curriculumId,
+              name,
+              description: header?.notes || null,
+            },
+            { transaction },
+          );
+          trackByName.set(name, track.id);
+        }
+
+        if (trackCourseRows.length > 0) {
+          await ElectiveTrackCourse.bulkCreate(
+            trackCourseRows
+              .filter((r) => trackByName.has(r.trackName) && courseIdByCode.has(r.courseCode))
+              .map((r) => ({
+                electiveTrackId: trackByName.get(r.trackName),
+                courseId: courseIdByCode.get(r.courseCode),
+                yearLevel: r.yearLevel,
+                semester: r.semester,
+              })),
+            { transaction },
+          );
+        }
+
+        console.log(
+          `[seed]   ${curriculumName}: ${structureRows.length} courses, ${prereqRows.length} prereqs, ${trackNames.size} tracks`,
+        );
       }
-
-      // Curriculum ↔ Course mappings
-      console.log('[seed] inserting curriculum_courses...');
-      const curriculumCourseData = [];
-
-      for (const row of curriculumCourseRows) {
-        const curriculumId = curriculumIdByCode.get(row.curriculum_code);
-        const courseId = courseIdByCode.get(row.course_code);
-        if (!curriculumId || !courseId) continue;
-
-        curriculumCourseData.push({
-          curriculumId,
-          courseId,
-          yearLevel: toIntOrNull(row.year_level),
-          semester: toIntOrNull(row.semester),
-          isElective: toBoolean(row.is_elective)
-        });
-      }
-
-      await CurriculumCourse.bulkCreate(curriculumCourseData, { transaction });
-
-      // Prerequisites
-      console.log('[seed] inserting prerequisites...');
-      const prerequisiteData = [];
-
-      for (const row of prerequisiteRows) {
-        const curriculumId = curriculumIdByCode.get(row.curriculum_code);
-        const courseId = courseIdByCode.get(row.course_code);
-        const prerequisiteCourseId = courseIdByCode.get(row.prerequisite_course_code);
-        if (!curriculumId || !courseId || !prerequisiteCourseId) continue;
-
-        prerequisiteData.push({ curriculumId, courseId, prerequisiteCourseId });
-      }
-
-      await Prerequisite.bulkCreate(prerequisiteData, { transaction });
-
-      // Elective tracks
-      console.log('[seed] inserting elective_tracks...');
-      const trackIdByKey = new Map();
-
-      for (const row of trackRows) {
-        const curriculumId = curriculumIdByCode.get(row.curriculum_code);
-        if (!curriculumId) continue;
-
-        const track = await ElectiveTrack.create({
-          curriculumId,
-          name: row.track_name,
-          description: row.description || null
-        }, { transaction });
-
-        trackIdByKey.set(`${row.curriculum_code}|${row.track_name}`, track.id);
-      }
-
-      // Elective track ↔ course mappings
-      console.log('[seed] inserting elective_track_courses...');
-      const trackCourseData = [];
-
-      for (const row of trackCourseRows) {
-        const trackId = trackIdByKey.get(`${row.curriculum_code}|${row.track_name}`);
-        const courseId = courseIdByCode.get(row.course_code);
-        if (!trackId || !courseId) continue;
-
-        trackCourseData.push({
-          electiveTrackId: trackId,
-          courseId,
-          yearLevel: toIntOrNull(row.year_level),
-          semester: toIntOrNull(row.semester)
-        });
-      }
-
-      await ElectiveTrackCourse.bulkCreate(trackCourseData, { transaction });
 
       await transaction.commit();
     } catch (err) {
@@ -295,7 +367,7 @@ const toIntOrNull = (value) => {
       curriculumCourses: await CurriculumCourse.count(),
       prerequisites: await Prerequisite.count(),
       electiveTracks: await ElectiveTrack.count(),
-      electiveTrackCourses: await ElectiveTrackCourse.count()
+      electiveTrackCourses: await ElectiveTrackCourse.count(),
     };
 
     console.log('[seed] complete');
@@ -304,7 +376,11 @@ const toIntOrNull = (value) => {
     await sequelize.close();
   } catch (error) {
     console.error('[seed] error:', error.message || error);
-    try { await sequelize.close(); } catch {}
+    try {
+      await sequelize.close();
+    } catch (_) {
+      /* ignore close error */
+    }
     process.exit(1);
   }
 })();
