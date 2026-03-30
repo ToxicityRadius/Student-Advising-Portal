@@ -44,6 +44,16 @@ body {
   position: relative;
 }
 
+.login-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.22) 100%);
+}
+
 .login-card {
   position: relative;
   z-index: 1;
@@ -413,15 +423,15 @@ body {
 }
 
 .btn-danger {
-  background-color: #FFC107;
-  color: #000000;
+  background-color: #000000;
+  color: #ffffff;
   font-weight: 700;
-  border: 2px solid #000000;
+  border: 2px solid #FFC107;
 }
 
 .btn-danger:hover {
-  background-color: #e0a800;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  background-color: #1a1a1a;
+  box-shadow: 0 4px 8px rgba(255, 193, 7, 0.4);
 }
 
 .btn-success {
@@ -437,15 +447,15 @@ body {
 }
 
 .btn-warning {
-  background-color: #FFC107;
-  color: #000000;
+  background-color: #000000;
+  color: #FFC107;
   font-weight: 700;
-  border: 2px solid #000000;
+  border: 2px solid #FFC107;
 }
 
 .btn-warning:hover {
-  background-color: #e0a800;
-  color: #000000;
+  background-color: #1a1a1a;
+  color: #FFD54F;
 }
 
 .auth-links {
@@ -455,13 +465,13 @@ body {
 }
 
 .auth-links a {
-  color: #996D00;
+  color: #FFC107;
   text-decoration: none;
   font-weight: 600;
 }
 
 .auth-links a:hover {
-  color: #7A5700;
+  color: #FFD54F;
   text-decoration: underline;
 }
 
@@ -536,8 +546,8 @@ body {
 
 .navbar-menu button {
   padding: 8px 20px;
-  background-color: #FFC107;
-  color: #000000;
+  background-color: #000000;
+  color: #FFC107;
   border: none;
   border-radius: 5px;
   cursor: pointer;
@@ -545,9 +555,9 @@ body {
 }
 
 .navbar-menu button:hover {
-  background-color: #e0a800;
+  background-color: #1a1a1a;
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
 }
 
 /* Dashboard */

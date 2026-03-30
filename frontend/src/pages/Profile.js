@@ -456,7 +456,6 @@ const Profile = () => {
             fullName={fullName}
             suffix={suffix}
             studentId={studentId}
-            role={user?.role}
             email={email}
             alternateEmail={alternateEmail}
             contactNumber={contactNumber}

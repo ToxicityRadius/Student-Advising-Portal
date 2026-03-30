@@ -1,29 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { Form, Alert } from 'react-bootstrap';
+import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { getHomePathForRole } from '../utils/roleRedirect';
+import backgroundImage from '../assets/images/bg.png';
 import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
-import bgImage from '../assets/images/bg.png';
-import './Auth.css';
-
-const BackArrow = () => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-    focusable="false"
-  >
-    <path d="M19 12H5M12 19l-7-7 7-7" />
-  </svg>
-);
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -45,7 +28,10 @@ const Register = () => {
   const { register, login } = useAuth();
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -53,11 +39,13 @@ const Register = () => {
     setError('');
     setSuccess('');
 
+    // Validation
     if (!isFaculty && !/^\d{7}$/.test(formData.studentId)) {
       setError('Student Number must be exactly 7 digits');
       return;
     }
 
+    // Faculty email validation
     if (isFaculty && !formData.email.toLowerCase().endsWith('.cpe@tip.edu.ph')) {
       setError('Faculty email must end with .cpe@tip.edu.ph');
       return;
@@ -100,22 +88,28 @@ const Register = () => {
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
       setLoading(true);
+      // Decode the JWT token from Google
       const decoded = jwtDecode(credentialResponse.credential);
 
+      // Check if email ends with @tip.edu.ph
       if (!decoded.email.toLowerCase().endsWith('@tip.edu.ph')) {
         setError('Only TIP email addresses (@tip.edu.ph) are allowed to sign in.');
         setLoading(false);
         return;
       }
 
+      // Send the Google token to your backend for verification and login
       const { data } = await api.post('/auth/google', {
         token: credentialResponse.credential,
         email: decoded.email,
         name: decoded.name,
       });
 
-      const result = await login(data.token);
-      navigate(getHomePathForRole(result?.role));
+      // Route through AuthContext so inactivity timer and state are properly set up
+      await login(data.token);
+
+      // Navigate to dashboard
+      navigate('/dashboard');
     } catch (err) {
       console.error('Google Sign-In error:', err);
       setError(
@@ -131,167 +125,218 @@ const Register = () => {
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-bg" style={{ backgroundImage: `url(${bgImage})` }}>
-        <div className="auth-card">
-          <img src={studentAdvisingLogo} alt="Student Advising" className="auth-card-logo" />
+    <div
+      className="min-vh-100 d-flex align-items-center justify-content-center position-relative py-5"
+      style={{
+        backgroundImage: `url(${backgroundImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background:
+            'linear-gradient(160deg, rgba(13,27,42,0.93) 0%, rgba(27,45,69,0.86) 50%, rgba(27,45,69,0.82) 100%)',
+          zIndex: 0,
+        }}
+      />
+      {/* Yellow rectangle - left side, top overlap */}
+      <div
+        className="position-absolute"
+        style={{
+          left: 0,
+          top: '6%',
+          width: '550px',
+          height: '60px',
+          backgroundColor: '#FFC107',
+          zIndex: 2,
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)',
+        }}
+      />
 
-          <Link to="/login" className="auth-back-btn" aria-label="Back to sign in">
-            <BackArrow />
-            Back to sign in
-          </Link>
+      {/* Yellow rectangle - right side, bottom overlap */}
+      <div
+        className="position-absolute"
+        style={{
+          right: 0,
+          bottom: '10.5%',
+          width: '1500px',
+          height: '60px',
+          backgroundColor: '#FFC107',
+          zIndex: 1,
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)',
+        }}
+      />
 
-          <h2 className="auth-form-title">
-            {isFaculty ? 'Faculty Registration' : 'Create an Account'}
-          </h2>
-          <p className="auth-form-desc">
-            {isFaculty
-              ? 'Register with your department email to get started'
-              : 'Fill in your details to join the portal'}
-          </p>
-
-          {error && (
-            <Alert className="auth-alert" variant="danger" dismissible onClose={() => setError('')}>
-              {error}
-            </Alert>
-          )}
-
-          {success && (
-            <Alert
-              className="auth-alert"
-              variant="success"
-              dismissible
-              onClose={() => setSuccess('')}
+      <Container className="position-relative" style={{ zIndex: 1 }}>
+        <Row className="justify-content-center">
+          <Col xs={12} sm={9} md={7} lg={6} xl={5} style={{ maxWidth: '380px' }}>
+            <Card
+              className="shadow-lg border-0"
+              style={{
+                position: 'relative',
+                zIndex: 3,
+                borderRadius: '20px',
+                overflow: 'hidden',
+              }}
             >
-              {success}
-            </Alert>
-          )}
+              <Card.Body className="p-3 p-md-4">
+                <div className="text-center mb-3">
+                  <img
+                    src={studentAdvisingLogo}
+                    alt="Student Advising Logo"
+                    style={{ maxWidth: '220px', height: 'auto' }}
+                  />
+                </div>
 
-          <form onSubmit={handleSubmit}>
-            {!isFaculty && (
-              <div className="auth-field">
-                <label htmlFor="reg-studentId">Student Number</label>
-                <Form.Control
-                  id="reg-studentId"
-                  type="text"
-                  name="studentId"
-                  value={formData.studentId}
-                  onChange={handleChange}
-                  required
-                  placeholder="Student Number (7 digits)"
-                  pattern="\d{7}"
-                  maxLength="7"
-                  title="Student Number must be exactly 7 digits"
-                />
-              </div>
-            )}
+                <h2 className="mb-3 text-start" style={{ fontSize: '1.3rem' }}>
+                  {isFaculty ? 'Faculty Registration' : 'Create an Account'}
+                </h2>
 
-            <div className="auth-field-row">
-              <div className="auth-field">
-                <label htmlFor="reg-firstName">First Name</label>
-                <Form.Control
-                  id="reg-firstName"
-                  type="text"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  required
-                  placeholder="First Name"
-                />
-              </div>
-              <div className="auth-field">
-                <label htmlFor="reg-lastName">Last Name</label>
-                <Form.Control
-                  id="reg-lastName"
-                  type="text"
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  required
-                  placeholder="Last Name"
-                />
-              </div>
-            </div>
+                {error && (
+                  <Alert variant="danger" dismissible onClose={() => setError('')}>
+                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                    {error}
+                  </Alert>
+                )}
 
-            <div className="auth-field">
-              <label htmlFor="reg-gender">Gender</label>
-              <Form.Select
-                id="reg-gender"
-                name="gender"
-                value={formData.gender}
-                onChange={handleChange}
-              >
-                <option value="">Gender (Optional)</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Non-binary">Non-binary</option>
-                <option value="Prefer not to say">Prefer not to say</option>
-              </Form.Select>
-            </div>
+                {success && (
+                  <Alert variant="success" dismissible onClose={() => setSuccess('')}>
+                    <i className="bi bi-check-circle-fill me-2"></i>
+                    {success}
+                  </Alert>
+                )}
 
-            <div className="auth-field">
-              <label htmlFor="reg-email">Email Address</label>
-              <Form.Control
-                id="reg-email"
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                required
-                placeholder="Email Address"
-              />
-            </div>
+                <Form onSubmit={handleSubmit}>
+                  {!isFaculty && (
+                    <Form.Group className="mb-3">
+                      <Form.Control
+                        type="text"
+                        name="studentId"
+                        value={formData.studentId}
+                        onChange={handleChange}
+                        required
+                        placeholder="Student Number (7 digits)"
+                        pattern="\d{7}"
+                        maxLength="7"
+                        title="Student Number must be exactly 7 digits"
+                      />
+                    </Form.Group>
+                  )}
 
-            <div className="auth-field">
-              <label htmlFor="reg-password">Password</label>
-              <Form.Control
-                id="reg-password"
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                placeholder="Password"
-              />
-            </div>
+                  <Row>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Control
+                          type="text"
+                          name="firstName"
+                          value={formData.firstName}
+                          onChange={handleChange}
+                          required
+                          placeholder="First Name"
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Control
+                          type="text"
+                          name="lastName"
+                          value={formData.lastName}
+                          onChange={handleChange}
+                          required
+                          placeholder="Last Name"
+                        />
+                      </Form.Group>
+                    </Col>
+                  </Row>
 
-            <div className="auth-field">
-              <label htmlFor="reg-confirmPassword">Confirm Password</label>
-              <Form.Control
-                id="reg-confirmPassword"
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                required
-                placeholder="Confirm Password"
-              />
-            </div>
+                  <Form.Group className="mb-3">
+                    <Form.Select name="gender" value={formData.gender} onChange={handleChange}>
+                      <option value="">Gender (Optional)</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Non-binary">Non-binary</option>
+                      <option value="Prefer not to say">Prefer not to say</option>
+                    </Form.Select>
+                  </Form.Group>
 
-            <button type="submit" className="auth-submit-btn" disabled={loading}>
-              <span>{loading ? 'Creating Account…' : 'Register'}</span>
-            </button>
-          </form>
+                  <Form.Group className="mb-3">
+                    <Form.Control
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      required
+                      placeholder="Email Address"
+                    />
+                  </Form.Group>
 
-          <div className="auth-divider">
-            <span>or</span>
-          </div>
+                  <Form.Group className="mb-3">
+                    <Form.Control
+                      type="password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      required
+                      placeholder="Password"
+                    />
+                  </Form.Group>
 
-          <div className="auth-google-wrapper">
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={handleGoogleError}
-              text="signup_with"
-              theme="outline"
-              size="large"
-            />
-          </div>
+                  <Form.Group className="mb-3">
+                    <Form.Control
+                      type="password"
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      required
+                      placeholder="Confirm Password"
+                    />
+                  </Form.Group>
 
-          <p className="auth-footer-text">
-            Already have an account? <Link to="/login">Sign in</Link>
-          </p>
-        </div>
-      </div>
+                  <Button
+                    type="submit"
+                    variant="warning"
+                    className="w-100 fw-bold text-dark mb-3"
+                    disabled={loading}
+                  >
+                    {loading ? 'Creating Account...' : 'Register'}
+                  </Button>
+
+                  <div className="position-relative text-center mb-3">
+                    <hr />
+                    <span
+                      className="position-absolute top-50 start-50 translate-middle bg-white px-3"
+                      style={{ color: '#666' }}
+                    >
+                      or
+                    </span>
+                  </div>
+
+                  <div className="d-flex justify-content-center">
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={handleGoogleError}
+                      text="signup_with"
+                      theme="outline"
+                      size="large"
+                    />
+                  </div>
+
+                  <div className="text-center mt-3" style={{ fontSize: '0.82rem' }}>
+                    <span className="text-muted">Already have an account? </span>
+                    <Link to="/login" className="text-decoration-none fw-bold">
+                      Sign in
+                    </Link>
+                  </div>
+                </Form>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      </Container>
     </div>
   );
 };

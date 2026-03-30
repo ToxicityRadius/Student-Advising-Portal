@@ -38,7 +38,6 @@ const ProfileViewCard = ({
   emergencyContactRelationship,
   emergencyContactNumber,
   setEditMode,
-  role,
 }) => (
   <div
     className="profile-view-card"
@@ -155,7 +154,7 @@ const ProfileViewCard = ({
         }}
       >
         <InfoField label="Full Name" value={suffix ? `${fullName}, ${suffix}` : fullName} />
-        {role === 'student' && <InfoField label="Student ID" value={studentId} />}
+        <InfoField label="Student ID" value={studentId} />
         <InfoField label="Email Address" value={email} />
         <InfoField label="Alternate Email" value={alternateEmail} />
         <InfoField label="Phone Number" value={contactNumber} />
