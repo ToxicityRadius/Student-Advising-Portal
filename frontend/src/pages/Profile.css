@@ -1,0 +1,96 @@
+/* ═══════════════════════════════════════════════════════════════
+   Profile.css — Mobile responsive overrides for Profile page
+   Targets inline-styled components via parent .profile-wrapper
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Outer container — layout provides padding, just reset any extra */
+  .profile-wrapper {
+    padding: 0 !important;
+  }
+
+  /* Page heading */
+  .profile-wrapper > h2 {
+    font-size: 1.4rem !important;
+  }
+
+  .profile-wrapper > p {
+    font-size: 0.88rem !important;
+    margin-bottom: 20px !important;
+  }
+
+  /* ── ProfileViewCard ── */
+  .profile-view-card {
+    padding: 20px 16px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Card header: stack title + button */
+  .profile-view-card__header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    margin-bottom: 20px !important;
+  }
+
+  /* Avatar + info: stack vertically */
+  .profile-view-card__body {
+    flex-direction: column !important;
+    gap: 20px !important;
+    align-items: center !important;
+  }
+
+  .profile-view-card__avatar {
+    width: 88px !important;
+    height: 88px !important;
+    font-size: 1.8rem !important;
+  }
+
+  /* Info grid: single column */
+  .profile-view-card__grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  /* Emergency/address section: single column */
+  .profile-view-card__extra {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  /* ── ChangePasswordCard ── */
+  .change-password-card {
+    padding: 20px 16px !important;
+    border-radius: 12px !important;
+  }
+
+  .change-password-card__fields {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* ── ProfileEditForm ── */
+  .profile-edit-form {
+    padding: 20px 16px !important;
+    border-radius: 12px !important;
+  }
+
+  .profile-edit-form__header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+
+  /* All 2-col and 3-col grids inside edit form → single column */
+  .profile-edit-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Photo upload row */
+  .profile-edit-photo {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+}

@@ -74,8 +74,6 @@ function AppContent() {
   );
 
   const hideNavbar =
-    location.pathname === '/login' ||
-    location.pathname === '/register' ||
     location.pathname === '/verify-code' ||
     location.pathname === '/forgot-password' ||
     location.pathname === '/change-password' ||

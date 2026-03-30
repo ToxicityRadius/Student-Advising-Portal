@@ -39,12 +39,12 @@ const StudyPlanCourse = sequelize.define(
       },
     },
     createdAt: {
-      type: DataTypes.BIGINT,
-      defaultValue: () => Date.now(),
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
     },
     updatedAt: {
-      type: DataTypes.BIGINT,
-      defaultValue: () => Date.now(),
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
     },
     deletedAt: {
       type: DataTypes.DATE,

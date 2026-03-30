@@ -5,18 +5,14 @@ import LogoutConfirmModal from './LogoutConfirmModal';
 import './Navbar.css';
 
 const roleQuickLinks = {
-  student: [
-    { to: '/my-record', label: 'My Academic Record' }
-  ],
-  adviser: [
-    { to: '/adviser/students', label: 'Student Records' }
-  ],
+  student: [{ to: '/my-record', label: 'My Academic Record' }],
+  adviser: [{ to: '/adviser/students', label: 'Student Records' }],
   admin: [
     { to: '/adviser/students', label: 'Student Records' },
     { to: '/admin/curriculum', label: 'Curriculum' },
     { to: '/admin/forecast', label: 'Forecasting' },
-    { to: '/admin/terms', label: 'Terms' }
-  ]
+    { to: '/admin/terms', label: 'Terms' },
+  ],
 };
 
 const Navbar = () => {
@@ -31,21 +27,25 @@ const Navbar = () => {
   };
 
   const isActive = (path) => location.pathname === path;
-  const quickLinks = user?.role ? (roleQuickLinks[user.role] || []) : [];
+  const quickLinks = user?.role ? roleQuickLinks[user.role] || [] : [];
 
   // Determine if we're on a public page (home, about, purpose) or authenticated page
-  const isPublicPage = ['/', '/about', '/purpose'].includes(location.pathname);
+  const isPublicPage = ['/', '/about', '/purpose', '/login', '/register'].includes(
+    location.pathname,
+  );
 
   return (
-    <nav className={`navbar ${isPublicPage ? 'navbar--public' : 'navbar--app'}`} aria-label="Main navigation">
-      <div className={`navbar__inner ${isPublicPage ? 'navbar__inner--public' : 'navbar__inner--app'}`}>
-
+    <nav
+      className={`navbar ${isPublicPage ? 'navbar--public' : 'navbar--app'}`}
+      aria-label="Main navigation"
+    >
+      <div
+        className={`navbar__inner ${isPublicPage ? 'navbar__inner--public' : 'navbar__inner--app'}`}
+      >
         {/* Brand - only shown on authenticated pages */}
         {!isPublicPage && (
           <Link to="/" className="navbar__brand">
-            <span className="navbar__brand-text">
-              Student Advising
-            </span>
+            <span className="navbar__brand-text">Student Advising</span>
           </Link>
         )}
 
@@ -60,18 +60,31 @@ const Navbar = () => {
         </button>
 
         {/* Nav links */}
-        <div className={`navbar-links-container ${isPublicPage ? 'navbar-links-container--public' : 'navbar-links-container--app'} ${menuOpen ? 'open' : ''}`}>
+        <div
+          className={`navbar-links-container ${isPublicPage ? 'navbar-links-container--public' : 'navbar-links-container--app'} ${menuOpen ? 'open' : ''}`}
+        >
           {isPublicPage ? (
             <>
-              <PublicNavLink to="/" active={isActive('/')}>HOME</PublicNavLink>
-              <PublicNavLink to="/login" active={false}>SIGN IN</PublicNavLink>
-              <PublicNavLink to="/purpose" active={isActive('/purpose')}>PURPOSE</PublicNavLink>
-              <PublicNavLink to="/about" active={isActive('/about')}>ABOUT US</PublicNavLink>
+              <PublicNavLink to="/" active={isActive('/')}>
+                HOME
+              </PublicNavLink>
+              <PublicNavLink to="/login" active={isActive('/login') || isActive('/register')}>
+                SIGN IN
+              </PublicNavLink>
+              <PublicNavLink to="/purpose" active={isActive('/purpose')}>
+                PURPOSE
+              </PublicNavLink>
+              <PublicNavLink to="/about" active={isActive('/about')}>
+                ABOUT US
+              </PublicNavLink>
             </>
           ) : user ? (
             <>
               <span className="navbar__welcome">
-                Welcome, <strong className="navbar__welcome-name">{user.firstName || user.first_name}</strong>
+                Welcome,{' '}
+                <strong className="navbar__welcome-name">
+                  {user.firstName || user.first_name}
+                </strong>
               </span>
 
               <AppNavLink to="/dashboard" active={isActive('/dashboard')}>
@@ -84,9 +97,7 @@ const Navbar = () => {
 
               {quickLinks.length > 0 && (
                 <div className="navbar__quicklinks">
-                  <span className="navbar__quicklinks-label">
-                    Quicklinks:
-                  </span>
+                  <span className="navbar__quicklinks-label">Quicklinks:</span>
                   {quickLinks.map((item) => (
                     <AppNavLink key={item.to} to={item.to} active={isActive(item.to)}>
                       {item.label}
@@ -95,16 +106,15 @@ const Navbar = () => {
                 </div>
               )}
 
-              <button
-                onClick={() => setShowLogoutConfirm(true)}
-                className="navbar__logout-btn"
-              >
+              <button onClick={() => setShowLogoutConfirm(true)} className="navbar__logout-btn">
                 Logout
               </button>
             </>
           ) : (
             <>
-              <AppNavLink to="/login" active={isActive('/login')}>Login</AppNavLink>
+              <AppNavLink to="/login" active={isActive('/login')}>
+                Login
+              </AppNavLink>
               <Link to="/register" className="navbar__register-btn">
                 Register
               </Link>
@@ -124,20 +134,14 @@ const Navbar = () => {
 
 /* Nav link for public pages (white, bold, uppercase — matches existing Landing/AboutUs/Purpose style) */
 const PublicNavLink = ({ to, active, children }) => (
-  <Link
-    to={to}
-    className={`public-nav-link ${active ? 'public-nav-link--active' : ''}`}
-  >
+  <Link to={to} className={`public-nav-link ${active ? 'public-nav-link--active' : ''}`}>
     {children}
   </Link>
 );
 
 /* Nav link for authenticated/app pages (dark bg style) */
 const AppNavLink = ({ to, active, children }) => (
-  <Link
-    to={to}
-    className={`app-nav-link ${active ? 'app-nav-link--active' : ''}`}
-  >
+  <Link to={to} className={`app-nav-link ${active ? 'app-nav-link--active' : ''}`}>
     {children}
   </Link>
 );

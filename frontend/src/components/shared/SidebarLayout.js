@@ -12,6 +12,7 @@ import goldBellImg from '../../assets/images/Gold Bell Gradient.png';
 import boxCheckImg from '../../assets/images/Box Check.png';
 import boxUncheckImg from '../../assets/images/Box Uncheck.png';
 import goldSettingsImg from '../../assets/images/Gold Settings.png';
+import goldUserImg from '../../assets/images/Gold User.png';
 import goldHelpImg from '../../assets/images/Gold Help & Support.png';
 import goldLogoutImg from '../../assets/images/Gold Logout.png';
 
@@ -167,6 +168,12 @@ const SidebarLayout = ({ activePage, pageTitle, navItems, roleLabel, children })
           >
             ACCOUNT
           </div>
+          <SideNavItem
+            icon={imgIcon(goldUserImg)}
+            label="Profile"
+            to="/profile"
+            active={activePage === 'profile'}
+          />
           <SideNavItem icon={imgIcon(goldSettingsImg)} label="Settings" to="/settings" />
           <SideNavItem icon={imgIcon(goldHelpImg)} label="Help & Support" to="/help" />
 
@@ -506,7 +513,7 @@ const SidebarLayout = ({ activePage, pageTitle, navItems, roleLabel, children })
         </header>
 
         <main className="sidebar-layout__content">
-          <div style={{ padding: '28px 32px' }}>{children}</div>
+          <div className="sidebar-layout__inner">{children}</div>
         </main>
       </div>
 

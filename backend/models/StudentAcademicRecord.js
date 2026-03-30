@@ -51,12 +51,12 @@ const StudentAcademicRecord = sequelize.define(
       references: { model: 'users', key: 'id' },
     },
     createdAt: {
-      type: DataTypes.BIGINT,
-      defaultValue: () => Date.now(),
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
     },
     updatedAt: {
-      type: DataTypes.BIGINT,
-      defaultValue: () => Date.now(),
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
     },
     deletedAt: {
       type: DataTypes.DATE,

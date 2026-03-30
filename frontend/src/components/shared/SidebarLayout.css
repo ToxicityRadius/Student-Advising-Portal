@@ -55,6 +55,10 @@
   background: #f5f5f5;
 }
 
+.sidebar-layout__inner {
+  padding: 28px 32px;
+}
+
 @media (max-width: 780px) {
   .sidebar-layout__sidebar {
     transform: translateX(-100%);
@@ -97,5 +101,8 @@
     background: rgba(0, 0, 0, 0.35);
     z-index: 210;
     cursor: pointer;
+  }
+  .sidebar-layout__inner {
+    padding: 20px 16px;
   }
 }

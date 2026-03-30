@@ -29,13 +29,13 @@ function validateStartupEnvironment() {
   }
 
   // Warn about optional but recommended configs
-  const smtpVars = ['EMAIL_HOST', 'EMAIL_USER', 'EMAIL_PASS'];
+  const smtpVars = ['EMAIL_HOST', 'EMAIL_USER', 'EMAIL_PASSWORD'];
   const missingSMTP = smtpVars.filter((k) => !process.env[k]);
   if (missingSMTP.length > 0 && missingSMTP.length < smtpVars.length) {
     logger.warn({ missing: missingSMTP }, 'Partial SMTP config — email sending may fail');
   }
 
-  const oauthVars = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'];
+  const oauthVars = ['GOOGLE_CLIENT_ID'];
   const missingOAuth = oauthVars.filter((k) => !process.env[k]);
   if (missingOAuth.length > 0) {
     logger.warn(

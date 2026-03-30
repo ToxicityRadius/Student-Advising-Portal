@@ -37,7 +37,7 @@ const StudyPlanVersion = sequelize.define(
       references: { model: 'users', key: 'id' },
     },
     validatedAt: {
-      type: DataTypes.BIGINT,
+      type: DataTypes.DATE,
       allowNull: true,
     },
     notes: {
@@ -45,12 +45,12 @@ const StudyPlanVersion = sequelize.define(
       allowNull: true,
     },
     createdAt: {
-      type: DataTypes.BIGINT,
-      defaultValue: () => Date.now(),
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
     },
     updatedAt: {
-      type: DataTypes.BIGINT,
-      defaultValue: () => Date.now(),
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
     },
     deletedAt: {
       type: DataTypes.DATE,
