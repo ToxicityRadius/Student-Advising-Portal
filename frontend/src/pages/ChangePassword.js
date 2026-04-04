@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert } from 'react-bootstrap';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { EyeIcon, EyeSlashIcon } from '../components/EyeIcons';
 
 const ChangePassword = () => {
   const navigate = useNavigate();
@@ -14,13 +15,18 @@ const ChangePassword = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Prefer navigation state (in-memory, not persisted) over sessionStorage fallback
   const tempToken = location.state?.token || sessionStorage.getItem('forcePasswordChangeToken');
   const oldPassword = location.state?.oldPassword || null;
   const persistentToken = localStorage.getItem('token');
 
-  const activeToken = useMemo(() => tempToken || persistentToken || null, [tempToken, persistentToken]);
+  const activeToken = useMemo(
+    () => tempToken || persistentToken || null,
+    [tempToken, persistentToken],
+  );
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -48,7 +54,9 @@ const ChangePassword = () => {
     }
 
     if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-      setError('Password must contain at least one uppercase letter, one lowercase letter, and one number.');
+      setError(
+        'Password must contain at least one uppercase letter, one lowercase letter, and one number.',
+      );
       return;
     }
 
@@ -59,13 +67,13 @@ const ChangePassword = () => {
         '/auth/change-password',
         {
           oldPassword,
-          newPassword
+          newPassword,
         },
         {
           headers: {
-            Authorization: `Bearer ${activeToken}`
-          }
-        }
+            Authorization: `Bearer ${activeToken}`,
+          },
+        },
       );
 
       sessionStorage.removeItem('forcePasswordChangeToken');
@@ -99,24 +107,66 @@ const ChangePassword = () => {
           {success && <Alert variant="success">{success}</Alert>}
 
           <Form onSubmit={handleSubmit}>
-            <Form.Group className="mb-3">
+            <Form.Group className="mb-3" style={{ position: 'relative' }}>
               <Form.Label>New Password</Form.Label>
               <Form.Control
-                type="password"
+                type={showNewPassword ? 'text' : 'password'}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
+                style={{ paddingRight: 40 }}
               />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword((v) => !v)}
+                tabIndex={-1}
+                aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                style={{
+                  position: 'absolute',
+                  right: 10,
+                  bottom: 10,
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#888',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                {showNewPassword ? <EyeSlashIcon /> : <EyeIcon />}
+              </button>
             </Form.Group>
 
-            <Form.Group className="mb-3">
+            <Form.Group className="mb-3" style={{ position: 'relative' }}>
               <Form.Label>Confirm New Password</Form.Label>
               <Form.Control
-                type="password"
+                type={showConfirmPassword ? 'text' : 'password'}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                style={{ paddingRight: 40 }}
               />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((v) => !v)}
+                tabIndex={-1}
+                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                style={{
+                  position: 'absolute',
+                  right: 10,
+                  bottom: 10,
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#888',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                {showConfirmPassword ? <EyeSlashIcon /> : <EyeIcon />}
+              </button>
             </Form.Group>
 
             <Button type="submit" variant="warning" className="w-100 fw-bold" disabled={loading}>

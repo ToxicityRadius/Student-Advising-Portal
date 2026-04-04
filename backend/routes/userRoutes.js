@@ -12,7 +12,8 @@ const {
   deleteUser,
   toggleUserStatus,
   assignAdviser,
-  completeOnboarding
+  completeOnboarding,
+  updateSettings,
 } = require('../controllers/userController');
 const { protect, requireRole } = require('../middleware/auth');
 const validate = require('../middleware/validate');
@@ -22,7 +23,7 @@ const {
   updateUserStudentIdValidation,
   updateUserValidation,
   assignAdviserValidation,
-  userIdParamValidation
+  userIdParamValidation,
 } = require('../middleware/userValidation');
 const { mutationLimiter } = require('../middleware/rateLimiter');
 
@@ -33,14 +34,14 @@ const MAX_PROFILE_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: MAX_PROFILE_IMAGE_SIZE_BYTES
+    fileSize: MAX_PROFILE_IMAGE_SIZE_BYTES,
   },
   fileFilter: (req, file, cb) => {
     if (!ALLOWED_IMAGE_MIME_TYPES.includes(file.mimetype)) {
       return cb(new Error('Only JPEG, PNG, and WEBP image files are allowed'));
     }
     cb(null, true);
-  }
+  },
 });
 
 const uploadProfilePicture = (req, res, next) => {
@@ -54,8 +55,8 @@ const uploadProfilePicture = (req, res, next) => {
         success: false,
         message: 'Profile image must not exceed 2 MB',
         errors: {
-          profile_picture: 'Profile image must not exceed 2 MB'
-        }
+          profile_picture: 'Profile image must not exceed 2 MB',
+        },
       });
     }
 
@@ -63,20 +64,29 @@ const uploadProfilePicture = (req, res, next) => {
       success: false,
       message: error.message || 'Invalid profile image upload',
       errors: {
-        profile_picture: error.message || 'Invalid profile image upload'
-      }
+        profile_picture: error.message || 'Invalid profile image upload',
+      },
     });
   });
 };
 
 // Admin-only: update any user's student ID by specifying userId
-router.patch('/:userId/update-student-id', protect, requireRole('admin'), validate(updateUserStudentIdValidation), updateUserStudentId);
+router.patch(
+  '/:userId/update-student-id',
+  protect,
+  requireRole('admin'),
+  validate(updateUserStudentIdValidation),
+  updateUserStudentId,
+);
 
 // Route for users to update their own student ID (protected but not admin-only)
 router.patch('/update-student-id', protect, validate(updateStudentIdValidation), updateStudentId);
 
 // Complete student onboarding (set year level)
 router.post('/onboard', protect, validate(completeOnboardingValidation), completeOnboarding);
+
+// Update user settings/preferences
+router.patch('/settings', protect, updateSettings);
 
 // Notifications for current authenticated user
 router.get('/me/notifications', protect, getMyNotifications);
@@ -98,10 +108,22 @@ router.put('/:id/profile', mutationLimiter, protect, uploadProfilePicture, updat
 router.put('/:id', protect, requireRole('admin'), validate(updateUserValidation), updateUser);
 
 // Admin-only: toggle user active/inactive status
-router.patch('/:id/toggle-status', protect, requireRole('admin'), validate(userIdParamValidation), toggleUserStatus);
+router.patch(
+  '/:id/toggle-status',
+  protect,
+  requireRole('admin'),
+  validate(userIdParamValidation),
+  toggleUserStatus,
+);
 
 // Admin-only: assign adviser to a student
-router.put('/:id/assign-adviser', protect, requireRole('admin'), validate(assignAdviserValidation), assignAdviser);
+router.put(
+  '/:id/assign-adviser',
+  protect,
+  requireRole('admin'),
+  validate(assignAdviserValidation),
+  assignAdviser,
+);
 
 // Admin-only: delete a user
 router.delete('/:id', protect, requireRole('admin'), validate(userIdParamValidation), deleteUser);

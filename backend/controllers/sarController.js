@@ -19,6 +19,7 @@ const { syncSarToProfile } = require('../utils/sarLinking');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
 const { computeSarAnalytics } = require('../utils/sarAnalytics');
 const { buildElectiveTrackPlan } = require('../utils/studyPlan');
+
 const {
   uploadProfilePicture: uploadProfilePictureAsset,
   deleteProfilePictureAsset,
@@ -28,8 +29,6 @@ const SARService = require('../services/SARService');
 const NotificationService = require('../services/NotificationService');
 
 const tipEmailPattern = /@tip\.edu\.ph$/i;
-
-const audit = require('../utils/auditLog');
 
 const personAttributes = [
   'id',
@@ -339,14 +338,6 @@ exports.createSAR = async (req, res, next) => {
       }
     }
 
-    audit.log({
-      userId: req.user.id,
-      action: 'SAR_CREATE',
-      resource: 'sar',
-      resourceId: createdSar.id,
-      meta: { studentNumber: createdSar.studentNumber, email: createdSar.email },
-    });
-
     // Notify the student that their academic record was created
     if (matchedStudent) {
       NotificationService.notify({
@@ -494,13 +485,6 @@ exports.bulkCreateSARs = async (req, res, next) => {
     }
 
     await transaction.commit();
-
-    audit.log({
-      userId: req.user.id,
-      action: 'SAR_BULK_CREATE',
-      resource: 'sar',
-      meta: { created: created.length, failed: errors.length },
-    });
 
     return res.status(201).json({
       success: true,
@@ -716,14 +700,6 @@ exports.updateSAR = async (req, res, next) => {
         console.error('[sarSync] updateSAR sync error:', syncError.message);
       }
     }
-
-    audit.log({
-      userId: req.user.id,
-      action: 'SAR_UPDATE',
-      resource: 'sar',
-      resourceId: updatedSar.id,
-      meta: { changedFields: Object.keys(updates) },
-    });
 
     return res.status(200).json({ success: true, data: serializeSar(updatedSar) });
   } catch (error) {

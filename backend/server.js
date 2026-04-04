@@ -114,7 +114,6 @@ const exportRoutes = require('./routes/exportRoutes');
 const forecastRoutes = require('./routes/forecastRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
-const auditRoutes = require('./routes/auditRoutes');
 const { setupSwagger } = require('./docs/swagger');
 
 const app = express();
@@ -217,7 +216,6 @@ app.use('/api', exportRoutes);
 app.use('/api/forecast', forecastRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
-app.use('/api/admin/audit-logs', auditRoutes);
 
 // Serve uploaded files
 // Profile pictures are public so they can be displayed in the frontend without auth.

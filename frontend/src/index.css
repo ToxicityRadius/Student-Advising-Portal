@@ -1,4 +1,4 @@
-/* src/index.css */
+﻿/* src/index.css */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;700;900&display=swap');
 
 * {
@@ -829,12 +829,12 @@ body {
   }
 }
 
-/* ══════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    Aligned table column widths
    Apply .table-fixed-cols to <Table> or <table>
    for consistent column sizing across all
    course-related tables in the system.
-══════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 .table-fixed-cols {
   table-layout: fixed;
@@ -913,4 +913,26 @@ body {
     padding: 5px;
     font-size: 11px;
   }
+}
+
+/* ── Compact mode ── */
+.compact-mode table td,
+.compact-mode table th {
+  padding: 4px 8px !important;
+  font-size: 0.85rem !important;
+}
+
+.compact-mode .card-body,
+.compact-mode section {
+  padding: 12px 16px !important;
+}
+
+.compact-mode .setting-row,
+.compact-mode [style*='padding: 16px 0'] {
+  padding: 8px 0 !important;
+}
+
+.compact-mode ul li,
+.compact-mode ol li {
+  margin-bottom: 2px !important;
 }

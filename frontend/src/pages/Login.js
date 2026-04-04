@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap';
 import { GoogleLogin } from '@react-oauth/google';
@@ -7,10 +7,14 @@ import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { getHomePathForRole } from '../utils/roleRedirect';
 import StudentIdModal from '../components/StudentIdModal';
+import AcademicInfoModal from '../components/AcademicInfoModal';
 import backgroundImage from '../assets/images/bg.png';
 import studentIcon from '../assets/images/student yellow.png';
 import teacherIcon from '../assets/images/teacher yellow.png';
 import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
+import { EyeIcon, EyeSlashIcon } from '../components/EyeIcons';
+
+const FACULTY_EMAIL_WHITELIST = ['jennifer.enriquez@tip.edu.ph'];
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -21,6 +25,9 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [showStudentIdModal, setShowStudentIdModal] = useState(false);
   const [pendingGoogleUser, setPendingGoogleUser] = useState(null);
+  const [showAcademicModal, setShowAcademicModal] = useState(false);
+  const [pendingNavRole, setPendingNavRole] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [selectedRole, setSelectedRole] = useState(
     () => sessionStorage.getItem('loginRole') || null,
   );
@@ -38,6 +45,24 @@ const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
 
+  const needsAcademicInfo = (user) =>
+    user?.role === 'student' &&
+    ((!user.yearLevel && !user.year_level && !user.current_year_level) ||
+      !user.curriculum_id ||
+      !user.student_type);
+
+  const proceedAfterLogin = async (token, role) => {
+    const result = await login(token);
+    const resolvedUser = result?.user || result;
+    const resolvedRole = resolvedUser?.role || role;
+    if (needsAcademicInfo(resolvedUser)) {
+      setPendingNavRole(resolvedRole);
+      setShowAcademicModal(true);
+    } else {
+      navigate(getHomePathForRole(resolvedRole));
+    }
+  };
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -50,7 +75,11 @@ const Login = () => {
     setError('');
 
     const emailLower = formData.email.toLowerCase();
-    if (selectedRole === 'faculty' && !emailLower.endsWith('.cpe@tip.edu.ph')) {
+    if (
+      selectedRole === 'faculty' &&
+      !emailLower.endsWith('.cpe@tip.edu.ph') &&
+      !FACULTY_EMAIL_WHITELIST.includes(emailLower)
+    ) {
       setError('Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).');
       return;
     }
@@ -89,8 +118,7 @@ const Login = () => {
         navigate('/change-email');
       } else {
         sessionStorage.removeItem('loginRole');
-        const result = await login(data.token);
-        navigate(getHomePathForRole(result?.role || data.user?.role));
+        await proceedAfterLogin(data.token, data.user?.role);
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid Credentials. Please try again.');
@@ -114,7 +142,11 @@ const Login = () => {
       }
 
       // Faculty must use a .cpe@tip.edu.ph address
-      if (selectedRole === 'faculty' && !emailLower.endsWith('.cpe@tip.edu.ph')) {
+      if (
+        selectedRole === 'faculty' &&
+        !emailLower.endsWith('.cpe@tip.edu.ph') &&
+        !FACULTY_EMAIL_WHITELIST.includes(emailLower)
+      ) {
         setError('Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).');
         setLoading(false);
         return;
@@ -148,13 +180,12 @@ const Login = () => {
         sessionStorage.removeItem('loginRole');
         setError('This account must change password via email/password sign-in before continuing.');
       } else if (data.user && data.user.role === 'student' && !data.user.studentId) {
-        // Student without a Student Number — show the modal
+        // Student without a Student Number â€” show the modal
         setPendingGoogleUser({ userId: data.user.id, email: decoded.email, token: data.token });
         setShowStudentIdModal(true);
       } else {
         sessionStorage.removeItem('loginRole');
-        const result = await login(data.token);
-        navigate(getHomePathForRole(result?.role || data.user?.role));
+        await proceedAfterLogin(data.token, data.user?.role);
       }
     } catch (err) {
       console.error('Google Sign-In error:', err);
@@ -177,8 +208,7 @@ const Login = () => {
 
       setShowStudentIdModal(false);
       setPendingGoogleUser(null);
-      const result = await login(data.token);
-      navigate(getHomePathForRole(result?.role || data.user?.role));
+      await proceedAfterLogin(data.token, data.user?.role);
     } catch (err) {
       throw new Error(err.response?.data?.message || 'Failed to update Student Number');
     }
@@ -368,6 +398,15 @@ const Login = () => {
         <StudentIdModal onSubmit={handleStudentIdSubmit} userEmail={pendingGoogleUser.email} />
       )}
 
+      {showAcademicModal && (
+        <AcademicInfoModal
+          onComplete={() => {
+            setShowAcademicModal(false);
+            navigate(getHomePathForRole(pendingNavRole || 'student'));
+          }}
+        />
+      )}
+
       <Container className="position-relative" style={{ zIndex: 1 }}>
         <Row className="justify-content-center">
           <Col xs={13} sm={10} md={8} lg={6} xl={5} style={{ maxWidth: '380px' }}>
@@ -432,15 +471,37 @@ const Login = () => {
                     />
                   </Form.Group>
 
-                  <Form.Group className="mb-3">
+                  <Form.Group className="mb-3" style={{ position: 'relative' }}>
                     <Form.Control
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
                       name="password"
                       value={formData.password}
                       onChange={handleChange}
                       required
                       placeholder="Password"
+                      style={{ paddingRight: 40 }}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      tabIndex={-1}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      style={{
+                        position: 'absolute',
+                        right: 10,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#888',
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                    >
+                      {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
+                    </button>
                   </Form.Group>
 
                   <div className="text-end mb-3">

@@ -24,7 +24,6 @@ const {
   parseGradePayload,
   formatQuarterGrade,
 } = require('../utils/gradeValidation');
-const audit = require('../utils/auditLog');
 const GradeService = require('../services/GradeService');
 const NotificationService = require('../services/NotificationService');
 
@@ -123,14 +122,6 @@ exports.enterGrades = async (req, res, next) => {
     }
 
     await transaction.commit();
-
-    audit.log({
-      userId: req.user?.id ?? null,
-      action: 'GRADE_ENTRY',
-      resource: 'grade',
-      resourceId: req.params.id,
-      meta: { gradeCount: grades.length, activeVersionId: activeVersion.id },
-    });
 
     // Notify the student that grades were entered
     if (sar.userId) {
@@ -283,14 +274,6 @@ exports.bulkImportGrades = async (req, res, next) => {
     }
 
     await transaction.commit();
-
-    audit.log({
-      userId: req.user?.id ?? null,
-      action: 'GRADE_BULK_IMPORT',
-      resource: 'grade',
-      resourceId: req.params.id,
-      meta: { imported: updates.length, failed: errors.length, activeVersionId: activeVersion.id },
-    });
 
     if (sar.userId) {
       NotificationService.notify({

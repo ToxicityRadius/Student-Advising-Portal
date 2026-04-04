@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -28,10 +28,8 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const CompleteProfile = lazy(() => import('./pages/CompleteProfile'));
 const Profile = lazy(() => import('./pages/Profile'));
 const ViewGrades = lazy(() => import('./pages/ViewGrades'));
-const Checklist = lazy(() => import('./pages/Checklist'));
 const PlanOfStudy = lazy(() => import('./pages/PlanOfStudy'));
 const AvailableSubjects = lazy(() => import('./pages/AvailableSubjects'));
-const MyRecord = lazy(() => import('./pages/student/MyRecord'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Help = lazy(() => import('./pages/Help'));
 
@@ -44,7 +42,6 @@ const CurriculumDetail = lazy(() => import('./pages/admin/CurriculumDetail'));
 const ForecastDashboard = lazy(() => import('./pages/admin/ForecastDashboard'));
 const TermManagement = lazy(() => import('./pages/admin/TermManagement'));
 const TransferOwnership = lazy(() => import('./pages/admin/TransferOwnership'));
-const AuditLogViewer = lazy(() => import('./pages/admin/AuditLogViewer'));
 
 // Adviser pages
 const StudentList = lazy(() => import('./pages/adviser/StudentList'));
@@ -65,6 +62,10 @@ const PageFallback = () => (
 function AppContent() {
   const location = useLocation();
   const { user, isAuthenticated, loading } = useAuth();
+
+  useEffect(() => {
+    document.body.classList.toggle('compact-mode', Boolean(user?.compactMode));
+  }, [user?.compactMode]);
   const homeElement = loading ? (
     <Landing />
   ) : isAuthenticated ? (
@@ -83,7 +84,6 @@ function AppContent() {
     location.pathname === '/dashboard' ||
     location.pathname === '/profile' ||
     location.pathname === '/grades' ||
-    location.pathname === '/checklist' ||
     location.pathname === '/plan-of-study' ||
     location.pathname === '/subjects' ||
     location.pathname === '/settings' ||
@@ -142,14 +142,6 @@ function AppContent() {
               }
             />
             <Route
-              path="/checklist"
-              element={
-                <PrivateRoute>
-                  <Checklist />
-                </PrivateRoute>
-              }
-            />
-            <Route
               path="/plan-of-study"
               element={
                 <PrivateRoute>
@@ -162,14 +154,6 @@ function AppContent() {
               element={
                 <PrivateRoute>
                   <AvailableSubjects />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/my-record"
-              element={
-                <PrivateRoute roles={['student']}>
-                  <MyRecord />
                 </PrivateRoute>
               }
             />
@@ -237,14 +221,6 @@ function AppContent() {
               element={
                 <PrivateRoute roles={['admin']}>
                   <TransferOwnership />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/admin/audit-logs"
-              element={
-                <PrivateRoute roles={['admin']}>
-                  <AuditLogViewer />
                 </PrivateRoute>
               }
             />

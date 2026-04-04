@@ -1,6 +1,81 @@
 ﻿const nodemailer = require('nodemailer');
 const logger = require('./logger');
 
+// ── T.I.P. brand palette ────────────────────────────────────────────────────
+const BRAND = {
+  gold: '#FFC107',
+  goldDark: '#E6A800',
+  black: '#111111',
+  headerText: '#FFFFFF',
+  bodyBg: '#F4F4F4',
+  cardBg: '#FFFFFF',
+  footerText: '#888888',
+  bodyText: '#333333',
+};
+
+/**
+ * Wraps `bodyContent` in the standard T.I.P. email shell.
+ * @param {string} headline   - Large text shown in the header banner
+ * @param {string} bodyContent - Inner HTML placed inside the white card
+ */
+function buildEmailHtml(headline, bodyContent) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${headline}</title>
+</head>
+<body style="margin:0;padding:0;background-color:${BRAND.bodyBg};font-family:Arial,Helvetica,sans-serif;color:${BRAND.bodyText};">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:${BRAND.bodyBg};padding:32px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+
+          <!-- Gold top accent stripe -->
+          <tr>
+            <td style="background-color:${BRAND.gold};height:6px;border-radius:6px 6px 0 0;font-size:0;line-height:0;">&nbsp;</td>
+          </tr>
+
+          <!-- Header -->
+          <tr>
+            <td style="background-color:${BRAND.gold};padding:28px 32px 22px;text-align:center;">
+              <div style="font-size:11px;letter-spacing:3px;text-transform:uppercase;color:${BRAND.black};font-weight:700;margin-bottom:8px;">
+                STUDENT ADVISING PORTAL
+              </div>
+              <h1 style="margin:0;font-size:22px;font-weight:700;color:${BRAND.black};line-height:1.3;">
+                ${headline}
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Body card -->
+          <tr>
+            <td style="background-color:${BRAND.cardBg};padding:36px 40px;">
+              ${bodyContent}
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:${BRAND.gold};padding:18px 32px;text-align:center;border-radius:0 0 6px 6px;">
+              <p style="margin:0 0 4px;font-size:11px;color:${BRAND.black};font-weight:700;letter-spacing:1px;">
+                T.I.P. STUDENT ADVISING PORTAL
+              </p>
+              <p style="margin:0;font-size:11px;color:#555555;">
+                This is an automated message — please do not reply.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
 // CLIENT_URL may contain comma-separated origins; use the first one.
 function getClientUrl() {
   const raw = (process.env.CLIENT_URL || '').trim();
@@ -52,42 +127,19 @@ exports.sendActivationEmail = async (email, token) => {
     from: process.env.EMAIL_FROM,
     to: email,
     subject: 'Activate Your Student Advising Account',
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9f9f9; }
-          .button { display: inline-block; padding: 12px 30px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Welcome to Student Advising System</h1>
-          </div>
-          <div class="content">
-            <h2>Activate Your Account</h2>
-            <p>Thank you for registering! Please click the button below to activate your account:</p>
-            <div style="text-align: center;">
-              <a href="${activationUrl}" class="button">Activate Account</a>
-            </div>
-            <p>Or copy and paste this link in your browser:</p>
-            <p style="word-break: break-all;">${activationUrl}</p>
-            <p><strong>Note:</strong> This link will expire in 24 hours.</p>
-          </div>
-          <div class="footer">
-            <p>If you didn't create an account, please ignore this email.</p>
-            <p>&copy; 2025 Student Advising System. All rights reserved.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    html: buildEmailHtml(
+      'Activate Your Account',
+      `<p style="margin:0 0 16px;font-size:15px;line-height:1.7;">Thank you for registering! Please click the button below to activate your account.</p>
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${activationUrl}"
+           style="display:inline-block;padding:13px 36px;background-color:${BRAND.gold};color:${BRAND.black};font-weight:700;font-size:15px;text-decoration:none;border-radius:4px;letter-spacing:0.3px;">
+          Activate Account
+        </a>
+      </div>
+      <p style="margin:0 0 8px;font-size:13px;color:#666;">Or copy and paste this link into your browser:</p>
+      <p style="margin:0 0 20px;font-size:12px;word-break:break-all;color:#555;background:#f8f8f8;padding:10px 14px;border-left:3px solid ${BRAND.gold};border-radius:2px;">${activationUrl}</p>
+      <p style="margin:0;font-size:13px;color:#888;"><strong>Note:</strong> This link will expire in <strong>24 hours</strong>. If you did not create this account, you may safely ignore this email.</p>`,
+    ),
   };
 
   try {
@@ -107,31 +159,12 @@ exports.sendWelcomeEmail = async (email, firstName) => {
     from: process.env.EMAIL_FROM,
     to: email,
     subject: 'Welcome to Student Advising System',
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9f9f9; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Welcome ${firstName}!</h1>
-          </div>
-          <div class="content">
-            <h2>Your Account is Active</h2>
-            <p>Congratulations! Your account has been successfully activated.</p>
-            <p>You can now log in and start using the Student Advising System.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    html: buildEmailHtml(
+      `Welcome, ${firstName}!`,
+      `<h2 style="margin:0 0 16px;font-size:18px;font-weight:700;color:${BRAND.black};">Your account is now active.</h2>
+      <p style="margin:0 0 12px;font-size:15px;line-height:1.7;">Congratulations! Your T.I.P. Student Advising Portal account has been successfully activated.</p>
+      <p style="margin:0;font-size:15px;line-height:1.7;">You can now log in and start using the portal to manage your academic advising.</p>`,
+    ),
   };
 
   try {
@@ -149,56 +182,19 @@ exports.sendVerificationCode = async (email, code, firstName) => {
     from: process.env.EMAIL_FROM,
     to: email,
     subject: 'Your Verification Code - Student Advising Portal',
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9f9f9; }
-          .code-box { 
-            background-color: #fff; 
-            border: 2px solid #4CAF50; 
-            border-radius: 10px; 
-            padding: 20px; 
-            text-align: center; 
-            margin: 20px 0;
-            font-size: 32px;
-            font-weight: bold;
-            letter-spacing: 5px;
-            color: #4CAF50;
-          }
-          .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Two-Factor Authentication</h1>
-          </div>
-          <div class="content">
-            <h2>Hello ${firstName || 'User'}!</h2>
-            <p>You've requested to log in to your Student Advising Portal account. Please use the verification code below to proceed:</p>
-            <div class="code-box">
-              ${code}
-            </div>
-            <p><strong>Important:</strong></p>
-            <ul>
-              <li>This code will expire in 10 minutes</li>
-              <li>Never share this code with anyone</li>
-              <li>If you didn't request this code, please ignore this email</li>
-            </ul>
-          </div>
-          <div class="footer">
-            <p>This is an automated message, please do not reply.</p>
-            <p>&copy; 2026 Student Advising System. All rights reserved.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    html: buildEmailHtml(
+      'Two-Factor Authentication',
+      `<p style="margin:0 0 6px;font-size:16px;font-weight:700;color:${BRAND.black};">Hello, ${firstName || 'User'}!</p>
+      <p style="margin:0 0 24px;font-size:15px;line-height:1.7;">You requested to log in to the T.I.P. Student Advising Portal. Use the verification code below to proceed.</p>
+      <div style="background-color:${BRAND.black};border-radius:8px;padding:24px 20px;text-align:center;margin:0 0 24px;">
+        <span style="font-size:36px;font-weight:700;letter-spacing:10px;color:${BRAND.gold};font-family:'Courier New',Courier,monospace;">${code}</span>
+      </div>
+      <ul style="margin:0;padding-left:20px;font-size:13px;color:#555;line-height:2.0;">
+        <li>This code expires in <strong>10 minutes</strong></li>
+        <li>Never share this code with anyone</li>
+        <li>If you did not request this, please ignore this email</li>
+      </ul>`,
+    ),
   };
 
   try {
@@ -220,56 +216,24 @@ exports.sendPasswordResetEmail = async (email, token, firstName) => {
     from: process.env.EMAIL_FROM,
     to: email,
     subject: 'Password Reset Request - Student Advising Portal',
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9f9f9; }
-          .button { 
-            display: inline-block; 
-            padding: 12px 30px; 
-            background-color: #4CAF50; 
-            color: white; 
-            text-decoration: none; 
-            border-radius: 5px; 
-            margin: 20px 0; 
-          }
-          .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Password Reset Request</h1>
-          </div>
-          <div class="content">
-            <h2>Hello ${firstName || 'User'}!</h2>
-            <p>You have requested to reset your password for your Student Advising Portal account.</p>
-            <p>Click the button below to reset your password:</p>
-            <div style="text-align: center;">
-              <a href="${resetUrl}" class="button">Reset Password</a>
-            </div>
-            <p>Or copy and paste this link in your browser:</p>
-            <p style="word-break: break-all;">${resetUrl}</p>
-            <p><strong>Important:</strong></p>
-            <ul>
-              <li>This link will expire in 30 minutes</li>
-              <li>If you didn't request this, please ignore this email</li>
-              <li>Your password will not change unless you click the link and set a new one</li>
-            </ul>
-          </div>
-          <div class="footer">
-            <p>This is an automated message, please do not reply.</p>
-            <p>&copy; 2026 Student Advising System. All rights reserved.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    html: buildEmailHtml(
+      'Password Reset Request',
+      `<p style="margin:0 0 6px;font-size:16px;font-weight:700;color:${BRAND.black};">Hello, ${firstName || 'User'}!</p>
+      <p style="margin:0 0 20px;font-size:15px;line-height:1.7;">We received a request to reset the password for your T.I.P. Student Advising Portal account. Click the button below to proceed.</p>
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${resetUrl}"
+           style="display:inline-block;padding:13px 36px;background-color:${BRAND.gold};color:${BRAND.black};font-weight:700;font-size:15px;text-decoration:none;border-radius:4px;letter-spacing:0.3px;">
+          Reset Password
+        </a>
+      </div>
+      <p style="margin:0 0 8px;font-size:13px;color:#666;">Or copy and paste this link into your browser:</p>
+      <p style="margin:0 0 20px;font-size:12px;word-break:break-all;color:#555;background:#f8f8f8;padding:10px 14px;border-left:3px solid ${BRAND.gold};border-radius:2px;">${resetUrl}</p>
+      <ul style="margin:0;padding-left:20px;font-size:13px;color:#555;line-height:2.0;">
+        <li>This link expires in <strong>30 minutes</strong></li>
+        <li>If you did not request a password reset, please ignore this email</li>
+        <li>Your password will not change until you click the link and set a new one</li>
+      </ul>`,
+    ),
   };
 
   try {
@@ -289,55 +253,19 @@ exports.sendEmailChangeVerificationCode = async (newEmail, code, firstName) => {
     from: process.env.EMAIL_FROM,
     to: newEmail,
     subject: 'Verify Your New Email — Student Advising Portal',
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #1a3557; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9f9f9; }
-          .code-box {
-            background-color: #fff;
-            border: 2px solid #1a3557;
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            margin: 20px 0;
-            font-size: 32px;
-            font-weight: bold;
-            letter-spacing: 5px;
-            color: #1a3557;
-          }
-          .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Email Verification — Program Chair Setup</h1>
-          </div>
-          <div class="content">
-            <h2>Hello ${firstName || 'Program Chair'}!</h2>
-            <p>As part of your initial account setup, you must verify ownership of this new email address before it can be activated.</p>
-            <p>Enter the code below in the verification form:</p>
-            <div class="code-box">${code}</div>
-            <p><strong>Important:</strong></p>
-            <ul>
-              <li>This code expires in <strong>10 minutes</strong></li>
-              <li>Never share this code with anyone</li>
-              <li>Your account will remain restricted until email verification is complete</li>
-            </ul>
-          </div>
-          <div class="footer">
-            <p>This is an automated security message. Do not reply.</p>
-            <p>&copy; 2026 Student Advising Portal. All rights reserved.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    html: buildEmailHtml(
+      'Email Verification',
+      `<p style="margin:0 0 6px;font-size:16px;font-weight:700;color:${BRAND.black};">Hello, ${firstName || 'Program Chair'}!</p>
+      <p style="margin:0 0 24px;font-size:15px;line-height:1.7;">As part of your account setup, you must verify ownership of this email address before it can be activated. Enter the code below in the verification form.</p>
+      <div style="background-color:${BRAND.black};border-radius:8px;padding:24px 20px;text-align:center;margin:0 0 24px;">
+        <span style="font-size:36px;font-weight:700;letter-spacing:10px;color:${BRAND.gold};font-family:'Courier New',Courier,monospace;">${code}</span>
+      </div>
+      <ul style="margin:0;padding-left:20px;font-size:13px;color:#555;line-height:2.0;">
+        <li>This code expires in <strong>10 minutes</strong></li>
+        <li>Never share this code with anyone</li>
+        <li>Your account will remain restricted until email verification is complete</li>
+      </ul>`,
+    ),
   };
 
   try {

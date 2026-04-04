@@ -9,12 +9,10 @@ const {
   ElectiveTrack,
   ElectiveTrackCourse,
   Course,
-  User
+  User,
 } = require('../models');
-const {
-  buildElectiveTrackPlan,
-  isElectiveTrackSelectionRequired
-} = require('../utils/studyPlan');
+const { buildElectiveTrackPlan, isElectiveTrackSelectionRequired } = require('../utils/studyPlan');
+const { meetsStandingRequirement, standingLabel } = require('../utils/standingValidation');
 const NotificationService = require('../services/NotificationService');
 
 const personAttributes = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId'];
@@ -24,33 +22,38 @@ const includeRelationsForVersion = [
   { model: User, as: 'ValidatedByAdviser', attributes: personAttributes },
   {
     model: StudyPlanCourse,
-    include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-  }
+    include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+  },
 ];
 
 const serializeVersion = (version) => {
   const plain = version.get ? version.get({ plain: true }) : version;
   const courses = Array.isArray(plain.StudyPlanCourses)
     ? [...plain.StudyPlanCourses].sort((left, right) => {
-      if (left.yearLevel !== right.yearLevel) {
-        return Number(left.yearLevel || 0) - Number(right.yearLevel || 0);
-      }
+        if (left.yearLevel !== right.yearLevel) {
+          return Number(left.yearLevel || 0) - Number(right.yearLevel || 0);
+        }
 
-      if (left.semester !== right.semester) {
-        return Number(left.semester || 0) - Number(right.semester || 0);
-      }
+        if (left.semester !== right.semester) {
+          return Number(left.semester || 0) - Number(right.semester || 0);
+        }
 
-      return String(left.Course?.code || '').localeCompare(String(right.Course?.code || ''));
-    })
+        return String(left.Course?.code || '').localeCompare(String(right.Course?.code || ''));
+      })
     : [];
 
   return {
     ...plain,
-    StudyPlanCourses: courses
+    StudyPlanCourses: courses,
   };
 };
 
-const fetchTrackContext = async ({ curriculumId, electiveTrackId, transaction, includeCourse = false }) => {
+const fetchTrackContext = async ({
+  curriculumId,
+  electiveTrackId,
+  transaction,
+  includeCourse = false,
+}) => {
   const courseInclude = includeCourse
     ? [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
     : [];
@@ -58,19 +61,21 @@ const fetchTrackContext = async ({ curriculumId, electiveTrackId, transaction, i
   const [selectedTrackRows, curriculumTrackRows] = await Promise.all([
     electiveTrackId
       ? ElectiveTrackCourse.findAll({
-        where: { electiveTrackId },
-        include: courseInclude,
-        transaction
-      })
+          where: { electiveTrackId },
+          include: courseInclude,
+          transaction,
+        })
       : [],
     ElectiveTrackCourse.findAll({
-      include: [{
-        model: ElectiveTrack,
-        attributes: ['id', 'curriculumId'],
-        where: { curriculumId }
-      }],
-      transaction
-    })
+      include: [
+        {
+          model: ElectiveTrack,
+          attributes: ['id', 'curriculumId'],
+          where: { curriculumId },
+        },
+      ],
+      transaction,
+    }),
   ]);
 
   const selectedTrackPlan = buildElectiveTrackPlan(selectedTrackRows || []);
@@ -79,13 +84,19 @@ const fetchTrackContext = async ({ curriculumId, electiveTrackId, transaction, i
     selectedTrackRows,
     selectedTrackPlan,
     selectedTrackCourseIds: new Set(selectedTrackPlan.map((row) => String(row.courseId))),
-    curriculumTrackCourseIds: new Set(curriculumTrackRows.map((row) => String(row.courseId)))
+    curriculumTrackCourseIds: new Set(curriculumTrackRows.map((row) => String(row.courseId))),
   };
 };
 
-const mergeVersionCoursesWithSelectedTrack = ({ baseEntries, selectedTrackPlan, curriculumTrackCourseIds }) => {
+const mergeVersionCoursesWithSelectedTrack = ({
+  baseEntries,
+  selectedTrackPlan,
+  curriculumTrackCourseIds,
+}) => {
   const mergedRows = [];
-  const selectedTrackPlanByCourseId = new Map(selectedTrackPlan.map((item) => [String(item.courseId), item]));
+  const selectedTrackPlanByCourseId = new Map(
+    selectedTrackPlan.map((item) => [String(item.courseId), item]),
+  );
   const selectedTrackCourseIds = new Set(selectedTrackPlan.map((item) => String(item.courseId)));
   const includedCourseIds = new Set();
 
@@ -102,7 +113,7 @@ const mergeVersionCoursesWithSelectedTrack = ({ baseEntries, selectedTrackPlan, 
       yearLevel: trackPlacement?.yearLevel || entry.yearLevel,
       semester: trackPlacement?.semester || entry.semester,
       grade: entry.grade,
-      status: entry.status
+      status: entry.status,
     });
     includedCourseIds.add(courseId);
   });
@@ -118,13 +129,16 @@ const mergeVersionCoursesWithSelectedTrack = ({ baseEntries, selectedTrackPlan, 
       yearLevel: item.yearLevel,
       semester: item.semester,
       grade: null,
-      status: 'pending'
+      status: 'pending',
     });
   });
 
-  return mergedRows.sort((left, right) => Number(left.yearLevel || 0) - Number(right.yearLevel || 0)
-    || Number(left.semester || 0) - Number(right.semester || 0)
-    || Number(left.courseId || 0) - Number(right.courseId || 0));
+  return mergedRows.sort(
+    (left, right) =>
+      Number(left.yearLevel || 0) - Number(right.yearLevel || 0) ||
+      Number(left.semester || 0) - Number(right.semester || 0) ||
+      Number(left.courseId || 0) - Number(right.courseId || 0),
+  );
 };
 
 const syncDraftVersionForElectiveTrack = async ({ sar, adviserId, transaction }) => {
@@ -135,33 +149,43 @@ const syncDraftVersionForElectiveTrack = async ({ sar, adviserId, transaction })
   const [activeVersion, latestDraftVersion, latestVersion, trackContext] = await Promise.all([
     StudyPlanVersion.findOne({
       where: { studyPlanId: sar.StudyPlan.id, status: 'active' },
-      include: [{
-        model: StudyPlanCourse,
-        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-      }],
-      transaction
+      include: [
+        {
+          model: StudyPlanCourse,
+          include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+        },
+      ],
+      transaction,
     }),
     StudyPlanVersion.findOne({
       where: { studyPlanId: sar.StudyPlan.id, status: 'draft' },
-      include: [{
-        model: StudyPlanCourse,
-        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-      }],
-      order: [['versionNumber', 'DESC'], ['createdAt', 'DESC']],
-      transaction
+      include: [
+        {
+          model: StudyPlanCourse,
+          include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+        },
+      ],
+      order: [
+        ['versionNumber', 'DESC'],
+        ['createdAt', 'DESC'],
+      ],
+      transaction,
     }),
     StudyPlanVersion.findOne({
       where: { studyPlanId: sar.StudyPlan.id },
-      order: [['versionNumber', 'DESC'], ['createdAt', 'DESC']],
+      order: [
+        ['versionNumber', 'DESC'],
+        ['createdAt', 'DESC'],
+      ],
       transaction,
-      lock: transaction.LOCK.UPDATE
+      lock: transaction.LOCK.UPDATE,
     }),
     fetchTrackContext({
       curriculumId: sar.curriculumId,
       electiveTrackId: sar.electiveTrackId,
       transaction,
-      includeCourse: true
-    })
+      includeCourse: true,
+    }),
   ]);
 
   const baseVersion = latestDraftVersion || activeVersion;
@@ -173,38 +197,47 @@ const syncDraftVersionForElectiveTrack = async ({ sar, adviserId, transaction })
   const mergedRows = mergeVersionCoursesWithSelectedTrack({
     baseEntries: baseVersion.StudyPlanCourses,
     selectedTrackPlan: trackContext.selectedTrackPlan,
-    curriculumTrackCourseIds: trackContext.curriculumTrackCourseIds
+    curriculumTrackCourseIds: trackContext.curriculumTrackCourseIds,
   });
 
   let draftVersion = latestDraftVersion;
 
   if (!draftVersion) {
-    draftVersion = await StudyPlanVersion.create({
-      studyPlanId: sar.StudyPlan.id,
-      versionNumber: Number(latestVersion?.versionNumber || 0) + 1,
-      status: 'draft',
-      generatedByAdviserId: adviserId,
-      needsRevalidation: true,
-      createdAt: now,
-      updatedAt: now
-    }, { transaction });
+    draftVersion = await StudyPlanVersion.create(
+      {
+        studyPlanId: sar.StudyPlan.id,
+        versionNumber: Number(latestVersion?.versionNumber || 0) + 1,
+        status: 'draft',
+        generatedByAdviserId: adviserId,
+        needsRevalidation: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      { transaction },
+    );
   } else {
     await StudyPlanCourse.destroy({
       where: { studyPlanVersionId: draftVersion.id },
-      transaction
+      transaction,
     });
 
-    await draftVersion.update({
-      needsRevalidation: true,
-      updatedAt: now
-    }, { transaction });
+    await draftVersion.update(
+      {
+        needsRevalidation: true,
+        updatedAt: now,
+      },
+      { transaction },
+    );
   }
 
   if (activeVersion) {
-    await activeVersion.update({
-      needsRevalidation: true,
-      updatedAt: now
-    }, { transaction });
+    await activeVersion.update(
+      {
+        needsRevalidation: true,
+        updatedAt: now,
+      },
+      { transaction },
+    );
   }
 
   await StudyPlanCourse.bulkCreate(
@@ -216,9 +249,9 @@ const syncDraftVersionForElectiveTrack = async ({ sar, adviserId, transaction })
       grade: row.grade,
       status: row.status,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     })),
-    { transaction }
+    { transaction },
   );
 
   return draftVersion.id;
@@ -242,19 +275,26 @@ const isFutureSemesterCourse = ({ entry, sar, currentTerm }) => {
   return entryYearLevel === currentYearLevel && entrySemester > currentSemester;
 };
 
-const validateElectiveCoursesAgainstTrack = async ({ sar, studyPlanVersion, currentTerm, transaction }) => {
+const validateElectiveCoursesAgainstTrack = async ({
+  sar,
+  studyPlanVersion,
+  currentTerm,
+  transaction,
+}) => {
   if (!sar.electiveTrackId) {
     return { valid: true };
   }
 
-  const versionCourseIds = [...new Set((studyPlanVersion.StudyPlanCourses || []).map((item) => item.courseId))];
+  const versionCourseIds = [
+    ...new Set((studyPlanVersion.StudyPlanCourses || []).map((item) => item.courseId)),
+  ];
   const electiveCurriculumRows = await CurriculumCourse.findAll({
     where: {
       curriculumId: sar.curriculumId,
       isElective: true,
-      courseId: versionCourseIds
+      courseId: versionCourseIds,
     },
-    transaction
+    transaction,
   });
 
   const electiveCourseIds = new Set(electiveCurriculumRows.map((row) => String(row.courseId)));
@@ -262,14 +302,14 @@ const validateElectiveCoursesAgainstTrack = async ({ sar, studyPlanVersion, curr
     curriculumId: sar.curriculumId,
     electiveTrackId: sar.electiveTrackId,
     transaction,
-    includeCourse: true
+    includeCourse: true,
   });
 
   const selectedTrackCodeByCourseId = new Map(
     trackContext.selectedTrackPlan.map((item) => [
       String(item.courseId),
-      item.source?.Course?.code || `course-${item.courseId}`
-    ])
+      item.source?.Course?.code || `course-${item.courseId}`,
+    ]),
   );
   const invalidElectives = [];
 
@@ -300,7 +340,7 @@ const validateElectiveCoursesAgainstTrack = async ({ sar, studyPlanVersion, curr
     return {
       valid: false,
       invalidElectives: [...new Set(invalidElectives)],
-      missingElectives: [...new Set(missingElectives)]
+      missingElectives: [...new Set(missingElectives)],
     };
   }
 
@@ -316,7 +356,7 @@ exports.validateVersion = async (req, res, next) => {
   try {
     const sar = await StudentAcademicRecord.findByPk(req.params.id, {
       include: [{ model: StudyPlan, attributes: ['id', 'studentAcademicRecordId'] }],
-      transaction
+      transaction,
     });
 
     if (!sar) {
@@ -326,31 +366,39 @@ exports.validateVersion = async (req, res, next) => {
 
     if (!sar.StudyPlan) {
       await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'No study plan exists for this student academic record' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'No study plan exists for this student academic record' });
     }
 
     const studyPlanVersion = await StudyPlanVersion.findByPk(req.params.versionId, {
-      include: [{
-        model: StudyPlanCourse,
-        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-      }],
-      transaction
+      include: [
+        {
+          model: StudyPlanCourse,
+          include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+        },
+      ],
+      transaction,
     });
 
     if (!studyPlanVersion || String(studyPlanVersion.studyPlanId) !== String(sar.StudyPlan.id)) {
       await transaction.rollback();
-      return res.status(404).json({ success: false, message: 'Study plan version not found for this student' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Study plan version not found for this student' });
     }
 
     if (studyPlanVersion.status !== 'draft') {
       await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'Only draft study plan versions can be validated' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Only draft study plan versions can be validated' });
     }
 
     const currentTerm = await AcademicTerm.findOne({ where: { isCurrent: true }, transaction });
     const electiveTrackRequired = isElectiveTrackSelectionRequired({
       yearLevel: sar.yearLevel,
-      currentSemester: currentTerm?.semester
+      currentSemester: currentTerm?.semester,
     });
 
     if (electiveTrackRequired && !sar.electiveTrackId) {
@@ -358,7 +406,7 @@ exports.validateVersion = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         code: 'ELECTIVE_TRACK_REQUIRED',
-        message: 'Elective track selection is required before validating this study plan.'
+        message: 'Elective track selection is required before validating this study plan.',
       });
     }
 
@@ -366,22 +414,26 @@ exports.validateVersion = async (req, res, next) => {
       sar,
       studyPlanVersion,
       currentTerm,
-      transaction
+      transaction,
     });
 
     if (!electiveTrackCheck.valid) {
       await transaction.rollback();
       const messageParts = [];
       if (electiveTrackCheck.invalidElectives?.length) {
-        messageParts.push(`Invalid elective courses: ${electiveTrackCheck.invalidElectives.join(', ')}`);
+        messageParts.push(
+          `Invalid elective courses: ${electiveTrackCheck.invalidElectives.join(', ')}`,
+        );
       }
       if (electiveTrackCheck.missingElectives?.length) {
-        messageParts.push(`Missing selected-track electives: ${electiveTrackCheck.missingElectives.join(', ')}`);
+        messageParts.push(
+          `Missing selected-track electives: ${electiveTrackCheck.missingElectives.join(', ')}`,
+        );
       }
 
       return res.status(400).json({
         success: false,
-        message: messageParts.join('. ')
+        message: messageParts.join('. '),
       });
     }
 
@@ -390,15 +442,15 @@ exports.validateVersion = async (req, res, next) => {
     await StudyPlanVersion.update(
       {
         status: 'archived',
-        updatedAt: now
+        updatedAt: now,
       },
       {
         where: {
           studyPlanId: sar.StudyPlan.id,
-          status: 'active'
+          status: 'active',
         },
-        transaction
-      }
+        transaction,
+      },
     );
 
     await studyPlanVersion.update(
@@ -407,9 +459,9 @@ exports.validateVersion = async (req, res, next) => {
         validatedByAdviserId: req.user.id,
         validatedAt: now,
         needsRevalidation: false,
-        updatedAt: now
+        updatedAt: now,
       },
-      { transaction }
+      { transaction },
     );
 
     await transaction.commit();
@@ -422,12 +474,12 @@ exports.validateVersion = async (req, res, next) => {
         category: 'study_plan_validated',
         resourceType: 'study_plan_version',
         resourceId: studyPlanVersion.id,
-        meta: { versionNumber: studyPlanVersion.versionNumber }
+        meta: { versionNumber: studyPlanVersion.versionNumber },
       });
     }
 
     const updatedVersion = await StudyPlanVersion.findByPk(studyPlanVersion.id, {
-      include: includeRelationsForVersion
+      include: includeRelationsForVersion,
     });
 
     return res.status(200).json({ success: true, data: serializeVersion(updatedVersion) });
@@ -447,12 +499,14 @@ exports.selectElectiveTrack = async (req, res, next) => {
     const electiveTrackId = Number(req.body?.electiveTrackId);
     if (!Number.isInteger(electiveTrackId) || electiveTrackId <= 0) {
       await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'electiveTrackId is required and must be a valid ID' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'electiveTrackId is required and must be a valid ID' });
     }
 
     const sar = await StudentAcademicRecord.findByPk(req.params.id, {
       include: [{ model: StudyPlan, attributes: ['id', 'studentAcademicRecordId'] }],
-      transaction
+      transaction,
     });
 
     if (!sar) {
@@ -462,45 +516,57 @@ exports.selectElectiveTrack = async (req, res, next) => {
 
     if (sar.electiveTrackId) {
       await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'Elective track is already selected and cannot be changed' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: 'Elective track is already selected and cannot be changed',
+        });
     }
 
     const selectedTrack = await ElectiveTrack.findByPk(electiveTrackId, { transaction });
     if (!selectedTrack || String(selectedTrack.curriculumId) !== String(sar.curriculumId)) {
       await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'Selected elective track must belong to the student curriculum' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: 'Selected elective track must belong to the student curriculum',
+        });
     }
 
     await sar.update(
       {
         electiveTrackId,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       },
-      { transaction }
+      { transaction },
     );
 
     const syncedDraftVersionId = await syncDraftVersionForElectiveTrack({
       sar,
       adviserId: req.user.id,
-      transaction
+      transaction,
     });
 
     await transaction.commit();
 
     const updatedSar = await StudentAcademicRecord.findByPk(sar.id, {
-      include: [{ model: ElectiveTrack, attributes: ['id', 'name', 'description'] }]
+      include: [{ model: ElectiveTrack, attributes: ['id', 'name', 'description'] }],
     });
 
     const draftVersion = syncedDraftVersionId
-      ? await StudyPlanVersion.findByPk(syncedDraftVersionId, { include: includeRelationsForVersion })
+      ? await StudyPlanVersion.findByPk(syncedDraftVersionId, {
+          include: includeRelationsForVersion,
+        })
       : null;
 
     return res.status(200).json({
       success: true,
       data: {
         sar: updatedSar,
-        draftVersion: draftVersion ? serializeVersion(draftVersion) : null
-      }
+        draftVersion: draftVersion ? serializeVersion(draftVersion) : null,
+      },
     });
   } catch (error) {
     await transaction.rollback();
@@ -524,33 +590,65 @@ exports.updateDraftVersionCourses = async (req, res, next) => {
 
     const sar = await StudentAcademicRecord.findByPk(req.params.id, {
       include: [{ model: StudyPlan, attributes: ['id'] }],
-      transaction
+      transaction,
     });
 
     if (!sar?.StudyPlan?.id) {
       await transaction.rollback();
-      return res.status(404).json({ success: false, message: 'Study plan not found for this student' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Study plan not found for this student' });
     }
 
-    const draftVersion = await StudyPlanVersion.findByPk(req.params.versionId, {
-      include: [{
-        model: StudyPlanCourse,
-        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-      }],
-      transaction
-    });
+    const [draftVersion, curriculumCourseList] = await Promise.all([
+      StudyPlanVersion.findByPk(req.params.versionId, {
+        include: [
+          {
+            model: StudyPlanCourse,
+            include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+          },
+        ],
+        transaction,
+      }),
+      CurriculumCourse.findAll({
+        where: { curriculumId: sar.curriculumId },
+        attributes: ['courseId', 'minYearStandingRequired'],
+        include: [{ model: Course, attributes: ['id', 'code', 'name'] }],
+        transaction,
+      }),
+    ]);
 
     if (!draftVersion || String(draftVersion.studyPlanId) !== String(sar.StudyPlan.id)) {
       await transaction.rollback();
-      return res.status(404).json({ success: false, message: 'Study plan version not found for this student' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Study plan version not found for this student' });
     }
 
     if (draftVersion.status !== 'draft') {
       await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'Only draft study plan versions can be edited' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Only draft study plan versions can be edited' });
     }
 
-    const rowsById = new Map((draftVersion.StudyPlanCourses || []).map((row) => [String(row.id), row]));
+    const rowsById = new Map(
+      (draftVersion.StudyPlanCourses || []).map((row) => [String(row.id), row]),
+    );
+
+    // Build a lookup from courseId → minYearStandingRequired
+    const standingByCourseId = new Map(
+      curriculumCourseList.map((cc) => [
+        String(cc.courseId),
+        {
+          minYearStandingRequired: cc.minYearStandingRequired ?? null,
+          courseCode: cc.Course?.code || String(cc.courseId),
+          courseName: cc.Course?.name || '',
+        },
+      ]),
+    );
+
+    const overrideStanding = req.body?.overrideStanding === true;
 
     for (const item of courses) {
       const studyPlanCourseId = String(item?.studyPlanCourseId || '');
@@ -570,11 +668,31 @@ exports.updateDraftVersionCourses = async (req, res, next) => {
         throw new Error('semester must be 1, 2, or 3');
       }
 
-      await row.update({
-        yearLevel,
-        semester,
-        updatedAt: Date.now()
-      }, { transaction });
+      // Standing requirement check: block placement earlier than minYearStandingRequired
+      const standingInfo = standingByCourseId.get(String(row.courseId));
+      const req2 = standingInfo?.minYearStandingRequired ?? null;
+      if (req2 !== null && !overrideStanding) {
+        // Treat graduating (5) as year 5 for placement purposes
+        const effectiveReq = req2 === 5 ? 5 : req2;
+        if (yearLevel < effectiveReq) {
+          await transaction.rollback();
+          return res.status(422).json({
+            success: false,
+            code: 'STANDING_REQUIREMENT_NOT_MET',
+            message: `${standingInfo.courseCode} requires ${standingLabel(req2)} but is being placed in Year ${yearLevel}.`,
+            canOverride: req2 >= 4,
+          });
+        }
+      }
+
+      await row.update(
+        {
+          yearLevel,
+          semester,
+          updatedAt: Date.now(),
+        },
+        { transaction },
+      );
     }
 
     await draftVersion.update({ updatedAt: Date.now() }, { transaction });
@@ -582,7 +700,7 @@ exports.updateDraftVersionCourses = async (req, res, next) => {
     await transaction.commit();
 
     const updatedVersion = await StudyPlanVersion.findByPk(draftVersion.id, {
-      include: includeRelationsForVersion
+      include: includeRelationsForVersion,
     });
 
     return res.status(200).json({ success: true, data: serializeVersion(updatedVersion) });

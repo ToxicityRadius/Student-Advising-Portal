@@ -22,14 +22,24 @@ const CURRICULUM_CSV_COLUMNS = [
   'curriculumName',
   'courseCode',
   'courseName',
+  'lectureHours',
+  'laboratoryHours',
   'units',
   'yearLevel',
   'semester',
   'isElective',
+  'minYearStandingRequired',
   'relatedCourseCode',
   'trackName',
   'notes',
 ];
+
+// Columns that may be absent in older CSV exports — treated as null when missing.
+const OPTIONAL_CSV_COLUMNS = new Set([
+  'lectureHours',
+  'laboratoryHours',
+  'minYearStandingRequired',
+]);
 
 const ALLOWED_ROW_TYPES = new Set([
   'metadata',
@@ -136,7 +146,9 @@ const validateAndNormalizeCsvRows = ({ csvRows, expectedCurriculumId }) => {
   }
 
   const headers = csvRows[0].map((cell) => String(cell || '').trim());
-  const missingColumns = CURRICULUM_CSV_COLUMNS.filter((column) => !headers.includes(column));
+  const missingColumns = CURRICULUM_CSV_COLUMNS.filter(
+    (column) => !OPTIONAL_CSV_COLUMNS.has(column) && !headers.includes(column),
+  );
   if (missingColumns.length > 0) {
     return {
       errors: [
@@ -170,10 +182,13 @@ const validateAndNormalizeCsvRows = ({ csvRows, expectedCurriculumId }) => {
       curriculumName: pick('curriculumName'),
       courseCode: pick('courseCode').toUpperCase(),
       courseName: pick('courseName'),
+      lectureHours: toIntegerOrNull(pick('lectureHours')),
+      laboratoryHours: toIntegerOrNull(pick('laboratoryHours')),
       units: toIntegerOrNull(pick('units')),
       yearLevel: toIntegerOrNull(pick('yearLevel')),
       semester: toIntegerOrNull(pick('semester')),
       isElective: parseBoolean(pick('isElective')),
+      minYearStandingRequired: toIntegerOrNull(pick('minYearStandingRequired')),
       relatedCourseCode: pick('relatedCourseCode').toUpperCase(),
       trackName: pick('trackName'),
       notes: pick('notes'),
@@ -226,6 +241,15 @@ const validateAndNormalizeCsvRows = ({ csvRows, expectedCurriculumId }) => {
           rowNumber,
           rowType: normalized.rowType,
           message: 'semester must be 1, 2, or 3 for structure rows.',
+        });
+      if (
+        normalized.minYearStandingRequired !== null &&
+        (normalized.minYearStandingRequired < 1 || normalized.minYearStandingRequired > 5)
+      )
+        errors.push({
+          rowNumber,
+          rowType: normalized.rowType,
+          message: 'minYearStandingRequired must be 1–5 or empty for structure rows.',
         });
     }
 
@@ -338,6 +362,8 @@ const resolveCourseByCodeMap = async ({ rows, transaction }) => {
         code: row.courseCode,
         name: row.courseName,
         units: row.units,
+        lectureHours: row.lectureHours ?? null,
+        laboratoryHours: row.laboratoryHours ?? null,
       },
       { transaction },
     );
@@ -579,7 +605,7 @@ exports.setActiveCurriculum = async (req, res, next) => {
 // @access admin
 exports.createCourse = async (req, res, next) => {
   try {
-    const { code, name, units } = req.body;
+    const { code, name, units, lectureHours, laboratoryHours, maxStudentsPerSection } = req.body;
     if (!code || !name || units === undefined) {
       return res
         .status(400)
@@ -589,6 +615,31 @@ exports.createCourse = async (req, res, next) => {
       return res
         .status(400)
         .json({ success: false, message: 'units must be an integer between 1 and 9' });
+    }
+    if (lectureHours !== undefined && lectureHours !== null && lectureHours !== '') {
+      if (!Number.isInteger(Number(lectureHours)) || Number(lectureHours) < 0) {
+        return res
+          .status(400)
+          .json({ success: false, message: 'lectureHours must be a non-negative integer' });
+      }
+    }
+    if (laboratoryHours !== undefined && laboratoryHours !== null && laboratoryHours !== '') {
+      if (!Number.isInteger(Number(laboratoryHours)) || Number(laboratoryHours) < 0) {
+        return res
+          .status(400)
+          .json({ success: false, message: 'laboratoryHours must be a non-negative integer' });
+      }
+    }
+    if (
+      maxStudentsPerSection !== undefined &&
+      maxStudentsPerSection !== null &&
+      maxStudentsPerSection !== ''
+    ) {
+      if (!Number.isInteger(Number(maxStudentsPerSection)) || Number(maxStudentsPerSection) < 1) {
+        return res
+          .status(400)
+          .json({ success: false, message: 'maxStudentsPerSection must be a positive integer' });
+      }
     }
     const existing = await Course.findOne({ where: { code: code.trim().toUpperCase() } });
     if (existing) {
@@ -600,6 +651,13 @@ exports.createCourse = async (req, res, next) => {
       code: code.trim().toUpperCase(),
       name: name.trim(),
       units: Number(units),
+      lectureHours: lectureHours !== undefined && lectureHours !== '' ? Number(lectureHours) : null,
+      laboratoryHours:
+        laboratoryHours !== undefined && laboratoryHours !== '' ? Number(laboratoryHours) : null,
+      maxStudentsPerSection:
+        maxStudentsPerSection !== undefined && maxStudentsPerSection !== ''
+          ? Number(maxStudentsPerSection)
+          : null,
     });
     return res.status(201).json({ success: true, data: course });
   } catch (err) {
@@ -711,10 +769,24 @@ exports.updateCourse = async (req, res, next) => {
           .json({ success: false, message: 'A course with that code already exists' });
       }
     }
+    const { lectureHours, laboratoryHours, maxStudentsPerSection } = req.body;
     await course.update({
       ...(code !== undefined && { code: code.trim().toUpperCase() }),
       ...(name !== undefined && { name: name.trim() }),
       ...(units !== undefined && { units: Number(units) }),
+      ...(lectureHours !== undefined && {
+        lectureHours: lectureHours !== '' && lectureHours !== null ? Number(lectureHours) : null,
+      }),
+      ...(laboratoryHours !== undefined && {
+        laboratoryHours:
+          laboratoryHours !== '' && laboratoryHours !== null ? Number(laboratoryHours) : null,
+      }),
+      ...(maxStudentsPerSection !== undefined && {
+        maxStudentsPerSection:
+          maxStudentsPerSection !== '' && maxStudentsPerSection !== null
+            ? Number(maxStudentsPerSection)
+            : null,
+      }),
     });
     return res.status(200).json({ success: true, data: course });
   } catch (err) {
@@ -767,11 +839,22 @@ exports.addCourseToCurriculum = async (req, res, next) => {
     if (!curriculum) {
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
     }
-    const { courseId, yearLevel, semester, isElective } = req.body;
+    const { courseId, yearLevel, semester, isElective, minYearStandingRequired } = req.body;
     if (!courseId || !yearLevel || !semester) {
       return res
         .status(400)
         .json({ success: false, message: 'courseId, yearLevel, and semester are required' });
+    }
+    if (minYearStandingRequired !== undefined && minYearStandingRequired !== null) {
+      const standing = Number(minYearStandingRequired);
+      if (!Number.isInteger(standing) || standing < 1 || standing > 5) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: 'minYearStandingRequired must be an integer between 1 and 5',
+          });
+      }
     }
     const course = await Course.findByPk(courseId);
     if (!course) {
@@ -791,6 +874,7 @@ exports.addCourseToCurriculum = async (req, res, next) => {
       yearLevel,
       semester,
       isElective: isElective || false,
+      minYearStandingRequired: minYearStandingRequired ?? null,
     });
     const result = await CurriculumCourse.findByPk(cc.id, { include: [{ model: Course }] });
     return res.status(201).json({ success: true, data: result });
@@ -1408,12 +1492,10 @@ exports.updateTrackCourse = async (req, res, next) => {
         : Number(rawSemester);
 
     if ((yearLevel === null) !== (semester === null)) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: 'yearLevel and semester must both be provided, or both be empty',
-        });
+      return res.status(400).json({
+        success: false,
+        message: 'yearLevel and semester must both be provided, or both be empty',
+      });
     }
 
     if (yearLevel !== null && (!Number.isInteger(yearLevel) || yearLevel < 1)) {
@@ -1547,10 +1629,13 @@ exports.exportCurriculumCsv = async (req, res, next) => {
         curriculumName: curriculum.name,
         courseCode: row.Course?.code || '',
         courseName: row.Course?.name || '',
+        lectureHours: row.Course?.lectureHours ?? '',
+        laboratoryHours: row.Course?.laboratoryHours ?? '',
         units: row.Course?.units ?? '',
         yearLevel: row.yearLevel ?? '',
         semester: row.semester ?? '',
         isElective: row.isElective ? 'true' : 'false',
+        minYearStandingRequired: row.minYearStandingRequired ?? '',
         relatedCourseCode: '',
         trackName: '',
         notes: '',
@@ -1562,10 +1647,13 @@ exports.exportCurriculumCsv = async (req, res, next) => {
         curriculumName: curriculum.name,
         courseCode: row.Course?.code || '',
         courseName: row.Course?.name || '',
+        lectureHours: '',
+        laboratoryHours: '',
         units: row.Course?.units ?? '',
         yearLevel: '',
         semester: '',
         isElective: '',
+        minYearStandingRequired: '',
         relatedCourseCode: row.PrerequisiteCourse?.code || '',
         trackName: '',
         notes: '',
@@ -1577,10 +1665,13 @@ exports.exportCurriculumCsv = async (req, res, next) => {
         curriculumName: curriculum.name,
         courseCode: row.Course?.code || '',
         courseName: row.Course?.name || '',
+        lectureHours: '',
+        laboratoryHours: '',
         units: row.Course?.units ?? '',
         yearLevel: '',
         semester: '',
         isElective: '',
+        minYearStandingRequired: '',
         relatedCourseCode: row.CoRequisiteCourse?.code || '',
         trackName: '',
         notes: '',
@@ -1593,10 +1684,13 @@ exports.exportCurriculumCsv = async (req, res, next) => {
           curriculumName: curriculum.name,
           courseCode: '',
           courseName: '',
+          lectureHours: '',
+          laboratoryHours: '',
           units: '',
           yearLevel: '',
           semester: '',
           isElective: '',
+          minYearStandingRequired: '',
           relatedCourseCode: '',
           trackName: track.name,
           notes: track.description || '',
@@ -1609,10 +1703,13 @@ exports.exportCurriculumCsv = async (req, res, next) => {
           curriculumName: curriculum.name,
           courseCode: entry.Course?.code || '',
           courseName: entry.Course?.name || '',
+          lectureHours: entry.Course?.lectureHours ?? '',
+          laboratoryHours: entry.Course?.laboratoryHours ?? '',
           units: entry.Course?.units ?? '',
           yearLevel: entry.yearLevel ?? '',
           semester: entry.semester ?? '',
           isElective: '',
+          minYearStandingRequired: '',
           relatedCourseCode: '',
           trackName: track.name,
           notes: '',
@@ -1627,10 +1724,13 @@ exports.exportCurriculumCsv = async (req, res, next) => {
         curriculumName: curriculum.name,
         courseCode: row.Course?.code || '',
         courseName: row.Course?.name || '',
+        lectureHours: '',
+        laboratoryHours: '',
         units: row.Course?.units ?? '',
         yearLevel: '',
         semester: '',
         isElective: '',
+        minYearStandingRequired: '',
         relatedCourseCode: row.EquivalentCourse?.code || '',
         trackName: '',
         notes: row.notes || '',
@@ -1775,6 +1875,7 @@ exports.applyCurriculumImportCsv = async (req, res, next) => {
         yearLevel: row.yearLevel,
         semester: row.semester,
         isElective: row.isElective,
+        minYearStandingRequired: row.minYearStandingRequired ?? null,
       }));
       await CurriculumCourse.bulkCreate(structurePayload, { transaction: tx });
     }

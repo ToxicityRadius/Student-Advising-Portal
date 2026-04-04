@@ -12,8 +12,8 @@ const {
 const { linkStudentAccountToSar } = require('../utils/sarLinking');
 const { shouldBypassAdminFirstLoginEnforcement } = require('../utils/featureFlags');
 const { sanitizeUser } = require('../utils/sanitize');
-const audit = require('../utils/auditLog');
 const logger = require('../utils/logger');
+const { FACULTY_EMAIL_WHITELIST } = require('../constants');
 
 // In-memory attempt tracker for verification code brute-force protection.
 // Keys are String(userId); values are { count, resetAt }.
@@ -106,7 +106,11 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    if (isFaculty && !emailLower.endsWith('.cpe@tip.edu.ph')) {
+    if (
+      isFaculty &&
+      !emailLower.endsWith('.cpe@tip.edu.ph') &&
+      !FACULTY_EMAIL_WHITELIST.includes(emailLower)
+    ) {
       return res.status(400).json({
         success: false,
         message: 'Faculty email must end with .cpe@tip.edu.ph',
@@ -345,7 +349,11 @@ exports.login = async (req, res, next) => {
     const emailLower = email.toLowerCase();
 
     // Enforce email format matches selected role
-    if (selectedRole === 'faculty' && !emailLower.endsWith('.cpe@tip.edu.ph')) {
+    if (
+      selectedRole === 'faculty' &&
+      !emailLower.endsWith('.cpe@tip.edu.ph') &&
+      !FACULTY_EMAIL_WHITELIST.includes(emailLower)
+    ) {
       return res.status(403).json({
         success: false,
         message: 'Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).',
@@ -432,12 +440,6 @@ exports.login = async (req, res, next) => {
         lockUpdate.lockedUntil = Date.now() + 15 * 60 * 1000; // 15-minute lockout
       }
       await User.update(lockUpdate, { where: { id: user.id } });
-      audit.log({
-        userId: user.id,
-        action: 'LOGIN_FAILURE',
-        resource: 'auth',
-        meta: { ip: req.ip, reason: 'invalid_password' },
-      });
       return res.status(401).json({
         success: false,
         message:
@@ -466,12 +468,6 @@ exports.login = async (req, res, next) => {
     if (user.mustChangeEmail && !shouldBypassAdminFirstLoginEnforcement(user)) {
       const { generateToken } = require('../utils/jwt');
       const token = generateToken(user);
-      audit.log({
-        userId: user.id,
-        action: 'LOGIN_FORCE_EMAIL_CHANGE',
-        resource: 'auth',
-        meta: { ip: req.ip },
-      });
       return res.status(200).json({
         success: true,
         mustChangeEmail: true,
@@ -518,12 +514,6 @@ exports.login = async (req, res, next) => {
         { where: { id: user.id } },
       );
       const updatedUser = await User.findByPk(user.id);
-      audit.log({
-        userId: updatedUser.id,
-        action: 'LOGIN',
-        resource: 'auth',
-        meta: { ip: req.ip, role: updatedUser.role },
-      });
       sendTokenResponse(updatedUser, 200, res);
     }
   } catch (error) {
@@ -694,13 +684,6 @@ exports.logout = async (req, res, next) => {
     }
 
     clearAuthCookies(res);
-
-    audit.log({
-      userId: req.user?.id ?? null,
-      action: 'LOGOUT',
-      resource: 'auth',
-      meta: { ip: req.ip },
-    });
 
     res.status(200).json({
       success: true,
@@ -907,12 +890,10 @@ exports.verifyEmailChange = async (req, res, next) => {
     }
 
     if (!user.pendingEmail || !user.emailChangeCode) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: 'No pending email change. Please submit your new email first.',
-        });
+      return res.status(400).json({
+        success: false,
+        message: 'No pending email change. Please submit your new email first.',
+      });
     }
 
     if (!code) {
@@ -924,12 +905,10 @@ exports.verifyEmailChange = async (req, res, next) => {
     }
 
     if (Date.now() > Number(user.emailChangeCodeExpires)) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: 'Verification code has expired. Please request a new one.',
-        });
+      return res.status(400).json({
+        success: false,
+        message: 'Verification code has expired. Please request a new one.',
+      });
     }
 
     const oldEmail = user.email;
@@ -974,12 +953,10 @@ exports.resendEmailChangeCode = async (req, res, next) => {
     }
 
     if (!user.pendingEmail) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: 'No pending email found. Please submit your new email address first.',
-        });
+      return res.status(400).json({
+        success: false,
+        message: 'No pending email found. Please submit your new email address first.',
+      });
     }
 
     const code = generateVerificationCode();

@@ -9,24 +9,14 @@
 const ROLES = Object.freeze({
   STUDENT: 'student',
   ADVISER: 'adviser',
-  ADMIN: 'admin'
+  ADMIN: 'admin',
 });
 
 // ─── Valid sex/gender options ───────────────────────────────────────────────
-const ALLOWED_SEX = Object.freeze([
-  'Male',
-  'Female',
-  'Non-binary',
-  'Prefer not to say'
-]);
+const ALLOWED_SEX = Object.freeze(['Male', 'Female', 'Non-binary', 'Prefer not to say']);
 
 // ─── Valid student types ────────────────────────────────────────────────────
-const ALLOWED_STUDENT_TYPES = Object.freeze([
-  'regular',
-  'irregular',
-  'transferee',
-  'ladderized'
-]);
+const ALLOWED_STUDENT_TYPES = Object.freeze(['regular', 'irregular', 'transferee', 'ladderized']);
 
 // ─── Academic year/semester ranges ─────────────────────────────────────────
 const MIN_YEAR_LEVEL = 1;
@@ -41,15 +31,16 @@ const MAX_COURSE_UNITS = 9;
 
 // ─── File upload limits ─────────────────────────────────────────────────────
 const MAX_PROFILE_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
-const ALLOWED_IMAGE_MIME_TYPES = Object.freeze([
-  'image/jpeg',
-  'image/png',
-  'image/webp'
-]);
+const ALLOWED_IMAGE_MIME_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp']);
 
 // ─── Pagination defaults ────────────────────────────────────────────────────
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
+
+// ─── Faculty/Admin email rules ─────────────────────────────────────────────
+// Emails that are allowed to register/login as faculty or admin even if they
+// do not follow the standard .cpe@tip.edu.ph department suffix pattern.
+const FACULTY_EMAIL_WHITELIST = Object.freeze(['jennifer.enriquez@tip.edu.ph']);
 
 // ─── Security ──────────────────────────────────────────────────────────────
 const MAX_VERIFY_ATTEMPTS = 5;
@@ -74,5 +65,6 @@ module.exports = {
   MAX_VERIFY_ATTEMPTS,
   VERIFY_LOCKOUT_MS,
   LOGIN_LOCKOUT_MAX_ATTEMPTS,
-  LOGIN_LOCKOUT_DURATION_SECONDS
+  LOGIN_LOCKOUT_DURATION_SECONDS,
+  FACULTY_EMAIL_WHITELIST,
 };

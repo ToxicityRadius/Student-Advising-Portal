@@ -15,7 +15,6 @@ const StudyPlanVersion = require('./StudyPlanVersion');
 const StudyPlanCourse = require('./StudyPlanCourse');
 const ForecastSnapshot = require('./ForecastSnapshot');
 const Notification = require('./Notification');
-const AuditLog = require('./AuditLog');
 
 // Self-referential adviser relationship (still used by profile fields)
 User.hasMany(User, { as: 'Advisees', foreignKey: 'adviserId', onDelete: 'SET NULL' });
@@ -144,9 +143,6 @@ Notification.belongsTo(User, { as: 'Recipient', foreignKey: 'recipientId', onDel
 Notification.belongsTo(User, { as: 'Actor', foreignKey: 'actorId', onDelete: 'SET NULL' });
 User.hasMany(Notification, { as: 'Notifications', foreignKey: 'recipientId', onDelete: 'CASCADE' });
 
-// AuditLog associations
-AuditLog.belongsTo(User, { as: 'User', foreignKey: 'userId', onDelete: 'SET NULL' });
-
 module.exports = {
   sequelize,
   User,
@@ -165,5 +161,4 @@ module.exports = {
   StudyPlanCourse,
   ForecastSnapshot,
   Notification,
-  AuditLog,
 };

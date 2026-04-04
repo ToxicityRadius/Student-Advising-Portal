@@ -1,4 +1,48 @@
-﻿# Commit Changes Summary (IMPROVEMENTS Style)
+﻿# Session: April 4, 2026 (continued)
+
+## ✅ Code Quality: Extracted Shared EyeIcons Component
+
+**Frontend Changes**
+
+Consolidated duplicate SVG eye icon components across 5 password-containing files into a single shared module.
+
+- **Created:** `frontend/src/components/EyeIcons.js`
+  - Exports `EyeIcon` and `EyeSlashIcon` as reusable components
+  - Bootstrap Icons paths rendered as inline SVGs
+  - Used by all password field implementations
+
+- **Updated:** 5 files (removed inline SVG definitions, added import):
+  - `frontend/src/pages/Login.js`
+  - `frontend/src/pages/Register.js`
+  - `frontend/src/pages/ChangePassword.js`
+  - `frontend/src/pages/ResetPassword.js`
+  - `frontend/src/components/student/ChangePasswordCard.js`
+
+**Benefit:** Eliminates 5x duplicate icon definitions; reduces code duplication.
+
+---
+
+## ✅ Bug Fix: Login Page Back Arrow & Register UI Cleanup
+
+**Frontend Changes**
+
+**`frontend/src/pages/Login.js`**
+- Fixed corrupted back arrow character (was double-encoded UTF-8; replaced with proper ← character)
+- Back arrow now displays correctly in "Back" button on role-specific login screens
+
+**`frontend/src/pages/Register.js`**
+- Removed two overlapping yellow rectangle decorative divs (left side top, right side bottom)
+- Updated Register button styling to match Login button:
+  - Added `size="lg"` prop
+  - Changed className from `"w-100 fw-bold text-dark mb-3"` to `"w-100 fw-bold mb-3 login-button"`
+  - Added explicit inline style: `backgroundColor: '#FFC107'`, `borderColor: '#FFC107'`, `color: '#000'`
+  - Replaced Bootstrap text-dark with inline color for consistency
+
+**Design:** Register button now matches Login button exactly.
+
+---
+
+# Commit Changes Summary (IMPROVEMENTS Style)
 
 > **Commit:** `2f3075d462495268a81661992d139a4e471ab8f7`  
 > **Date:** March 19, 2026  
@@ -270,3 +314,4 @@
 3. Keep this summary synchronized with future commits that continue the same phased workstream.
 4. Add a Sequelize migration for the `notifications` table if not relying on auto-sync.
 5. Consider adding notification triggers for adviser-facing events (e.g., student submits elective track selection, student updates profile).
+

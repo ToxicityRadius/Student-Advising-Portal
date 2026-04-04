@@ -34,19 +34,30 @@ const CURRICULUM_DEFINITIONS = [
   {
     sourceFile: 'bs_cpe_curriculum_2018_full.csv',
     curriculumName: 'BS CPE Curriculum 2018',
-    outputFile: 'bs_cpe_curriculum_2018_import.csv'
+    outputFile: 'bs_cpe_curriculum_2018_import.csv',
   },
   {
     sourceFile: 'bs_cpe_curriculum_2023_full.csv',
     curriculumName: 'BS CPE Curriculum 2023',
-    outputFile: 'bs_cpe_curriculum_2023_import.csv'
+    outputFile: 'bs_cpe_curriculum_2023_import.csv',
   },
   {
     sourceFile: 'bs_cpe_curriculum_2025_full.csv',
     curriculumName: 'BS CPE Curriculum 2025',
-    outputFile: 'bs_cpe_curriculum_2025_import.csv'
-  }
+    outputFile: 'bs_cpe_curriculum_2025_import.csv',
+  },
 ];
+
+// ─── Corequisite overrides ─────────────────────────────────────────────────────
+// The source CSVs list these pairs in the "prerequisites" column, but they are
+// actually taken concurrently (corequisites), not sequentially.
+// Format: Map<courseCode, Set<relatedCode>>
+const COREQUISITE_PAIRS = new Map([
+  ['CPE 207A', new Set(['CPE 206'])],
+  ['CPE 209', new Set(['CPE 206'])],
+  ['CPE 331A', new Set(['CPE 203'])],
+  ['CPE 331B', new Set(['CPE 203'])],
+]);
 
 // ─── Import CSV columns (must match CURRICULUM_CSV_COLUMNS in curriculumController.js) ─
 
@@ -57,13 +68,16 @@ const IMPORT_HEADERS = [
   'curriculumName',
   'courseCode',
   'courseName',
+  'lectureHours',
+  'laboratoryHours',
   'units',
   'yearLevel',
   'semester',
   'isElective',
+  'minYearStandingRequired',
   'relatedCourseCode',
   'trackName',
-  'notes'
+  'notes',
 ];
 
 // ─── CSV helpers ──────────────────────────────────────────────────────────────
@@ -136,6 +150,22 @@ const normalizeCourseCode = (value) =>
 const STANDING_PATTERN = /\b(?:\d+(?:ST|ND|RD|TH)\s+YEAR\s+STANDING|GRADUATING|GRADUATE)\b/i;
 
 /**
+ * Extracts the minimum year standing requirement from the prerequisites string.
+ * Returns 1–5 (where 5 = graduating) or null if no standing requirement.
+ */
+const extractYearStanding = (value) => {
+  if (!value) return null;
+  const str = String(value).toUpperCase();
+  if (/\bGRADUAT(?:ING|E)\b/.test(str)) return 5;
+  const m = str.match(/\b(\d+)(?:ST|ND|RD|TH)\s+YEAR\s+STANDING\b/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (n >= 1 && n <= 4) return n;
+  }
+  return null;
+};
+
+/**
  * Parses the prerequisites column: semicolon-separated list.
  * Filters out:
  *  - "See Track" placeholders (elective slots, not real prereqs)
@@ -152,7 +182,9 @@ const parsePrerequisiteTokens = (value) => {
 };
 
 const parseSemester = (raw) => {
-  const v = String(raw || '').trim().toLowerCase();
+  const v = String(raw || '')
+    .trim()
+    .toLowerCase();
   if (v === '1') return 1;
   if (v === '2') return 2;
   if (v === '3' || v === 'summer') return 3;
@@ -169,18 +201,21 @@ const parseYearLevel = (raw) => {
 const makeRow = (curriculumName, rowType, overrides = {}) => ({
   exportVersion: '1',
   rowType,
-  curriculumId: '',         // left blank — matched by URL param during import
+  curriculumId: '', // left blank — matched by URL param during import
   curriculumName,
   courseCode: '',
   courseName: '',
+  lectureHours: '',
+  laboratoryHours: '',
   units: '',
   yearLevel: '',
   semester: '',
   isElective: '',
+  minYearStandingRequired: '',
   relatedCourseCode: '',
   trackName: '',
   notes: '',
-  ...overrides
+  ...overrides,
 });
 
 // ─── Per-curriculum processing ────────────────────────────────────────────────
@@ -201,6 +236,7 @@ const processCurriculum = (def) => {
 
   const structureRows = [];
   const prerequisiteRows = [];
+  const corequisiteRows = [];
   const electiveTrackRows = [];
   const electiveTrackCourseRows = [];
 
@@ -213,8 +249,13 @@ const processCurriculum = (def) => {
   // from structure rows. Elective-track-only courses would be "unknown".
   const structureCodes = new Set();
 
+  // Also track elective-track-only course codes (for prereq pass 3).
+  const electiveTrackCodes = new Set();
+
   // First pass: collect all rows, build structureCodes and raw track data
   const rawStructureRows = [];
+  // Raw elective track courses keyed by courseCode — for pass 3
+  const rawElectiveTrackCourses = [];
 
   for (const line of lines) {
     const cells = parseCsvLine(line);
@@ -224,8 +265,12 @@ const processCurriculum = (def) => {
     const courseName = String(cells[1] || '').trim();
     const creditUnits = Number(cells[4]);
     const prerequisites = String(cells[5] || '').trim();
-    const yearRaw = String(cells[6] || '').trim().toLowerCase();
-    const semRaw = String(cells[7] || '').trim().toLowerCase();
+    const yearRaw = String(cells[6] || '')
+      .trim()
+      .toLowerCase();
+    const semRaw = String(cells[7] || '')
+      .trim()
+      .toLowerCase();
 
     if (!courseCode || !courseName) continue;
 
@@ -241,22 +286,31 @@ const processCurriculum = (def) => {
       // ── Elective track header (one per unique track name) ──
       if (trackName && !seenTracks.has(trackName)) {
         seenTracks.add(trackName);
-        electiveTrackRows.push(makeRow(def.curriculumName, 'elective_track', {
-          trackName
-        }));
+        electiveTrackRows.push(
+          makeRow(def.curriculumName, 'elective_track', {
+            trackName,
+          }),
+        );
       }
 
       // ── Elective track course row ──
-      electiveTrackCourseRows.push(makeRow(def.curriculumName, 'elective_track_course', {
+      electiveTrackCodes.add(courseCode);
+      electiveTrackCourseRows.push(
+        makeRow(def.curriculumName, 'elective_track_course', {
+          courseCode,
+          courseName,
+          units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
+          trackName,
+        }),
+      );
+      // Collect raw data for pass 3 (elective track course prereqs)
+      rawElectiveTrackCourses.push({
         courseCode,
         courseName,
-        units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
-        trackName
-      }));
-      // Note: prerequisites for elective track courses are omitted here.
-      // These courses are not placed in structure rows, so the import system
-      // cannot resolve them as course records during the same import.
-      // Add their prerequisites manually in the admin UI after importing.
+        creditUnits,
+        prerequisites,
+        trackName,
+      });
     } else {
       // ── Regular curriculum placement (structure row) ──
       const yearLevel = parseYearLevel(yearRaw);
@@ -264,19 +318,24 @@ const processCurriculum = (def) => {
 
       if (!yearLevel || !semester) continue;
 
-      // CPEC placeholder courses (elective slots) are marked isElective=true
-      const isElective =
-        /see\s*track/i.test(prerequisites) || /^CPEC\b/i.test(courseCode);
+      // CPEC/CPEE placeholder courses (elective slots) are marked isElective=true
+      const isElective = /see\s*track/i.test(prerequisites) || /^CPE[CE]\b/i.test(courseCode);
+
+      const minYearStandingRequired = isElective ? null : extractYearStanding(prerequisites);
 
       structureCodes.add(courseCode);
-      structureRows.push(makeRow(def.curriculumName, 'structure', {
-        courseCode,
-        courseName,
-        units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
-        yearLevel: String(yearLevel),
-        semester: String(semester),
-        isElective: isElective ? 'true' : 'false'
-      }));
+      structureRows.push(
+        makeRow(def.curriculumName, 'structure', {
+          courseCode,
+          courseName,
+          units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
+          yearLevel: String(yearLevel),
+          semester: String(semester),
+          isElective: isElective ? 'true' : 'false',
+          minYearStandingRequired:
+            minYearStandingRequired !== null ? String(minYearStandingRequired) : '',
+        }),
+      );
 
       if (!isElective) {
         rawStructureRows.push({ courseCode, courseName, creditUnits, prerequisites });
@@ -284,9 +343,7 @@ const processCurriculum = (def) => {
     }
   }
 
-  // Second pass: emit prerequisite rows now that structureCodes is fully populated.
-  // This ensures forward-references (e.g. a course listing a same-semester prereq
-  // that appeared later in the source file) are handled correctly.
+  // Second pass: emit prerequisite/corequisite rows for structure courses.
   for (const { courseCode, courseName, creditUnits, prerequisites } of rawStructureRows) {
     for (const token of parsePrerequisiteTokens(prerequisites)) {
       const prereqCode = normalizeCourseCode(token);
@@ -296,12 +353,42 @@ const processCurriculum = (def) => {
       const key = `${courseCode}|${prereqCode}`;
       if (!prereqDedup.has(key)) {
         prereqDedup.add(key);
-        prerequisiteRows.push(makeRow(def.curriculumName, 'prerequisite', {
-          courseCode,
-          courseName,
-          units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
-          relatedCourseCode: prereqCode
-        }));
+        const isCoreq = COREQUISITE_PAIRS.get(courseCode)?.has(prereqCode);
+        const targetRows = isCoreq ? corequisiteRows : prerequisiteRows;
+        targetRows.push(
+          makeRow(def.curriculumName, isCoreq ? 'corequisite' : 'prerequisite', {
+            courseCode,
+            courseName,
+            units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
+            relatedCourseCode: prereqCode,
+          }),
+        );
+      }
+    }
+  }
+
+  // Third pass: emit prerequisite/corequisite rows for elective track courses.
+  // relatedCourseCode must exist in structureCodes OR electiveTrackCodes
+  // (both will be created as Course records during import).
+  const allKnownCodes = new Set([...structureCodes, ...electiveTrackCodes]);
+  for (const { courseCode, courseName, creditUnits, prerequisites } of rawElectiveTrackCourses) {
+    for (const token of parsePrerequisiteTokens(prerequisites)) {
+      const prereqCode = normalizeCourseCode(token);
+      if (!prereqCode) continue;
+      if (!allKnownCodes.has(prereqCode)) continue;
+      const key = `${courseCode}|${prereqCode}`;
+      if (!prereqDedup.has(key)) {
+        prereqDedup.add(key);
+        const isCoreq = COREQUISITE_PAIRS.get(courseCode)?.has(prereqCode);
+        const targetRows = isCoreq ? corequisiteRows : prerequisiteRows;
+        targetRows.push(
+          makeRow(def.curriculumName, isCoreq ? 'corequisite' : 'prerequisite', {
+            courseCode,
+            courseName,
+            units: Number.isFinite(creditUnits) ? String(Math.round(creditUnits)) : '',
+            relatedCourseCode: prereqCode,
+          }),
+        );
       }
     }
   }
@@ -309,12 +396,13 @@ const processCurriculum = (def) => {
   // ── Assemble final row order ──
   const allRows = [
     makeRow(def.curriculumName, 'metadata', {
-      notes: `generatedAt=${Date.now()}`
+      notes: `generatedAt=${Date.now()}`,
     }),
     ...structureRows,
     ...prerequisiteRows,
+    ...corequisiteRows,
     ...electiveTrackRows,
-    ...electiveTrackCourseRows
+    ...electiveTrackCourseRows,
   ];
 
   const outputPath = path.join(outputDir, def.outputFile);
@@ -325,10 +413,11 @@ const processCurriculum = (def) => {
     counts: {
       structure: structureRows.length,
       prerequisites: prerequisiteRows.length,
+      corequisites: corequisiteRows.length,
       electiveTracks: electiveTrackRows.length,
       electiveTrackCourses: electiveTrackCourseRows.length,
-      totalRows: allRows.length
-    }
+      totalRows: allRows.length,
+    },
   };
 };
 
@@ -349,9 +438,9 @@ console.log(
     {
       outputDir,
       note: 'curriculumId is intentionally blank — fill it by importing into an existing curriculum via the admin UI.',
-      results
+      results,
     },
     null,
-    2
-  )
+    2,
+  ),
 );

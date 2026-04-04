@@ -5,7 +5,7 @@ import LogoutConfirmModal from './LogoutConfirmModal';
 import './Navbar.css';
 
 const roleQuickLinks = {
-  student: [{ to: '/my-record', label: 'My Academic Record' }],
+  student: [],
   adviser: [{ to: '/adviser/students', label: 'Student Records' }],
   admin: [
     { to: '/adviser/students', label: 'Student Records' },

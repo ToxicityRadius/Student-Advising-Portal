@@ -1,5 +1,22 @@
-import React from "react";
-import { getSemesterTone } from "../../utils/gradeHelpers";
+import React from 'react';
+import { getSemesterTone } from '../../utils/gradeHelpers';
+
+const getCourseVariant = (normalizedStatus) => {
+  switch (normalizedStatus) {
+    case 'Passed':
+      return 'passed';
+    case 'Failed':
+      return 'failed';
+    case 'INC':
+      return 'inc';
+    case 'DRP':
+      return 'drp';
+    case 'Not Yet Taken':
+      return 'not-yet-taken';
+    default:
+      return 'pending';
+  }
+};
 
 const SemesterCard = ({ semester, isOpen, onToggle }) => {
   const tone = getSemesterTone(semester.gpa);
@@ -11,7 +28,7 @@ const SemesterCard = ({ semester, isOpen, onToggle }) => {
     >
       <button
         type="button"
-        className={`grades-semester-summary ${isOpen ? "is-open" : ""}`}
+        className={`grades-semester-summary ${isOpen ? 'is-open' : ''}`}
         onClick={onToggle}
       >
         <div className="grades-semester-meta">
@@ -32,7 +49,7 @@ const SemesterCard = ({ semester, isOpen, onToggle }) => {
             <strong>{semester.gpa}</strong>
             <span>GPA</span>
           </div>
-          <div className={`grades-chevron ${isOpen ? "is-open" : ""}`} />
+          <div className={`grades-chevron ${isOpen ? 'is-open' : ''}`} />
         </div>
       </button>
 
@@ -46,32 +63,34 @@ const SemesterCard = ({ semester, isOpen, onToggle }) => {
             <span>Status</span>
           </div>
 
-          {semester.filteredCourses.map((course, index) => (
-            <div
-              key={`${course.code}-${index}`}
-              className={`grades-course-row grades-course-row--${tone}`}
-            >
-              <div className="grades-course-code">
-                <strong>{course.code || "COURSE"}</strong>
+          {semester.filteredCourses.map((course, index) => {
+            const courseVariant = getCourseVariant(course.normalizedStatus);
+            const isNotTaken = course.normalizedStatus === 'Not Yet Taken';
+            return (
+              <div
+                key={`${course.code}-${index}`}
+                className={`grades-course-row grades-course-row--${tone}${isNotTaken ? ' grades-course-row--not-taken' : ''}`}
+              >
+                <div className="grades-course-code">
+                  <strong>{course.code || 'COURSE'}</strong>
+                </div>
+                <div className="grades-course-title">
+                  {course.name || 'Course title unavailable'}
+                </div>
+                <div className="grades-course-units">{course.units || 0}</div>
+                <div className="grades-course-grade">
+                  <span className={`grades-pill grades-pill--${courseVariant}`}>
+                    {course.grade || '-'}
+                  </span>
+                </div>
+                <div className="grades-course-status">
+                  <span className={`grades-pill grades-pill--${courseVariant}`}>
+                    {course.normalizedStatus}
+                  </span>
+                </div>
               </div>
-              <div className="grades-course-title">
-                {course.name || "Course title unavailable"}
-              </div>
-              <div className="grades-course-units">
-                {course.units || 0}
-              </div>
-              <div className="grades-course-grade">
-                <span className={`grades-pill grades-pill--${tone}`}>
-                  {course.grade || "-"}
-                </span>
-              </div>
-              <div className="grades-course-status">
-                <span className={`grades-pill grades-pill--${tone}`}>
-                  {course.normalizedStatus}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </article>

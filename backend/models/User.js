@@ -215,6 +215,22 @@ const User = sequelize.define(
       type: DataTypes.DATE,
       allowNull: true,
     },
+    notifInapp: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+    },
+    notifEmail: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    notifReminders: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    compactMode: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
   },
   {
     tableName: 'users',

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap';
 import { GoogleLogin } from '@react-oauth/google';
@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import backgroundImage from '../assets/images/bg.png';
 import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
+import { EyeIcon, EyeSlashIcon } from '../components/EyeIcons';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -21,6 +22,8 @@ const Register = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const role = location.state?.role || 'student';
@@ -142,33 +145,6 @@ const Register = () => {
           zIndex: 0,
         }}
       />
-      {/* Yellow rectangle - left side, top overlap */}
-      <div
-        className="position-absolute"
-        style={{
-          left: 0,
-          top: '6%',
-          width: '550px',
-          height: '60px',
-          backgroundColor: '#FFC107',
-          zIndex: 2,
-          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)',
-        }}
-      />
-
-      {/* Yellow rectangle - right side, bottom overlap */}
-      <div
-        className="position-absolute"
-        style={{
-          right: 0,
-          bottom: '10.5%',
-          width: '1500px',
-          height: '60px',
-          backgroundColor: '#FFC107',
-          zIndex: 1,
-          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)',
-        }}
-      />
 
       <Container className="position-relative" style={{ zIndex: 1 }}>
         <Row className="justify-content-center">
@@ -274,33 +250,83 @@ const Register = () => {
                     />
                   </Form.Group>
 
-                  <Form.Group className="mb-3">
+                  <Form.Group className="mb-3" style={{ position: 'relative' }}>
                     <Form.Control
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
                       name="password"
                       value={formData.password}
                       onChange={handleChange}
                       required
                       placeholder="Password"
+                      style={{ paddingRight: 40 }}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      tabIndex={-1}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      style={{
+                        position: 'absolute',
+                        right: 10,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#888',
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                    >
+                      {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
+                    </button>
                   </Form.Group>
 
-                  <Form.Group className="mb-3">
+                  <Form.Group className="mb-3" style={{ position: 'relative' }}>
                     <Form.Control
-                      type="password"
+                      type={showConfirmPassword ? 'text' : 'password'}
                       name="confirmPassword"
                       value={formData.confirmPassword}
                       onChange={handleChange}
                       required
                       placeholder="Confirm Password"
+                      style={{ paddingRight: 40 }}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((v) => !v)}
+                      tabIndex={-1}
+                      aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                      style={{
+                        position: 'absolute',
+                        right: 10,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#888',
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                    >
+                      {showConfirmPassword ? <EyeSlashIcon /> : <EyeIcon />}
+                    </button>
                   </Form.Group>
 
                   <Button
                     type="submit"
                     variant="warning"
-                    className="w-100 fw-bold text-dark mb-3"
+                    size="lg"
+                    className="w-100 fw-bold mb-3 login-button"
                     disabled={loading}
+                    style={{
+                      backgroundColor: '#FFC107',
+                      borderColor: '#FFC107',
+                      color: '#000',
+                    }}
                   >
                     {loading ? 'Creating Account...' : 'Register'}
                   </Button>

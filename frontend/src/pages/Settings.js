@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../utils/api';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import AdminLayout from '../components/admin/AdminLayout';
 import AdviserLayout from '../components/adviser/AdviserLayout';
@@ -8,20 +9,23 @@ import StudentLayout from '../components/student/StudentLayout';
 
 const YELLOW = '#FFC107';
 
-const ComingSoon = () => (
+const SavedIndicator = ({ visible }) => (
   <span
     style={{
       display: 'inline-block',
       padding: '3px 10px',
       borderRadius: 10,
-      background: '#FFF8E1',
-      color: '#B8860B',
+      background: '#E8F5E9',
+      color: '#2E7D32',
       fontSize: '0.72rem',
       fontWeight: 700,
-      border: '1px solid #FFE082',
+      border: '1px solid #A5D6A7',
+      opacity: visible ? 1 : 0,
+      transition: 'opacity 0.4s',
+      pointerEvents: 'none',
     }}
   >
-    Coming soon
+    Saved
   </span>
 );
 
@@ -86,14 +90,49 @@ const Toggle = ({ checked, onChange, disabled }) => (
 );
 
 const Settings = () => {
-  const { user, logout } = useAuth();
+  const { user, setUser, logout } = useAuth();
   const navigate = useNavigate();
 
-  // Settings state
-  const [emailNotifs, setEmailNotifs] = useState(true);
-  const [inAppNotifs, setInAppNotifs] = useState(true);
-  const [advisingReminders, setAdvisingReminders] = useState(true);
-  const [compactMode, setCompactMode] = useState(false);
+  // Preference state initialised from persisted user object
+  const [notifEmail, setNotifEmail] = useState(() => user?.notifEmail ?? false);
+  const [notifInapp, setNotifInapp] = useState(() => user?.notifInapp ?? true);
+  const [notifReminders, setNotifReminders] = useState(() => user?.notifReminders ?? false);
+  const [compactMode, setCompactMode] = useState(() => user?.compactMode ?? false);
+
+  // Saved indicator
+  const [savedVisible, setSavedVisible] = useState(false);
+  const savedTimerRef = useRef(null);
+
+  const showSaved = () => {
+    setSavedVisible(true);
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setSavedVisible(false), 2000);
+  };
+
+  const updateSetting = useCallback(
+    async (field, value) => {
+      try {
+        const res = await api.patch('/users/settings', { [field]: value });
+        if (res.data?.success && res.data?.data) {
+          setUser((prev) => ({ ...prev, ...res.data.data }));
+          // Apply compact mode immediately
+          document.body.classList.toggle(
+            'compact-mode',
+            Boolean(res.data.data.compactMode ?? compactMode),
+          );
+        }
+        showSaved();
+      } catch {
+        // silently ignore — toggle revert is not needed since the API is best-effort
+      }
+    },
+    [setUser, compactMode],
+  );
+
+  const handleToggle = (field, setter) => (value) => {
+    setter(value);
+    updateSetting(field, value);
+  };
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -187,7 +226,7 @@ const Settings = () => {
             <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#111', margin: 0 }}>
               Notifications
             </h2>
-            <ComingSoon />
+            <SavedIndicator visible={savedVisible} />
           </div>
           <p style={{ fontSize: '0.83rem', color: '#888', marginBottom: 16, marginTop: 0 }}>
             Choose what updates you receive and how.
@@ -196,19 +235,22 @@ const Settings = () => {
             label="Email notifications"
             description="Receive updates about your advising sessions via email."
           >
-            <Toggle checked={emailNotifs} onChange={setEmailNotifs} disabled />
+            <Toggle checked={notifEmail} onChange={handleToggle('notifEmail', setNotifEmail)} />
           </SettingRow>
           <SettingRow
             label="In-app notifications"
             description="Show alerts inside the portal when something needs your attention."
           >
-            <Toggle checked={inAppNotifs} onChange={setInAppNotifs} disabled />
+            <Toggle checked={notifInapp} onChange={handleToggle('notifInapp', setNotifInapp)} />
           </SettingRow>
           <SettingRow
             label="Advising reminders"
             description="Remind me of upcoming advising deadlines and term events."
           >
-            <Toggle checked={advisingReminders} onChange={setAdvisingReminders} disabled />
+            <Toggle
+              checked={notifReminders}
+              onChange={handleToggle('notifReminders', setNotifReminders)}
+            />
           </SettingRow>
         </section>
         <section
@@ -224,7 +266,6 @@ const Settings = () => {
             <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#111', margin: 0 }}>
               Display
             </h2>
-            <ComingSoon />
           </div>
           <p style={{ fontSize: '0.83rem', color: '#888', marginBottom: 16, marginTop: 0 }}>
             Adjust how the portal looks for you.
@@ -233,7 +274,7 @@ const Settings = () => {
             label="Compact mode"
             description="Reduce spacing in tables and lists for a denser layout."
           >
-            <Toggle checked={compactMode} onChange={setCompactMode} disabled />
+            <Toggle checked={compactMode} onChange={handleToggle('compactMode', setCompactMode)} />
           </SettingRow>
         </section>
         <section
@@ -363,7 +404,7 @@ const Settings = () => {
           <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#111', margin: 0 }}>
             Notifications
           </h2>
-          <ComingSoon />
+          <SavedIndicator visible={savedVisible} />
         </div>
         <p style={{ fontSize: '0.83rem', color: '#888', marginBottom: 16, marginTop: 0 }}>
           Choose what updates you receive and how.
@@ -373,19 +414,22 @@ const Settings = () => {
           label="Email notifications"
           description="Receive updates about your advising sessions via email."
         >
-          <Toggle checked={emailNotifs} onChange={setEmailNotifs} disabled />
+          <Toggle checked={notifEmail} onChange={handleToggle('notifEmail', setNotifEmail)} />
         </SettingRow>
         <SettingRow
           label="In-app notifications"
           description="Show alerts inside the portal when something needs your attention."
         >
-          <Toggle checked={inAppNotifs} onChange={setInAppNotifs} disabled />
+          <Toggle checked={notifInapp} onChange={handleToggle('notifInapp', setNotifInapp)} />
         </SettingRow>
         <SettingRow
           label="Advising reminders"
           description="Remind me of upcoming advising deadlines and term events."
         >
-          <Toggle checked={advisingReminders} onChange={setAdvisingReminders} disabled />
+          <Toggle
+            checked={notifReminders}
+            onChange={handleToggle('notifReminders', setNotifReminders)}
+          />
         </SettingRow>
       </section>
 
@@ -401,7 +445,6 @@ const Settings = () => {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#111', margin: 0 }}>Display</h2>
-          <ComingSoon />
         </div>
         <p style={{ fontSize: '0.83rem', color: '#888', marginBottom: 16, marginTop: 0 }}>
           Adjust how the portal looks for you.
@@ -411,7 +454,7 @@ const Settings = () => {
           label="Compact mode"
           description="Reduce spacing in tables and lists for a denser layout."
         >
-          <Toggle checked={compactMode} onChange={setCompactMode} disabled />
+          <Toggle checked={compactMode} onChange={handleToggle('compactMode', setCompactMode)} />
         </SettingRow>
       </section>
 

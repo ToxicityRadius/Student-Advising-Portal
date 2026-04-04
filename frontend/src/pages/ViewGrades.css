@@ -400,6 +400,97 @@
   background: #ece5e5;
 }
 
+.grades-pill--not-yet-taken {
+  color: #4c5264;
+  background: #e9ecf4;
+}
+
+.grades-course-row--not-taken {
+  opacity: 0.45;
+}
+
+/* ── Overall Completion Card ───────────────────────────── */
+.grades-overall-card {
+  background: linear-gradient(145deg, #22d865, #10b952 60%, #0ea84a);
+  color: #fff;
+  border-radius: 18px;
+  padding: 28px 32px;
+  box-shadow: 0 14px 28px rgba(16, 185, 82, 0.28);
+}
+
+.grades-overall-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 16px;
+}
+
+.grades-overall-head h2 {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.grades-overall-head strong {
+  font-size: 1.9rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.grades-overall-progress {
+  height: 12px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.grades-overall-progress div {
+  height: 100%;
+  background: rgba(255, 255, 255, 0.86);
+  border-radius: inherit;
+  transition: width 300ms ease;
+}
+
+.grades-overall-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.grades-overall-grid article {
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.grades-overall-grid span {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  opacity: 0.9;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.grades-overall-grid h3 {
+  font-size: 1.5rem;
+  line-height: 1;
+  margin: 8px 0 4px;
+  font-weight: 900;
+}
+
+.grades-overall-grid p {
+  font-size: 0.86rem;
+  opacity: 0.9;
+  font-weight: 600;
+}
+
+@media (max-width: 1024px) {
+  .grades-overall-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .grades-loading,
 .grades-error,
 .grades-empty {

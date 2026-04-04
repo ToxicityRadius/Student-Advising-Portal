@@ -7,20 +7,24 @@ const {
   StudyPlanCourse,
   StudyPlanVersion,
   StudentAcademicRecord,
-  User
+  User,
 } = require('../models');
-const { parsePaginationParams, buildPaginatedPayload, paginateArray } = require('../utils/pagination');
+const {
+  parsePaginationParams,
+  buildPaginatedPayload,
+  paginateArray,
+} = require('../utils/pagination');
 
 const triggeredByAttributes = ['id', 'firstName', 'lastName', 'email'];
 
 const semesterLabel = {
   1: '1st Semester',
   2: '2nd Semester',
-  3: 'Summer'
+  3: 'Summer',
 };
 
 const normalizeNumber = (value) => Number(value || 0);
-const DEFAULT_SECTION_CAP = 40;
+const DEFAULT_SECTION_CAP = 45;
 const FORECAST_CACHE_TTL_MS = 60 * 1000;
 const demandResponseCache = new Map();
 
@@ -40,20 +44,20 @@ const buildTermMeta = (term) => ({
   id: term.id,
   schoolYear: term.schoolYear,
   semester: term.semester,
-  semesterLabel: getSemesterDisplay(term.semester)
+  semesterLabel: getSemesterDisplay(term.semester),
 });
 
 const advanceSlot = ({ yearLevel, semester }) => {
   if (Number(semester) === 3) {
     return {
       yearLevel: Number(yearLevel) + 1,
-      semester: 1
+      semester: 1,
     };
   }
 
   return {
     yearLevel: Number(yearLevel),
-    semester: Number(semester) + 1
+    semester: Number(semester) + 1,
   };
 };
 
@@ -65,7 +69,8 @@ const sortDemandRows = (left, right) => {
   return String(left.courseCode || '').localeCompare(String(right.courseCode || ''));
 };
 
-const sortComparisonRows = (left, right) => String(left.courseCode || '').localeCompare(String(right.courseCode || ''));
+const sortComparisonRows = (left, right) =>
+  String(left.courseCode || '').localeCompare(String(right.courseCode || ''));
 
 const sortRowsBy = ({ rows, sortBy, sortOrder }) => {
   const direction = sortOrder === 'DESC' ? -1 : 1;
@@ -82,7 +87,8 @@ const sortRowsBy = ({ rows, sortBy, sortOrder }) => {
   });
 };
 
-const getDemandCacheKey = ({ termId, semesterOffset, sectionCap }) => `${termId}:${semesterOffset}:${sectionCap}`;
+const getDemandCacheKey = ({ termId, semesterOffset, sectionCap }) =>
+  `${termId}:${semesterOffset}:${sectionCap}`;
 
 const getCachedDemandResponse = (key) => {
   const entry = demandResponseCache.get(key);
@@ -101,7 +107,7 @@ const getCachedDemandResponse = (key) => {
 const setCachedDemandResponse = (key, value) => {
   demandResponseCache.set(key, {
     value,
-    cachedAt: Date.now()
+    cachedAt: Date.now(),
   });
 };
 
@@ -114,12 +120,18 @@ const normalizeSectionCap = (value) => {
   return Math.floor(parsed);
 };
 
-const getCurrentAcademicTerm = async (transaction) => AcademicTerm.findOne({
-  where: { isCurrent: true },
-  transaction
-});
+const getCurrentAcademicTerm = async (transaction) =>
+  AcademicTerm.findOne({
+    where: { isCurrent: true },
+    transaction,
+  });
 
-const getDemandDataForTerm = async ({ term, semesterOffset = 0, sectionCap = DEFAULT_SECTION_CAP, transaction }) => {
+const getDemandDataForTerm = async ({
+  term,
+  semesterOffset = 0,
+  sectionCap = DEFAULT_SECTION_CAP,
+  transaction,
+}) => {
   // Pre-compute the target semester for DB-level filtering.
   // The semester component after advancing is deterministic (same for all students).
   // Only yearLevel varies per-student and is checked in JS below.
@@ -147,14 +159,19 @@ const getDemandDataForTerm = async ({ term, semesterOffset = 0, sectionCap = DEF
                 required: false,
                 where: { status: 'pending', semester: semesterForFilter },
                 attributes: ['courseId', 'yearLevel'],
-                include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-              }
-            ]
-          }
-        ]
+                include: [
+                  {
+                    model: Course,
+                    attributes: ['id', 'code', 'name', 'units', 'maxStudentsPerSection'],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
       },
     ],
-    transaction
+    transaction,
   });
 
   const demandByCourseId = new Map();
@@ -178,15 +195,12 @@ const getDemandDataForTerm = async ({ term, semesterOffset = 0, sectionCap = DEF
     }
 
     const countedCoursesForStudent = new Set();
-    const activeVersions = (record.StudyPlan?.StudyPlanVersions || []);
+    const activeVersions = record.StudyPlan?.StudyPlanVersions || [];
 
     activeVersions.forEach((version) => {
       (version.StudyPlanCourses || []).forEach((entry) => {
         // semester already filtered at DB level; only check yearLevel per-student
-        if (
-          normalizeNumber(entry.yearLevel) !== targetYearLevel ||
-          !entry.Course
-        ) {
+        if (normalizeNumber(entry.yearLevel) !== targetYearLevel || !entry.Course) {
           return;
         }
 
@@ -203,8 +217,9 @@ const getDemandDataForTerm = async ({ term, semesterOffset = 0, sectionCap = DEF
             courseCode: entry.Course.code,
             courseName: entry.Course.name,
             units: entry.Course.units,
+            maxStudentsPerSection: entry.Course.maxStudentsPerSection || null,
             studentCount: 0,
-            expectedSections: 0
+            expectedSections: 0,
           });
         }
 
@@ -213,18 +228,24 @@ const getDemandDataForTerm = async ({ term, semesterOffset = 0, sectionCap = DEF
     });
   });
 
-  const rows = [...demandByCourseId.values()].map((row) => {
-    const students = normalizeNumber(row.studentCount);
-    return {
-      ...row,
-      expectedSections: Math.ceil(students / effectiveSectionCap)
-    };
-  }).sort(sortDemandRows);
+  const rows = [...demandByCourseId.values()]
+    .map((row) => {
+      const students = normalizeNumber(row.studentCount);
+      const courseCap =
+        row.maxStudentsPerSection && row.maxStudentsPerSection > 0
+          ? row.maxStudentsPerSection
+          : effectiveSectionCap;
+      return {
+        ...row,
+        expectedSections: Math.ceil(students / courseCap),
+      };
+    })
+    .sort(sortDemandRows);
 
   return {
     rows,
     uniqueSarCount: uniqueStudentIds.size,
-    sectionCap: effectiveSectionCap
+    sectionCap: effectiveSectionCap,
   };
 };
 
@@ -247,7 +268,11 @@ const normalizeSnapshotForecastRows = (snapshot) => {
   return [];
 };
 
-const buildDemandResponse = async ({ semesterOffset = 0, sectionCap = DEFAULT_SECTION_CAP, transaction } = {}) => {
+const buildDemandResponse = async ({
+  semesterOffset = 0,
+  sectionCap = DEFAULT_SECTION_CAP,
+  transaction,
+} = {}) => {
   const currentTerm = await getCurrentAcademicTerm(transaction);
   if (!currentTerm) {
     const error = new Error('No active current term found');
@@ -264,7 +289,7 @@ const buildDemandResponse = async ({ semesterOffset = 0, sectionCap = DEFAULT_SE
   const cacheKey = getDemandCacheKey({
     termId: currentTerm.id,
     semesterOffset,
-    sectionCap: normalizedSectionCap
+    sectionCap: normalizedSectionCap,
   });
 
   const cachedResponse = transaction ? null : getCachedDemandResponse(cacheKey);
@@ -276,7 +301,7 @@ const buildDemandResponse = async ({ semesterOffset = 0, sectionCap = DEFAULT_SE
     term: currentTerm,
     semesterOffset,
     sectionCap: normalizedSectionCap,
-    transaction
+    transaction,
   });
 
   const response = {
@@ -285,13 +310,16 @@ const buildDemandResponse = async ({ semesterOffset = 0, sectionCap = DEFAULT_SE
       currentTerm: buildTermMeta(currentTerm),
       sectionCap: demandData.sectionCap,
       validatedSarCount: demandData.uniqueSarCount,
-      offsetSemester: semesterOffset === 0 ? buildTermMeta(currentTerm) : {
-        schoolYear: currentTerm.schoolYear,
-        semester: targetSlot.semester,
-        semesterLabel: getSemesterDisplay(targetSlot.semester),
-        relativeYearOffset: targetSlot.yearLevel - 1
-      }
-    }
+      offsetSemester:
+        semesterOffset === 0
+          ? buildTermMeta(currentTerm)
+          : {
+              schoolYear: currentTerm.schoolYear,
+              semester: targetSlot.semester,
+              semesterLabel: getSemesterDisplay(targetSlot.semester),
+              relativeYearOffset: targetSlot.yearLevel - 1,
+            },
+    },
   };
 
   if (!transaction) {
@@ -304,7 +332,7 @@ const buildDemandResponse = async ({ semesterOffset = 0, sectionCap = DEFAULT_SE
 const storeForecastSnapshot = async (termId, userId, options = {}) => {
   const { transaction, createdAt, sectionCap = DEFAULT_SECTION_CAP } = options;
 
-  const term = options.term || await AcademicTerm.findByPk(termId, { transaction });
+  const term = options.term || (await AcademicTerm.findByPk(termId, { transaction }));
   if (!term) {
     const error = new Error('Academic term not found for forecast snapshot');
     error.statusCode = 404;
@@ -314,23 +342,26 @@ const storeForecastSnapshot = async (termId, userId, options = {}) => {
   const snapshotTimestamp = Number(createdAt || Date.now());
   const [currentDemandData, nextSemesterForecastData] = await Promise.all([
     getDemandDataForTerm({ term, semesterOffset: 0, sectionCap, transaction }),
-    getDemandDataForTerm({ term, semesterOffset: 1, sectionCap, transaction })
+    getDemandDataForTerm({ term, semesterOffset: 1, sectionCap, transaction }),
   ]);
 
-  return ForecastSnapshot.create({
-    academicTermId: term.id,
-    schoolYear: term.schoolYear,
-    semester: term.semester,
-    snapshotData: {
-      sectionCap: currentDemandData.sectionCap,
-      validatedSarCount: currentDemandData.uniqueSarCount,
-      currentDemand: currentDemandData.rows,
-      nextSemesterForecast: nextSemesterForecastData.rows,
-      generatedAt: snapshotTimestamp
+  return ForecastSnapshot.create(
+    {
+      academicTermId: term.id,
+      schoolYear: term.schoolYear,
+      semester: term.semester,
+      snapshotData: {
+        sectionCap: currentDemandData.sectionCap,
+        validatedSarCount: currentDemandData.uniqueSarCount,
+        currentDemand: currentDemandData.rows,
+        nextSemesterForecast: nextSemesterForecastData.rows,
+        generatedAt: snapshotTimestamp,
+      },
+      triggeredByUserId: userId,
+      createdAt: snapshotTimestamp,
     },
-    triggeredByUserId: userId,
-    createdAt: snapshotTimestamp
-  }, { transaction });
+    { transaction },
+  );
 };
 
 // @desc   Get current semester demand by course
@@ -340,18 +371,24 @@ exports.getCurrentDemand = async (req, res, next) => {
   try {
     const response = await buildDemandResponse({
       semesterOffset: 0,
-      sectionCap: req.query.sectionCap
+      sectionCap: req.query.sectionCap,
     });
     const { page, pageSize, search, sortBy, sortOrder } = parsePaginationParams(req.query, {
       defaultSortBy: 'courseCode',
-      allowedSortBy: ['courseCode', 'courseName', 'units', 'studentCount', 'expectedSections']
+      allowedSortBy: ['courseCode', 'courseName', 'units', 'studentCount', 'expectedSections'],
     });
 
     const filtered = (response.data || []).filter((row) => {
       if (!search) return true;
       const query = search.toLowerCase();
-      return String(row.courseCode || '').toLowerCase().includes(query)
-        || String(row.courseName || '').toLowerCase().includes(query);
+      return (
+        String(row.courseCode || '')
+          .toLowerCase()
+          .includes(query) ||
+        String(row.courseName || '')
+          .toLowerCase()
+          .includes(query)
+      );
     });
 
     const sorted = sortRowsBy({ rows: filtered, sortBy, sortOrder });
@@ -361,7 +398,7 @@ exports.getCurrentDemand = async (req, res, next) => {
       page,
       pageSize,
       totalItems: paged.totalItems,
-      extraMeta: response.meta
+      extraMeta: response.meta,
     });
 
     return res.status(200).json({ success: true, ...payload });
@@ -377,18 +414,24 @@ exports.getNextSemesterForecast = async (req, res, next) => {
   try {
     const response = await buildDemandResponse({
       semesterOffset: 1,
-      sectionCap: req.query.sectionCap
+      sectionCap: req.query.sectionCap,
     });
     const { page, pageSize, search, sortBy, sortOrder } = parsePaginationParams(req.query, {
       defaultSortBy: 'courseCode',
-      allowedSortBy: ['courseCode', 'courseName', 'units', 'studentCount', 'expectedSections']
+      allowedSortBy: ['courseCode', 'courseName', 'units', 'studentCount', 'expectedSections'],
     });
 
     const filtered = (response.data || []).filter((row) => {
       if (!search) return true;
       const query = search.toLowerCase();
-      return String(row.courseCode || '').toLowerCase().includes(query)
-        || String(row.courseName || '').toLowerCase().includes(query);
+      return (
+        String(row.courseCode || '')
+          .toLowerCase()
+          .includes(query) ||
+        String(row.courseName || '')
+          .toLowerCase()
+          .includes(query)
+      );
     });
 
     const sorted = sortRowsBy({ rows: filtered, sortBy, sortOrder });
@@ -398,7 +441,7 @@ exports.getNextSemesterForecast = async (req, res, next) => {
       page,
       pageSize,
       totalItems: paged.totalItems,
-      extraMeta: response.meta
+      extraMeta: response.meta,
     });
 
     return res.status(200).json({ success: true, ...payload });
@@ -421,19 +464,24 @@ exports.getComparisonReport = async (req, res, next) => {
       getDemandDataForTerm({
         term: currentTerm,
         semesterOffset: 0,
-        sectionCap: req.query.sectionCap
+        sectionCap: req.query.sectionCap,
       }),
       ForecastSnapshot.findOne({
         where: {
-          academicTermId: { [Op.ne]: currentTerm.id }
+          academicTermId: { [Op.ne]: currentTerm.id },
         },
         include: [{ model: User, as: 'TriggeredBy', attributes: triggeredByAttributes }],
-        order: [['createdAt', 'DESC'], ['id', 'DESC']]
-      })
+        order: [
+          ['createdAt', 'DESC'],
+          ['id', 'DESC'],
+        ],
+      }),
     ]);
 
     const forecastRows = normalizeSnapshotForecastRows(previousSnapshot);
-    const actualByCode = new Map((actualDemand.rows || []).map((entry) => [String(entry.courseCode), entry]));
+    const actualByCode = new Map(
+      (actualDemand.rows || []).map((entry) => [String(entry.courseCode), entry]),
+    );
     const forecastByCode = new Map(forecastRows.map((entry) => [String(entry.courseCode), entry]));
     const allCodes = [...new Set([...actualByCode.keys(), ...forecastByCode.keys()])];
 
@@ -448,25 +496,32 @@ exports.getComparisonReport = async (req, res, next) => {
         courseName: actual?.courseName || forecast?.courseName || '',
         forecastedDemand,
         actualDemand: actualDemandCount,
-        difference: actualDemandCount - forecastedDemand
+        difference: actualDemandCount - forecastedDemand,
       };
     });
 
     const { page, pageSize, search, sortBy, sortOrder } = parsePaginationParams(req.query, {
       defaultSortBy: 'courseCode',
-      allowedSortBy: ['courseCode', 'courseName', 'forecastedDemand', 'actualDemand', 'difference']
+      allowedSortBy: ['courseCode', 'courseName', 'forecastedDemand', 'actualDemand', 'difference'],
     });
 
     const filtered = comparison.filter((row) => {
       if (!search) return true;
       const query = search.toLowerCase();
-      return String(row.courseCode || '').toLowerCase().includes(query)
-        || String(row.courseName || '').toLowerCase().includes(query);
+      return (
+        String(row.courseCode || '')
+          .toLowerCase()
+          .includes(query) ||
+        String(row.courseName || '')
+          .toLowerCase()
+          .includes(query)
+      );
     });
 
-    const sorted = sortBy === 'courseCode' && sortOrder === 'ASC'
-      ? filtered.slice().sort(sortComparisonRows)
-      : sortRowsBy({ rows: filtered, sortBy, sortOrder });
+    const sorted =
+      sortBy === 'courseCode' && sortOrder === 'ASC'
+        ? filtered.slice().sort(sortComparisonRows)
+        : sortRowsBy({ rows: filtered, sortBy, sortOrder });
     const paged = paginateArray({ items: sorted, page, pageSize });
     const payload = buildPaginatedPayload({
       items: paged.items,
@@ -475,21 +530,23 @@ exports.getComparisonReport = async (req, res, next) => {
       totalItems: paged.totalItems,
       extraMeta: {
         currentTerm: buildTermMeta(currentTerm),
-        previousSnapshot: previousSnapshot ? {
-          id: previousSnapshot.id,
-          academicTermId: previousSnapshot.academicTermId,
-          schoolYear: previousSnapshot.schoolYear,
-          semester: previousSnapshot.semester,
-          semesterLabel: getSemesterDisplay(previousSnapshot.semester),
-          createdAt: previousSnapshot.createdAt,
-          triggeredByName: formatUserName(previousSnapshot.TriggeredBy)
-        } : null
-      }
+        previousSnapshot: previousSnapshot
+          ? {
+              id: previousSnapshot.id,
+              academicTermId: previousSnapshot.academicTermId,
+              schoolYear: previousSnapshot.schoolYear,
+              semester: previousSnapshot.semester,
+              semesterLabel: getSemesterDisplay(previousSnapshot.semester),
+              createdAt: previousSnapshot.createdAt,
+              triggeredByName: formatUserName(previousSnapshot.TriggeredBy),
+            }
+          : null,
+      },
     });
 
     return res.status(200).json({
       success: true,
-      ...payload
+      ...payload,
     });
   } catch (error) {
     next(error);
@@ -501,25 +558,29 @@ exports.getComparisonReport = async (req, res, next) => {
 // @access admin, adviser
 exports.getForecastHistory = async (req, res, next) => {
   try {
-    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
-      defaultSortBy: 'createdAt',
-      allowedSortBy: ['createdAt', 'schoolYear', 'semester']
-    });
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
+      req.query,
+      {
+        defaultSortBy: 'createdAt',
+        allowedSortBy: ['createdAt', 'schoolYear', 'semester'],
+      },
+    );
 
     const where = search
       ? {
-        [Op.or]: [
-          { schoolYear: { [Op.iLike]: `%${search}%` } }
-        ]
-      }
+          [Op.or]: [{ schoolYear: { [Op.iLike]: `%${search}%` } }],
+        }
       : {};
 
     const { rows, count } = await ForecastSnapshot.findAndCountAll({
       where,
       include: [{ model: User, as: 'TriggeredBy', attributes: triggeredByAttributes }],
-      order: [[sortBy, sortOrder], ['id', 'DESC']],
+      order: [
+        [sortBy, sortOrder],
+        ['id', 'DESC'],
+      ],
       offset,
-      limit
+      limit,
     });
 
     const data = rows.map((snapshot) => ({
@@ -529,25 +590,27 @@ exports.getForecastHistory = async (req, res, next) => {
       semester: snapshot.semester,
       semesterLabel: getSemesterDisplay(snapshot.semester),
       createdAt: snapshot.createdAt,
-      triggeredBy: snapshot.TriggeredBy ? {
-        id: snapshot.TriggeredBy.id,
-        name: formatUserName(snapshot.TriggeredBy),
-        email: snapshot.TriggeredBy.email
-      } : null,
+      triggeredBy: snapshot.TriggeredBy
+        ? {
+            id: snapshot.TriggeredBy.id,
+            name: formatUserName(snapshot.TriggeredBy),
+            email: snapshot.TriggeredBy.email,
+          }
+        : null,
       snapshotData: snapshot.snapshotData,
       currentDemandCount: Array.isArray(snapshot.snapshotData?.currentDemand)
         ? snapshot.snapshotData.currentDemand.length
         : 0,
       nextSemesterForecastCount: Array.isArray(snapshot.snapshotData?.nextSemesterForecast)
         ? snapshot.snapshotData.nextSemesterForecast.length
-        : 0
+        : 0,
     }));
 
     const payload = buildPaginatedPayload({
       items: data,
       page,
       pageSize,
-      totalItems: count
+      totalItems: count,
     });
 
     return res.status(200).json({ success: true, ...payload });

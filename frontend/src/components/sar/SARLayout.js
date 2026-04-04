@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Accordion,
   Badge,
   Button,
   Card,
@@ -24,29 +25,36 @@ const semesterLabels = { 1: '1st Semester', 2: '2nd Semester', 3: 'Summer' };
 
 const statusVariant = (status) => {
   switch (String(status || '').toLowerCase()) {
-    case 'completed': return 'success';
-    case 'credited': return 'info';
-    case 'failed': return 'danger';
-    case 'dropped': return 'warning';
-    case 'incomplete': return 'warning';
-    case 'ongoing': return 'primary';
-    case 'pending': return 'secondary';
-    case 'not yet taken': return 'light';
-    default: return 'secondary';
+    case 'completed':
+      return 'success';
+    case 'credited':
+      return 'info';
+    case 'failed':
+      return 'danger';
+    case 'dropped':
+      return 'warning';
+    case 'incomplete':
+      return 'warning';
+    case 'ongoing':
+      return 'primary';
+    case 'pending':
+      return 'secondary';
+    case 'not yet taken':
+      return 'light';
+    default:
+      return 'secondary';
   }
 };
 
 const formatPercent = (value) => `${Number(value || 0).toFixed(2)}%`;
 
-const formatDateTime = (value) =>
-  value ? new Date(Number(value)).toLocaleString() : 'N/A';
+const formatDateTime = (value) => (value ? new Date(Number(value)).toLocaleString() : 'N/A');
 
 const TABS = [
   { key: 'profile', label: 'Profile & Identity' },
   { key: 'progress', label: 'Progress Summary' },
-  { key: 'checklist', label: 'Checklist' },
+  { key: 'grades', label: 'Grades & Checklist' },
   { key: 'prerequisites', label: 'Prerequisites' },
-  { key: 'grades', label: 'Grades & Performance' },
   { key: 'studyplan', label: 'Study Plan' },
 ];
 
@@ -91,7 +99,9 @@ const SARLayout = ({
     if (!canManagePlan) return;
     setTermsLoading(true);
     try {
-      const res = await api.get('/terms', { params: { pageSize: 100, sortBy: 'schoolYear', sortOrder: 'DESC' } });
+      const res = await api.get('/terms', {
+        params: { pageSize: 100, sortBy: 'schoolYear', sortOrder: 'DESC' },
+      });
       setTerms(res.data?.items || res.data?.data || []);
     } catch {
       setTerms([]);
@@ -100,12 +110,11 @@ const SARLayout = ({
     }
   }, [canManagePlan]);
 
-  useEffect(() => { fetchTerms(); }, [fetchTerms]);
+  useEffect(() => {
+    fetchTerms();
+  }, [fetchTerms]);
 
-  const currentTermId = useMemo(
-    () => terms.find((t) => t.isCurrent)?.id || null,
-    [terms]
-  );
+  const currentTermId = useMemo(() => terms.find((t) => t.isCurrent)?.id || null, [terms]);
 
   const handleTermChange = async (e) => {
     const selectedId = e.target.value;
@@ -124,7 +133,7 @@ const SARLayout = ({
 
   const activeVersion = useMemo(
     () => versions.find((v) => v.status === 'active') || sar?.activeStudyPlanVersion || null,
-    [versions, sar]
+    [versions, sar],
   );
 
   const hasStudyPlan = Boolean(sar?.StudyPlan?.id || versions.length > 0);
@@ -165,7 +174,7 @@ const SARLayout = ({
         const [by, bs] = b.split('-').map(Number);
         return ay !== by ? ay - by : as_ - bs;
       }),
-    [groupedCourses]
+    [groupedCourses],
   );
 
   if (!sar) {
@@ -254,7 +263,9 @@ const SARLayout = ({
                       </ListGroup.Item>
                       <ListGroup.Item className="px-0 d-flex justify-content-between">
                         <span className="text-muted">Student Type</span>
-                        <strong>{sar.Student?.student_type || analytics?.tags?.studentType || 'N/A'}</strong>
+                        <strong>
+                          {sar.Student?.student_type || analytics?.tags?.studentType || 'N/A'}
+                        </strong>
                       </ListGroup.Item>
                     </ListGroup>
 
@@ -264,7 +275,9 @@ const SARLayout = ({
                       className="px-0 mt-2"
                       onClick={() => setShowFullIdentity((prev) => !prev)}
                     >
-                      {showFullIdentity ? 'Hide additional profile details' : 'Show additional profile details'}
+                      {showFullIdentity
+                        ? 'Hide additional profile details'
+                        : 'Show additional profile details'}
                     </Button>
 
                     <Collapse in={showFullIdentity}>
@@ -366,10 +379,10 @@ const SARLayout = ({
                             analytics.adviserReviewWorkflow.reviewStatus === 'approved'
                               ? 'success'
                               : analytics.adviserReviewWorkflow.reviewStatus === 'reviewed'
-                              ? 'primary'
-                              : analytics.adviserReviewWorkflow.reviewStatus === 'draft'
-                              ? 'secondary'
-                              : 'light'
+                                ? 'primary'
+                                : analytics.adviserReviewWorkflow.reviewStatus === 'draft'
+                                  ? 'secondary'
+                                  : 'light'
                           }
                           text={
                             analytics.adviserReviewWorkflow.reviewStatus === 'not_started'
@@ -380,7 +393,7 @@ const SARLayout = ({
                         >
                           {String(analytics.adviserReviewWorkflow.reviewStatus || 'N/A').replace(
                             '_',
-                            ' '
+                            ' ',
                           )}
                         </Badge>
                         {analytics.adviserReviewWorkflow.lastValidatedAt && (
@@ -431,10 +444,13 @@ const SARLayout = ({
                         onChange={handleTermChange}
                         disabled={termChanging}
                       >
-                        <option value="" disabled>Select term…</option>
+                        <option value="" disabled>
+                          Select term…
+                        </option>
                         {terms
                           .sort((a, b) => {
-                            if (a.schoolYear !== b.schoolYear) return a.schoolYear.localeCompare(b.schoolYear);
+                            if (a.schoolYear !== b.schoolYear)
+                              return a.schoolYear.localeCompare(b.schoolYear);
                             return Number(a.semester) - Number(b.semester);
                           })
                           .map((t) => (
@@ -472,9 +488,7 @@ const SARLayout = ({
                     <Card bg="success" text="white" className="h-100">
                       <Card.Body className="text-center p-3">
                         <div className="small mb-1">GWA</div>
-                        <div className="fw-bold fs-4">
-                          {analytics.gpaMonitoring?.gwa ?? 'N/A'}
-                        </div>
+                        <div className="fw-bold fs-4">{analytics.gpaMonitoring?.gwa ?? 'N/A'}</div>
                         <div className="small opacity-75">
                           {analytics.gpaMonitoring?.gradedSubjects ?? 0} graded
                         </div>
@@ -499,8 +513,7 @@ const SARLayout = ({
                       <Card.Body className="text-center p-3">
                         <div className="small mb-1">Rem. Semesters</div>
                         <div className="fw-bold fs-4">
-                          {analytics.remainingSemestersTracking
-                            ?.estimatedRemainingSemesters ?? 0}
+                          {analytics.remainingSemestersTracking?.estimatedRemainingSemesters ?? 0}
                         </div>
                         <div className="small opacity-75">estimated</div>
                       </Card.Body>
@@ -514,9 +527,7 @@ const SARLayout = ({
                           {analytics.estimatedGraduationDate?.label || 'N/A'}
                         </div>
                         <div className="small text-muted mt-1">
-                          ~
-                          {analytics.remainingSemestersTracking
-                            ?.estimatedRemainingSemesters ?? 0}{' '}
+                          ~{analytics.remainingSemestersTracking?.estimatedRemainingSemesters ?? 0}{' '}
                           semester(s) remaining
                         </div>
                       </Card.Body>
@@ -549,10 +560,7 @@ const SARLayout = ({
                               className="px-0 d-flex justify-content-between align-items-center py-2"
                             >
                               <span className="small">{label}</span>
-                              <Badge
-                                bg={variant}
-                                text={variant === 'light' ? 'dark' : undefined}
-                              >
+                              <Badge bg={variant} text={variant === 'light' ? 'dark' : undefined}>
                                 {count}
                               </Badge>
                             </ListGroup.Item>
@@ -582,8 +590,8 @@ const SARLayout = ({
                               Number(analytics.progress?.completionPercentage || 0) >= 75
                                 ? 'success'
                                 : Number(analytics.progress?.completionPercentage || 0) >= 40
-                                ? 'warning'
-                                : 'danger'
+                                  ? 'warning'
+                                  : 'danger'
                             }
                             style={{ height: 12 }}
                           />
@@ -655,15 +663,102 @@ const SARLayout = ({
           </Tab.Pane>
 
           {/* ══════════════════════════════════════════
-              Tab 3 — Checklist
+              Tab 3 — Grades & Checklist (combined)
           ══════════════════════════════════════════ */}
-          <Tab.Pane eventKey="checklist">
+          <Tab.Pane eventKey="grades">
+            {/* ── Grades & Performance section (first) ── */}
+            <h6 className="fw-bold mb-3">Grades & Performance</h6>
+            {!analytics?.semesterAcademicSummary?.length ? (
+              <Card className="shadow-sm mb-4">
+                <Card.Body>
+                  <p className="text-muted mb-0">
+                    Semester academic summaries are not available yet. Generate a study plan and
+                    enter grades to see performance data here.
+                  </p>
+                </Card.Body>
+              </Card>
+            ) : (
+              <div className="mb-4">
+                {analytics.gpaMonitoring?.gwa !== null &&
+                  analytics.gpaMonitoring?.gwa !== undefined && (
+                    <div className="mb-3">
+                      <Card className="shadow-sm border-start border-success border-4">
+                        <Card.Body className="py-2 px-3">
+                          <span className="text-muted small me-2">Overall GWA:</span>
+                          <strong className="fs-5">{analytics.gpaMonitoring.gwa}</strong>
+                          <span className="text-muted small ms-2">
+                            ({analytics.gpaMonitoring.gradedUnits} graded units across{' '}
+                            {analytics.gpaMonitoring.gradedSubjects} subjects)
+                          </span>
+                        </Card.Body>
+                      </Card>
+                    </div>
+                  )}
+                <Table responsive hover className="table-fixed-cols">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '18%' }}>Period</th>
+                      <th className="text-center" style={{ width: '10%' }}>
+                        Total Subjects
+                      </th>
+                      <th className="text-center" style={{ width: '10%' }}>
+                        Total Units
+                      </th>
+                      <th className="text-center" style={{ width: '10%' }}>
+                        Passed
+                      </th>
+                      <th className="text-center" style={{ width: '14%' }}>
+                        Failed/Dropped
+                      </th>
+                      <th className="text-center" style={{ width: '10%' }}>
+                        Pending
+                      </th>
+                      <th className="text-center" style={{ width: '14%' }}>
+                        Completed Units
+                      </th>
+                      <th className="text-center" style={{ width: '14%' }}>
+                        GPA
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analytics.semesterAcademicSummary.map((entry) => (
+                      <tr key={`${entry.yearLevel}-${entry.semester}`}>
+                        <td className="fw-medium">{entry.label}</td>
+                        <td className="text-center">{entry.totalSubjects}</td>
+                        <td className="text-center">{entry.totalUnits}</td>
+                        <td className="text-center">
+                          <Badge bg={entry.passedSubjects > 0 ? 'success' : 'secondary'}>
+                            {entry.passedSubjects}
+                          </Badge>
+                        </td>
+                        <td className="text-center">
+                          <Badge bg={entry.failedSubjects > 0 ? 'danger' : 'secondary'}>
+                            {entry.failedSubjects}
+                          </Badge>
+                        </td>
+                        <td className="text-center">
+                          <Badge bg="secondary">{entry.pendingSubjects}</Badge>
+                        </td>
+                        <td className="text-center">{entry.completedUnits}</td>
+                        <td className="text-center">
+                          <strong>{entry.gpa ?? '—'}</strong>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+            )}
+
+            {/* ── Curriculum Checklist section (collapsible per semester) ── */}
+            <hr className="my-4" />
+            <h6 className="fw-bold mb-3">Curriculum Checklist</h6>
             {!analytics?.curriculumChecklistOverview?.items?.length ? (
               <Card className="shadow-sm">
                 <Card.Body>
                   <p className="text-muted mb-0">
-                    Curriculum checklist is not available yet. A study plan must be generated
-                    first.
+                    Curriculum checklist is not available yet. A study plan must be generated first.
                   </p>
                 </Card.Body>
               </Card>
@@ -694,72 +789,78 @@ const SARLayout = ({
                     const [by, bs] = b.split('-').map(Number);
                     return ay !== by ? ay - by : as_ - bs;
                   });
-                  return sortedKeys.map((key) => {
-                    const [yearLevel, semester] = key.split('-').map(Number);
-                    const groupItems = groups[key];
-                    const completedInGroup = groupItems.filter(
-                      (item) =>
-                        item.status === 'completed' || item.status === 'credited'
-                    ).length;
-                    return (
-                      <div key={key} className="mb-4">
-                        <div className="d-flex align-items-center gap-2 mb-2">
-                          <h6 className="mb-0 text-muted">
-                            Year {yearLevel} —{' '}
-                            {semesterLabels[semester] || `Semester ${semester}`}
-                          </h6>
-                          <Badge bg="light" text="dark" className="small">
-                            {completedInGroup}/{groupItems.length}
-                          </Badge>
-                        </div>
-                        <Table responsive hover size="sm" className="border table-fixed-cols">
-                          <thead className="table-light">
-                            <tr>
-                              <th className="col-code">Code</th>
-                              <th className="col-name">Course Name</th>
-                              <th className="col-units text-center">Units</th>
-                              <th className="col-grade text-center">Grade</th>
-                              <th className="col-status text-center">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {groupItems.map((item) => (
-                              <tr key={item.courseId}>
-                                <td className="text-nowrap fw-medium">
-                                  {item.code || 'N/A'}
-                                </td>
-                                <td>
-                                  {item.name || 'N/A'}
-                                  {item.isElective && (
-                                    <Badge
-                                      bg="light"
-                                      text="dark"
-                                      className="ms-2 small"
-                                    >
-                                      Elective
-                                    </Badge>
-                                  )}
-                                </td>
-                                <td className="text-center">{item.units ?? '—'}</td>
-                                <td className="text-center">{item.grade || '—'}</td>
-                                <td className="text-center">
-                                  <Badge
-                                    bg={statusVariant(item.status)}
-                                    text={
-                                      item.status === 'not yet taken' ? 'dark' : undefined
-                                    }
-                                    className="text-uppercase"
-                                  >
-                                    {item.status}
-                                  </Badge>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </Table>
-                      </div>
-                    );
-                  });
+                  return (
+                    <Accordion alwaysOpen>
+                      {sortedKeys.map((key) => {
+                        const [yearLevel, semester] = key.split('-').map(Number);
+                        const groupItems = groups[key];
+                        const completedInGroup = groupItems.filter(
+                          (item) => item.status === 'completed' || item.status === 'credited',
+                        ).length;
+                        const allDone = completedInGroup === groupItems.length;
+                        return (
+                          <Accordion.Item eventKey={key} key={key}>
+                            <Accordion.Header>
+                              <span className="fw-semibold me-2">
+                                Year {yearLevel} —{' '}
+                                {semesterLabels[semester] || `Semester ${semester}`}
+                              </span>
+                              <Badge
+                                bg={allDone ? 'success' : 'light'}
+                                text={allDone ? undefined : 'dark'}
+                                className="small"
+                              >
+                                {completedInGroup}/{groupItems.length}
+                              </Badge>
+                            </Accordion.Header>
+                            <Accordion.Body className="p-0">
+                              <Table responsive hover size="sm" className="mb-0 table-fixed-cols">
+                                <thead className="table-light">
+                                  <tr>
+                                    <th className="col-code ps-3">Code</th>
+                                    <th className="col-name">Course Name</th>
+                                    <th className="col-units text-center">Units</th>
+                                    <th className="col-grade text-center">Grade</th>
+                                    <th className="col-status text-center">Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {groupItems.map((item) => (
+                                    <tr key={item.courseId}>
+                                      <td className="text-nowrap fw-medium ps-3">
+                                        {item.code || 'N/A'}
+                                      </td>
+                                      <td>
+                                        {item.name || 'N/A'}
+                                        {item.isElective && (
+                                          <Badge bg="light" text="dark" className="ms-2 small">
+                                            Elective
+                                          </Badge>
+                                        )}
+                                      </td>
+                                      <td className="text-center">{item.units ?? '—'}</td>
+                                      <td className="text-center">{item.grade || '—'}</td>
+                                      <td className="text-center">
+                                        <Badge
+                                          bg={statusVariant(item.status)}
+                                          text={
+                                            item.status === 'not yet taken' ? 'dark' : undefined
+                                          }
+                                          className="text-uppercase"
+                                        >
+                                          {item.status}
+                                        </Badge>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </Table>
+                            </Accordion.Body>
+                          </Accordion.Item>
+                        );
+                      })}
+                    </Accordion>
+                  );
                 })()}
               </>
             )}
@@ -772,9 +873,7 @@ const SARLayout = ({
             {!analytics?.prerequisiteChecking ? (
               <Card className="shadow-sm">
                 <Card.Body>
-                  <p className="text-muted mb-0">
-                    Prerequisite data is not available yet.
-                  </p>
+                  <p className="text-muted mb-0">Prerequisite data is not available yet.</p>
                 </Card.Body>
               </Card>
             ) : (
@@ -793,11 +892,7 @@ const SARLayout = ({
                   </Col>
                   <Col xs={4}>
                     <Card
-                      bg={
-                        analytics.prerequisiteChecking.unmetSubjects > 0
-                          ? 'danger'
-                          : 'secondary'
-                      }
+                      bg={analytics.prerequisiteChecking.unmetSubjects > 0 ? 'danger' : 'secondary'}
                       text="white"
                       className="h-100"
                     >
@@ -828,7 +923,9 @@ const SARLayout = ({
                     <thead>
                       <tr>
                         <th style={{ width: '30%' }}>Course</th>
-                        <th className="text-center" style={{ width: '20%' }}>Eligibility</th>
+                        <th className="text-center" style={{ width: '20%' }}>
+                          Eligibility
+                        </th>
                         <th style={{ width: '50%' }}>Unmet Prerequisites</th>
                       </tr>
                     </thead>
@@ -874,80 +971,7 @@ const SARLayout = ({
           </Tab.Pane>
 
           {/* ══════════════════════════════════════════
-              Tab 5 — Grades & Performance
-          ══════════════════════════════════════════ */}
-          <Tab.Pane eventKey="grades">
-            {!analytics?.semesterAcademicSummary?.length ? (
-              <Card className="shadow-sm">
-                <Card.Body>
-                  <p className="text-muted mb-0">
-                    Semester academic summaries are not available yet. Generate a study plan
-                    and enter grades to see performance data here.
-                  </p>
-                </Card.Body>
-              </Card>
-            ) : (
-              <>
-                {analytics.gpaMonitoring?.gwa !== null && analytics.gpaMonitoring?.gwa !== undefined && (
-                  <div className="mb-3">
-                    <Card className="shadow-sm border-start border-success border-4">
-                      <Card.Body className="py-2 px-3">
-                        <span className="text-muted small me-2">Overall GWA:</span>
-                        <strong className="fs-5">{analytics.gpaMonitoring.gwa}</strong>
-                        <span className="text-muted small ms-2">
-                          ({analytics.gpaMonitoring.gradedUnits} graded units across{' '}
-                          {analytics.gpaMonitoring.gradedSubjects} subjects)
-                        </span>
-                      </Card.Body>
-                    </Card>
-                  </div>
-                )}
-                <Table responsive hover className="table-fixed-cols">
-                  <thead>
-                    <tr>
-                      <th style={{ width: '18%' }}>Period</th>
-                      <th className="text-center" style={{ width: '10%' }}>Total Subjects</th>
-                      <th className="text-center" style={{ width: '10%' }}>Total Units</th>
-                      <th className="text-center" style={{ width: '10%' }}>Passed</th>
-                      <th className="text-center" style={{ width: '14%' }}>Failed/Dropped</th>
-                      <th className="text-center" style={{ width: '10%' }}>Pending</th>
-                      <th className="text-center" style={{ width: '14%' }}>Completed Units</th>
-                      <th className="text-center" style={{ width: '14%' }}>GPA</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {analytics.semesterAcademicSummary.map((entry) => (
-                      <tr key={`${entry.yearLevel}-${entry.semester}`}>
-                        <td className="fw-medium">{entry.label}</td>
-                        <td className="text-center">{entry.totalSubjects}</td>
-                        <td className="text-center">{entry.totalUnits}</td>
-                        <td className="text-center">
-                          <Badge bg={entry.passedSubjects > 0 ? 'success' : 'secondary'}>
-                            {entry.passedSubjects}
-                          </Badge>
-                        </td>
-                        <td className="text-center">
-                          <Badge bg={entry.failedSubjects > 0 ? 'danger' : 'secondary'}>
-                            {entry.failedSubjects}
-                          </Badge>
-                        </td>
-                        <td className="text-center">
-                          <Badge bg="secondary">{entry.pendingSubjects}</Badge>
-                        </td>
-                        <td className="text-center">{entry.completedUnits}</td>
-                        <td className="text-center">
-                          <strong>{entry.gpa ?? '—'}</strong>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Table>
-              </>
-            )}
-          </Tab.Pane>
-
-          {/* ══════════════════════════════════════════
-              Tab 6 — Study Plan
+              Tab 5 — Study Plan
           ══════════════════════════════════════════ */}
           <Tab.Pane eventKey="studyplan">
             {/* Adviser/admin action buttons */}
@@ -967,11 +991,7 @@ const SARLayout = ({
                     >
                       View Active Plan
                     </Button>
-                    <Button
-                      as={Link}
-                      to={`/adviser/students/${sarId}/grades`}
-                      variant="primary"
-                    >
+                    <Button as={Link} to={`/adviser/students/${sarId}/grades`} variant="primary">
                       Enter Grades
                     </Button>
                   </>
@@ -1000,7 +1020,9 @@ const SARLayout = ({
                         <th style={{ width: '12%' }}>Status</th>
                         <th style={{ width: '22%' }}>Created</th>
                         <th style={{ width: '24%' }}>Generated By</th>
-                        <th className="text-end" style={{ width: '30%' }}>Actions</th>
+                        <th className="text-end" style={{ width: '30%' }}>
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1013,8 +1035,8 @@ const SARLayout = ({
                                 version.status === 'active'
                                   ? 'success'
                                   : version.status === 'draft'
-                                  ? 'secondary'
-                                  : 'dark'
+                                    ? 'secondary'
+                                    : 'dark'
                               }
                               className="text-uppercase"
                             >
@@ -1078,9 +1100,7 @@ const SARLayout = ({
                       : 'No study plan has been generated yet.'}
                   </p>
                 ) : sortedPlanKeys.length === 0 ? (
-                  <p className="text-muted mb-0">
-                    The active study plan has no scheduled courses.
-                  </p>
+                  <p className="text-muted mb-0">The active study plan has no scheduled courses.</p>
                 ) : (
                   sortedPlanKeys.map((key) => {
                     const [yearLevel, semester] = key.split('-').map(Number);
@@ -1088,8 +1108,7 @@ const SARLayout = ({
                     return (
                       <div key={key} className="mb-4">
                         <h6 className="mb-2 text-muted">
-                          Year {yearLevel} —{' '}
-                          {semesterLabels[semester] || `Semester ${semester}`}
+                          Year {yearLevel} — {semesterLabels[semester] || `Semester ${semester}`}
                         </h6>
                         <Table responsive hover size="sm" className="border table-fixed-cols">
                           <thead className="table-light">
@@ -1108,16 +1127,12 @@ const SARLayout = ({
                                   {course.Course?.code || 'N/A'}
                                 </td>
                                 <td>{course.Course?.name || 'N/A'}</td>
-                                <td className="text-center">
-                                  {course.Course?.units ?? '—'}
-                                </td>
+                                <td className="text-center">{course.Course?.units ?? '—'}</td>
                                 <td className="text-center">{course.grade || '—'}</td>
                                 <td className="text-center">
                                   <Badge
                                     bg={statusVariant(course.status)}
-                                    text={
-                                      course.status === 'not yet taken' ? 'dark' : undefined
-                                    }
+                                    text={course.status === 'not yet taken' ? 'dark' : undefined}
                                     className="text-uppercase"
                                   >
                                     {course.status || 'pending'}

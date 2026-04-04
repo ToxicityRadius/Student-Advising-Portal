@@ -6,7 +6,6 @@ import goldChecklistImg from '../../assets/images/Gold Checklist.png';
 import yellowCalendarImg from '../../assets/images/yellow calendar.png';
 import goldUserImg from '../../assets/images/Gold User.png';
 import goldSettingsImg from '../../assets/images/Gold Settings.png';
-import goldBellImg from '../../assets/images/Gold Bell Gradient.png';
 
 const icon = (src) => (
   <img src={src} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />
@@ -23,7 +22,6 @@ const NAV_ITEMS = [
     to: '/admin/transfer-ownership',
     icon: icon(goldSettingsImg),
   },
-  { key: 'audit', label: 'Audit Logs', to: '/admin/audit-logs', icon: icon(goldBellImg) },
 ];
 
 const AdminLayout = ({ activePage, pageTitle, children }) => (

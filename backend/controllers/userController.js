@@ -30,44 +30,103 @@ const REQUIRED_PROFILE_FIELDS_COMMON = [
   'address',
   'emergency_contact_name',
   'emergency_contact_number',
-  'profile_picture'
+  'profile_picture',
 ];
 
 const REQUIRED_PROFILE_FIELDS_STUDENT = [
   'program',
   'curriculum_id',
   'student_type',
-  'current_year_level'
+  'current_year_level',
 ];
 
 // Alias for backward-compat inside this controller — delegates to shared utility
 const sanitizeUser = sanitizeUserWithProfile;
 
-// @desc    Complete student onboarding (set year level)
+// @desc    Complete student onboarding (set year level, program, curriculum, student type)
 // @route   POST /api/users/onboard
 // @access  Private
 exports.completeOnboarding = async (req, res, next) => {
   try {
-    const { current_year_level } = req.body;
+    const { current_year_level, program, curriculum_id, student_type } = req.body;
 
     if (!current_year_level || ![1, 2, 3, 4].includes(Number(current_year_level))) {
       return res.status(400).json({
         success: false,
-        message: 'current_year_level must be 1, 2, 3, or 4'
+        message: 'current_year_level must be 1, 2, 3, or 4',
       });
     }
 
-    await User.update(
-      { current_year_level: Number(current_year_level), is_onboarded: true, updatedAt: Date.now() },
-      { where: { id: req.user.id } }
-    );
+    const updatePayload = {
+      current_year_level: Number(current_year_level),
+      is_onboarded: true,
+      updatedAt: Date.now(),
+    };
+
+    if (program !== undefined) updatePayload.program = program;
+    if (curriculum_id !== undefined) updatePayload.curriculum_id = Number(curriculum_id);
+    if (student_type !== undefined) updatePayload.student_type = student_type;
+
+    await User.update(updatePayload, { where: { id: req.user.id } });
 
     const updatedUser = await User.findByPk(req.user.id);
 
     res.status(200).json({
       success: true,
       message: 'Onboarding completed successfully',
-      user: sanitizeUser(updatedUser)
+      user: sanitizeUser(updatedUser),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update current user's settings preferences
+// @route   PATCH /api/users/settings
+// @access  Private
+exports.updateSettings = async (req, res, next) => {
+  try {
+    const { notifInapp, notifEmail, notifReminders, compactMode } = req.body;
+    const updatePayload = { updatedAt: Date.now() };
+
+    if (notifInapp !== undefined) {
+      if (typeof notifInapp !== 'boolean') {
+        return res.status(400).json({ success: false, message: 'notifInapp must be a boolean' });
+      }
+      updatePayload.notifInapp = notifInapp;
+    }
+    if (notifEmail !== undefined) {
+      if (typeof notifEmail !== 'boolean') {
+        return res.status(400).json({ success: false, message: 'notifEmail must be a boolean' });
+      }
+      updatePayload.notifEmail = notifEmail;
+    }
+    if (notifReminders !== undefined) {
+      if (typeof notifReminders !== 'boolean') {
+        return res
+          .status(400)
+          .json({ success: false, message: 'notifReminders must be a boolean' });
+      }
+      updatePayload.notifReminders = notifReminders;
+    }
+    if (compactMode !== undefined) {
+      if (typeof compactMode !== 'boolean') {
+        return res.status(400).json({ success: false, message: 'compactMode must be a boolean' });
+      }
+      updatePayload.compactMode = compactMode;
+    }
+
+    await User.update(updatePayload, { where: { id: req.user.id } });
+    const updatedUser = await User.findByPk(req.user.id);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        notifInapp: updatedUser.notifInapp,
+        notifEmail: updatedUser.notifEmail,
+        notifReminders: updatedUser.notifReminders,
+        compactMode: updatedUser.compactMode,
+      },
     });
   } catch (error) {
     next(error);
@@ -81,10 +140,13 @@ exports.getAllUsers = async (req, res, next) => {
   try {
     const paginationParams = parsePaginationParams(req.query, {
       defaultSortBy: 'createdAt',
-      allowedSortBy: ['createdAt', 'firstName', 'lastName', 'email', 'role']
+      allowedSortBy: ['createdAt', 'firstName', 'lastName', 'email', 'role'],
     });
     const roleFilter = String(req.query.role || '').trim();
-    const { items, count, page, pageSize } = await UserService.listUsers({ paginationParams, roleFilter });
+    const { items, count, page, pageSize } = await UserService.listUsers({
+      paginationParams,
+      roleFilter,
+    });
     const payload = buildPaginatedPayload({ items, page, pageSize, totalItems: count });
     res.status(200).json({ success: true, count: items.length, users: items, ...payload });
   } catch (error) {
@@ -101,7 +163,7 @@ exports.getUserById = async (req, res, next) => {
     if (!requestingOwnProfile && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'You are not authorized to view this profile'
+        message: 'You are not authorized to view this profile',
       });
     }
 
@@ -110,7 +172,7 @@ exports.getUserById = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
       });
     }
 
@@ -121,8 +183,8 @@ exports.getUserById = async (req, res, next) => {
       success: true,
       user: {
         ...sanitizedUser,
-        ...lockMeta
-      }
+        ...lockMeta,
+      },
     });
   } catch (error) {
     next(error);
@@ -154,26 +216,29 @@ exports.updateUser = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
       });
     }
 
     // Update user
-    await User.update({
-      firstName,
-      lastName,
-      email,
-      role,
-      isActive,
-      updatedAt: Date.now()
-    }, { where: { id: req.params.id } });
+    await User.update(
+      {
+        firstName,
+        lastName,
+        email,
+        role,
+        isActive,
+        updatedAt: Date.now(),
+      },
+      { where: { id: req.params.id } },
+    );
 
     const updatedUser = await User.findByPk(req.params.id);
 
     res.status(200).json({
       success: true,
       message: 'User updated successfully',
-      user: sanitizeUser(updatedUser)
+      user: sanitizeUser(updatedUser),
     });
   } catch (error) {
     next(error);
@@ -190,7 +255,7 @@ exports.deleteUser = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
       });
     }
 
@@ -198,7 +263,7 @@ exports.deleteUser = async (req, res, next) => {
     if (user.id.toString() === req.user.id.toString()) {
       return res.status(400).json({
         success: false,
-        message: 'You cannot delete your own account'
+        message: 'You cannot delete your own account',
       });
     }
 
@@ -206,7 +271,7 @@ exports.deleteUser = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'User deleted successfully'
+      message: 'User deleted successfully',
     });
   } catch (error) {
     next(error);
@@ -223,21 +288,24 @@ exports.toggleUserStatus = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
       });
     }
 
-    await User.update({
-      isActive: !user.isActive,
-      updatedAt: Date.now()
-    }, { where: { id: req.params.id } });
+    await User.update(
+      {
+        isActive: !user.isActive,
+        updatedAt: Date.now(),
+      },
+      { where: { id: req.params.id } },
+    );
 
     const updatedUser = await User.findByPk(req.params.id);
 
     res.status(200).json({
       success: true,
       message: `User ${updatedUser.isActive ? 'activated' : 'deactivated'} successfully`,
-      user: sanitizeUser(updatedUser)
+      user: sanitizeUser(updatedUser),
     });
   } catch (error) {
     next(error);
@@ -255,7 +323,7 @@ exports.updateStudentId = async (req, res, next) => {
     if (!studentId || !/^\d{7}$/.test(studentId)) {
       return res.status(400).json({
         success: false,
-        message: 'Student Number must be exactly 7 digits'
+        message: 'Student Number must be exactly 7 digits',
       });
     }
 
@@ -264,7 +332,7 @@ exports.updateStudentId = async (req, res, next) => {
     if (existingUser && existingUser.id !== req.user.id) {
       return res.status(400).json({
         success: false,
-        message: 'This Student Number is already registered to another account'
+        message: 'This Student Number is already registered to another account',
       });
     }
 
@@ -272,7 +340,7 @@ exports.updateStudentId = async (req, res, next) => {
     if (req.user.role !== 'student') {
       return res.status(403).json({
         success: false,
-        message: 'Only student accounts can have a Student Number'
+        message: 'Only student accounts can have a Student Number',
       });
     }
 
@@ -283,7 +351,7 @@ exports.updateStudentId = async (req, res, next) => {
     await linkStudentAccountToSar({
       userId: updatedUser.id,
       email: updatedUser.email,
-      studentId: updatedUser.studentId
+      studentId: updatedUser.studentId,
     });
 
     // Profile → SAR sync: mirror studentId change to linked SAR studentNumber
@@ -293,7 +361,7 @@ exports.updateStudentId = async (req, res, next) => {
         email: updatedUser.email,
         firstName: updatedUser.first_name || updatedUser.firstName,
         lastName: updatedUser.last_name || updatedUser.lastName,
-        studentId: updatedUser.studentId
+        studentId: updatedUser.studentId,
       });
     } catch (syncError) {
       console.error('[sarSync] updateStudentId sync error:', syncError.message);
@@ -304,8 +372,8 @@ exports.updateStudentId = async (req, res, next) => {
       message: 'Student Number updated successfully',
       user: {
         ...sanitizeUser(updatedUser),
-        studentId
-      }
+        studentId,
+      },
     });
   } catch (error) {
     next(error);
@@ -324,7 +392,7 @@ exports.updateUserStudentId = async (req, res, next) => {
     if (!studentId || !/^\d{7}$/.test(studentId)) {
       return res.status(400).json({
         success: false,
-        message: 'Student Number must be exactly 7 digits'
+        message: 'Student Number must be exactly 7 digits',
       });
     }
 
@@ -333,7 +401,7 @@ exports.updateUserStudentId = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
       });
     }
 
@@ -342,7 +410,7 @@ exports.updateUserStudentId = async (req, res, next) => {
     if (existingUser && existingUser.id !== user.id) {
       return res.status(400).json({
         success: false,
-        message: 'This Student Number is already registered to another account'
+        message: 'This Student Number is already registered to another account',
       });
     }
 
@@ -353,7 +421,7 @@ exports.updateUserStudentId = async (req, res, next) => {
     await linkStudentAccountToSar({
       userId: finalUser.id,
       email: finalUser.email,
-      studentId: finalUser.studentId
+      studentId: finalUser.studentId,
     });
 
     // Profile → SAR sync: mirror studentId change to linked SAR studentNumber
@@ -363,7 +431,7 @@ exports.updateUserStudentId = async (req, res, next) => {
         email: finalUser.email,
         firstName: finalUser.first_name || finalUser.firstName,
         lastName: finalUser.last_name || finalUser.lastName,
-        studentId: finalUser.studentId
+        studentId: finalUser.studentId,
       });
     } catch (syncError) {
       console.error('[sarSync] updateUserStudentId sync error:', syncError.message);
@@ -382,8 +450,8 @@ exports.updateUserStudentId = async (req, res, next) => {
         lastName: finalUser.lastName,
         email: finalUser.email,
         role: finalUser.role,
-        studentId: finalUser.studentId
-      }
+        studentId: finalUser.studentId,
+      },
     });
   } catch (error) {
     next(error);
@@ -403,7 +471,7 @@ exports.updateProfile = async (req, res, next) => {
     if (!requestingOwnProfile && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'You are not authorized to update this profile'
+        message: 'You are not authorized to update this profile',
       });
     }
 
@@ -411,7 +479,7 @@ exports.updateProfile = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
       });
     }
 
@@ -420,7 +488,7 @@ exports.updateProfile = async (req, res, next) => {
     if (isStudentSelfEdit) {
       const currentTerm = await AcademicTerm.findOne({
         where: { isCurrent: true },
-        attributes: ['schoolYear', 'semester']
+        attributes: ['schoolYear', 'semester'],
       });
 
       currentTermKey = getTermKey(currentTerm);
@@ -450,7 +518,7 @@ exports.updateProfile = async (req, res, next) => {
       'emergency_contact_relationship',
       'emergency_contact_number',
       // User-adjustable during onboarding
-      'year_level'
+      'year_level',
     ];
 
     const updatePayload = {};
@@ -468,26 +536,41 @@ exports.updateProfile = async (req, res, next) => {
     }
 
     // Accept 'gender' as alias for 'sex' for frontend compatibility
-    if (!Object.prototype.hasOwnProperty.call(req.body, 'sex') && Object.prototype.hasOwnProperty.call(req.body, 'gender')) {
+    if (
+      !Object.prototype.hasOwnProperty.call(req.body, 'sex') &&
+      Object.prototype.hasOwnProperty.call(req.body, 'gender')
+    ) {
       updatePayload.sex = req.body.gender;
     }
 
     // Validate: sex enum
-    if (Object.prototype.hasOwnProperty.call(updatePayload, 'sex') && updatePayload.sex !== '' && updatePayload.sex !== null) {
+    if (
+      Object.prototype.hasOwnProperty.call(updatePayload, 'sex') &&
+      updatePayload.sex !== '' &&
+      updatePayload.sex !== null
+    ) {
       if (!ALLOWED_SEX.includes(updatePayload.sex)) {
         validationErrors.sex = `sex must be one of: ${ALLOWED_SEX.join(', ')}`;
       }
     }
 
     // Validate: student_type enum
-    if (Object.prototype.hasOwnProperty.call(updatePayload, 'student_type') && updatePayload.student_type !== '' && updatePayload.student_type !== null) {
+    if (
+      Object.prototype.hasOwnProperty.call(updatePayload, 'student_type') &&
+      updatePayload.student_type !== '' &&
+      updatePayload.student_type !== null
+    ) {
       if (!ALLOWED_STUDENT_TYPES.includes(updatePayload.student_type)) {
         validationErrors.student_type = `student_type must be one of: ${ALLOWED_STUDENT_TYPES.join(', ')}`;
       }
     }
 
     // Validate: alternate_email format
-    if (Object.prototype.hasOwnProperty.call(updatePayload, 'alternate_email') && updatePayload.alternate_email !== '' && updatePayload.alternate_email !== null) {
+    if (
+      Object.prototype.hasOwnProperty.call(updatePayload, 'alternate_email') &&
+      updatePayload.alternate_email !== '' &&
+      updatePayload.alternate_email !== null
+    ) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(updatePayload.alternate_email)) {
         validationErrors.alternate_email = 'alternate_email must be a valid email address';
@@ -495,14 +578,21 @@ exports.updateProfile = async (req, res, next) => {
     }
 
     // Validate: curriculum_id must be a positive integer if provided
-    if (Object.prototype.hasOwnProperty.call(updatePayload, 'curriculum_id') && updatePayload.curriculum_id !== '' && updatePayload.curriculum_id !== null) {
+    if (
+      Object.prototype.hasOwnProperty.call(updatePayload, 'curriculum_id') &&
+      updatePayload.curriculum_id !== '' &&
+      updatePayload.curriculum_id !== null
+    ) {
       const cid = Number(updatePayload.curriculum_id);
       if (Number.isNaN(cid) || !Number.isInteger(cid) || cid < 1) {
         validationErrors.curriculum_id = 'curriculum_id must be a valid positive integer';
       } else {
         updatePayload.curriculum_id = cid;
       }
-    } else if (Object.prototype.hasOwnProperty.call(updatePayload, 'curriculum_id') && (updatePayload.curriculum_id === '' || updatePayload.curriculum_id === null)) {
+    } else if (
+      Object.prototype.hasOwnProperty.call(updatePayload, 'curriculum_id') &&
+      (updatePayload.curriculum_id === '' || updatePayload.curriculum_id === null)
+    ) {
       updatePayload.curriculum_id = null;
     }
 
@@ -511,20 +601,22 @@ exports.updateProfile = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
-        errors: validationErrors
+        errors: validationErrors,
       });
     }
     if (Object.prototype.hasOwnProperty.call(updatePayload, 'adviserId')) {
-      updatePayload.adviserId = updatePayload.adviserId === '' ? null : Number(updatePayload.adviserId);
+      updatePayload.adviserId =
+        updatePayload.adviserId === '' ? null : Number(updatePayload.adviserId);
       if (updatePayload.adviserId !== null && Number.isNaN(updatePayload.adviserId)) {
         validationErrors.adviserId = 'adviserId must be a valid number or empty';
       }
     }
 
     if (Object.prototype.hasOwnProperty.call(updatePayload, 'year_level')) {
-      const normalized = updatePayload.year_level === '' || updatePayload.year_level === null
-        ? null
-        : Number(updatePayload.year_level);
+      const normalized =
+        updatePayload.year_level === '' || updatePayload.year_level === null
+          ? null
+          : Number(updatePayload.year_level);
 
       if (normalized !== null && (Number.isNaN(normalized) || normalized < 1 || normalized > 5)) {
         validationErrors.year_level = 'year_level must be a number from 1 to 5';
@@ -543,11 +635,12 @@ exports.updateProfile = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
-        errors: validationErrors
+        errors: validationErrors,
       });
     }
 
-    const removeProfilePicture = String(req.body.remove_profile_picture || '').toLowerCase() === 'true';
+    const removeProfilePicture =
+      String(req.body.remove_profile_picture || '').toLowerCase() === 'true';
     const existingProfilePicturePath = user.profile_picture;
 
     if (req.file) {
@@ -557,8 +650,8 @@ exports.updateProfile = async (req, res, next) => {
           success: false,
           message: imageValidationError,
           errors: {
-            profile_picture: imageValidationError
-          }
+            profile_picture: imageValidationError,
+          },
         });
       }
 
@@ -570,8 +663,8 @@ exports.updateProfile = async (req, res, next) => {
           success: false,
           message: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.',
           errors: {
-            profile_picture: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.'
-          }
+            profile_picture: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.',
+          },
         });
       }
 
@@ -588,8 +681,8 @@ exports.updateProfile = async (req, res, next) => {
           success: false,
           message: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.',
           errors: {
-            profile_picture: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.'
-          }
+            profile_picture: 'Profile image dimensions are invalid. Max dimensions are 2000x2000.',
+          },
         });
       }
 
@@ -599,7 +692,9 @@ exports.updateProfile = async (req, res, next) => {
       updatePayload.profile_picture = null;
     }
 
-    const nonPictureFieldKeys = Object.keys(updatePayload).filter((field) => field !== 'profile_picture');
+    const nonPictureFieldKeys = Object.keys(updatePayload).filter(
+      (field) => field !== 'profile_picture',
+    );
     const hasNonPictureUpdates = nonPictureFieldKeys.length > 0;
 
     if (
@@ -613,7 +708,8 @@ exports.updateProfile = async (req, res, next) => {
       }
       return res.status(403).json({
         success: false,
-        message: 'Profile details are already submitted for the current term. Only profile picture can be updated until next term.'
+        message:
+          'Profile details are already submitted for the current term. Only profile picture can be updated until next term.',
       });
     }
 
@@ -658,7 +754,7 @@ exports.updateProfile = async (req, res, next) => {
           email: user.email,
           firstName: user.first_name,
           lastName: user.last_name,
-          studentId: user.studentId
+          studentId: user.studentId,
         });
       } catch (syncError) {
         console.error('[sarSync] updateProfile sync error:', syncError.message);
@@ -671,9 +767,9 @@ exports.updateProfile = async (req, res, next) => {
       message: 'Profile updated successfully',
       user: {
         ...sanitizeUser(user),
-        ...lockMeta
+        ...lockMeta,
       },
-      token
+      token,
     });
   } catch (error) {
     if (uploadedProfilePictureUrl) {
@@ -697,19 +793,28 @@ exports.assignAdviser = async (req, res, next) => {
     }
 
     if (student.role !== 'student') {
-      return res.status(400).json({ success: false, message: 'Adviser can only be assigned to student users' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Adviser can only be assigned to student users' });
     }
 
     let normalizedAdviserId = null;
     if (adviserId !== null && adviserId !== undefined && adviserId !== '') {
       normalizedAdviserId = Number(adviserId);
       if (Number.isNaN(normalizedAdviserId)) {
-        return res.status(400).json({ success: false, message: 'adviserId must be a valid number' });
+        return res
+          .status(400)
+          .json({ success: false, message: 'adviserId must be a valid number' });
       }
 
       const adviser = await User.findByPk(normalizedAdviserId);
       if (!adviser || adviser.role !== 'adviser') {
-        return res.status(400).json({ success: false, message: 'Selected adviser does not exist or is not an adviser' });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: 'Selected adviser does not exist or is not an adviser',
+          });
       }
     }
 
@@ -719,7 +824,7 @@ exports.assignAdviser = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Adviser assigned successfully',
-      user: sanitizeUser(updated)
+      user: sanitizeUser(updated),
     });
   } catch (error) {
     next(error);
@@ -736,7 +841,7 @@ exports.getMyNotifications = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
       });
     }
 
@@ -751,7 +856,7 @@ exports.getMyNotifications = async (req, res, next) => {
         title: 'Add a profile photo',
         body: 'Upload a profile photo to complete your account identity.',
         isRead: false,
-        createdAt: null
+        createdAt: null,
       });
     }
 
@@ -763,7 +868,7 @@ exports.getMyNotifications = async (req, res, next) => {
         title: 'Contact number missing',
         body: 'Add your contact number in Profile so advisers can reach you.',
         isRead: false,
-        createdAt: null
+        createdAt: null,
       });
     }
 
@@ -775,7 +880,7 @@ exports.getMyNotifications = async (req, res, next) => {
         title: 'Program not set',
         body: 'Set your program in Profile to unlock complete advising features.',
         isRead: false,
-        createdAt: null
+        createdAt: null,
       });
     }
 
@@ -787,13 +892,17 @@ exports.getMyNotifications = async (req, res, next) => {
         title: 'Year level missing',
         body: 'Set your year level in Profile for more accurate dashboard tracking.',
         isRead: false,
-        createdAt: null
+        createdAt: null,
       });
     }
 
     // Persisted notifications (newest first)
     const NotificationService = require('../services/NotificationService');
-    const { items } = await NotificationService.getNotifications(req.user.id, { page: 1, pageSize: 20, unreadOnly: false });
+    const { items } = await NotificationService.getNotifications(req.user.id, {
+      page: 1,
+      pageSize: 20,
+      unreadOnly: false,
+    });
 
     const persisted = items.map((n) => ({
       id: n.id,
@@ -802,10 +911,17 @@ exports.getMyNotifications = async (req, res, next) => {
       title: n.title,
       body: n.body,
       isRead: n.isRead,
-      actor: n.Actor ? { id: n.Actor.id, firstName: n.Actor.firstName, lastName: n.Actor.lastName, role: n.Actor.role } : null,
+      actor: n.Actor
+        ? {
+            id: n.Actor.id,
+            firstName: n.Actor.firstName,
+            lastName: n.Actor.lastName,
+            role: n.Actor.role,
+          }
+        : null,
       resourceType: n.resourceType,
       resourceId: n.resourceId,
-      createdAt: n.createdAt
+      createdAt: n.createdAt,
     }));
 
     // Hints first, then persisted (newest first)
@@ -813,7 +929,7 @@ exports.getMyNotifications = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      data: notifications
+      data: notifications,
     });
   } catch (error) {
     next(error);

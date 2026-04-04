@@ -6,13 +6,14 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/jwt');
 const { sendVerificationCode } = require('../utils/email');
+const { FACULTY_EMAIL_WHITELIST } = require('../constants');
 
 const googleAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15,
   message: { success: false, message: 'Too many attempts, please try again after 15 minutes' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
 });
 
 // Initialize Google OAuth client
@@ -49,7 +50,7 @@ router.post('/google', googleAuthLimiter, async (req, res) => {
 
     if (!audiences.length) {
       return res.status(500).json({
-        message: 'Google OAuth is not configured on the server.'
+        message: 'Google OAuth is not configured on the server.',
       });
     }
 
@@ -63,22 +64,26 @@ router.post('/google', googleAuthLimiter, async (req, res) => {
 
     // Verify email domain
     if (!googleEmail.endsWith('@tip.edu.ph')) {
-      return res.status(403).json({ 
-        message: 'Only TIP email addresses (@tip.edu.ph) are allowed.' 
+      return res.status(403).json({
+        message: 'Only TIP email addresses (@tip.edu.ph) are allowed.',
       });
     }
 
     // Faculty must use a department email (.cpe@tip.edu.ph)
-    if (selectedRole === 'faculty' && !googleEmail.endsWith('.cpe@tip.edu.ph')) {
+    if (
+      selectedRole === 'faculty' &&
+      !googleEmail.endsWith('.cpe@tip.edu.ph') &&
+      !FACULTY_EMAIL_WHITELIST.includes(googleEmail)
+    ) {
       return res.status(403).json({
-        message: 'Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).'
+        message: 'Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).',
       });
     }
 
     // Students must not use a faculty department address
     if (selectedRole === 'student' && googleEmail.endsWith('.cpe@tip.edu.ph')) {
       return res.status(403).json({
-        message: 'Please use the Faculty login for department email addresses.'
+        message: 'Please use the Faculty login for department email addresses.',
       });
     }
 
@@ -106,18 +111,19 @@ router.post('/google', googleAuthLimiter, async (req, res) => {
         activationToken: null,
         activationTokenExpires: null,
         createdAt: Date.now(),
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       });
-
-
     } else if (!user.isActive) {
       // Auto-activate user when they sign in with Google (verified identity)
-      await User.update({
-        isActive: true,
-        activationToken: null,
-        activationTokenExpires: null,
-        updatedAt: Date.now()
-      }, { where: { id: user.id } });
+      await User.update(
+        {
+          isActive: true,
+          activationToken: null,
+          activationTokenExpires: null,
+          updatedAt: Date.now(),
+        },
+        { where: { id: user.id } },
+      );
       user = await User.findByPk(user.id);
     }
 
@@ -128,12 +134,15 @@ router.post('/google', googleAuthLimiter, async (req, res) => {
       const verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
       // Update user with verification code
-      await User.update({
-        verificationCode,
-        verificationCodeExpires,
-        isVerified: false,
-        updatedAt: Date.now()
-      }, { where: { id: user.id } });
+      await User.update(
+        {
+          verificationCode,
+          verificationCodeExpires,
+          isVerified: false,
+          updatedAt: Date.now(),
+        },
+        { where: { id: user.id } },
+      );
 
       // Send verification code email
       await sendVerificationCode(user.email, verificationCode, user.firstName);
@@ -154,7 +163,10 @@ router.post('/google', googleAuthLimiter, async (req, res) => {
       });
     } else {
       // 2FA disabled - log in directly
-      await User.update({ lastLogin: Date.now(), updatedAt: Date.now() }, { where: { id: user.id } });
+      await User.update(
+        { lastLogin: Date.now(), updatedAt: Date.now() },
+        { where: { id: user.id } },
+      );
       const updatedUser = await User.findByPk(user.id);
       const jwtToken = generateToken(updatedUser);
 
@@ -172,8 +184,8 @@ router.post('/google', googleAuthLimiter, async (req, res) => {
     }
   } catch (error) {
     console.error('Google authentication error:', error);
-    res.status(500).json({ 
-      message: 'Authentication failed. Please try again.' 
+    res.status(500).json({
+      message: 'Authentication failed. Please try again.',
     });
   }
 });
