@@ -1,8 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Alert, Badge, Button, Form, Modal, Table } from 'react-bootstrap';
 
-const EXPECTED_HEADERS = ['courseCode', 'grade'];
-
 const parseCSVText = (text) => {
   const lines = text
     .split(/\r?\n/)
@@ -36,13 +34,11 @@ const parseCSVText = (text) => {
   return rows;
 };
 
-const BulkGradeImportModal = ({ show, onHide, onImport, sarId, importing = false }) => {
-  const [file, setFile] = useState(null);
+const BulkGradeImportModal = ({ show, onHide, onImport, importing = false }) => {
   const [preview, setPreview] = useState([]);
   const [parseError, setParseError] = useState('');
 
   const reset = useCallback(() => {
-    setFile(null);
     setPreview([]);
     setParseError('');
   }, []);
@@ -59,7 +55,6 @@ const BulkGradeImportModal = ({ show, onHide, onImport, sarId, importing = false
       return;
     }
 
-    setFile(selected);
     setParseError('');
 
     const reader = new FileReader();

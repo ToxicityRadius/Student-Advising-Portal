@@ -24,7 +24,8 @@ const TransferOwnership = () => {
     sortOrder: 'asc',
   });
   const [meta, setMeta] = useState({ page: 1, pageSize: 12, totalPages: 1, totalItems: 0 });
-  const debouncedSearch = useDebouncedValue(query.search, 350);
+  const { page, pageSize, search, sortBy, sortOrder } = query;
+  const debouncedSearch = useDebouncedValue(search, 350);
 
   const advisers = useMemo(() => users, [users]);
 
@@ -34,8 +35,11 @@ const TransferOwnership = () => {
         setLoading(true);
         const response = await api.get('/users', {
           params: {
-            ...query,
+            page,
+            pageSize,
             search: debouncedSearch,
+            sortBy,
+            sortOrder,
             role: 'adviser',
           },
         });
@@ -49,7 +53,7 @@ const TransferOwnership = () => {
     };
 
     loadUsers();
-  }, [query.page, query.pageSize, query.sortBy, query.sortOrder, debouncedSearch]);
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch]);
 
   const handleConfirmTransfer = async () => {
     if (!selectedAdviser) return;

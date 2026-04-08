@@ -64,13 +64,11 @@ const parseCSVText = (text) => {
 };
 
 const BulkSARImportModal = ({ show, onHide, onImport, curriculumId, importing = false }) => {
-  const [file, setFile] = useState(null);
   const [preview, setPreview] = useState([]);
   const [parseErrors, setParseErrors] = useState([]);
   const [parseError, setParseError] = useState('');
 
   const reset = useCallback(() => {
-    setFile(null);
     setPreview([]);
     setParseErrors([]);
     setParseError('');
@@ -88,7 +86,6 @@ const BulkSARImportModal = ({ show, onHide, onImport, curriculumId, importing = 
       return;
     }
 
-    setFile(selected);
     setParseError('');
     setParseErrors([]);
 
