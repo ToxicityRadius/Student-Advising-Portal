@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../utils/api';
 import backgroundImage from '../assets/images/bg.png';
@@ -92,11 +92,15 @@ const ResetPassword = () => {
           <div className="error-popup-overlay">
             <div className="error-popup">
               <div className="error-popup-content">
-                <span className="error-icon">âš ï¸</span>
+                <span className="error-icon" aria-hidden="true">{'\u26A0\uFE0F'}</span>
                 <p>{error}</p>
               </div>
-              <button className="error-close-btn" onClick={() => setError('')}>
-                Ã—
+              <button
+                className="error-close-btn"
+                onClick={() => setError('')}
+                aria-label="Close error message"
+              >
+                {'\u00D7'}
               </button>
             </div>
           </div>
@@ -105,8 +109,8 @@ const ResetPassword = () => {
           <div className="error-popup-overlay">
             <div className="error-popup" style={{ borderColor: '#4CAF50' }}>
               <div className="error-popup-content">
-                <span className="error-icon" style={{ fontSize: '48px' }}>
-                  âœ“
+                <span className="error-icon" style={{ fontSize: '48px' }} aria-hidden="true">
+                  {'\u2713'}
                 </span>
                 <h3 style={{ color: '#4CAF50', marginBottom: '10px' }}>
                   Password Reset Successful!
