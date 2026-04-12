@@ -18,19 +18,39 @@ const {
   Course,
   ElectiveTrack,
   ElectiveTrackCourse,
-  User
+  User,
 } = require('../models');
 const { computeSarAnalytics } = require('../utils/sarAnalytics');
+const { sortStudyPlanCourses } = require('../utils/studyPlan');
 
 const TIP_EMAIL_PATTERN = /@tip\.edu\.ph$/i;
 
 const PERSON_ATTRIBUTES = [
-  'id', 'firstName', 'lastName', 'email', 'role', 'studentId',
-  'profile_picture', 'first_name', 'middle_name', 'last_name', 'suffix',
-  'preferred_name', 'program', 'curriculum_id', 'student_type',
-  'current_year_level', 'contact_number', 'alternate_email', 'sex',
-  'citizenship', 'address', 'emergency_contact_name',
-  'emergency_contact_relationship', 'emergency_contact_number', 'profile_updated_at'
+  'id',
+  'firstName',
+  'lastName',
+  'email',
+  'role',
+  'studentId',
+  'profile_picture',
+  'first_name',
+  'middle_name',
+  'last_name',
+  'suffix',
+  'preferred_name',
+  'program',
+  'curriculum_id',
+  'student_type',
+  'current_year_level',
+  'contact_number',
+  'alternate_email',
+  'sex',
+  'citizenship',
+  'address',
+  'emergency_contact_name',
+  'emergency_contact_relationship',
+  'emergency_contact_number',
+  'profile_updated_at',
 ];
 
 const CURRICULUM_ATTRIBUTES = ['id', 'name', 'description', 'isActive'];
@@ -40,7 +60,10 @@ const ELECTIVE_TRACK_ATTRIBUTES = ['id', 'name', 'description'];
 // Pure helpers
 // ---------------------------------------------------------------------------
 
-const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+const normalizeEmail = (email) =>
+  String(email || '')
+    .trim()
+    .toLowerCase();
 
 const parseYearLevel = (value) => Number(value);
 
@@ -78,18 +101,14 @@ const serializeSar = (sar) => {
   return {
     ...plain,
     isLinkedToAccount: Boolean(plain?.userId),
-    linkStatus: plain?.userId ? 'linked' : 'unlinked'
+    linkStatus: plain?.userId ? 'linked' : 'unlinked',
   };
 };
 
 const serializeStudyPlanVersion = (version) => {
   const plain = version?.get ? version.get({ plain: true }) : version;
   const courses = Array.isArray(plain.StudyPlanCourses)
-    ? [...plain.StudyPlanCourses].sort((a, b) => {
-      if (a.yearLevel !== b.yearLevel) return Number(a.yearLevel || 0) - Number(b.yearLevel || 0);
-      if (a.semester !== b.semester) return Number(a.semester || 0) - Number(b.semester || 0);
-      return String(a.Course?.code || '').localeCompare(String(b.Course?.code || ''));
-    })
+    ? sortStudyPlanCourses(plain.StudyPlanCourses)
     : [];
   return { ...plain, StudyPlanCourses: courses };
 };
@@ -98,12 +117,12 @@ const serializeStudyPlanVersion = (version) => {
 // Includes builders
 // ---------------------------------------------------------------------------
 
-const buildSarIncludes = () => ([
+const buildSarIncludes = () => [
   { model: Curriculum, attributes: CURRICULUM_ATTRIBUTES },
   { model: ElectiveTrack, attributes: ELECTIVE_TRACK_ATTRIBUTES },
   { model: User, as: 'Student', attributes: PERSON_ATTRIBUTES },
-  { model: User, as: 'CreatedByAdviser', attributes: PERSON_ATTRIBUTES }
-]);
+  { model: User, as: 'CreatedByAdviser', attributes: PERSON_ATTRIBUTES },
+];
 
 // ---------------------------------------------------------------------------
 // Data-access methods
@@ -126,16 +145,16 @@ const resolveMatchedStudent = async ({ email, studentNumber }) => {
   const normalizedStudentNumber = String(studentNumber || '').trim();
 
   const [byEmail, byStudentNumber] = await Promise.all([
-    normalizedEmail
-      ? User.findOne({ where: { email: normalizedEmail, role: 'student' } })
-      : null,
+    normalizedEmail ? User.findOne({ where: { email: normalizedEmail, role: 'student' } }) : null,
     normalizedStudentNumber
       ? User.findOne({ where: { studentId: normalizedStudentNumber, role: 'student' } })
-      : null
+      : null,
   ]);
 
   if (byEmail && byStudentNumber && String(byEmail.id) !== String(byStudentNumber.id)) {
-    const err = new Error('Student email and student number match different existing student accounts');
+    const err = new Error(
+      'Student email and student number match different existing student accounts',
+    );
     err.statusCode = 409;
     throw err;
   }
@@ -158,8 +177,18 @@ const getAutofillByEmail = async (email) => {
 
   const matchedStudent = await User.findOne({
     where: { email: normalized, role: 'student' },
-    attributes: ['id', 'email', 'studentId', 'current_year_level', 'curriculum_id',
-      'preferred_name', 'first_name', 'last_name', 'firstName', 'lastName']
+    attributes: [
+      'id',
+      'email',
+      'studentId',
+      'current_year_level',
+      'curriculum_id',
+      'preferred_name',
+      'first_name',
+      'last_name',
+      'firstName',
+      'lastName',
+    ],
   });
 
   if (!matchedStudent) {
@@ -167,15 +196,16 @@ const getAutofillByEmail = async (email) => {
       foundStudentAccount: false,
       linkStatus: 'unlinked',
       email: normalized,
-      message: 'No registered student account found. You can still create an unlinked SAR manually.',
+      message:
+        'No registered student account found. You can still create an unlinked SAR manually.',
       autofill: { studentName: '', studentNumber: '', yearLevel: null, curriculumId: null },
-      autoFilledFields: []
+      autoFilledFields: [],
     };
   }
 
   const existingSar = await StudentAcademicRecord.findOne({
     where: { [Op.or]: [{ userId: matchedStudent.id }, { email: normalized }] },
-    attributes: ['id']
+    attributes: ['id'],
   });
 
   const studentName = composeStudentDisplayName(matchedStudent);
@@ -205,9 +235,9 @@ const getAutofillByEmail = async (email) => {
       studentName,
       studentNumber,
       yearLevel: resolvedYearLevel,
-      curriculumId: curriculum?.id || null
+      curriculumId: curriculum?.id || null,
     },
-    autoFilledFields
+    autoFilledFields,
   };
 };
 
@@ -220,9 +250,15 @@ const fetchStudyPlanVersionsForStudyPlan = async (studyPlanId) => {
     include: [
       { model: User, as: 'GeneratedByAdviser', attributes: PERSON_ATTRIBUTES },
       { model: User, as: 'ValidatedByAdviser', attributes: PERSON_ATTRIBUTES },
-      { model: StudyPlanCourse, include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }] }
+      {
+        model: StudyPlanCourse,
+        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+      },
     ],
-    order: [['versionNumber', 'DESC'], ['createdAt', 'DESC']]
+    order: [
+      ['versionNumber', 'DESC'],
+      ['createdAt', 'DESC'],
+    ],
   });
   return versions.map(serializeStudyPlanVersion);
 };
@@ -236,12 +272,12 @@ const listSARs = async ({ user, paginationParams }) => {
   const baseWhere = user.role === 'student' ? buildStudentOwnershipWhere(user) : {};
   const searchWhere = search
     ? {
-      [Op.or]: [
-        { studentName: { [Op.iLike]: `%${search}%` } },
-        { studentNumber: { [Op.iLike]: `%${search}%` } },
-        { email: { [Op.iLike]: `%${search}%` } }
-      ]
-    }
+        [Op.or]: [
+          { studentName: { [Op.iLike]: `%${search}%` } },
+          { studentNumber: { [Op.iLike]: `%${search}%` } },
+          { email: { [Op.iLike]: `%${search}%` } },
+        ],
+      }
     : null;
 
   const where = searchWhere ? { [Op.and]: [baseWhere, searchWhere] } : baseWhere;
@@ -249,9 +285,13 @@ const listSARs = async ({ user, paginationParams }) => {
   const { rows, count } = await StudentAcademicRecord.findAndCountAll({
     where,
     include: buildSarIncludes(),
-    order: [[sortBy, sortOrder], ['studentNumber', 'ASC'], ['id', 'DESC']],
+    order: [
+      [sortBy, sortOrder],
+      ['studentNumber', 'ASC'],
+      ['id', 'DESC'],
+    ],
     offset,
-    limit
+    limit,
   });
 
   return { items: rows.map(serializeSar), count, page, pageSize };
@@ -265,8 +305,8 @@ const getSARDetail = async (sarId, requestUser) => {
   const sar = await StudentAcademicRecord.findByPk(sarId, {
     include: [
       ...buildSarIncludes(),
-      { model: StudyPlan, attributes: ['id', 'studentAcademicRecordId', 'createdAt', 'updatedAt'] }
-    ]
+      { model: StudyPlan, attributes: ['id', 'studentAcademicRecordId', 'createdAt', 'updatedAt'] },
+    ],
   });
 
   if (!sar) return null;
@@ -285,31 +325,47 @@ const getSARDetail = async (sarId, requestUser) => {
   const activeStudyPlanVersion = versions.find((v) => v.status === 'active') || null;
   const latestStudyPlanVersion = versions[0] || null;
 
-  const [curriculumCourses, prerequisites, currentTerm, electiveTrackCourses, allCurriculumTrackCourses] =
-    await Promise.all([
-      CurriculumCourse.findAll({
-        where: { curriculumId: sarData.curriculumId },
-        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
-        order: [['yearLevel', 'ASC'], ['semester', 'ASC'], [Course, 'code', 'ASC']]
-      }),
-      Prerequisite.findAll({
-        where: { curriculumId: sarData.curriculumId },
-        include: [{ model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] }]
-      }),
-      AcademicTerm.findOne({ where: { isCurrent: true }, attributes: ['id', 'schoolYear', 'semester'] }),
-      sarData.electiveTrackId
-        ? ElectiveTrackCourse.findAll({
+  const [
+    curriculumCourses,
+    prerequisites,
+    currentTerm,
+    electiveTrackCourses,
+    allCurriculumTrackCourses,
+  ] = await Promise.all([
+    CurriculumCourse.findAll({
+      where: { curriculumId: sarData.curriculumId },
+      include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+      order: [
+        ['yearLevel', 'ASC'],
+        ['semester', 'ASC'],
+        [Course, 'code', 'ASC'],
+      ],
+    }),
+    Prerequisite.findAll({
+      where: { curriculumId: sarData.curriculumId },
+      include: [{ model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] }],
+    }),
+    AcademicTerm.findOne({
+      where: { isCurrent: true },
+      attributes: ['id', 'schoolYear', 'semester'],
+    }),
+    sarData.electiveTrackId
+      ? ElectiveTrackCourse.findAll({
           where: { electiveTrackId: sarData.electiveTrackId },
-          include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
+          include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
         })
-        : [],
-      ElectiveTrackCourse.findAll({
-        include: [
-          { model: ElectiveTrack, attributes: ['id', 'curriculumId'], where: { curriculumId: sarData.curriculumId } },
-          { model: Course, attributes: ['id', 'code', 'name', 'units'] }
-        ]
-      })
-    ]);
+      : [],
+    ElectiveTrackCourse.findAll({
+      include: [
+        {
+          model: ElectiveTrack,
+          attributes: ['id', 'curriculumId'],
+          where: { curriculumId: sarData.curriculumId },
+        },
+        { model: Course, attributes: ['id', 'code', 'name', 'units'] },
+      ],
+    }),
+  ]);
 
   const analytics = computeSarAnalytics({
     sar: sarData,
@@ -319,7 +375,7 @@ const getSARDetail = async (sarId, requestUser) => {
     prerequisites,
     currentTerm,
     electiveTrackCourses,
-    allCurriculumTrackCourses
+    allCurriculumTrackCourses,
   });
 
   return {
@@ -328,8 +384,12 @@ const getSARDetail = async (sarId, requestUser) => {
     latestStudyPlanVersion,
     analytics,
     studyPlanVersions: versions.map(({ id, versionNumber, status, createdAt, updatedAt }) => ({
-      id, versionNumber, status, createdAt, updatedAt
-    }))
+      id,
+      versionNumber,
+      status,
+      createdAt,
+      updatedAt,
+    })),
   };
 };
 
@@ -338,10 +398,21 @@ const getSARDetail = async (sarId, requestUser) => {
 // ---------------------------------------------------------------------------
 
 const ALLOWED_SAR_PROFILE_FIELDS = [
-  'first_name', 'middle_name', 'last_name', 'suffix', 'preferred_name',
-  'program', 'student_type', 'contact_number', 'alternate_email',
-  'sex', 'citizenship', 'address',
-  'emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_number'
+  'first_name',
+  'middle_name',
+  'last_name',
+  'suffix',
+  'preferred_name',
+  'program',
+  'student_type',
+  'contact_number',
+  'alternate_email',
+  'sex',
+  'citizenship',
+  'address',
+  'emergency_contact_name',
+  'emergency_contact_relationship',
+  'emergency_contact_number',
 ];
 
 const ALLOWED_SEX = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
@@ -376,10 +447,16 @@ const buildSARFieldUpdates = async (body, currentSar) => {
     }
     if (studentNumber !== String(currentSar.studentNumber || '').trim()) {
       const conflict = await StudentAcademicRecord.findOne({
-        where: { studentNumber, id: { [Op.ne]: currentSar.id } }
+        where: { studentNumber, id: { [Op.ne]: currentSar.id } },
       });
       if (conflict) {
-        return { updates: null, error: { status: 409, message: 'Another student academic record already uses that student number' } };
+        return {
+          updates: null,
+          error: {
+            status: 409,
+            message: 'Another student academic record already uses that student number',
+          },
+        };
       }
     }
     updates.studentNumber = studentNumber;
@@ -388,7 +465,10 @@ const buildSARFieldUpdates = async (body, currentSar) => {
   if (body.yearLevel !== undefined) {
     const yearLevel = parseYearLevel(body.yearLevel);
     if (!isValidYearLevel(yearLevel)) {
-      return { updates: null, error: { status: 400, message: 'yearLevel must be an integer from 1 to 4' } };
+      return {
+        updates: null,
+        error: { status: 400, message: 'yearLevel must be an integer from 1 to 4' },
+      };
     }
     updates.yearLevel = yearLevel;
   }
@@ -418,12 +498,18 @@ const buildSARProfileUpdates = (rawStudentProfile) => {
     try {
       studentProfile = JSON.parse(studentProfile);
     } catch {
-      return { profileUpdates: null, error: { status: 400, message: 'studentProfile must be valid JSON when provided as text' } };
+      return {
+        profileUpdates: null,
+        error: { status: 400, message: 'studentProfile must be valid JSON when provided as text' },
+      };
     }
   }
 
   if (!studentProfile || typeof studentProfile !== 'object' || Array.isArray(studentProfile)) {
-    return { profileUpdates: null, error: { status: 400, message: 'studentProfile must be an object when provided' } };
+    return {
+      profileUpdates: null,
+      error: { status: 400, message: 'studentProfile must be an object when provided' },
+    };
   }
 
   const profileUpdates = {};
@@ -438,7 +524,13 @@ const buildSARProfileUpdates = (rawStudentProfile) => {
     profileUpdates.student_type !== null &&
     !ALLOWED_STUDENT_TYPES.includes(profileUpdates.student_type)
   ) {
-    return { profileUpdates: null, error: { status: 400, message: `student_type must be one of: ${ALLOWED_STUDENT_TYPES.join(', ')}` } };
+    return {
+      profileUpdates: null,
+      error: {
+        status: 400,
+        message: `student_type must be one of: ${ALLOWED_STUDENT_TYPES.join(', ')}`,
+      },
+    };
   }
 
   if (
@@ -446,7 +538,10 @@ const buildSARProfileUpdates = (rawStudentProfile) => {
     profileUpdates.sex !== null &&
     !ALLOWED_SEX.includes(profileUpdates.sex)
   ) {
-    return { profileUpdates: null, error: { status: 400, message: `sex must be one of: ${ALLOWED_SEX.join(', ')}` } };
+    return {
+      profileUpdates: null,
+      error: { status: 400, message: `sex must be one of: ${ALLOWED_SEX.join(', ')}` },
+    };
   }
 
   if (
@@ -454,7 +549,10 @@ const buildSARProfileUpdates = (rawStudentProfile) => {
     profileUpdates.alternate_email !== null &&
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileUpdates.alternate_email)
   ) {
-    return { profileUpdates: null, error: { status: 400, message: 'alternate_email must be a valid email address' } };
+    return {
+      profileUpdates: null,
+      error: { status: 400, message: 'alternate_email must be a valid email address' },
+    };
   }
 
   return { profileUpdates, error: null };
@@ -479,5 +577,5 @@ module.exports = {
   listSARs,
   getSARDetail,
   buildSARFieldUpdates,
-  buildSARProfileUpdates
+  buildSARProfileUpdates,
 };

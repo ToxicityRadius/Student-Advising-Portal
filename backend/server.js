@@ -96,7 +96,7 @@ if (process.env.NODE_ENV === 'production') {
 
 // Import models (centralized associations)
 const { sequelize } = require('./models');
-const { protect } = require('./middleware/auth');
+const { protect, requireRole } = require('./middleware/auth');
 const csrf = require('./middleware/csrf');
 const requestContext = require('./middleware/requestContext');
 const responseEnvelope = require('./middleware/responseEnvelope');
@@ -220,8 +220,13 @@ app.use('/api/notifications', notificationRoutes);
 // Serve uploaded files
 // Profile pictures are public so they can be displayed in the frontend without auth.
 app.use('/uploads/profiles', express.static(path.join(__dirname, 'uploads', 'profiles')));
-// Proof documents require authentication — they contain sensitive student submissions.
-app.use('/uploads/proofs', protect, express.static(path.join(__dirname, 'uploads', 'proofs')));
+// Proof documents are restricted to staff accounts until object-level ownership checks are implemented.
+app.use(
+  '/uploads/proofs',
+  protect,
+  requireRole('adviser', 'admin'),
+  express.static(path.join(__dirname, 'uploads', 'proofs')),
+);
 // Deny all other /uploads paths that don't match the above.
 app.use('/uploads', (req, res) => {
   res.status(403).json({ success: false, message: 'Access denied' });

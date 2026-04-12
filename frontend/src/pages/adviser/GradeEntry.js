@@ -124,6 +124,14 @@ const GradeEntry = () => {
     [rows],
   );
 
+  const pendingCount = useMemo(
+    () =>
+      rows.filter(
+        (row) => deriveStatusFromGrade(row.specialChoice || row.numericGrade) === 'pending',
+      ).length,
+    [rows],
+  );
+
   const allPassed = useMemo(
     () =>
       rows.length > 0 &&
@@ -390,6 +398,10 @@ const GradeEntry = () => {
                 disabled={regenerating || saving}
               >
                 {regenerating ? 'Regenerating...' : 'Regenerate Study Plan'}
+              </Button>
+            ) : pendingCount > 0 ? (
+              <Button variant="outline-secondary" disabled>
+                Awaiting grade completion
               </Button>
             ) : (
               <Button variant="outline-success" disabled>

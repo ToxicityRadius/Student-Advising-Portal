@@ -50,7 +50,6 @@ const validate = require('../middleware/validate');
 const {
   createSARValidation,
   updateSARValidation,
-  updateSARElectiveTrackValidation,
   sarIdParamValidation,
 } = require('../middleware/sarValidation');
 const { sarMutationLimiter } = require('../middleware/rateLimiter');
@@ -76,13 +75,6 @@ router.get(
   ctrl.getStudyPlanVersions,
 );
 router.get('/:id', anyRole, validate(sarIdParamValidation), ctrl.getSARById);
-router.patch(
-  '/:id/elective-track',
-  sarMutationLimiter,
-  adviserOrAdmin,
-  validate(updateSARElectiveTrackValidation),
-  ctrl.updateSARElectiveTrack,
-);
 router.put(
   '/:id',
   sarMutationLimiter,

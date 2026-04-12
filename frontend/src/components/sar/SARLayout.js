@@ -999,14 +999,17 @@ const SARLayout = ({
               </div>
             )}
 
-            {canManagePlan && electiveTrackRequired && sar?.curriculumId && (
-              <ElectiveTrackSelector
-                sarId={sarId}
-                curriculumId={sar.curriculumId}
-                selectedTrackId={sar.electiveTrackId}
-                onTrackSelected={() => onRefresh?.()}
-              />
-            )}
+            {canManagePlan &&
+              electiveTrackRequired &&
+              sar?.curriculumId &&
+              !sar?.electiveTrackId && (
+                <ElectiveTrackSelector
+                  sarId={sarId}
+                  curriculumId={sar.curriculumId}
+                  selectedTrackId={sar.electiveTrackId}
+                  onTrackSelected={() => onRefresh?.()}
+                />
+              )}
 
             {/* Study plan versions table (adviser/admin only) */}
             {canManagePlan && versions.length > 0 && (

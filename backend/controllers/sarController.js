@@ -537,45 +537,6 @@ exports.getSARById = async (req, res, next) => {
   }
 };
 
-// @desc   Set or update the elective track for a student academic record
-// @route  PATCH /api/sars/:id/elective-track
-// @access adviser, admin
-exports.updateSARElectiveTrack = async (req, res, next) => {
-  try {
-    const sar = await StudentAcademicRecord.findByPk(req.params.id);
-    if (!sar) {
-      return res.status(404).json({ success: false, message: 'Student academic record not found' });
-    }
-
-    const { electiveTrackId } = req.body;
-    if (electiveTrackId === undefined || electiveTrackId === null) {
-      return res.status(400).json({ success: false, message: 'electiveTrackId is required' });
-    }
-
-    const trackId = Number(electiveTrackId);
-    if (!Number.isInteger(trackId) || trackId <= 0) {
-      return res
-        .status(400)
-        .json({ success: false, message: 'electiveTrackId must be a positive integer' });
-    }
-
-    const track = await ElectiveTrack.findByPk(trackId);
-    if (!track) {
-      return res.status(404).json({ success: false, message: 'Elective track not found' });
-    }
-
-    await sar.update({ electiveTrackId: track.id, updatedAt: Date.now() });
-
-    const updatedSar = await StudentAcademicRecord.findByPk(sar.id, {
-      include: buildSarIncludes(),
-    });
-
-    return res.status(200).json({ success: true, data: serializeSar(updatedSar) });
-  } catch (error) {
-    next(error);
-  }
-};
-
 // @desc   Update a student academic record
 // @route  PUT /api/sars/:id
 // @access adviser, admin

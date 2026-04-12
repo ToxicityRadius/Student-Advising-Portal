@@ -20,7 +20,7 @@ const getBaseCookieOptions = (expiryMs) => ({
   expires: new Date(Date.now() + expiryMs),
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict'
+  sameSite: 'strict',
 });
 
 exports.getAuthCookieOptions = () => {
@@ -29,8 +29,8 @@ exports.getAuthCookieOptions = () => {
     token: getBaseCookieOptions(accessExpiryMs),
     refreshToken: {
       ...getBaseCookieOptions(30 * 24 * 60 * 60 * 1000),
-      path: '/api/auth'
-    }
+      path: '/api/auth',
+    },
   };
 };
 
@@ -38,7 +38,7 @@ exports.clearAuthCookies = (res) => {
   const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict'
+    sameSite: 'strict',
   };
 
   res.clearCookie('token', cookieOptions);
@@ -53,28 +53,20 @@ exports.clearAuthCookies = (res) => {
 // PII (name, program, contact) is intentionally omitted — fetch via /auth/me.
 exports.generateToken = (userOrId, roleArg) => {
   const isObjectInput = userOrId && typeof userOrId === 'object';
-  const id = isObjectInput ? (userOrId.id || userOrId._id) : userOrId;
+  const id = isObjectInput ? userOrId.id || userOrId._id : userOrId;
   const role = isObjectInput ? userOrId.role : roleArg;
-  const isVerified = isObjectInput
-    ? (userOrId.is_verified ?? userOrId.isVerified ?? false)
-    : false;
+  const isVerified = isObjectInput ? (userOrId.is_verified ?? userOrId.isVerified ?? false) : false;
 
-  return jwt.sign(
-    { id, role, is_verified: isVerified },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRE || '30m' }
-  );
+  return jwt.sign({ id, role, is_verified: isVerified }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRE || '30m',
+  });
 };
 
 // Generate refresh token
 exports.generateRefreshToken = (userId) => {
   // JWT_REFRESH_SECRET must be different from JWT_SECRET — validated at server startup.
   const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
-  return jwt.sign(
-    { id: userId },
-    secret,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d' }
-  );
+  return jwt.sign({ id: userId }, secret, { expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d' });
 };
 
 // Verify token
@@ -105,14 +97,19 @@ exports.sendTokenResponse = (user, statusCode, res) => {
   try {
     const logger = require('./logger');
     const { User: UserModel } = require('../models');
-    UserModel.update({
-      refreshToken,
-      refreshTokenExpires: Date.now() + (30 * 24 * 60 * 60 * 1000),
-      updatedAt: Date.now()
-    }, { where: { id: user.id || user._id } }).catch((err) => {
+    UserModel.update(
+      {
+        refreshToken,
+        refreshTokenExpires: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        updatedAt: Date.now(),
+      },
+      { where: { id: user.id || user._id } },
+    ).catch((err) => {
       logger.error({ err, userId: user.id || user._id }, 'Failed to persist refresh token');
     });
-  } catch (_) {}
+  } catch (_) {
+    // No-op: auth response should continue even if token persistence wiring fails.
+  }
 
   const cookieOptions = exports.getAuthCookieOptions();
 
@@ -123,7 +120,7 @@ exports.sendTokenResponse = (user, statusCode, res) => {
     email: user.email,
     role: user.role,
     isActive: user.isActive,
-    studentId: user.studentId
+    studentId: user.studentId,
   };
 
   res
@@ -135,11 +132,9 @@ exports.sendTokenResponse = (user, statusCode, res) => {
       message: 'Authentication successful',
       data: {
         token,
-        refreshToken,
-        user: userResponse
+        user: userResponse,
       },
       token,
-      refreshToken,
-      user: userResponse
+      user: userResponse,
     });
 };

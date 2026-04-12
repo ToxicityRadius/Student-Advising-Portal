@@ -11,9 +11,10 @@ const {
   StudyPlanVersion,
   StudyPlanCourse,
   Course,
-  User
+  User,
 } = require('../models');
 const { parseGradeInput } = require('../utils/gradeValidation');
+const { sortStudyPlanCourses } = require('../utils/studyPlan');
 
 const PERSON_ATTRIBUTES = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId'];
 
@@ -27,7 +28,7 @@ const PERSON_ATTRIBUTES = ['id', 'firstName', 'lastName', 'email', 'role', 'stud
 const getSarWithStudyPlan = async (sarId, transaction) => {
   return StudentAcademicRecord.findByPk(sarId, {
     include: [{ model: StudyPlan, attributes: ['id', 'studentAcademicRecordId'] }],
-    transaction
+    transaction,
   });
 };
 
@@ -38,9 +39,12 @@ const getActiveVersion = async (studyPlanId, transaction) => {
   return StudyPlanVersion.findOne({
     where: { studyPlanId, status: 'active' },
     include: [
-      { model: StudyPlanCourse, include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }] }
+      {
+        model: StudyPlanCourse,
+        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+      },
     ],
-    transaction
+    transaction,
   });
 };
 
@@ -52,7 +56,7 @@ const getLatestVersionNumber = async (studyPlanId, transaction) => {
     where: { studyPlanId },
     order: [['versionNumber', 'DESC']],
     transaction,
-    lock: transaction.LOCK.UPDATE
+    lock: transaction.LOCK.UPDATE,
   });
   return Number(latest?.versionNumber || 0);
 };
@@ -62,7 +66,10 @@ const getLatestVersionNumber = async (studyPlanId, transaction) => {
  */
 const buildVersionIncludes = () => [
   { model: User, as: 'GeneratedByAdviser', attributes: PERSON_ATTRIBUTES },
-  { model: StudyPlanCourse, include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }] }
+  {
+    model: StudyPlanCourse,
+    include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -75,11 +82,7 @@ const buildVersionIncludes = () => [
 const serializeVersion = (version) => {
   const plain = version?.get ? version.get({ plain: true }) : version;
   const courses = Array.isArray(plain.StudyPlanCourses)
-    ? [...plain.StudyPlanCourses].sort((a, b) => {
-      if (a.yearLevel !== b.yearLevel) return Number(a.yearLevel || 0) - Number(b.yearLevel || 0);
-      if (a.semester !== b.semester) return Number(a.semester || 0) - Number(b.semester || 0);
-      return String(a.Course?.code || '').localeCompare(String(b.Course?.code || ''));
-    })
+    ? sortStudyPlanCourses(plain.StudyPlanCourses)
     : [];
   return { ...plain, StudyPlanCourses: courses };
 };
@@ -127,5 +130,5 @@ module.exports = {
   buildVersionIncludes,
   serializeVersion,
   collectConnectedComponents,
-  parseGradeInput
+  parseGradeInput,
 };

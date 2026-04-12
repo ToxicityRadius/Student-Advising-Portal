@@ -28,8 +28,11 @@ export const AuthProvider = ({ children }) => {
 
   const doLogout = useCallback(async () => {
     clearInactivityTimer();
-    try { await api.post('/auth/logout'); } catch {}
+    try {
+      await api.post('/auth/logout');
+    } catch {}
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     setUser(null);
   }, []);
@@ -51,14 +54,16 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (!user) {
       clearInactivityTimer();
-      ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, resetInactivityTimer));
+      ACTIVITY_EVENTS.forEach((e) => window.removeEventListener(e, resetInactivityTimer));
       return;
     }
-    ACTIVITY_EVENTS.forEach(e => window.addEventListener(e, resetInactivityTimer, { passive: true }));
+    ACTIVITY_EVENTS.forEach((e) =>
+      window.addEventListener(e, resetInactivityTimer, { passive: true }),
+    );
     resetInactivityTimer();
     return () => {
       clearInactivityTimer();
-      ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, resetInactivityTimer));
+      ACTIVITY_EVENTS.forEach((e) => window.removeEventListener(e, resetInactivityTimer));
     };
   }, [user, resetInactivityTimer]);
 
@@ -93,15 +98,18 @@ export const AuthProvider = ({ children }) => {
       const result = {
         id: decoded.id,
         role: decoded.role,
-        is_verified: decoded.is_verified ?? false
+        is_verified: decoded.is_verified ?? false,
       };
       if (decoded.first_name !== null && decoded.first_name !== undefined) {
         result.first_name = decoded.first_name;
         result.firstName = decoded.first_name;
       }
-      if (decoded.program !== null && decoded.program !== undefined) result.program = decoded.program;
-      if (decoded.contact_number !== null && decoded.contact_number !== undefined) result.contact_number = decoded.contact_number;
-      if (decoded.year_level !== null && decoded.year_level !== undefined) result.year_level = decoded.year_level;
+      if (decoded.program !== null && decoded.program !== undefined)
+        result.program = decoded.program;
+      if (decoded.contact_number !== null && decoded.contact_number !== undefined)
+        result.contact_number = decoded.contact_number;
+      if (decoded.year_level !== null && decoded.year_level !== undefined)
+        result.year_level = decoded.year_level;
 
       return result;
     } catch {
@@ -113,9 +121,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('token', token);
 
     const decodedUser = decodeToken(token);
-    const initialUser = fallbackUser
-      ? { ...fallbackUser, ...decodedUser }
-      : (decodedUser || null);
+    const initialUser = fallbackUser ? { ...fallbackUser, ...decodedUser } : decodedUser || null;
 
     const normalizedInitial = normalizeUser(initialUser);
     if (normalizedInitial) {
@@ -127,7 +133,7 @@ export const AuthProvider = ({ children }) => {
       const response = await api.get('/auth/me');
       const merged = normalizeUser({
         ...(response.data.user || {}),
-        ...(decodedUser || {})
+        ...(decodedUser || {}),
       });
       setUser(merged);
       localStorage.setItem('user', JSON.stringify(merged));
@@ -163,13 +169,15 @@ export const AuthProvider = ({ children }) => {
           setUser(null);
         } else if (event.newValue !== event.oldValue) {
           // Token updated (e.g. re-login) in another tab — re-hydrate
-          applyToken(event.newValue, JSON.parse(localStorage.getItem('user') || 'null')).catch(() => {});
+          applyToken(event.newValue, JSON.parse(localStorage.getItem('user') || 'null')).catch(
+            () => {},
+          );
         }
       }
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkAuth = async () => {
@@ -179,6 +187,7 @@ export const AuthProvider = ({ children }) => {
         await applyToken(token, JSON.parse(localStorage.getItem('user') || 'null'));
       } catch (error) {
         localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
       }
     }
@@ -187,8 +196,15 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (emailOrToken, password) => {
     // Token mode: login(token)
-    if (password === undefined && typeof emailOrToken === 'string' && emailOrToken.split('.').length === 3) {
-      const mergedUser = await applyToken(emailOrToken, JSON.parse(localStorage.getItem('user') || 'null'));
+    if (
+      password === undefined &&
+      typeof emailOrToken === 'string' &&
+      emailOrToken.split('.').length === 3
+    ) {
+      const mergedUser = await applyToken(
+        emailOrToken,
+        JSON.parse(localStorage.getItem('user') || 'null'),
+      );
       return { token: emailOrToken, user: mergedUser };
     }
 
@@ -214,7 +230,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     isAuthenticated: !!user,
-    isAdmin: user?.role === 'admin'
+    isAdmin: user?.role === 'admin',
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

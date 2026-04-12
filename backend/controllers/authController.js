@@ -665,7 +665,7 @@ exports.resendCode = async (req, res, next) => {
 // @access  Private
 exports.logout = async (req, res, next) => {
   try {
-    const refreshTokenFromRequest = req.body?.refreshToken || req.cookies?.refreshToken || null;
+    const refreshTokenFromRequest = req.cookies?.refreshToken || null;
 
     if (refreshTokenFromRequest) {
       const { verifyRefreshToken } = require('../utils/jwt');
@@ -1152,7 +1152,7 @@ exports.resetPassword = async (req, res, next) => {
 // @access  Public
 exports.refreshToken = async (req, res, next) => {
   try {
-    const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
+    const refreshToken = req.cookies?.refreshToken;
 
     if (!refreshToken) {
       return res.status(400).json({
@@ -1208,7 +1208,6 @@ exports.refreshToken = async (req, res, next) => {
       .json({
         success: true,
         token: newToken,
-        refreshToken: newRefreshToken,
         user: {
           id: user.id,
           firstName: user.firstName,

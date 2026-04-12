@@ -1,10 +1,11 @@
 const toNumber = (value) => Number(value);
 
-const slotIndexFromYearSemester = (yearLevel, semester) => ((Number(yearLevel) - 1) * 3) + (Number(semester) - 1);
+const slotIndexFromYearSemester = (yearLevel, semester) =>
+  (Number(yearLevel) - 1) * 3 + (Number(semester) - 1);
 
 const yearSemesterFromSlotIndex = (slotIndex) => ({
   yearLevel: Math.floor(slotIndex / 3) + 1,
-  semester: (slotIndex % 3) + 1
+  semester: (slotIndex % 3) + 1,
 });
 
 const normalizeRegularSlotIndex = (slotIndex) => {
@@ -34,14 +35,16 @@ const isElectiveTrackSelectionRequired = ({ yearLevel, currentSemester }) => {
   return parsedYearLevel === 2 && parsedSemester >= 2;
 };
 
-const hasExplicitTrackSlot = (entry) => Number.isInteger(toNumber(entry?.yearLevel))
-  && Number.isInteger(toNumber(entry?.semester))
-  && toNumber(entry?.yearLevel) > 0
-  && toNumber(entry?.semester) > 0;
+const hasExplicitTrackSlot = (entry) =>
+  Number.isInteger(toNumber(entry?.yearLevel)) &&
+  Number.isInteger(toNumber(entry?.semester)) &&
+  toNumber(entry?.yearLevel) > 0 &&
+  toNumber(entry?.semester) > 0;
 
-const buildTrackCourseLabel = (entry) => entry?.Course?.code
-  || entry?.Course?.name
-  || `course-${entry?.courseId || entry?.id || 'unknown'}`;
+const buildTrackCourseLabel = (entry) =>
+  entry?.Course?.code ||
+  entry?.Course?.name ||
+  `course-${entry?.courseId || entry?.id || 'unknown'}`;
 
 const assertElectiveTrackPlacements = (trackCourses = []) => {
   const missingPlacements = [];
@@ -60,7 +63,9 @@ const assertElectiveTrackPlacements = (trackCourses = []) => {
   });
 
   if (missingPlacements.length > 0) {
-    const error = new Error(`Elective track course placements are required for: ${missingPlacements.join(', ')}`);
+    const error = new Error(
+      `Elective track course placements are required for: ${missingPlacements.join(', ')}`,
+    );
     error.statusCode = 400;
     error.code = 'ELECTIVE_TRACK_SLOT_REQUIRED';
     throw error;
@@ -74,23 +79,39 @@ const assertElectiveTrackPlacements = (trackCourses = []) => {
     });
 
   if (conflictingSlots.length > 0) {
-    const error = new Error(`Elective track courses must have unique placements. Conflicts found in ${conflictingSlots.join('; ')}`);
+    const error = new Error(
+      `Elective track courses must have unique placements. Conflicts found in ${conflictingSlots.join('; ')}`,
+    );
     error.statusCode = 400;
     error.code = 'ELECTIVE_TRACK_SLOT_CONFLICT';
     throw error;
   }
 };
 
-const sortElectiveTrackCourses = (trackCourses = []) => [...trackCourses].sort((left, right) => {
-  const leftSlotIndex = slotIndexFromYearSemester(left.yearLevel, left.semester);
-  const rightSlotIndex = slotIndexFromYearSemester(right.yearLevel, right.semester);
-  if (leftSlotIndex !== rightSlotIndex) {
-    return leftSlotIndex - rightSlotIndex;
-  }
+const sortElectiveTrackCourses = (trackCourses = []) =>
+  [...trackCourses].sort((left, right) => {
+    const leftSlotIndex = slotIndexFromYearSemester(left.yearLevel, left.semester);
+    const rightSlotIndex = slotIndexFromYearSemester(right.yearLevel, right.semester);
+    if (leftSlotIndex !== rightSlotIndex) {
+      return leftSlotIndex - rightSlotIndex;
+    }
 
-  return String(left?.Course?.code || '').localeCompare(String(right?.Course?.code || ''))
-    || toNumber(left?.id) - toNumber(right?.id);
-});
+    return (
+      String(left?.Course?.code || '').localeCompare(String(right?.Course?.code || '')) ||
+      toNumber(left?.id) - toNumber(right?.id)
+    );
+  });
+
+const sortStudyPlanCourses = (courses = []) =>
+  [...courses].sort((left, right) => {
+    if (left.yearLevel !== right.yearLevel) {
+      return Number(left.yearLevel || 0) - Number(right.yearLevel || 0);
+    }
+    if (left.semester !== right.semester) {
+      return Number(left.semester || 0) - Number(right.semester || 0);
+    }
+    return String(left?.Course?.code || '').localeCompare(String(right?.Course?.code || ''));
+  });
 
 const buildElectiveTrackPlan = (trackCourses = []) => {
   assertElectiveTrackPlacements(trackCourses);
@@ -106,7 +127,7 @@ const buildElectiveTrackPlan = (trackCourses = []) => {
       semester: toNumber(entry.semester),
       sortKey: resolvedSlotIndex,
       order,
-      source: entry
+      source: entry,
     };
   });
 };
@@ -118,5 +139,6 @@ module.exports = {
   normalizeRegularSlotIndex,
   slotIndexFromYearSemester,
   sortElectiveTrackCourses,
-  yearSemesterFromSlotIndex
+  sortStudyPlanCourses,
+  yearSemesterFromSlotIndex,
 };

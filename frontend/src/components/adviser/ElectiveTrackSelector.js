@@ -20,7 +20,10 @@ const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSe
         const items = Array.isArray(response.data?.data) ? response.data.data : [];
         setTracks(items);
       } catch (error) {
-        setAlert({ variant: 'danger', message: getErrorMessage(error, 'Failed to load elective tracks.') });
+        setAlert({
+          variant: 'danger',
+          message: getErrorMessage(error, 'Failed to load elective tracks.'),
+        });
         setTracks([]);
       } finally {
         setLoading(false);
@@ -39,6 +42,14 @@ const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSe
   }, [selectedTrackId]);
 
   const handleSelectTrack = async () => {
+    if (selectedTrackId) {
+      setAlert({
+        variant: 'warning',
+        message: 'Elective track is already selected and cannot be changed.',
+      });
+      return;
+    }
+
     if (!chosenTrackId) {
       setAlert({ variant: 'danger', message: 'Please select an elective track first.' });
       return;
@@ -49,7 +60,7 @@ const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSe
 
     try {
       const response = await api.patch(`/sars/${sarId}/elective-track`, {
-        electiveTrackId: Number(chosenTrackId)
+        electiveTrackId: Number(chosenTrackId),
       });
 
       const payload = response.data?.data || null;
@@ -57,11 +68,14 @@ const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSe
         variant: 'success',
         message: payload?.draftVersion
           ? 'Elective track selected and draft study plan updated successfully.'
-          : 'Elective track selected successfully.'
+          : 'Elective track selected successfully.',
       });
       onTrackSelected(payload);
     } catch (error) {
-      setAlert({ variant: 'danger', message: getErrorMessage(error, 'Failed to select elective track.') });
+      setAlert({
+        variant: 'danger',
+        message: getErrorMessage(error, 'Failed to select elective track.'),
+      });
     } finally {
       setSubmitting(false);
     }
@@ -77,7 +91,9 @@ const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSe
     );
   }
 
-  const isChanged = selectedTrackId ? String(chosenTrackId) !== String(selectedTrackId) : Boolean(chosenTrackId);
+  const isChanged = selectedTrackId
+    ? String(chosenTrackId) !== String(selectedTrackId)
+    : Boolean(chosenTrackId);
 
   return (
     <Card className="shadow-sm mb-4 border-warning">
@@ -87,21 +103,29 @@ const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSe
         {alert.message && <Alert variant={alert.variant}>{alert.message}</Alert>}
 
         {tracks.length === 0 ? (
-          <Alert variant="warning" className="mb-0">No elective tracks are configured for this curriculum.</Alert>
+          <Alert variant="warning" className="mb-0">
+            No elective tracks are configured for this curriculum.
+          </Alert>
         ) : (
           <div className="d-flex flex-column flex-md-row gap-2">
             <Form.Select
               value={chosenTrackId}
               onChange={(event) => setChosenTrackId(event.target.value)}
               aria-label="Select elective track"
+              disabled={Boolean(selectedTrackId)}
             >
               <option value="">Select elective track</option>
               {tracks.map((track) => (
-                <option key={track.id} value={track.id}>{track.name}</option>
+                <option key={track.id} value={track.id}>
+                  {track.name}
+                </option>
               ))}
             </Form.Select>
-            <Button onClick={handleSelectTrack} disabled={submitting || !chosenTrackId || !isChanged}>
-              {submitting ? 'Saving...' : selectedTrackId ? 'Change Track' : 'Confirm Track'}
+            <Button
+              onClick={handleSelectTrack}
+              disabled={Boolean(selectedTrackId) || submitting || !chosenTrackId || !isChanged}
+            >
+              {submitting ? 'Saving...' : selectedTrackId ? 'Track Locked' : 'Confirm Track'}
             </Button>
           </div>
         )}

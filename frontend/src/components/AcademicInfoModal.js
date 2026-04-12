@@ -29,8 +29,23 @@ const AcademicInfoModal = ({ onComplete }) => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api
-      .get('/users/curriculum-options')
+    const getCurricula = api?.get;
+    if (typeof getCurricula !== 'function') {
+      setCurricula([]);
+      setError('Failed to load curricula. Please refresh and try again.');
+      setLoadingCurricula(false);
+      return;
+    }
+
+    const curriculaRequest = getCurricula('/users/curriculum-options');
+    if (!curriculaRequest || typeof curriculaRequest.then !== 'function') {
+      setCurricula([]);
+      setError('Failed to load curricula. Please refresh and try again.');
+      setLoadingCurricula(false);
+      return;
+    }
+
+    curriculaRequest
       .then((response) => {
         const items = response.data?.items || response.data?.data?.items || [];
         setCurricula(items);

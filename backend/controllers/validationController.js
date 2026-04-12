@@ -516,23 +516,19 @@ exports.selectElectiveTrack = async (req, res, next) => {
 
     if (sar.electiveTrackId) {
       await transaction.rollback();
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: 'Elective track is already selected and cannot be changed',
-        });
+      return res.status(400).json({
+        success: false,
+        message: 'Elective track is already selected and cannot be changed',
+      });
     }
 
     const selectedTrack = await ElectiveTrack.findByPk(electiveTrackId, { transaction });
     if (!selectedTrack || String(selectedTrack.curriculumId) !== String(sar.curriculumId)) {
       await transaction.rollback();
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: 'Selected elective track must belong to the student curriculum',
-        });
+      return res.status(400).json({
+        success: false,
+        message: 'Selected elective track must belong to the student curriculum',
+      });
     }
 
     await sar.update(
@@ -561,12 +557,17 @@ exports.selectElectiveTrack = async (req, res, next) => {
         })
       : null;
 
+    const sarPayload = updatedSar?.get ? updatedSar.get({ plain: true }) : updatedSar;
+    const serializedDraftVersion = draftVersion ? serializeVersion(draftVersion) : null;
+
     return res.status(200).json({
       success: true,
       data: {
-        sar: updatedSar,
-        draftVersion: draftVersion ? serializeVersion(draftVersion) : null,
+        ...sarPayload,
+        sar: sarPayload,
+        draftVersion: serializedDraftVersion,
       },
+      draftVersion: serializedDraftVersion,
     });
   } catch (error) {
     await transaction.rollback();
