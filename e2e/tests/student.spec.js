@@ -21,9 +21,19 @@ test.describe.serial('Student Journey', () => {
 
   test('student login and see dashboard', async () => {
     await uiLogin(page, 'student');
-    // Should arrive at an authenticated route
+    // Valid outcomes after login:
+    // 1) direct navigation to an authenticated route, or
+    // 2) onboarding modal on /login requiring academic profile completion.
     const url = page.url();
-    expect(url).toMatch(/\/(dashboard|complete-profile|verify-code|grades|notifications|settings)/);
+    const onboardingModalVisible = await page
+      .getByText('Complete Your Academic Profile')
+      .isVisible()
+      .catch(() => false);
+
+    expect(
+      /\/(dashboard|complete-profile|verify-code|grades|notifications|settings)/.test(url) ||
+      (url.endsWith('/login') && onboardingModalVisible),
+    ).toBe(true);
   });
 
   test('student dashboard shows key sections', async () => {

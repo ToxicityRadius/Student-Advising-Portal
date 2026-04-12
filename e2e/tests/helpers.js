@@ -68,12 +68,27 @@ async function uiLogin(page, role) {
   await page.fill('input[name="password"]', password);
   await page.locator('button[type="submit"].login-button').click();
 
-  // Wait for login redirect — may go to dashboard, complete-profile, verify-code,
-  // or a role-specific page like /admin/curriculum
-  await page.waitForURL(
-    /\/(verify-code|dashboard|complete-profile|admin|adviser|grades|notifications|settings)/,
-    { timeout: 15000 },
-  );
+  // Wait for post-login state:
+  // 1) URL redirect to an authenticated page, OR
+  // 2) student onboarding modal displayed on /login.
+  const redirected = page
+    .waitForURL(/\/(verify-code|dashboard|complete-profile|admin|adviser|grades|notifications|settings)/, {
+      timeout: 15000,
+    })
+    .then(() => true)
+    .catch(() => false);
+
+  const onboardingModal = page
+    .getByText('Complete Your Academic Profile')
+    .waitFor({ state: 'visible', timeout: 15000 })
+    .then(() => true)
+    .catch(() => false);
+
+  const [didRedirect, hasOnboardingModal] = await Promise.all([redirected, onboardingModal]);
+
+  if (!didRedirect && !hasOnboardingModal) {
+    throw new Error('Login did not redirect and no onboarding modal was shown');
+  }
 }
 
 /**
