@@ -269,7 +269,12 @@ const fetchStudyPlanVersionsForStudyPlan = async (studyPlanId) => {
 const listSARs = async ({ user, paginationParams }) => {
   const { page, pageSize, search, sortBy, sortOrder, offset, limit } = paginationParams;
 
-  const baseWhere = user.role === 'student' ? buildStudentOwnershipWhere(user) : {};
+  const baseWhere =
+    user.role === 'student'
+      ? buildStudentOwnershipWhere(user)
+      : user.role === 'adviser'
+        ? { createdByAdviserId: user.id }
+        : {};
   const searchWhere = search
     ? {
         [Op.or]: [
@@ -312,6 +317,16 @@ const getSARDetail = async (sarId, requestUser) => {
   if (!sar) return null;
 
   if (requestUser.role === 'student' && !isSarOwnedByUser(sar, requestUser)) {
+    const err = new Error('Forbidden');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  if (
+    requestUser.role === 'adviser' &&
+    sar.createdByAdviserId !== null &&
+    String(sar.createdByAdviserId) !== String(requestUser.id)
+  ) {
     const err = new Error('Forbidden');
     err.statusCode = 403;
     throw err;

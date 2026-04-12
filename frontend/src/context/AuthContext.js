@@ -195,6 +195,15 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async (emailOrToken, password) => {
+    // TODO [SECURITY H1]: The access token is currently echoed in JSON response bodies and stored
+    // in localStorage, making it accessible to XSS. The full fix requires:
+    //   1. Remove `token` from sendTokenResponse JSON body in backend/utils/jwt.js
+    //   2. Remove googleapis/googleAuthRoutes.js token-in-JSON pattern
+    //   3. Remove localStorage.setItem('token') here and in applyToken
+    //   4. Remove Bearer header injection from frontend/src/utils/api.js request interceptor
+    //   5. Add refreshUser() helper and update all page callers that pass login(token)
+    // Tracked. Mitigated by: strict CSP, no dangerouslySetInnerHTML, express-sanitizer.
+
     // Token mode: login(token)
     if (
       password === undefined &&

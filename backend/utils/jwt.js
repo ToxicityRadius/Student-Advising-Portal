@@ -97,9 +97,13 @@ exports.sendTokenResponse = (user, statusCode, res) => {
   try {
     const logger = require('./logger');
     const { User: UserModel } = require('../models');
+    const refreshTokenHash = require('crypto')
+      .createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
     UserModel.update(
       {
-        refreshToken,
+        refreshToken: refreshTokenHash,
         refreshTokenExpires: Date.now() + 30 * 24 * 60 * 60 * 1000,
         updatedAt: Date.now(),
       },

@@ -118,8 +118,10 @@ const { setupSwagger } = require('./docs/swagger');
 
 const app = express();
 
-// Swagger API docs — mount before other middleware so /api/docs has no auth
-setupSwagger(app);
+// Swagger API docs — available in non-production environments only
+if (process.env.NODE_ENV !== 'production') {
+  setupSwagger(app);
+}
 
 // Attach per-request context (requestId, startTime, ip) before any other middleware
 app.use(requestContext);

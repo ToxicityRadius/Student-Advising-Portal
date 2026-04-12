@@ -438,6 +438,15 @@ exports.login = async (req, res, next) => {
       const lockUpdate = { failedLoginAttempts: newAttempts, updatedAt: Date.now() };
       if (newAttempts >= 5) {
         lockUpdate.lockedUntil = Date.now() + 15 * 60 * 1000; // 15-minute lockout
+        logger.warn(
+          { userId: user.id, email: emailLower, attempts: newAttempts, ip: req.ip },
+          '[SECURITY] account locked after repeated login failures',
+        );
+      } else {
+        logger.warn(
+          { userId: user.id, email: emailLower, attempts: newAttempts, ip: req.ip },
+          '[SECURITY] failed login attempt',
+        );
       }
       await User.update(lockUpdate, { where: { id: user.id } });
       return res.status(401).json({
@@ -555,8 +564,13 @@ exports.verifyCode = async (req, res, next) => {
       });
     }
 
-    // Check if code matches and hasn't expired
-    if (user.verificationCode !== code) {
+    // Check if code matches and hasn't expired (timing-safe to prevent timing oracle)
+    const storedCode = String(user.verificationCode || '');
+    const submittedCode = String(code || '');
+    const codesMatch =
+      storedCode.length === submittedCode.length &&
+      crypto.timingSafeEqual(Buffer.from(storedCode), Buffer.from(submittedCode));
+    if (!codesMatch) {
       // Increment attempt counter
       const cur = verifyAttempts.get(key);
       if (!cur || now >= cur.resetAt) {
@@ -1180,7 +1194,9 @@ exports.refreshToken = async (req, res, next) => {
     }
 
     // Rotation: verify token matches what was last issued for this user (Step 3.2)
-    if (!user.refreshToken || user.refreshToken !== refreshToken) {
+    // Compare hash to prevent token exposure from DB compromise (H2)
+    const incomingHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    if (!user.refreshToken || user.refreshToken !== incomingHash) {
       return res.status(401).json({
         success: false,
         message: 'Invalid or expired refresh token',
@@ -1190,10 +1206,11 @@ exports.refreshToken = async (req, res, next) => {
     const newToken = generateToken(user);
     const newRefreshToken = generateRefreshToken(user.id);
 
-    // Invalidate old token by overwriting with the newly issued one
+    // Invalidate old token by overwriting with the newly issued hash
+    const newRefreshTokenHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
     await User.update(
       {
-        refreshToken: newRefreshToken,
+        refreshToken: newRefreshTokenHash,
         refreshTokenExpires: Date.now() + 30 * 24 * 60 * 60 * 1000,
         updatedAt: Date.now(),
       },
