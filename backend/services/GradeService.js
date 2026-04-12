@@ -126,9 +126,7 @@ const collectConnectedComponents = (courseIds, adjacencyMap) => {
 module.exports = {
   getSarWithStudyPlan,
   getActiveVersion,
-  getLatestVersionNumber,
   buildVersionIncludes,
   serializeVersion,
   collectConnectedComponents,
-  parseGradeInput,
 };
