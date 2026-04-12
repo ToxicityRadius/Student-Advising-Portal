@@ -25,6 +25,10 @@ lerna-debug.log*
 *.pid
 .cache/
 
+# E2E generated artifacts
+e2e/test-results/
+e2e/playwright-report/
+
 # Database files
 *.db
 *.sqlite
