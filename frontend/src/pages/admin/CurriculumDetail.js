@@ -11,12 +11,13 @@ import {
   Spinner,
   Tab,
   Table,
-  Tabs
+  Tabs,
 } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 import CoursePickerModal from '../../components/admin/CoursePickerModal';
 import ConfirmModal from '../../components/ConfirmModal';
-import AdminLayout from '../../components/admin/AdminLayout';
+import AdviserLayout from '../../components/adviser/AdviserLayout';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { getErrorMessage } from '../../utils/errorHelpers';
 
@@ -24,7 +25,7 @@ const YEARS = [1, 2, 3, 4];
 const SEMESTERS = [
   { value: 1, label: 'Semester 1' },
   { value: 2, label: 'Semester 2' },
-  { value: 3, label: 'Summer' }
+  { value: 3, label: 'Summer' },
 ];
 
 const emptyTrackForm = { name: '', description: '' };
@@ -32,6 +33,8 @@ const emptyTrackForm = { name: '', description: '' };
 const CurriculumDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -52,7 +55,7 @@ const CurriculumDetail = () => {
     yearLevel: null,
     semester: null,
     trackId: null,
-    target: ''
+    target: '',
   });
 
   const [selectedPrereq, setSelectedPrereq] = useState({ course: null, prerequisite: null });
@@ -62,16 +65,22 @@ const CurriculumDetail = () => {
   const [trackCourseSlotById, setTrackCourseSlotById] = useState({});
   const [dirtyTrackSlotIds, setDirtyTrackSlotIds] = useState([]);
 
-  const [confirmDialog, setConfirmDialog] = useState({ show: false, title: '', message: '', onConfirm: null });
+  const [confirmDialog, setConfirmDialog] = useState({
+    show: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+  });
 
   const [structureAddSlot, setStructureAddSlot] = useState({ yearLevel: '1', semester: '1' });
-  const semesterLabel = (s) => s === 3 ? 'Summer' : `Semester ${s}`;
+  const semesterLabel = (s) => (s === 3 ? 'Summer' : `Semester ${s}`);
 
   const sortedStructure = useMemo(() => {
-    return [...curriculumCourses].sort((a, b) =>
-      a.yearLevel - b.yearLevel ||
-      a.semester - b.semester ||
-      (a.Course?.code || '').localeCompare(b.Course?.code || '')
+    return [...curriculumCourses].sort(
+      (a, b) =>
+        a.yearLevel - b.yearLevel ||
+        a.semester - b.semester ||
+        (a.Course?.code || '').localeCompare(b.Course?.code || ''),
     );
   }, [curriculumCourses]);
 
@@ -84,8 +93,12 @@ const CurriculumDetail = () => {
     try {
       const [curriculumRes, coursesRes, ccRes] = await Promise.all([
         api.get(`/curriculums/${id}`, { params: { compact: true } }),
-        api.get('/courses', { params: { page: 1, pageSize: 200, sortBy: 'code', sortOrder: 'asc' } }),
-        api.get(`/curriculums/${id}/courses`, { params: { page: 1, pageSize: 200, sortBy: 'yearLevel', sortOrder: 'asc' } })
+        api.get('/courses', {
+          params: { page: 1, pageSize: 200, sortBy: 'code', sortOrder: 'asc' },
+        }),
+        api.get(`/curriculums/${id}/courses`, {
+          params: { page: 1, pageSize: 200, sortBy: 'yearLevel', sortOrder: 'asc' },
+        }),
       ]);
 
       setCurriculum(curriculumRes.data?.data || null);
@@ -99,17 +112,23 @@ const CurriculumDetail = () => {
   }, [id]);
 
   const loadPrerequisites = useCallback(async () => {
-    const response = await api.get(`/curriculums/${id}/prerequisites`, { params: { page: 1, pageSize: 200, sortBy: 'id', sortOrder: 'desc' } });
+    const response = await api.get(`/curriculums/${id}/prerequisites`, {
+      params: { page: 1, pageSize: 200, sortBy: 'id', sortOrder: 'desc' },
+    });
     setPrerequisites(response.data?.items || response.data?.data || []);
   }, [id]);
 
   const loadCorequisites = useCallback(async () => {
-    const response = await api.get(`/curriculums/${id}/corequisites`, { params: { page: 1, pageSize: 200, sortBy: 'id', sortOrder: 'desc' } });
+    const response = await api.get(`/curriculums/${id}/corequisites`, {
+      params: { page: 1, pageSize: 200, sortBy: 'id', sortOrder: 'desc' },
+    });
     setCorequisites(response.data?.items || response.data?.data || []);
   }, [id]);
 
   const loadTracks = useCallback(async () => {
-    const response = await api.get(`/curriculums/${id}/elective-tracks`, { params: { page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' } });
+    const response = await api.get(`/curriculums/${id}/elective-tracks`, {
+      params: { page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' },
+    });
     const nextTracks = response.data?.items || response.data?.data || [];
     setTracks(nextTracks);
     setTrackCourseSlotById(
@@ -117,11 +136,11 @@ const CurriculumDetail = () => {
         (track.ElectiveTrackCourses || []).forEach((entry) => {
           acc[entry.id] = {
             yearLevel: entry.yearLevel ? String(entry.yearLevel) : '',
-            semester: entry.semester ? String(entry.semester) : ''
+            semester: entry.semester ? String(entry.semester) : '',
           };
         });
         return acc;
-      }, {})
+      }, {}),
     );
     setDirtyTrackSlotIds([]);
   }, [id]);
@@ -148,7 +167,15 @@ const CurriculumDetail = () => {
     };
 
     loadTabData();
-  }, [tabKey, prerequisites.length, corequisites.length, tracks.length, loadPrerequisites, loadCorequisites, loadTracks]);
+  }, [
+    tabKey,
+    prerequisites.length,
+    corequisites.length,
+    tracks.length,
+    loadPrerequisites,
+    loadCorequisites,
+    loadTracks,
+  ]);
 
   const openPicker = (nextState) => {
     setPickerState({
@@ -159,12 +186,20 @@ const CurriculumDetail = () => {
       semester: null,
       trackId: null,
       target: '',
-      ...nextState
+      ...nextState,
     });
   };
 
   const closePicker = () => {
-    setPickerState({ show: false, mode: '', title: '', yearLevel: null, semester: null, trackId: null, target: '' });
+    setPickerState({
+      show: false,
+      mode: '',
+      title: '',
+      yearLevel: null,
+      semester: null,
+      trackId: null,
+      target: '',
+    });
   };
 
   const handlePickerSelect = async (course) => {
@@ -175,7 +210,7 @@ const CurriculumDetail = () => {
           courseId: course.id,
           yearLevel: pickerState.yearLevel,
           semester: pickerState.semester,
-          isElective: addStructureAsElective
+          isElective: addStructureAsElective,
         });
         setAddStructureAsElective(false);
         await loadBaseData();
@@ -194,7 +229,7 @@ const CurriculumDetail = () => {
       } else if (pickerState.mode === 'track') {
         setBusy(true);
         await api.post(`/elective-tracks/${pickerState.trackId}/courses`, {
-          courseId: course.id
+          courseId: course.id,
         });
         await loadTracks();
         showFeedback('success', 'Course assigned to elective track.');
@@ -213,7 +248,7 @@ const CurriculumDetail = () => {
       title: 'Remove Course',
       message: 'Remove this course from curriculum structure?',
       onConfirm: async () => {
-        setConfirmDialog(d => ({ ...d, show: false }));
+        setConfirmDialog((d) => ({ ...d, show: false }));
         setBusy(true);
         clearFeedback();
         try {
@@ -225,7 +260,7 @@ const CurriculumDetail = () => {
         } finally {
           setBusy(false);
         }
-      }
+      },
     });
   };
 
@@ -241,7 +276,7 @@ const CurriculumDetail = () => {
     try {
       await api.post(`/curriculums/${id}/prerequisites`, {
         courseId: selectedPrereq.course.id,
-        prerequisiteCourseId: selectedPrereq.prerequisite.id
+        prerequisiteCourseId: selectedPrereq.prerequisite.id,
       });
       setSelectedPrereq({ course: null, prerequisite: null });
       await loadPrerequisites();
@@ -259,7 +294,7 @@ const CurriculumDetail = () => {
       title: 'Remove Prerequisite',
       message: 'Remove this prerequisite?',
       onConfirm: async () => {
-        setConfirmDialog(d => ({ ...d, show: false }));
+        setConfirmDialog((d) => ({ ...d, show: false }));
         setBusy(true);
         clearFeedback();
         try {
@@ -271,7 +306,7 @@ const CurriculumDetail = () => {
         } finally {
           setBusy(false);
         }
-      }
+      },
     });
   };
 
@@ -287,7 +322,7 @@ const CurriculumDetail = () => {
     try {
       await api.post(`/curriculums/${id}/corequisites`, {
         courseId: selectedCoreq.course.id,
-        coRequisiteCourseId: selectedCoreq.corequisite.id
+        coRequisiteCourseId: selectedCoreq.corequisite.id,
       });
       setSelectedCoreq({ course: null, corequisite: null });
       await loadCorequisites();
@@ -305,7 +340,7 @@ const CurriculumDetail = () => {
       title: 'Remove Co-requisite',
       message: 'Remove this co-requisite?',
       onConfirm: async () => {
-        setConfirmDialog(d => ({ ...d, show: false }));
+        setConfirmDialog((d) => ({ ...d, show: false }));
         setBusy(true);
         clearFeedback();
         try {
@@ -317,7 +352,7 @@ const CurriculumDetail = () => {
         } finally {
           setBusy(false);
         }
-      }
+      },
     });
   };
 
@@ -344,7 +379,7 @@ const CurriculumDetail = () => {
       title: 'Delete Elective Track',
       message: 'Delete this elective track?',
       onConfirm: async () => {
-        setConfirmDialog(d => ({ ...d, show: false }));
+        setConfirmDialog((d) => ({ ...d, show: false }));
         setBusy(true);
         clearFeedback();
         try {
@@ -356,7 +391,7 @@ const CurriculumDetail = () => {
         } finally {
           setBusy(false);
         }
-      }
+      },
     });
   };
 
@@ -366,7 +401,7 @@ const CurriculumDetail = () => {
       title: 'Remove Track Course',
       message: 'Remove this course from the elective track?',
       onConfirm: async () => {
-        setConfirmDialog(d => ({ ...d, show: false }));
+        setConfirmDialog((d) => ({ ...d, show: false }));
         setBusy(true);
         clearFeedback();
         try {
@@ -378,7 +413,7 @@ const CurriculumDetail = () => {
         } finally {
           setBusy(false);
         }
-      }
+      },
     });
   };
 
@@ -400,7 +435,14 @@ const CurriculumDetail = () => {
     }
 
     return [];
-  }, [pickerState.mode, pickerState.target, selectedPrereq.course, selectedPrereq.prerequisite, selectedCoreq.course, selectedCoreq.corequisite]);
+  }, [
+    pickerState.mode,
+    pickerState.target,
+    selectedPrereq.course,
+    selectedPrereq.prerequisite,
+    selectedCoreq.course,
+    selectedCoreq.corequisite,
+  ]);
 
   const saveAllTrackCourseSlots = async () => {
     if (dirtyTrackSlotIds.length === 0) {
@@ -420,13 +462,18 @@ const CurriculumDetail = () => {
         entryId,
         trackId: trackIdByEntryId[entryId],
         yearLevel: slot.yearLevel,
-        semester: slot.semester
+        semester: slot.semester,
       };
     });
 
-    const invalidUpdate = updates.find((item) => !item.trackId || !item.yearLevel || !item.semester);
+    const invalidUpdate = updates.find(
+      (item) => !item.trackId || !item.yearLevel || !item.semester,
+    );
     if (invalidUpdate) {
-      showFeedback('danger', 'Set both year and semester for all edited elective subjects before saving.');
+      showFeedback(
+        'danger',
+        'Set both year and semester for all edited elective subjects before saving.',
+      );
       return;
     }
 
@@ -434,12 +481,19 @@ const CurriculumDetail = () => {
     clearFeedback();
 
     try {
-      await Promise.all(updates.map((item) => api.put(`/elective-tracks/${item.trackId}/courses/${item.entryId}`, {
-        yearLevel: item.yearLevel,
-        semester: item.semester
-      })));
+      await Promise.all(
+        updates.map((item) =>
+          api.put(`/elective-tracks/${item.trackId}/courses/${item.entryId}`, {
+            yearLevel: item.yearLevel,
+            semester: item.semester,
+          }),
+        ),
+      );
       await loadTracks();
-      showFeedback('success', `Saved ${updates.length} elective subject placement${updates.length !== 1 ? 's' : ''}.`);
+      showFeedback(
+        'success',
+        `Saved ${updates.length} elective subject placement${updates.length !== 1 ? 's' : ''}.`,
+      );
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to save elective subject placements.'));
     } finally {
@@ -449,14 +503,16 @@ const CurriculumDetail = () => {
 
   if (loading) {
     return (
-      <AdminLayout activePage="curriculum" pageTitle="Curriculum Detail">
-        <div className="text-center py-5"><Spinner animation="border" /></div>
-      </AdminLayout>
+      <AdviserLayout activePage="curriculum" pageTitle="Curriculum Detail">
+        <div className="text-center py-5">
+          <Spinner animation="border" />
+        </div>
+      </AdviserLayout>
     );
   }
 
   return (
-    <AdminLayout activePage="curriculum" pageTitle="Curriculum Detail">
+    <AdviserLayout activePage="curriculum" pageTitle="Curriculum Detail">
       <div className="d-flex justify-content-between align-items-center mb-3">
         <div>
           <h2 className="mb-1">{curriculum?.name || 'Curriculum Detail'}</h2>
@@ -472,76 +528,104 @@ const CurriculumDetail = () => {
       <Tabs activeKey={tabKey} onSelect={(key) => setTabKey(key || 'structure')} className="mb-3">
         <Tab eventKey="structure" title="Structure">
           {/* ── Add Course ─────────────────────────────────────────────── */}
-          <Card className="mb-3">
-            <Card.Body>
-              <h6 className="mb-2">Add Course to Structure</h6>
-              <Row className="g-2 align-items-end">
-                <Col xs={6} md={3}>
-                  <Form.Label className="small mb-1">Year Level</Form.Label>
-                  <Form.Select
-                    size="sm"
-                    value={structureAddSlot.yearLevel}
-                    onChange={(e) => setStructureAddSlot((prev) => ({ ...prev, yearLevel: e.target.value }))}
-                  >
-                    {YEARS.map((y) => <option key={y} value={y}>Year {y}</option>)}
-                  </Form.Select>
-                </Col>
-                <Col xs={6} md={3}>
-                  <Form.Label className="small mb-1">Semester</Form.Label>
-                  <Form.Select
-                    size="sm"
-                    value={structureAddSlot.semester}
-                    onChange={(e) => setStructureAddSlot((prev) => ({ ...prev, semester: e.target.value }))}
-                  >
-                    {SEMESTERS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </Form.Select>
-                </Col>
-                <Col xs={12} md={4} className="d-flex align-items-end gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline-primary"
-                    onClick={() => openPicker({
-                      mode: 'structure',
-                      title: `Add Course — Year ${structureAddSlot.yearLevel} ${semesterLabel(Number(structureAddSlot.semester))}`,
-                      yearLevel: Number(structureAddSlot.yearLevel),
-                      semester: Number(structureAddSlot.semester)
-                    })}
-                  >
-                    Pick Course
-                  </Button>
-                  <Form.Check
-                    type="checkbox"
-                    label="Mark as Elective"
-                    className="small"
-                    checked={addStructureAsElective}
-                    onChange={(e) => setAddStructureAsElective(e.target.checked)}
-                  />
-                </Col>
-                {busy && <Col xs="auto"><Spinner size="sm" animation="border" /></Col>}
-              </Row>
-            </Card.Body>
-          </Card>
+          {isAdmin && (
+            <Card className="mb-3">
+              <Card.Body>
+                <h6 className="mb-2">Add Course to Structure</h6>
+                <Row className="g-2 align-items-end">
+                  <Col xs={6} md={3}>
+                    <Form.Label className="small mb-1">Year Level</Form.Label>
+                    <Form.Select
+                      size="sm"
+                      value={structureAddSlot.yearLevel}
+                      onChange={(e) =>
+                        setStructureAddSlot((prev) => ({ ...prev, yearLevel: e.target.value }))
+                      }
+                    >
+                      {YEARS.map((y) => (
+                        <option key={y} value={y}>
+                          Year {y}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </Col>
+                  <Col xs={6} md={3}>
+                    <Form.Label className="small mb-1">Semester</Form.Label>
+                    <Form.Select
+                      size="sm"
+                      value={structureAddSlot.semester}
+                      onChange={(e) =>
+                        setStructureAddSlot((prev) => ({ ...prev, semester: e.target.value }))
+                      }
+                    >
+                      {SEMESTERS.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </Col>
+                  <Col xs={12} md={4} className="d-flex align-items-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline-primary"
+                      onClick={() =>
+                        openPicker({
+                          mode: 'structure',
+                          title: `Add Course — Year ${structureAddSlot.yearLevel} ${semesterLabel(Number(structureAddSlot.semester))}`,
+                          yearLevel: Number(structureAddSlot.yearLevel),
+                          semester: Number(structureAddSlot.semester),
+                        })
+                      }
+                    >
+                      Pick Course
+                    </Button>
+                    <Form.Check
+                      type="checkbox"
+                      label="Mark as Elective"
+                      className="small"
+                      checked={addStructureAsElective}
+                      onChange={(e) => setAddStructureAsElective(e.target.checked)}
+                    />
+                  </Col>
+                  {busy && (
+                    <Col xs="auto">
+                      <Spinner size="sm" animation="border" />
+                    </Col>
+                  )}
+                </Row>
+              </Card.Body>
+            </Card>
+          )}
 
           {/* ── Course list ─────────────────────────────────────────────── */}
           <div className="d-flex justify-content-between align-items-center mb-2">
-            <span className="text-muted small">{sortedStructure.length} course{sortedStructure.length !== 1 ? 's' : ''} in curriculum</span>
+            <span className="text-muted small">
+              {sortedStructure.length} course{sortedStructure.length !== 1 ? 's' : ''} in curriculum
+            </span>
           </div>
 
           <ListGroup variant="flush" className="border rounded">
             {sortedStructure.length === 0 && (
-              <ListGroup.Item className="text-center text-muted py-4">No courses in curriculum structure yet.</ListGroup.Item>
+              <ListGroup.Item className="text-center text-muted py-4">
+                No courses in curriculum structure yet.
+              </ListGroup.Item>
             )}
             {sortedStructure.map((entry, idx) => {
               const isFirstOnPage = idx === 0;
               const prevEntry = sortedStructure[idx - 1];
-              const isNewGroup = isFirstOnPage ||
+              const isNewGroup =
+                isFirstOnPage ||
                 prevEntry?.yearLevel !== entry.yearLevel ||
                 prevEntry?.semester !== entry.semester;
 
               return (
                 <React.Fragment key={entry.id}>
                   {isNewGroup && (
-                    <ListGroup.Item className="bg-light py-1 px-3" style={{ borderBottom: '1px solid #dee2e6' }}>
+                    <ListGroup.Item
+                      className="bg-light py-1 px-3"
+                      style={{ borderBottom: '1px solid #dee2e6' }}
+                    >
                       <span className="fw-semibold small text-secondary">
                         Year {entry.yearLevel} — {semesterLabel(entry.semester)}
                       </span>
@@ -551,21 +635,29 @@ const CurriculumDetail = () => {
                     <Row className="g-2 align-items-center">
                       <Col xs={12} md={9}>
                         <div className="d-flex flex-wrap align-items-center gap-2">
-                          <span className="fw-semibold" style={{ minWidth: 90 }}>{entry.Course?.code}</span>
+                          <span className="fw-semibold" style={{ minWidth: 90 }}>
+                            {entry.Course?.code}
+                          </span>
                           <span className="text-muted small">{entry.Course?.name}</span>
                           <Badge bg="secondary">{entry.Course?.units}u</Badge>
-                          {entry.isElective && <Badge bg="warning" text="dark">Elective</Badge>}
+                          {entry.isElective && (
+                            <Badge bg="warning" text="dark">
+                              Elective
+                            </Badge>
+                          )}
                         </div>
                       </Col>
-                      <Col xs={12} md={3} className="text-md-end">
-                        <Button
-                          size="sm"
-                          variant="outline-danger"
-                          onClick={() => removeFromStructure(entry.id)}
-                        >
-                          Remove
-                        </Button>
-                      </Col>
+                      {isAdmin && (
+                        <Col xs={12} md={3} className="text-md-end">
+                          <Button
+                            size="sm"
+                            variant="outline-danger"
+                            onClick={() => removeFromStructure(entry.id)}
+                          >
+                            Remove
+                          </Button>
+                        </Col>
+                      )}
                     </Row>
                   </ListGroup.Item>
                 </React.Fragment>
@@ -575,64 +667,112 @@ const CurriculumDetail = () => {
         </Tab>
 
         <Tab eventKey="prerequisites" title="Prerequisites">
-          <Card className="mb-3">
-            <Card.Body>
-              <h5 className="mb-3">Add Prerequisite</h5>
-              <Row className="g-2 align-items-end">
-                <Col md={4}>
-                  <Form.Label>Course</Form.Label>
-                  <div className="d-flex gap-2">
-                    <Form.Control readOnly value={selectedPrereq.course ? `${selectedPrereq.course.code} - ${selectedPrereq.course.name}` : ''} placeholder="Select course" />
-                    <Button
-                      variant="outline-primary"
-                      onClick={() => openPicker({ mode: 'prereq', target: 'course', title: 'Select Dependent Course' })}
-                    >
-                      Pick
+          {isAdmin && (
+            <Card className="mb-3">
+              <Card.Body>
+                <h5 className="mb-3">Add Prerequisite</h5>
+                <Row className="g-2 align-items-end">
+                  <Col md={4}>
+                    <Form.Label>Course</Form.Label>
+                    <div className="d-flex gap-2">
+                      <Form.Control
+                        readOnly
+                        value={
+                          selectedPrereq.course
+                            ? `${selectedPrereq.course.code} - ${selectedPrereq.course.name}`
+                            : ''
+                        }
+                        placeholder="Select course"
+                      />
+                      <Button
+                        variant="outline-primary"
+                        onClick={() =>
+                          openPicker({
+                            mode: 'prereq',
+                            target: 'course',
+                            title: 'Select Dependent Course',
+                          })
+                        }
+                      >
+                        Pick
+                      </Button>
+                    </div>
+                  </Col>
+                  <Col md={4}>
+                    <Form.Label>Prerequisite Course</Form.Label>
+                    <div className="d-flex gap-2">
+                      <Form.Control
+                        readOnly
+                        value={
+                          selectedPrereq.prerequisite
+                            ? `${selectedPrereq.prerequisite.code} - ${selectedPrereq.prerequisite.name}`
+                            : ''
+                        }
+                        placeholder="Select prerequisite"
+                      />
+                      <Button
+                        variant="outline-primary"
+                        onClick={() =>
+                          openPicker({
+                            mode: 'prereq',
+                            target: 'prerequisite',
+                            title: 'Select Prerequisite Course',
+                          })
+                        }
+                      >
+                        Pick
+                      </Button>
+                    </div>
+                  </Col>
+                  <Col md={4}>
+                    <Button onClick={addPrerequisite} disabled={busy}>
+                      Add Prerequisite
                     </Button>
-                  </div>
-                </Col>
-                <Col md={4}>
-                  <Form.Label>Prerequisite Course</Form.Label>
-                  <div className="d-flex gap-2">
-                    <Form.Control readOnly value={selectedPrereq.prerequisite ? `${selectedPrereq.prerequisite.code} - ${selectedPrereq.prerequisite.name}` : ''} placeholder="Select prerequisite" />
-                    <Button
-                      variant="outline-primary"
-                      onClick={() => openPicker({ mode: 'prereq', target: 'prerequisite', title: 'Select Prerequisite Course' })}
-                    >
-                      Pick
-                    </Button>
-                  </div>
-                </Col>
-                <Col md={4}>
-                  <Button onClick={addPrerequisite} disabled={busy}>Add Prerequisite</Button>
-                </Col>
-              </Row>
-            </Card.Body>
-          </Card>
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
+          )}
 
           <Table striped bordered hover responsive className="table-fixed-cols">
             <thead>
               <tr>
                 <th style={{ width: '40%' }}>Course</th>
                 <th style={{ width: '40%' }}>Prerequisite</th>
-                <th className="text-end" style={{ width: '20%' }}>Actions</th>
+                {isAdmin && (
+                  <th className="text-end" style={{ width: '20%' }}>
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
               {prerequisites.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.Course?.code} - {item.Course?.name}</td>
-                  <td>{item.PrerequisiteCourse?.code} - {item.PrerequisiteCourse?.name}</td>
-                  <td className="text-end">
-                    <Button size="sm" variant="outline-danger" onClick={() => removePrerequisite(item.id)}>
-                      Remove
-                    </Button>
+                  <td>
+                    {item.Course?.code} - {item.Course?.name}
                   </td>
+                  <td>
+                    {item.PrerequisiteCourse?.code} - {item.PrerequisiteCourse?.name}
+                  </td>
+                  {isAdmin && (
+                    <td className="text-end">
+                      <Button
+                        size="sm"
+                        variant="outline-danger"
+                        onClick={() => removePrerequisite(item.id)}
+                      >
+                        Remove
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               ))}
               {prerequisites.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="text-center text-muted py-4">No prerequisite rules configured.</td>
+                  <td colSpan={isAdmin ? 3 : 2} className="text-center text-muted py-4">
+                    No prerequisite rules configured.
+                  </td>
                 </tr>
               )}
             </tbody>
@@ -640,64 +780,112 @@ const CurriculumDetail = () => {
         </Tab>
 
         <Tab eventKey="corequisites" title="Co-Requisites">
-          <Card className="mb-3">
-            <Card.Body>
-              <h5 className="mb-3">Add Co-Requisite</h5>
-              <Row className="g-2 align-items-end">
-                <Col md={4}>
-                  <Form.Label>Course</Form.Label>
-                  <div className="d-flex gap-2">
-                    <Form.Control readOnly value={selectedCoreq.course ? `${selectedCoreq.course.code} - ${selectedCoreq.course.name}` : ''} placeholder="Select course" />
-                    <Button
-                      variant="outline-primary"
-                      onClick={() => openPicker({ mode: 'coreq', target: 'course', title: 'Select Primary Course' })}
-                    >
-                      Pick
+          {isAdmin && (
+            <Card className="mb-3">
+              <Card.Body>
+                <h5 className="mb-3">Add Co-Requisite</h5>
+                <Row className="g-2 align-items-end">
+                  <Col md={4}>
+                    <Form.Label>Course</Form.Label>
+                    <div className="d-flex gap-2">
+                      <Form.Control
+                        readOnly
+                        value={
+                          selectedCoreq.course
+                            ? `${selectedCoreq.course.code} - ${selectedCoreq.course.name}`
+                            : ''
+                        }
+                        placeholder="Select course"
+                      />
+                      <Button
+                        variant="outline-primary"
+                        onClick={() =>
+                          openPicker({
+                            mode: 'coreq',
+                            target: 'course',
+                            title: 'Select Primary Course',
+                          })
+                        }
+                      >
+                        Pick
+                      </Button>
+                    </div>
+                  </Col>
+                  <Col md={4}>
+                    <Form.Label>Co-Requisite Course</Form.Label>
+                    <div className="d-flex gap-2">
+                      <Form.Control
+                        readOnly
+                        value={
+                          selectedCoreq.corequisite
+                            ? `${selectedCoreq.corequisite.code} - ${selectedCoreq.corequisite.name}`
+                            : ''
+                        }
+                        placeholder="Select co-requisite"
+                      />
+                      <Button
+                        variant="outline-primary"
+                        onClick={() =>
+                          openPicker({
+                            mode: 'coreq',
+                            target: 'corequisite',
+                            title: 'Select Co-Requisite Course',
+                          })
+                        }
+                      >
+                        Pick
+                      </Button>
+                    </div>
+                  </Col>
+                  <Col md={4}>
+                    <Button onClick={addCorequisite} disabled={busy}>
+                      Add Co-Requisite
                     </Button>
-                  </div>
-                </Col>
-                <Col md={4}>
-                  <Form.Label>Co-Requisite Course</Form.Label>
-                  <div className="d-flex gap-2">
-                    <Form.Control readOnly value={selectedCoreq.corequisite ? `${selectedCoreq.corequisite.code} - ${selectedCoreq.corequisite.name}` : ''} placeholder="Select co-requisite" />
-                    <Button
-                      variant="outline-primary"
-                      onClick={() => openPicker({ mode: 'coreq', target: 'corequisite', title: 'Select Co-Requisite Course' })}
-                    >
-                      Pick
-                    </Button>
-                  </div>
-                </Col>
-                <Col md={4}>
-                  <Button onClick={addCorequisite} disabled={busy}>Add Co-Requisite</Button>
-                </Col>
-              </Row>
-            </Card.Body>
-          </Card>
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
+          )}
 
           <Table striped bordered hover responsive className="table-fixed-cols">
             <thead>
               <tr>
                 <th style={{ width: '40%' }}>Course</th>
                 <th style={{ width: '40%' }}>Co-Requisite</th>
-                <th className="text-end" style={{ width: '20%' }}>Actions</th>
+                {isAdmin && (
+                  <th className="text-end" style={{ width: '20%' }}>
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
               {corequisites.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.Course?.code} - {item.Course?.name}</td>
-                  <td>{item.CoRequisiteCourse?.code} - {item.CoRequisiteCourse?.name}</td>
-                  <td className="text-end">
-                    <Button size="sm" variant="outline-danger" onClick={() => removeCorequisite(item.id)}>
-                      Remove
-                    </Button>
+                  <td>
+                    {item.Course?.code} - {item.Course?.name}
                   </td>
+                  <td>
+                    {item.CoRequisiteCourse?.code} - {item.CoRequisiteCourse?.name}
+                  </td>
+                  {isAdmin && (
+                    <td className="text-end">
+                      <Button
+                        size="sm"
+                        variant="outline-danger"
+                        onClick={() => removeCorequisite(item.id)}
+                      >
+                        Remove
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               ))}
               {corequisites.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="text-center text-muted py-4">No co-requisite rules configured.</td>
+                  <td colSpan={isAdmin ? 3 : 2} className="text-center text-muted py-4">
+                    No co-requisite rules configured.
+                  </td>
                 </tr>
               )}
             </tbody>
@@ -705,46 +893,58 @@ const CurriculumDetail = () => {
         </Tab>
 
         <Tab eventKey="tracks" title="Elective Tracks">
-          <Card className="mb-3">
-            <Card.Body>
-              <h5>Create Elective Track</h5>
-              <Form onSubmit={createTrack}>
-                <Row className="g-2 align-items-end">
-                  <Col md={4}>
-                    <Form.Label>Name</Form.Label>
-                    <Form.Control
-                      value={trackForm.name}
-                      onChange={(e) => setTrackForm((prev) => ({ ...prev, name: e.target.value }))}
-                      required
-                    />
-                  </Col>
-                  <Col md={6}>
-                    <Form.Label>Description</Form.Label>
-                    <Form.Control
-                      value={trackForm.description}
-                      onChange={(e) => setTrackForm((prev) => ({ ...prev, description: e.target.value }))}
-                    />
-                  </Col>
-                  <Col md={2}>
-                    <Button type="submit" disabled={busy}>Create</Button>
-                  </Col>
-                </Row>
-              </Form>
-            </Card.Body>
-          </Card>
+          {isAdmin && (
+            <Card className="mb-3">
+              <Card.Body>
+                <h5>Create Elective Track</h5>
+                <Form onSubmit={createTrack}>
+                  <Row className="g-2 align-items-end">
+                    <Col md={4}>
+                      <Form.Label>Name</Form.Label>
+                      <Form.Control
+                        value={trackForm.name}
+                        onChange={(e) =>
+                          setTrackForm((prev) => ({ ...prev, name: e.target.value }))
+                        }
+                        required
+                      />
+                    </Col>
+                    <Col md={6}>
+                      <Form.Label>Description</Form.Label>
+                      <Form.Control
+                        value={trackForm.description}
+                        onChange={(e) =>
+                          setTrackForm((prev) => ({ ...prev, description: e.target.value }))
+                        }
+                      />
+                    </Col>
+                    <Col md={2}>
+                      <Button type="submit" disabled={busy}>
+                        Create
+                      </Button>
+                    </Col>
+                  </Row>
+                </Form>
+              </Card.Body>
+            </Card>
+          )}
 
           <div className="d-flex justify-content-between align-items-center mb-2">
-            <span className="text-muted small">{tracks.length} elective track{tracks.length !== 1 ? 's' : ''}</span>
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={saveAllTrackCourseSlots}
-              disabled={busy || dirtyTrackSlotIds.length === 0}
-            >
-              {dirtyTrackSlotIds.length > 0
-                ? `Save All Slot Changes (${dirtyTrackSlotIds.length})`
-                : 'Save All Slot Changes'}
-            </Button>
+            <span className="text-muted small">
+              {tracks.length} elective track{tracks.length !== 1 ? 's' : ''}
+            </span>
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={saveAllTrackCourseSlots}
+                disabled={busy || dirtyTrackSlotIds.length === 0}
+              >
+                {dirtyTrackSlotIds.length > 0
+                  ? `Save All Slot Changes (${dirtyTrackSlotIds.length})`
+                  : 'Save All Slot Changes'}
+              </Button>
+            )}
           </div>
 
           {tracks.length === 0 ? (
@@ -757,39 +957,57 @@ const CurriculumDetail = () => {
                     <Row className="g-2 align-items-start mb-2">
                       <Col xs={12} md={9}>
                         <strong>{track.name}</strong>
-                        <div className="text-muted small">{track.description || 'No description'}</div>
+                        <div className="text-muted small">
+                          {track.description || 'No description'}
+                        </div>
                       </Col>
-                      <Col xs={12} md={3} className="text-md-end">
-                        <Button size="sm" variant="outline-danger" onClick={() => deleteTrack(track.id)}>
-                          Delete
-                        </Button>
-                      </Col>
+                      {isAdmin && (
+                        <Col xs={12} md={3} className="text-md-end">
+                          <Button
+                            size="sm"
+                            variant="outline-danger"
+                            onClick={() => deleteTrack(track.id)}
+                          >
+                            Delete
+                          </Button>
+                        </Col>
+                      )}
                     </Row>
 
-                    <Row className="g-2 align-items-end mb-2">
-                      <Col xs={12} md={3}>
-                        <Button
-                          size="sm"
-                          variant="outline-primary"
-                          onClick={() => openPicker({ mode: 'track', trackId: track.id, title: `Add Course to ${track.name}` })}
-                        >
-                          Add Course
-                        </Button>
-                      </Col>
-                    </Row>
+                    {isAdmin && (
+                      <Row className="g-2 align-items-end mb-2">
+                        <Col xs={12} md={3}>
+                          <Button
+                            size="sm"
+                            variant="outline-primary"
+                            onClick={() =>
+                              openPicker({
+                                mode: 'track',
+                                trackId: track.id,
+                                title: `Add Course to ${track.name}`,
+                              })
+                            }
+                          >
+                            Add Course
+                          </Button>
+                        </Col>
+                      </Row>
+                    )}
 
                     <div className="d-flex flex-column gap-2">
                       {(track.ElectiveTrackCourses || []).map((entry) => {
                         const entrySlot = trackCourseSlotById[entry.id] || {
                           yearLevel: entry.yearLevel ? String(entry.yearLevel) : '',
-                          semester: entry.semester ? String(entry.semester) : ''
+                          semester: entry.semester ? String(entry.semester) : '',
                         };
 
                         return (
                           <div key={entry.id} className="border rounded p-2 bg-light-subtle">
                             <div className="d-flex flex-column flex-lg-row justify-content-between gap-2 mb-2">
                               <div>
-                                <div className="fw-semibold">{entry.Course?.code} - {entry.Course?.name || 'Unnamed Course'}</div>
+                                <div className="fw-semibold">
+                                  {entry.Course?.code} - {entry.Course?.name || 'Unnamed Course'}
+                                </div>
                                 <div className="text-muted small">
                                   {entrySlot.yearLevel && entrySlot.semester
                                     ? `Placed at Year ${entrySlot.yearLevel}, ${SEMESTERS.find((item) => String(item.value) === String(entrySlot.semester))?.label || `Semester ${entrySlot.semester}`}`
@@ -801,58 +1019,68 @@ const CurriculumDetail = () => {
                               </Badge>
                             </div>
 
-                            <Row className="g-2 align-items-end">
-                              <Col xs={12} sm={4} md={3}>
-                                <Form.Select
-                                  size="sm"
-                                  value={entrySlot.yearLevel}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    setTrackCourseSlotById((prev) => ({
-                                      ...prev,
-                                      [entry.id]: { ...entrySlot, yearLevel: value }
-                                    }));
-                                    setDirtyTrackSlotIds((prev) => prev.includes(entry.id) ? prev : [...prev, entry.id]);
-                                  }}
-                                >
-                                  <option value="">Select year</option>
-                                  {YEARS.map((year) => (
-                                    <option key={year} value={year}>Year {year}</option>
-                                  ))}
-                                </Form.Select>
-                              </Col>
-                              <Col xs={12} sm={4} md={3}>
-                                <Form.Select
-                                  size="sm"
-                                  value={entrySlot.semester}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    setTrackCourseSlotById((prev) => ({
-                                      ...prev,
-                                      [entry.id]: { ...entrySlot, semester: value }
-                                    }));
-                                    setDirtyTrackSlotIds((prev) => prev.includes(entry.id) ? prev : [...prev, entry.id]);
-                                  }}
-                                >
-                                  <option value="">Select semester</option>
-                                  {SEMESTERS.map((sem) => (
-                                    <option key={sem.value} value={sem.value}>{sem.label}</option>
-                                  ))}
-                                </Form.Select>
-                              </Col>
-                              <Col xs={12} sm={4} md={6}>
-                                <div className="d-flex gap-2 justify-content-sm-end">
-                                  <Button
+                            {isAdmin && (
+                              <Row className="g-2 align-items-end">
+                                <Col xs={12} sm={4} md={3}>
+                                  <Form.Select
                                     size="sm"
-                                    variant="outline-danger"
-                                    onClick={() => removeTrackCourse(track.id, entry.id)}
-                                    disabled={busy}
+                                    value={entrySlot.yearLevel}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      setTrackCourseSlotById((prev) => ({
+                                        ...prev,
+                                        [entry.id]: { ...entrySlot, yearLevel: value },
+                                      }));
+                                      setDirtyTrackSlotIds((prev) =>
+                                        prev.includes(entry.id) ? prev : [...prev, entry.id],
+                                      );
+                                    }}
                                   >
-                                    Remove
-                                  </Button>
-                                </div>
-                              </Col>
-                            </Row>
+                                    <option value="">Select year</option>
+                                    {YEARS.map((year) => (
+                                      <option key={year} value={year}>
+                                        Year {year}
+                                      </option>
+                                    ))}
+                                  </Form.Select>
+                                </Col>
+                                <Col xs={12} sm={4} md={3}>
+                                  <Form.Select
+                                    size="sm"
+                                    value={entrySlot.semester}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      setTrackCourseSlotById((prev) => ({
+                                        ...prev,
+                                        [entry.id]: { ...entrySlot, semester: value },
+                                      }));
+                                      setDirtyTrackSlotIds((prev) =>
+                                        prev.includes(entry.id) ? prev : [...prev, entry.id],
+                                      );
+                                    }}
+                                  >
+                                    <option value="">Select semester</option>
+                                    {SEMESTERS.map((sem) => (
+                                      <option key={sem.value} value={sem.value}>
+                                        {sem.label}
+                                      </option>
+                                    ))}
+                                  </Form.Select>
+                                </Col>
+                                <Col xs={12} sm={4} md={6}>
+                                  <div className="d-flex gap-2 justify-content-sm-end">
+                                    <Button
+                                      size="sm"
+                                      variant="outline-danger"
+                                      onClick={() => removeTrackCourse(track.id, entry.id)}
+                                      disabled={busy}
+                                    >
+                                      Remove
+                                    </Button>
+                                  </div>
+                                </Col>
+                              </Row>
+                            )}
                           </div>
                         );
                       })}
@@ -882,10 +1110,10 @@ const CurriculumDetail = () => {
         title={confirmDialog.title}
         message={confirmDialog.message}
         confirmLabel="Remove"
-        onCancel={() => setConfirmDialog(d => ({ ...d, show: false }))}
+        onCancel={() => setConfirmDialog((d) => ({ ...d, show: false }))}
         onConfirm={confirmDialog.onConfirm}
       />
-    </AdminLayout>
+    </AdviserLayout>
   );
 };
 

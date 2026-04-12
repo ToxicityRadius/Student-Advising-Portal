@@ -111,7 +111,10 @@ const ViewGrades = () => {
   const totalUnits = Number(dashboardData?.totalUnits || 0);
   const progressPercent =
     totalUnits > 0 ? Math.min(100, Math.round((unitsEarned / totalUnits) * 100)) : 0;
-  const gwa = dashboardData?.gwa != null ? formatGwa(dashboardData.gwa) : '--';
+  const gwa =
+    dashboardData?.gwa !== null && dashboardData?.gwa !== undefined
+      ? formatGwa(dashboardData.gwa)
+      : '--';
 
   const completionStats = useMemo(() => {
     const completed = allCourses.filter((course) => course.normalizedStatus === 'Passed').length;

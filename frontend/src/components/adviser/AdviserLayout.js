@@ -14,6 +14,7 @@ const icon = (src) => (
 
 const NAV_ITEMS = [
   { key: 'students', label: 'Students', to: '/adviser/students', icon: icon(goldUserImg) },
+  { key: 'curriculum', label: 'Curriculum', to: '/admin/curriculum', icon: icon(goldBookImg) },
 ];
 
 const ADMIN_NAV_ITEMS = [

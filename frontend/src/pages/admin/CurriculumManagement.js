@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Col, Form, Modal, Row, Spinner, Tab, Tabs } from 'react-bootstrap';
 import ConfirmModal from '../../components/ConfirmModal';
-import AdminLayout from '../../components/admin/AdminLayout';
+import AdviserLayout from '../../components/adviser/AdviserLayout';
+import { useAuth } from '../../context/AuthContext';
 import CurriculaTab from '../../components/admin/CurriculaTab';
 import CoursesTab from '../../components/admin/CoursesTab';
 import EquivalenciesTab from '../../components/admin/EquivalenciesTab';
@@ -21,6 +22,9 @@ const initialCourseForm = {
 const initialEquivalencyForm = { courseId: '', equivalentCourseId: '', notes: '' };
 
 const CurriculumManagement = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
   const [tabKey, setTabKey] = useState('curricula');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -480,16 +484,16 @@ const CurriculumManagement = () => {
 
   if (loading) {
     return (
-      <AdminLayout activePage="curriculum" pageTitle="Curriculum Management">
+      <AdviserLayout activePage="curriculum" pageTitle="Curriculum Management">
         <div className="text-center py-5">
           <Spinner animation="border" />
         </div>
-      </AdminLayout>
+      </AdviserLayout>
     );
   }
 
   return (
-    <AdminLayout activePage="curriculum" pageTitle="Curriculum Management">
+    <AdviserLayout activePage="curriculum" pageTitle="Curriculum Management">
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h2 className="mb-0">Curriculum Management</h2>
       </div>
@@ -520,42 +524,47 @@ const CurriculumManagement = () => {
             previewCsvImport={previewCsvImport}
             applyCsvImport={applyCsvImport}
             exportCsv={exportCsv}
+            isAdmin={isAdmin}
           />
         </Tab>
 
-        <Tab eventKey="courses" title="Courses">
-          <CoursesTab
-            courses={courses}
-            coursesQuery={coursesQuery}
-            setCoursesQuery={setCoursesQuery}
-            coursesMeta={coursesMeta}
-            courseForm={courseForm}
-            setCourseForm={setCourseForm}
-            createCourse={createCourse}
-            openEditCourse={openEditCourse}
-            deleteCourse={deleteCourse}
-            submitting={submitting}
-            courseUnitsFilter={courseUnitsFilter}
-            setCourseUnitsFilter={setCourseUnitsFilter}
-            courseCodePrefixFilter={courseCodePrefixFilter}
-            setCourseCodePrefixFilter={setCourseCodePrefixFilter}
-          />
-        </Tab>
+        {isAdmin && (
+          <Tab eventKey="courses" title="Courses">
+            <CoursesTab
+              courses={courses}
+              coursesQuery={coursesQuery}
+              setCoursesQuery={setCoursesQuery}
+              coursesMeta={coursesMeta}
+              courseForm={courseForm}
+              setCourseForm={setCourseForm}
+              createCourse={createCourse}
+              openEditCourse={openEditCourse}
+              deleteCourse={deleteCourse}
+              submitting={submitting}
+              courseUnitsFilter={courseUnitsFilter}
+              setCourseUnitsFilter={setCourseUnitsFilter}
+              courseCodePrefixFilter={courseCodePrefixFilter}
+              setCourseCodePrefixFilter={setCourseCodePrefixFilter}
+            />
+          </Tab>
+        )}
 
-        <Tab eventKey="equivalencies" title="Equivalencies">
-          <EquivalenciesTab
-            equivalencies={equivalencies}
-            equivsQuery={equivsQuery}
-            setEquivsQuery={setEquivsQuery}
-            equivsMeta={equivsMeta}
-            equivalencyForm={equivalencyForm}
-            setEquivalencyForm={setEquivalencyForm}
-            createEquivalency={createEquivalency}
-            deleteEquivalency={deleteEquivalency}
-            courseOptions={courseOptions}
-            submitting={submitting}
-          />
-        </Tab>
+        {isAdmin && (
+          <Tab eventKey="equivalencies" title="Equivalencies">
+            <EquivalenciesTab
+              equivalencies={equivalencies}
+              equivsQuery={equivsQuery}
+              setEquivsQuery={setEquivsQuery}
+              equivsMeta={equivsMeta}
+              equivalencyForm={equivalencyForm}
+              setEquivalencyForm={setEquivalencyForm}
+              createEquivalency={createEquivalency}
+              deleteEquivalency={deleteEquivalency}
+              courseOptions={courseOptions}
+              submitting={submitting}
+            />
+          </Tab>
+        )}
       </Tabs>
 
       <Modal show={showCourseEditModal} onHide={() => setShowCourseEditModal(false)} centered>
@@ -670,7 +679,7 @@ const CurriculumManagement = () => {
         onCancel={() => setConfirmDialog((d) => ({ ...d, show: false }))}
         onConfirm={confirmDialog.onConfirm}
       />
-    </AdminLayout>
+    </AdviserLayout>
   );
 };
 

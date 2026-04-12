@@ -745,7 +745,11 @@ const SARLayout = ({
                         </td>
                         <td className="text-center">{entry.completedUnits}</td>
                         <td className="text-center">
-                          <strong>{entry.gpa != null ? formatGwa(entry.gpa) : '—'}</strong>
+                          <strong>
+                            {entry.gpa !== null && entry.gpa !== undefined
+                              ? formatGwa(entry.gpa)
+                              : '—'}
+                          </strong>
                         </td>
                       </tr>
                     ))}

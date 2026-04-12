@@ -40,7 +40,8 @@ test.describe.serial('Student Journey', () => {
     await page.goto(`${BASE}/dashboard`);
     await waitForStable(page);
     const body = await page.textContent('body');
-    expect(body.length).toBeGreaterThan(100);
+    expect(body).not.toBeNull();
+    expect((body || '').length).toBeGreaterThan(100);
   });
 
   test('student can navigate to grades page', async () => {

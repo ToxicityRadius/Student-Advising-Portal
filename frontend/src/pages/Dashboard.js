@@ -355,7 +355,9 @@ const Dashboard = () => {
                         lineHeight: 1,
                       }}
                     >
-                      {dashData && dashData.gwa != null ? formatGwa(dashData.gwa) : '\u2014'}
+                      {dashData && dashData.gwa !== null && dashData.gwa !== undefined
+                        ? formatGwa(dashData.gwa)
+                        : '\u2014'}
                     </div>
                   </div>
                 </div>

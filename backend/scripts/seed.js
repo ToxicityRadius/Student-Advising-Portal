@@ -28,6 +28,7 @@ const {
   Course,
   CurriculumCourse,
   Prerequisite,
+  CoRequisite,
   ElectiveTrack,
   ElectiveTrackCourse,
 } = require('../models');
@@ -94,6 +95,19 @@ const toIntOrNull = (value) => {
   return Number.isInteger(n) ? n : null;
 };
 
+const normalizeRowType = (value) => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+
+  if (normalized === 'corequisite' || normalized === 'co_requisite') {
+    return 'corequisite';
+  }
+
+  return normalized;
+};
+
 /**
  * Parses a curriculum import-ready CSV file and returns normalized rows.
  * Columns: exportVersion, rowType, curriculumId, curriculumName,
@@ -114,7 +128,7 @@ const readImportCsv = (fileName) => {
   const pick = (rawRow, col) => String(rawRow[idx[col]] ?? '').trim();
 
   return rawRows.slice(1).map((rawRow) => ({
-    rowType: pick(rawRow, 'rowType').toLowerCase(),
+    rowType: normalizeRowType(pick(rawRow, 'rowType')),
     curriculumName: pick(rawRow, 'curriculumName'),
     courseCode: pick(rawRow, 'courseCode').toUpperCase(),
     courseName: pick(rawRow, 'courseName'),
@@ -241,6 +255,7 @@ const readImportCsv = (fileName) => {
 
         const structureRows = rows.filter((r) => r.rowType === 'structure');
         const prereqRows = rows.filter((r) => r.rowType === 'prerequisite');
+        const coreqRows = rows.filter((r) => r.rowType === 'corequisite');
         const trackHeaderRows = rows.filter((r) => r.rowType === 'elective_track');
         const trackCourseRows = rows.filter((r) => r.rowType === 'elective_track_course');
 
@@ -312,6 +327,22 @@ const readImportCsv = (fileName) => {
           );
         }
 
+        // Co-requisites
+        if (coreqRows.length > 0) {
+          await CoRequisite.bulkCreate(
+            coreqRows
+              .filter(
+                (r) => courseIdByCode.has(r.courseCode) && courseIdByCode.has(r.relatedCourseCode),
+              )
+              .map((r) => ({
+                curriculumId,
+                courseId: courseIdByCode.get(r.courseCode),
+                coRequisiteCourseId: courseIdByCode.get(r.relatedCourseCode),
+              })),
+            { transaction },
+          );
+        }
+
         // Elective tracks and their courses
         const trackByName = new Map();
         const trackNames = new Set(
@@ -349,7 +380,7 @@ const readImportCsv = (fileName) => {
         }
 
         console.log(
-          `[seed]   ${curriculumName}: ${structureRows.length} courses, ${prereqRows.length} prereqs, ${trackNames.size} tracks`,
+          `[seed]   ${curriculumName}: ${structureRows.length} courses, ${prereqRows.length} prereqs, ${coreqRows.length} coreqs, ${trackNames.size} tracks`,
         );
       }
 
@@ -366,6 +397,7 @@ const readImportCsv = (fileName) => {
       courses: await Course.count(),
       curriculumCourses: await CurriculumCourse.count(),
       prerequisites: await Prerequisite.count(),
+      corequisites: await CoRequisite.count(),
       electiveTracks: await ElectiveTrack.count(),
       electiveTrackCourses: await ElectiveTrackCourse.count(),
     };

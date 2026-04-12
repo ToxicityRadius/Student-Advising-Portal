@@ -187,7 +187,7 @@ function AppContent() {
             <Route
               path="/admin/curriculum"
               element={
-                <PrivateRoute roles={['admin']}>
+                <PrivateRoute roles={['admin', 'adviser']}>
                   <CurriculumManagement />
                 </PrivateRoute>
               }
@@ -195,7 +195,7 @@ function AppContent() {
             <Route
               path="/admin/curriculum/:id"
               element={
-                <PrivateRoute roles={['admin']}>
+                <PrivateRoute roles={['admin', 'adviser']}>
                   <CurriculumDetail />
                 </PrivateRoute>
               }
