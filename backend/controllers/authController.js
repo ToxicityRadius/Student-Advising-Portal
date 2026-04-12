@@ -638,32 +638,26 @@ exports.resendCode = async (req, res, next) => {
 
     const user = await User.findByPk(userId);
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
+    // Always return 200 to avoid leaking whether a userId exists (enumeration defence).
+    // Only generate and send a code when the user is actually found.
+    if (user) {
+      const verificationCode = generateVerificationCode();
+      const verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+      await User.update(
+        {
+          verificationCode,
+          verificationCodeExpires,
+          updatedAt: Date.now(),
+        },
+        { where: { id: user.id } },
+      );
+
+      // Reset attempt counter so the user gets a fresh set of attempts
+      verifyAttempts.delete(String(userId));
+
+      await sendVerificationCode(user.email, verificationCode, user.firstName);
     }
-
-    // Generate new verification code
-    const verificationCode = generateVerificationCode();
-    const verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-    // Update user with new verification code
-    await User.update(
-      {
-        verificationCode,
-        verificationCodeExpires,
-        updatedAt: Date.now(),
-      },
-      { where: { id: user.id } },
-    );
-
-    // Reset attempt counter so the user gets a fresh set of attempts
-    verifyAttempts.delete(String(userId));
-
-    // Send verification code email
-    await sendVerificationCode(user.email, verificationCode, user.firstName);
 
     res.status(200).json({
       success: true,

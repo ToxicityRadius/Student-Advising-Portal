@@ -1,4 +1,5 @@
 const { Notification, User } = require('../models');
+const logger = require('../utils/logger');
 
 const NOTIFICATION_TEMPLATES = {
   study_plan_validated: {
@@ -70,7 +71,7 @@ async function notify({
     });
   } catch (err) {
     // Non-blocking: log but don't fail the parent operation
-    console.error('[NotificationService] Failed to create notification:', err.message);
+    logger.error({ err }, '[NotificationService] Failed to create notification');
     return null;
   }
 }

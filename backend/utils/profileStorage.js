@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('./logger');
 
 const DEFAULT_PROFILE_BUCKET = 'profile-pictures';
 
@@ -18,14 +19,16 @@ const getSupabaseClient = () => {
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
-    throw new Error('Supabase storage is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+    throw new Error(
+      'Supabase storage is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.',
+    );
   }
 
   supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: {
       persistSession: false,
-      autoRefreshToken: false
-    }
+      autoRefreshToken: false,
+    },
   });
 
   return supabaseClient;
@@ -45,17 +48,26 @@ const ensureBucketExists = async () => {
   const client = getSupabaseClient();
 
   const { data: existingBuckets, error: listError } = await client.storage.listBuckets();
-  if (!listError && Array.isArray(existingBuckets) && existingBuckets.some((b) => b?.name === bucket)) {
+  if (
+    !listError &&
+    Array.isArray(existingBuckets) &&
+    existingBuckets.some((b) => b?.name === bucket)
+  ) {
     bucketReady = true;
     return;
   }
 
   const { error: createError } = await client.storage.createBucket(bucket, {
     public: true,
-    fileSizeLimit: '2MB'
+    fileSizeLimit: '2MB',
   });
 
-  if (createError && !String(createError.message || '').toLowerCase().includes('already exists')) {
+  if (
+    createError &&
+    !String(createError.message || '')
+      .toLowerCase()
+      .includes('already exists')
+  ) {
     throw new Error(`Failed to ensure Supabase bucket "${bucket}": ${createError.message}`);
   }
 
@@ -66,7 +78,7 @@ const getExtensionForMimeType = (mimetype, originalName = '') => {
   const extensionByMimeType = {
     'image/jpeg': '.jpg',
     'image/png': '.png',
-    'image/webp': '.webp'
+    'image/webp': '.webp',
   };
 
   return extensionByMimeType[mimetype] || path.extname(originalName) || '.img';
@@ -88,35 +100,29 @@ const uploadProfilePicture = async (file, userId) => {
   const objectPath = buildObjectPath(file, userId);
   const client = getSupabaseClient();
 
-  let { error: uploadError } = await client.storage
-    .from(bucket)
-    .upload(objectPath, file.buffer, {
-      contentType: file.mimetype,
-      upsert: false,
-      cacheControl: '3600'
-    });
+  let { error: uploadError } = await client.storage.from(bucket).upload(objectPath, file.buffer, {
+    contentType: file.mimetype,
+    upsert: false,
+    cacheControl: '3600',
+  });
 
   if (uploadError && isBucketNotFoundError(uploadError)) {
     await ensureBucketExists();
 
-    ({ error: uploadError } = await client.storage
-      .from(bucket)
-      .upload(objectPath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: false,
-        cacheControl: '3600'
-      }));
+    ({ error: uploadError } = await client.storage.from(bucket).upload(objectPath, file.buffer, {
+      contentType: file.mimetype,
+      upsert: false,
+      cacheControl: '3600',
+    }));
 
     // Supabase bucket visibility can take a moment right after creation.
     if (uploadError && isBucketNotFoundError(uploadError)) {
       await new Promise((resolve) => setTimeout(resolve, 500));
-      ({ error: uploadError } = await client.storage
-        .from(bucket)
-        .upload(objectPath, file.buffer, {
-          contentType: file.mimetype,
-          upsert: false,
-          cacheControl: '3600'
-        }));
+      ({ error: uploadError } = await client.storage.from(bucket).upload(objectPath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+        cacheControl: '3600',
+      }));
     }
   }
 
@@ -155,10 +161,7 @@ const extractSupabaseObjectPath = (storedPath) => {
   }
 
   if (/^https?:\/\//i.test(normalized)) {
-    const markers = [
-      `/storage/v1/object/public/${bucket}/`,
-      `/storage/v1/object/sign/${bucket}/`
-    ];
+    const markers = [`/storage/v1/object/public/${bucket}/`, `/storage/v1/object/sign/${bucket}/`];
 
     for (const marker of markers) {
       const markerIndex = normalized.indexOf(marker);
@@ -191,8 +194,8 @@ const deleteProfilePictureAsset = async (storedPath) => {
   if (localPath) {
     try {
       await fs.promises.unlink(localPath);
-    } catch {
-      // Ignore cleanup failures.
+    } catch (err) {
+      logger.warn({ err, localPath }, '[profileStorage] Failed to delete local profile picture');
     }
     return;
   }
@@ -206,12 +209,15 @@ const deleteProfilePictureAsset = async (storedPath) => {
     const client = getSupabaseClient();
     const bucket = getBucketName();
     await client.storage.from(bucket).remove([objectPath]);
-  } catch {
-    // Ignore cleanup failures.
+  } catch (err) {
+    logger.warn(
+      { err, objectPath },
+      '[profileStorage] Failed to delete profile picture from Supabase',
+    );
   }
 };
 
 module.exports = {
   uploadProfilePicture,
-  deleteProfilePictureAsset
+  deleteProfilePictureAsset,
 };
