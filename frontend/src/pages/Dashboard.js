@@ -5,6 +5,7 @@ import api from '../utils/api';
 import { getHomePathForRole } from '../utils/roleRedirect';
 import StudentLayout from '../components/student/StudentLayout';
 import { formatYearLevel } from '../utils/formatters';
+import { formatGwa } from '../utils/gradeHelpers';
 
 import './Dashboard.css';
 
@@ -354,7 +355,7 @@ const Dashboard = () => {
                         lineHeight: 1,
                       }}
                     >
-                      {dashData && dashData.gwa ? dashData.gwa : '\u2014'}
+                      {dashData && dashData.gwa != null ? formatGwa(dashData.gwa) : '\u2014'}
                     </div>
                   </div>
                 </div>

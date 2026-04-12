@@ -3,7 +3,7 @@ import api from '../utils/api';
 import StudentLayout from '../components/student/StudentLayout';
 import GradesStatsGrid from '../components/student/GradesStatsGrid';
 import SemesterCard from '../components/student/SemesterCard';
-import { semesterLabel, normalizeStatus, semesterGwa } from '../utils/gradeHelpers';
+import { semesterLabel, normalizeStatus, semesterGwa, formatGwa } from '../utils/gradeHelpers';
 import './ViewGrades.css';
 
 const STATUS_FILTERS = ['All', 'Passed', 'Failed', 'INC', 'DRP', 'In Progress', 'Not Yet Taken'];
@@ -111,7 +111,7 @@ const ViewGrades = () => {
   const totalUnits = Number(dashboardData?.totalUnits || 0);
   const progressPercent =
     totalUnits > 0 ? Math.min(100, Math.round((unitsEarned / totalUnits) * 100)) : 0;
-  const gwa = dashboardData?.gwa || '--';
+  const gwa = dashboardData?.gwa != null ? formatGwa(dashboardData.gwa) : '--';
 
   const completionStats = useMemo(() => {
     const completed = allCourses.filter((course) => course.normalizedStatus === 'Passed').length;

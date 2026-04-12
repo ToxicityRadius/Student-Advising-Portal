@@ -19,6 +19,7 @@ import {
 import { Link } from 'react-router-dom';
 import ElectiveTrackSelector from '../adviser/ElectiveTrackSelector';
 import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
+import { formatGwa } from '../../utils/gradeHelpers';
 import api from '../../utils/api';
 
 const semesterLabels = { 1: '1st Semester', 2: '2nd Semester', 3: 'Summer' };
@@ -488,7 +489,9 @@ const SARLayout = ({
                     <Card bg="success" text="white" className="h-100">
                       <Card.Body className="text-center p-3">
                         <div className="small mb-1">GWA</div>
-                        <div className="fw-bold fs-4">{analytics.gpaMonitoring?.gwa ?? 'N/A'}</div>
+                        <div className="fw-bold fs-4">
+                          {formatGwa(analytics.gpaMonitoring?.gwa)}
+                        </div>
                         <div className="small opacity-75">
                           {analytics.gpaMonitoring?.gradedSubjects ?? 0} graded
                         </div>
@@ -685,7 +688,7 @@ const SARLayout = ({
                       <Card className="shadow-sm border-start border-success border-4">
                         <Card.Body className="py-2 px-3">
                           <span className="text-muted small me-2">Overall GWA:</span>
-                          <strong className="fs-5">{analytics.gpaMonitoring.gwa}</strong>
+                          <strong className="fs-5">{formatGwa(analytics.gpaMonitoring.gwa)}</strong>
                           <span className="text-muted small ms-2">
                             ({analytics.gpaMonitoring.gradedUnits} graded units across{' '}
                             {analytics.gpaMonitoring.gradedSubjects} subjects)
@@ -742,7 +745,7 @@ const SARLayout = ({
                         </td>
                         <td className="text-center">{entry.completedUnits}</td>
                         <td className="text-center">
-                          <strong>{entry.gpa ?? '—'}</strong>
+                          <strong>{entry.gpa != null ? formatGwa(entry.gpa) : '—'}</strong>
                         </td>
                       </tr>
                     ))}
