@@ -11,7 +11,7 @@ Consolidated duplicate SVG eye icon components across 5 password-containing file
   - Bootstrap Icons paths rendered as inline SVGs
   - Used by all password field implementations
 
-- **Updated:** 5 files (removed inline SVG definitions, added import):
+- **Updated:** 5 files (removed inline SVG definitions,  added import):
   - `frontend/src/pages/Login.js`
   - `frontend/src/pages/Register.js`
   - `frontend/src/pages/ChangePassword.js`
