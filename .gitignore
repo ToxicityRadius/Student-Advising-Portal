@@ -33,11 +33,6 @@ e2e/playwright-report/
 *.db
 *.sqlite
 
-# Environment files
-.env
-.env.local
-.env.*.local
-
 # Deployment guide (contains real credentials)
 Deployment.md
 
