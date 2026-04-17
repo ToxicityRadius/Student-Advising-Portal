@@ -7,6 +7,7 @@ import Navbar from './components/Navbar';
 import PrivateRoute from './components/PrivateRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import { getHomePathForRole } from './utils/roleRedirect';
+import { getGoogleClientId } from './utils/googleOAuthConfig';
 import './index.css';
 
 // Public / auth pages
@@ -283,22 +284,31 @@ function AppContent() {
 }
 
 function App() {
-  const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+  const googleClientId = getGoogleClientId();
+  const appTree = (
+    <ErrorBoundary>
+      <AuthProvider>
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <NotificationProvider>
+            <AppContent />
+          </NotificationProvider>
+        </Router>
+      </AuthProvider>
+    </ErrorBoundary>
+  );
+
   if (!googleClientId) {
-    console.error('REACT_APP_GOOGLE_CLIENT_ID is not set.');
+    if (process.env.NODE_ENV !== 'test') {
+      console.error(
+        'REACT_APP_GOOGLE_CLIENT_ID is missing or invalid. Google Sign-In is disabled until it is configured.',
+      );
+    }
+    return appTree;
   }
 
   return (
     <GoogleOAuthProvider clientId={googleClientId}>
-      <ErrorBoundary>
-        <AuthProvider>
-          <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <NotificationProvider>
-              <AppContent />
-            </NotificationProvider>
-          </Router>
-        </AuthProvider>
-      </ErrorBoundary>
+      {appTree}
     </GoogleOAuthProvider>
   );
 }

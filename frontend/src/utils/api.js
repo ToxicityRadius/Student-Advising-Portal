@@ -31,6 +31,19 @@ const processQueue = (error, token = null) => {
 const isRefreshEndpoint = (url = '') =>
   url.includes('/auth/refresh-token') || url.includes('/auth/refresh');
 
+const PUBLIC_AUTH_ENDPOINTS = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/verify-code',
+  '/auth/resend-code',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/google',
+];
+
+const isPublicAuthEndpoint = (url = '') =>
+  PUBLIC_AUTH_ENDPOINTS.some((endpoint) => url.includes(endpoint));
+
 const CSRF_SAFE_METHODS = new Set(['get', 'head', 'options']);
 
 function getCsrfToken() {
@@ -42,7 +55,9 @@ function getCsrfToken() {
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
-    if (token) {
+    const hasExplicitAuthHeader =
+      Boolean(config.headers?.Authorization) || Boolean(config.headers?.authorization);
+    if (token && !hasExplicitAuthHeader) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     // Let the browser set Content-Type automatically for FormData uploads
@@ -67,10 +82,15 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const originalRequest = error.config;
-    const url = originalRequest?.url || '';
-    const isAuthEndpoint = url.includes('/auth/me') || isRefreshEndpoint(url);
+    if (!originalRequest) {
+      return Promise.reject(error);
+    }
 
-    if (error.response?.status === 401 && !isAuthEndpoint && !originalRequest._retry) {
+    const url = originalRequest?.url || '';
+    const shouldSkipRefresh =
+      url.includes('/auth/me') || isRefreshEndpoint(url) || isPublicAuthEndpoint(url);
+
+    if (error.response?.status === 401 && !shouldSkipRefresh && !originalRequest._retry) {
       if (isRefreshing) {
         // Another refresh is already in flight — queue this request
         return new Promise((resolve, reject) => {

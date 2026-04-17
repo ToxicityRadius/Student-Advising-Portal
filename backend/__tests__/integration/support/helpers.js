@@ -44,6 +44,7 @@ jest.mock('../../../utils/logger', () => {
 const app = require('../../../server');
 const db = require('../../../models');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { generateToken, generateRefreshToken } = require('../../../utils/jwt');
 
 const {
@@ -119,8 +120,9 @@ function authToken(user) {
  */
 async function refreshTokenFor(user) {
   const rt = generateRefreshToken(user.id);
+  const refreshTokenHash = crypto.createHash('sha256').update(rt).digest('hex');
   await user.update({
-    refreshToken: rt,
+    refreshToken: refreshTokenHash,
     refreshTokenExpires: Date.now() + 30 * 24 * 60 * 60 * 1000,
   });
   return rt;

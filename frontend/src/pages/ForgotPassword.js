@@ -37,7 +37,16 @@ const ForgotPassword = () => {
         backgroundPosition: 'center'
       }}
     >
-      
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background:
+            'linear-gradient(160deg, rgba(13,27,42,0.93) 0%, rgba(27,45,69,0.86) 50%, rgba(27,45,69,0.82) 100%)',
+          zIndex: 0,
+        }}
+      />
+
       <Container className="position-relative" style={{ zIndex: 1 }}>
         <Row className="justify-content-center">
           <Col xs={12} sm={10} md={8} lg={6} xl={5} style={{ maxWidth: '380px' }}>

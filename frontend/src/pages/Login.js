@@ -6,6 +6,7 @@ import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { getHomePathForRole } from '../utils/roleRedirect';
+import { isGoogleOAuthConfigured } from '../utils/googleOAuthConfig';
 import StudentIdModal from '../components/StudentIdModal';
 import AcademicInfoModal from '../components/AcademicInfoModal';
 import backgroundImage from '../assets/images/bg.png';
@@ -180,8 +181,8 @@ const Login = () => {
         sessionStorage.removeItem('loginRole');
         setError('This account must change password via email/password sign-in before continuing.');
       } else if (data.user && data.user.role === 'student' && !data.user.studentId) {
-        // Student without a Student Number â€” show the modal
-        setPendingGoogleUser({ userId: data.user.id, email: decoded.email, token: data.token });
+        // Student without a Student Number — show the modal.
+        setPendingGoogleUser({ email: decoded.email, token: data.token, role: data.user.role });
         setShowStudentIdModal(true);
       } else {
         sessionStorage.removeItem('loginRole');
@@ -201,16 +202,27 @@ const Login = () => {
 
   const handleStudentIdSubmit = async (studentId) => {
     try {
-      const response = await api.patch(`/users/${pendingGoogleUser.userId}/update-student-id`, {
+      const tokenForSession = pendingGoogleUser?.token;
+      const roleForRedirect = pendingGoogleUser?.role;
+
+      if (!tokenForSession) {
+        throw new Error('Your session expired. Please sign in with Google again.');
+      }
+
+      const response = await api.patch('/users/update-student-id', {
         studentId,
+      }, {
+        headers: {
+          Authorization: `Bearer ${tokenForSession}`,
+        },
       });
       const data = response.data;
 
       setShowStudentIdModal(false);
       setPendingGoogleUser(null);
-      await proceedAfterLogin(data.token, data.user?.role);
+      await proceedAfterLogin(tokenForSession, data.user?.role || roleForRedirect);
     } catch (err) {
-      throw new Error(err.response?.data?.message || 'Failed to update Student Number');
+      throw new Error(err.response?.data?.message || err.message || 'Failed to update Student Number');
     }
   };
 
@@ -540,13 +552,19 @@ const Login = () => {
                   </div>
 
                   <div className="d-flex justify-content-center">
-                    <GoogleLogin
-                      onSuccess={handleGoogleSuccess}
-                      onError={handleGoogleError}
-                      text="signin_with"
-                      theme="outline"
-                      size="large"
-                    />
+                    {isGoogleOAuthConfigured ? (
+                      <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={handleGoogleError}
+                        text="signin_with"
+                        theme="outline"
+                        size="large"
+                      />
+                    ) : (
+                      <Alert variant="warning" className="mb-0 py-2 text-center" role="status">
+                        Google Sign-In is currently unavailable. Please use email and password.
+                      </Alert>
+                    )}
                   </div>
 
                   <div className="text-center mt-3" style={{ fontSize: '0.82rem' }}>

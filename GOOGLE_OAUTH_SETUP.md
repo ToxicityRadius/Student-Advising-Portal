@@ -27,12 +27,13 @@
 
 ### Frontend Configuration (React)
 
-1. Open `frontend/src/App.js`
-2. Replace `YOUR_GOOGLE_CLIENT_ID` with your actual Google Client ID:
+1. Create `frontend/.env` by copying `frontend/.env.example`
+2. Set your Google Client ID in `frontend/.env`:
 
-```javascript
-<GoogleOAuthProvider clientId="YOUR_ACTUAL_GOOGLE_CLIENT_ID_HERE">
+```env
+REACT_APP_GOOGLE_CLIENT_ID=YOUR_ACTUAL_GOOGLE_CLIENT_ID_HERE
 ```
+3. Restart the frontend dev server after updating `.env`
 
 ### Backend Configuration (Node.js)
 
@@ -109,6 +110,9 @@ To change the allowed domain, update both locations.
 - Add your redirect URI to the authorized redirect URIs in Google Cloud Console
 
 **Google button not showing**
+- Verify `REACT_APP_GOOGLE_CLIENT_ID` is set in `frontend/.env`
+- Make sure the value is a real Google Client ID (not `your_google_client_id_here`)
+- Restart `npm start` after changing `.env`
 - Check browser console for errors
 - Verify @react-oauth/google is installed
 - Clear browser cache and reload

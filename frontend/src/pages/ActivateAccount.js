@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Container, Card, Alert, Row, Col, Button } from 'react-bootstrap';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import backgroundImage from '../assets/images/bg.png';
+import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 
 const ActivateAccount = () => {
   const { token } = useParams();
@@ -43,53 +45,69 @@ const ActivateAccount = () => {
         backgroundPosition: 'center'
       }}
     >
-      
-      {/* Yellow rectangle - left side, top overlap */}
       <div 
-        className="position-absolute" 
         style={{ 
-          left: 0,
-          top: '10.5%',
-          width: '550px',
-          height: '60px',
-          backgroundColor: '#FFC107',
-          zIndex: 2,
-          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+          position: 'absolute',
+          inset: 0,
+          background:
+            'linear-gradient(160deg, rgba(13,27,42,0.93) 0%, rgba(27,45,69,0.86) 50%, rgba(27,45,69,0.82) 100%)',
+          zIndex: 0,
         }}
       />
-      
-      {/* Yellow rectangle - right side, bottom overlap */}
-      <div 
-        className="position-absolute" 
-        style={{ 
-          right: 0,
-          bottom: '10.5%',
-          width: '1500px',
-          height: '60px',
-          backgroundColor: '#FFC107',
-          zIndex: 1,
-          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
-        }}
-      />
-    <div className="auth-container" style={{ position: 'relative', zIndex: 3 }}>
-      <div className="auth-card">
-        <h2>Account Activation</h2>
-        {status === 'loading' && (
-          <div className="alert alert-info">Activating your account...</div>
-        )}
-        {status === 'success' && (
-          <div className="alert alert-success">{message}</div>
-        )}
-        {status === 'error' && (
-          <>
-            <div className="alert alert-error">{message}</div>
-            <div className="auth-links">
-              <a href="/login">Go to Login</a>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+
+      <Container className="position-relative" style={{ zIndex: 1 }}>
+        <Row className="justify-content-center">
+          <Col xs={12} sm={10} md={8} lg={6} xl={5} style={{ maxWidth: '420px' }}>
+            <Card className="shadow-lg border-0" style={{ borderRadius: '20px', overflow: 'hidden' }}>
+              <Card.Body className="p-4 p-md-5 text-center">
+                <div className="mb-3">
+                  <img
+                    src={studentAdvisingLogo}
+                    alt="Student Advising Logo"
+                    style={{ maxWidth: '220px', height: 'auto' }}
+                  />
+                </div>
+
+                <h2 className="mb-3" style={{ fontSize: '1.55rem' }}>Account Activation</h2>
+
+                {status === 'loading' && (
+                  <Alert variant="info" className="mb-3">
+                    Activating your account...
+                  </Alert>
+                )}
+
+                {status === 'success' && (
+                  <Alert variant="success" className="mb-3">
+                    {message}
+                  </Alert>
+                )}
+
+                {status === 'error' && (
+                  <>
+                    <Alert variant="danger" className="mb-3">
+                      {message}
+                    </Alert>
+                    <Button
+                      type="button"
+                      onClick={() => navigate('/login')}
+                      variant="warning"
+                      size="lg"
+                      className="w-100 fw-bold mb-0 login-button"
+                      style={{
+                        backgroundColor: '#FFC107',
+                        borderColor: '#FFC107',
+                        color: '#000',
+                      }}
+                    >
+                      Back to Login
+                    </Button>
+                  </>
+                )}
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      </Container>
     </div>
   );
 };

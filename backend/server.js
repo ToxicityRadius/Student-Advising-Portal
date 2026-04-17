@@ -362,21 +362,23 @@ async function runPendingMigrations() {
   }
 }
 
-(process.env.NODE_ENV === 'production' ? sequelize.authenticate() : sequelize.sync(syncOptions))
-  .then(async () => {
-    logger.info('Database connected successfully');
-    try {
-      await runPendingMigrations();
-    } catch (migErr) {
-      logger.error({ err: migErr }, 'Migration failed — server starting without migration');
-    }
-    server = app.listen(PORT, () => {
-      logger.info({ port: PORT }, 'Server running');
+if (process.env.NODE_ENV !== 'test') {
+  (process.env.NODE_ENV === 'production' ? sequelize.authenticate() : sequelize.sync(syncOptions))
+    .then(async () => {
+      logger.info('Database connected successfully');
+      try {
+        await runPendingMigrations();
+      } catch (migErr) {
+        logger.error({ err: migErr }, 'Migration failed — server starting without migration');
+      }
+      server = app.listen(PORT, () => {
+        logger.info({ port: PORT }, 'Server running');
+      });
+    })
+    .catch((err) => {
+      logger.fatal({ err }, 'Failed to connect to database');
     });
-  })
-  .catch((err) => {
-    logger.fatal({ err }, 'Failed to connect to database');
-  });
+}
 
 const gracefulShutdown = (signal) => {
   if (isShuttingDown) return;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { getHomePathForRole } from '../utils/roleRedirect';
@@ -156,83 +157,113 @@ const VerifyCode = () => {
         backgroundPosition: 'center'
       }}
     >
-      
-    <div className="login-container" style={{ position: 'relative', zIndex: 3 }}>
-      {error && (
-        <div className="error-popup-overlay">
-          <div className="error-popup">
-            <div className="error-popup-content">
-              <span className="error-icon">⚠️</span>
-              <p>{error}</p>
-            </div>
-            <button className="error-close-btn" onClick={() => setError('')}>×</button>
-          </div>
-        </div>
-      )}
-      {successCountdown !== null && (
-        <div className="error-popup-overlay">
-          <div className="error-popup" style={{ borderColor: '#4CAF50' }}>
-            <div className="error-popup-content">
-              <span className="error-icon" style={{ fontSize: '48px' }}>✓</span>
-              <h3 style={{ color: '#4CAF50', marginBottom: '10px' }}>Login Successful!</h3>
-              <p>Redirecting to Dashboard in {successCountdown}...</p>
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="login-card">
-        <div className="login-logo">
-          <img src={studentAdvisingLogo} alt="Student Advising Logo" />
-        </div>
-        <h2 className="login-title">Verify Your Identity</h2>
-        <p style={{ textAlign: 'center', color: '#666', marginBottom: '20px' }}>
-          We've sent a 6-digit code to <br />
-          <strong>{userEmail || 'your email'}</strong>
-        </p>
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="code-input-container">
-            {code.map((digit, index) => (
-              <input
-                key={index}
-                id={`code-input-${index}`}
-                type="text"
-                inputMode="numeric"
-                maxLength="1"
-                value={digit}
-                onChange={(e) => handleChange(index, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(index, e)}
-                onPaste={handlePaste}
-                className="code-input"
-                autoFocus={index === 0}
-              />
-            ))}
-          </div>
-          <button type="submit" className="btn btn-continue" disabled={loading}>
-            {loading ? 'Verifying...' : 'Verify Code'}
-          </button>
-          <div style={{ textAlign: 'center', marginTop: '20px' }}>
-            <p style={{ color: '#666', fontSize: '14px' }}>
-              Didn't receive the code?{' '}
-              <button
-                type="button"
-                onClick={handleResendCode}
-                disabled={countdown > 0 || resendLoading}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: countdown > 0 ? '#999' : '#4CAF50',
-                  textDecoration: 'underline',
-                  cursor: countdown > 0 ? 'not-allowed' : 'pointer',
-                  fontSize: '14px',
-                }}
-              >
-                {resendLoading ? 'Sending...' : countdown > 0 ? `Resend (${countdown}s)` : 'Resend Code'}
-              </button>
-            </p>
-          </div>
-        </form>
-      </div>
-    </div>
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background:
+            'linear-gradient(160deg, rgba(13,27,42,0.93) 0%, rgba(27,45,69,0.86) 50%, rgba(27,45,69,0.82) 100%)',
+          zIndex: 0,
+        }}
+      />
+
+      <Container className="position-relative" style={{ zIndex: 1 }}>
+        <Row className="justify-content-center">
+          <Col xs={12} sm={10} md={8} lg={6} xl={5} style={{ maxWidth: '420px' }}>
+            <Card className="shadow-lg border-0" style={{ borderRadius: '20px', overflow: 'hidden' }}>
+              <Card.Body className="p-4 p-md-5">
+                <div className="text-center mb-3">
+                  <img
+                    src={studentAdvisingLogo}
+                    alt="Student Advising Logo"
+                    style={{ maxWidth: '220px', height: 'auto' }}
+                  />
+                </div>
+
+                <h2 className="mb-2" style={{ fontSize: '1.35rem' }}>
+                  Verify Your Identity
+                </h2>
+                <p className="text-muted mb-3" style={{ fontSize: '0.9rem' }}>
+                  We sent a 6-digit code to
+                  <br />
+                  <strong>{userEmail || 'your email'}</strong>
+                </p>
+
+                {error && (
+                  <Alert variant="danger" dismissible onClose={() => setError('')}>
+                    {error}
+                  </Alert>
+                )}
+
+                {successCountdown !== null && (
+                  <Alert variant="success">
+                    Login Successful! Redirecting to Dashboard in {successCountdown}...
+                  </Alert>
+                )}
+
+                <Form onSubmit={handleSubmit}>
+                  <div className="code-input-container">
+                    {code.map((digit, index) => (
+                      <input
+                        key={index}
+                        id={`code-input-${index}`}
+                        aria-label={`Verification code digit ${index + 1} of 6`}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength="1"
+                        value={digit}
+                        onChange={(e) => handleChange(index, e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(index, e)}
+                        onPaste={handlePaste}
+                        className="code-input"
+                        autoFocus={index === 0}
+                      />
+                    ))}
+                  </div>
+
+                  <Button
+                    type="submit"
+                    variant="warning"
+                    className="w-100 fw-bold"
+                    disabled={loading || successCountdown !== null}
+                    style={{
+                      backgroundColor: '#FFC107',
+                      borderColor: '#FFC107',
+                      color: '#000',
+                    }}
+                  >
+                    {loading ? 'Verifying...' : 'Verify Code'}
+                  </Button>
+
+                  <div className="text-center mt-3" style={{ fontSize: '0.9rem' }}>
+                    <span className="text-muted">Didn't receive the code? </span>
+                    <button
+                      type="button"
+                      onClick={handleResendCode}
+                      disabled={countdown > 0 || resendLoading}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: countdown > 0 ? '#999' : '#0d6efd',
+                        textDecoration: 'underline',
+                        cursor: countdown > 0 ? 'not-allowed' : 'pointer',
+                        fontSize: '0.9rem',
+                        padding: 0,
+                      }}
+                    >
+                      {resendLoading
+                        ? 'Sending...'
+                        : countdown > 0
+                          ? `Resend (${countdown}s)`
+                          : 'Resend Code'}
+                    </button>
+                  </div>
+                </Form>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      </Container>
     </div>
   );
 };

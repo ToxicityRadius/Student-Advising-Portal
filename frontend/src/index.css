@@ -423,15 +423,18 @@ body {
 }
 
 .btn-danger {
-  background-color: #000000;
-  color: #ffffff;
+  background-color: #FFC107;
+  color: #000000;
   font-weight: 700;
-  border: 2px solid #FFC107;
+  border: 1px solid #FFC107;
 }
 
 .btn-danger:hover {
-  background-color: #1a1a1a;
-  box-shadow: 0 4px 8px rgba(255, 193, 7, 0.4);
+  background-color: #FFB300;
+  border-color: #FFB300;
+  color: #000000;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(255, 193, 7, 0.3);
 }
 
 .btn-success {
@@ -447,15 +450,29 @@ body {
 }
 
 .btn-warning {
-  background-color: #000000;
-  color: #FFC107;
+  background-color: #FFC107;
+  color: #000000;
   font-weight: 700;
-  border: 2px solid #FFC107;
+  border: 1px solid #FFC107;
 }
 
 .btn-warning:hover {
-  background-color: #1a1a1a;
-  color: #FFD54F;
+  background-color: #FFB300;
+  border-color: #FFB300;
+  color: #000000;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(255, 193, 7, 0.3);
+}
+
+.btn-warning:disabled,
+.btn-warning.disabled,
+.btn-danger:disabled,
+.btn-danger.disabled {
+  background-color: #FFE082;
+  border-color: #FFE082;
+  color: #000000;
+  transform: none;
+  box-shadow: none;
 }
 
 .auth-links {
@@ -546,18 +563,19 @@ body {
 
 .navbar-menu button {
   padding: 8px 20px;
-  background-color: #000000;
-  color: #FFC107;
-  border: none;
+  background-color: #FFC107;
+  color: #000000;
+  border: 1px solid #FFC107;
   border-radius: 5px;
   cursor: pointer;
   font-weight: 700;
 }
 
 .navbar-menu button:hover {
-  background-color: #1a1a1a;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+  background-color: #FFB300;
+  border-color: #FFB300;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(255, 193, 7, 0.3);
 }
 
 /* Dashboard */

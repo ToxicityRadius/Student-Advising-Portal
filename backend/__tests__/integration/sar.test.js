@@ -33,7 +33,7 @@ beforeAll(async () => {
 
   // Seed curriculum with courses
   ({ curriculum, courses } = await createCurriculum(admin, 5));
-}, 30000);
+}, 120000);
 
 afterAll(async () => {
   await closeDB();

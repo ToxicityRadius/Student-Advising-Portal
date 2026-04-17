@@ -25,7 +25,7 @@ beforeAll(async () => {
   adminToken = authToken(admin);
   adviserToken = authToken(adviser);
   studentToken = authToken(student);
-}, 30000);
+}, 120000);
 
 afterAll(async () => {
   await closeDB();

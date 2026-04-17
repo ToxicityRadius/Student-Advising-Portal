@@ -4,6 +4,7 @@ import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap'
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../context/AuthContext';
+import { isGoogleOAuthConfigured } from '../utils/googleOAuthConfig';
 import api from '../utils/api';
 import backgroundImage from '../assets/images/bg.png';
 import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
@@ -342,13 +343,20 @@ const Register = () => {
                   </div>
 
                   <div className="d-flex justify-content-center">
-                    <GoogleLogin
-                      onSuccess={handleGoogleSuccess}
-                      onError={handleGoogleError}
-                      text="signup_with"
-                      theme="outline"
-                      size="large"
-                    />
+                    {isGoogleOAuthConfigured ? (
+                      <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={handleGoogleError}
+                        text="signup_with"
+                        theme="outline"
+                        size="large"
+                      />
+                    ) : (
+                      <Alert variant="warning" className="mb-0 py-2 text-center" role="status">
+                        Google Sign-In is currently unavailable. Please register with email and
+                        password.
+                      </Alert>
+                    )}
                   </div>
 
                   <div className="text-center mt-3" style={{ fontSize: '0.82rem' }}>

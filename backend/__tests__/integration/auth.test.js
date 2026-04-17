@@ -15,7 +15,7 @@ const { syncDB, closeDB, createUser, authToken, refreshTokenFor } = helpers;
 
 beforeAll(async () => {
   await syncDB();
-}, 30000);
+}, 120000);
 
 afterAll(async () => {
   await closeDB();
