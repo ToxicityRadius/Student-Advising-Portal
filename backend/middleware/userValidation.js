@@ -7,6 +7,7 @@ const ALLOWED_ROLES = ['student', 'adviser', 'admin'];
 
 const ALLOWED_PROGRAMS = ['BSCpE', 'BSCS', 'BSIT', 'BSCE', 'BSEE', 'BSME'];
 const ALLOWED_STUDENT_TYPES = ['regular', 'irregular', 'transferee', 'ladderized'];
+const ALLOWED_SEX = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
 
 // POST /api/users/onboard — complete onboarding with year level and academic info
 exports.completeOnboardingValidation = [
@@ -29,6 +30,30 @@ exports.completeOnboardingValidation = [
     .optional()
     .isIn(ALLOWED_STUDENT_TYPES)
     .withMessage(`student_type must be one of: ${ALLOWED_STUDENT_TYPES.join(', ')}`),
+  body('sex')
+    .optional()
+    .isIn(ALLOWED_SEX)
+    .withMessage(`sex must be one of: ${ALLOWED_SEX.join(', ')}`),
+  body('gender')
+    .optional()
+    .isIn(ALLOWED_SEX)
+    .withMessage(`gender must be one of: ${ALLOWED_SEX.join(', ')}`),
+  body().custom((_, { req }) => {
+    const sex = req.body?.sex;
+    const gender = req.body?.gender;
+    const hasSex = sex !== undefined && sex !== null && String(sex).trim() !== '';
+    const hasGender = gender !== undefined && gender !== null && String(gender).trim() !== '';
+
+    if (!hasSex && !hasGender) {
+      throw new Error('sex or gender is required');
+    }
+
+    if (hasSex && hasGender && sex !== gender) {
+      throw new Error('sex and gender must match when both are provided');
+    }
+
+    return true;
+  }),
 ];
 
 // PATCH /api/users/update-student-id — student updates their own student ID

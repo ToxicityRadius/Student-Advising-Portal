@@ -15,6 +15,7 @@ const YEAR_LEVEL_OPTIONS = [
   { value: 3, label: '3rd Year' },
   { value: 4, label: '4th Year' },
 ];
+const SEX_OPTIONS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
 
 const AcademicInfoModal = ({ onComplete }) => {
   const [formData, setFormData] = useState({
@@ -22,6 +23,7 @@ const AcademicInfoModal = ({ onComplete }) => {
     program: '',
     curriculum_id: '',
     student_type: '',
+    sex: '',
   });
   const [curricula, setCurricula] = useState([]);
   const [loadingCurricula, setLoadingCurricula] = useState(true);
@@ -83,16 +85,21 @@ const AcademicInfoModal = ({ onComplete }) => {
       setError('Please select your Student Type.');
       return;
     }
+    if (!formData.sex) {
+      setError('Please select your Gender/Sex.');
+      return;
+    }
 
     setLoading(true);
     try {
-      await api.post('/users/onboard', {
+      const response = await api.post('/users/onboard', {
         current_year_level: Number(formData.year_level),
         program: formData.program,
         curriculum_id: Number(formData.curriculum_id),
         student_type: formData.student_type,
+        sex: formData.sex,
       });
-      onComplete();
+      await onComplete(response.data?.user || null);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save academic info. Please try again.');
     } finally {
@@ -195,6 +202,18 @@ const AcademicInfoModal = ({ onComplete }) => {
               {STUDENT_TYPE_OPTIONS.map(({ value, label }) => (
                 <option key={value} value={value}>
                   {label}
+                </option>
+              ))}
+            </Form.Select>
+          </Form.Group>
+
+          <Form.Group className="mb-4">
+            <Form.Label className="fw-bold">Gender/Sex</Form.Label>
+            <Form.Select name="sex" value={formData.sex} onChange={handleChange} required>
+              <option value="">Select gender/sex...</option>
+              {SEX_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {value}
                 </option>
               ))}
             </Form.Select>

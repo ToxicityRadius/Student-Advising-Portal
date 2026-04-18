@@ -48,7 +48,7 @@ const sanitizeUser = sanitizeUserWithProfile;
 // @access  Private
 exports.completeOnboarding = async (req, res, next) => {
   try {
-    const { current_year_level, program, curriculum_id, student_type } = req.body;
+    const { current_year_level, program, curriculum_id, student_type, sex, gender } = req.body;
 
     if (!current_year_level || ![1, 2, 3, 4].includes(Number(current_year_level))) {
       return res.status(400).json({
@@ -63,9 +63,37 @@ exports.completeOnboarding = async (req, res, next) => {
       updatedAt: Date.now(),
     };
 
+    if (sex !== undefined && gender !== undefined && sex !== gender) {
+      return res.status(400).json({
+        success: false,
+        message: 'sex and gender must match when both are provided',
+      });
+    }
+
+    const normalizedSex = sex !== undefined ? sex : gender !== undefined ? gender : undefined;
+    if (normalizedSex === undefined || normalizedSex === null || normalizedSex === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'sex or gender is required',
+      });
+    }
+
+    if (
+      normalizedSex !== undefined &&
+      normalizedSex !== null &&
+      normalizedSex !== '' &&
+      !ALLOWED_SEX.includes(normalizedSex)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `sex must be one of: ${ALLOWED_SEX.join(', ')}`,
+      });
+    }
+
     if (program !== undefined) updatePayload.program = program;
     if (curriculum_id !== undefined) updatePayload.curriculum_id = Number(curriculum_id);
     if (student_type !== undefined) updatePayload.student_type = student_type;
+    if (normalizedSex !== undefined) updatePayload.sex = normalizedSex || null;
 
     await User.update(updatePayload, { where: { id: req.user.id } });
 
@@ -809,12 +837,10 @@ exports.assignAdviser = async (req, res, next) => {
 
       const adviser = await User.findByPk(normalizedAdviserId);
       if (!adviser || adviser.role !== 'adviser') {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: 'Selected adviser does not exist or is not an adviser',
-          });
+        return res.status(400).json({
+          success: false,
+          message: 'Selected adviser does not exist or is not an adviser',
+        });
       }
     }
 

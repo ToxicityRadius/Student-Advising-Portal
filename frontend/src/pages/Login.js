@@ -44,13 +44,14 @@ const Login = () => {
   };
 
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, setUser } = useAuth();
 
   const needsAcademicInfo = (user) =>
     user?.role === 'student' &&
     ((!user.yearLevel && !user.year_level && !user.current_year_level) ||
       !user.curriculum_id ||
-      !user.student_type);
+      !user.student_type ||
+      (!user.sex && !user.gender));
 
   const proceedAfterLogin = async (token, role) => {
     const result = await login(token);
@@ -209,20 +210,26 @@ const Login = () => {
         throw new Error('Your session expired. Please sign in with Google again.');
       }
 
-      const response = await api.patch('/users/update-student-id', {
-        studentId,
-      }, {
-        headers: {
-          Authorization: `Bearer ${tokenForSession}`,
+      const response = await api.patch(
+        '/users/update-student-id',
+        {
+          studentId,
         },
-      });
+        {
+          headers: {
+            Authorization: `Bearer ${tokenForSession}`,
+          },
+        },
+      );
       const data = response.data;
 
       setShowStudentIdModal(false);
       setPendingGoogleUser(null);
       await proceedAfterLogin(tokenForSession, data.user?.role || roleForRedirect);
     } catch (err) {
-      throw new Error(err.response?.data?.message || err.message || 'Failed to update Student Number');
+      throw new Error(
+        err.response?.data?.message || err.message || 'Failed to update Student Number',
+      );
     }
   };
 
@@ -412,8 +419,28 @@ const Login = () => {
 
       {showAcademicModal && (
         <AcademicInfoModal
-          onComplete={() => {
+          onComplete={async (updatedUser) => {
             setShowAcademicModal(false);
+            const activeToken = localStorage.getItem('token');
+            if (activeToken) {
+              try {
+                await login(activeToken);
+              } catch {
+                if (updatedUser && typeof setUser === 'function') {
+                  const normalized = {
+                    ...updatedUser,
+                    firstName: updatedUser.firstName ?? updatedUser.first_name,
+                    lastName: updatedUser.lastName ?? updatedUser.last_name,
+                    yearLevel:
+                      updatedUser.yearLevel ??
+                      updatedUser.year_level ??
+                      updatedUser.current_year_level,
+                  };
+                  setUser(normalized);
+                  localStorage.setItem('user', JSON.stringify(normalized));
+                }
+              }
+            }
             navigate(getHomePathForRole(pendingNavRole || 'student'));
           }}
         />

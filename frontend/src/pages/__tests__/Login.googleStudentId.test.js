@@ -55,7 +55,9 @@ describe('Login Page - Google student ID completion', () => {
         yearLevel: 1,
         curriculum_id: 1,
         student_type: 'regular',
+        sex: 'Male',
       }),
+      setUser: jest.fn(),
     });
 
     jwtDecode.mockReturnValue({
@@ -119,6 +121,96 @@ describe('Login Page - Google student ID completion', () => {
 
     await waitFor(() => {
       expect(mockLogin).toHaveBeenCalledWith('app-jwt-token');
+    });
+  });
+
+  test('opens academic onboarding when sex is missing and persists onboarding payload', async () => {
+    mockLogin.mockReset();
+    mockLogin
+      .mockResolvedValueOnce({
+        role: 'student',
+        yearLevel: 2,
+        curriculum_id: 1,
+        student_type: 'regular',
+        sex: null,
+      })
+      .mockResolvedValueOnce({
+        role: 'student',
+        yearLevel: 2,
+        curriculum_id: 1,
+        student_type: 'regular',
+        sex: 'Male',
+      });
+
+    api.post.mockResolvedValueOnce({
+      data: {
+        token: 'app-jwt-token',
+        user: {
+          id: 17,
+          role: 'student',
+          studentId: '2310675',
+        },
+      },
+    });
+
+    api.get.mockResolvedValueOnce({
+      data: {
+        items: [{ id: 1, name: 'BS CPE Curriculum 2025' }],
+      },
+    });
+
+    api.post.mockResolvedValueOnce({
+      data: {
+        success: true,
+        user: {
+          id: 17,
+          current_year_level: 2,
+          curriculum_id: 1,
+          student_type: 'regular',
+          sex: 'Male',
+        },
+      },
+    });
+
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={['/login']}>
+        <Login />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByLabelText('Login as Student'));
+    await user.click(screen.getByTestId('google-login'));
+
+    expect(await screen.findByText('Complete Your Academic Profile')).toBeInTheDocument();
+
+    const yearLevelSelect = document.querySelector('select[name="year_level"]');
+    const programSelect = document.querySelector('select[name="program"]');
+    const curriculumSelect = document.querySelector('select[name="curriculum_id"]');
+    const studentTypeSelect = document.querySelector('select[name="student_type"]');
+    const sexSelect = document.querySelector('select[name="sex"]');
+
+    await user.selectOptions(yearLevelSelect, '2');
+    await user.selectOptions(programSelect, 'BSCpE');
+    await user.selectOptions(curriculumSelect, '1');
+    await user.selectOptions(studentTypeSelect, 'regular');
+    await user.selectOptions(sexSelect, 'Male');
+
+    await user.click(screen.getByRole('button', { name: /save & continue/i }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/users/onboard', {
+        current_year_level: 2,
+        program: 'BSCpE',
+        curriculum_id: 1,
+        student_type: 'regular',
+        sex: 'Male',
+      });
+    });
+
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledTimes(2);
     });
   });
 });
