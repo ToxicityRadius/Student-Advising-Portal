@@ -638,6 +638,9 @@ Just push to `main` on GitHub — Cloudflare Pages auto-deploys on every push.
 | `NODE_ENV` | `production` | Yes |
 | `PORT` | `5000` | Yes |
 | `CLIENT_URL` | `https://student-advising-portal.pages.dev` | Yes |
+| `AUTH_COOKIE_SAME_SITE` | `none` (cross-site) or `strict` (same-site) | Recommended |
+| `AUTH_COOKIE_SECURE` | `true` | Recommended |
+| `AUTH_COOKIE_DOMAIN` | `api.yourdomain.com` (optional) | Optional |
 | `ACTIVATION_URL_BASE` | `https://api.yourdomain.com/api/auth/activate` | Yes |
 | `DATABASE_URL` | `postgresql://student_advising:PASSWORD@localhost:5432/student_advising` | Yes |
 | `DB_SSL` | `false` | Yes |
@@ -712,6 +715,21 @@ CLIENT_URL=https://student-advising-portal.pages.dev,https://portal.yourdomain.c
 ```
 
 Then restart:
+```bash
+pm2 restart student-advising-api
+```
+
+### Login works but session cannot refresh (Pages + different backend domain)
+
+When frontend and backend are on different sites (for example `*.pages.dev` and `*.onrender.com`), browsers block strict same-site cookies during cross-site refresh calls.
+
+Set these backend env vars:
+```env
+AUTH_COOKIE_SAME_SITE=none
+AUTH_COOKIE_SECURE=true
+```
+
+Then restart backend:
 ```bash
 pm2 restart student-advising-api
 ```

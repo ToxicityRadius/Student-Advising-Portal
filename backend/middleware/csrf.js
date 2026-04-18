@@ -11,24 +11,21 @@
  * Requests without Origin (CLI, Postman, supertest) bypass the check so
  * server-to-server calls and automated tests continue to work.
  *
- * Requests whose Origin is in the CLIENT_URL allowlist also bypass the
- * token check — CORS with a strict origin whitelist already provides
- * equivalent protection for cross-origin deployments where the frontend
- * cannot read cookies set on the backend domain.
+ * Requests whose Origin matches the CLIENT_URL allowlist (exact or
+ * wildcard entries) also bypass the token check — CORS with a strict
+ * origin whitelist already provides equivalent protection for
+ * cross-origin deployments where the frontend cannot read cookies set
+ * on the backend domain.
  */
 
 const crypto = require('crypto');
+const { createOriginAllowlist, isOriginAllowed } = require('../utils/originAllowlist');
 
 const CSRF_COOKIE = 'csrfToken';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 // Origins explicitly trusted by CORS configuration.
-const allowedOrigins = new Set(
-  (process.env.CLIENT_URL || '')
-    .split(',')
-    .map(o => o.trim())
-    .filter(o => o.length > 0)
-);
+const originAllowlist = createOriginAllowlist(process.env.CLIENT_URL);
 
 module.exports = function csrf(req, res, next) {
   // Ensure a CSRF token cookie exists; issue one if missing.
@@ -38,7 +35,7 @@ module.exports = function csrf(req, res, next) {
     res.cookie(CSRF_COOKIE, token, {
       httpOnly: false, // must be readable by frontend JavaScript
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict'
+      sameSite: 'strict',
     });
   }
   req.csrfToken = token;
@@ -53,7 +50,7 @@ module.exports = function csrf(req, res, next) {
 
   // Cross-origin requests from explicitly trusted origins are already
   // gated by CORS — no additional CSRF token needed.
-  if (allowedOrigins.has(origin)) return next();
+  if (isOriginAllowed(origin, originAllowlist)) return next();
 
   const headerToken = req.headers['x-csrf-token'];
 

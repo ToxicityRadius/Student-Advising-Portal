@@ -1,5 +1,98 @@
 const jwt = require('jsonwebtoken');
 
+const VALID_SAME_SITE_VALUES = new Set(['strict', 'lax', 'none']);
+const DEFAULT_AUTH_COOKIE_SAME_SITE = 'strict';
+
+function parseBooleanEnv(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+  if (['0', 'false', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+
+  return null;
+}
+
+function getAuthCookieSameSite() {
+  const configured = (process.env.AUTH_COOKIE_SAME_SITE || DEFAULT_AUTH_COOKIE_SAME_SITE)
+    .trim()
+    .toLowerCase();
+  return VALID_SAME_SITE_VALUES.has(configured) ? configured : DEFAULT_AUTH_COOKIE_SAME_SITE;
+}
+
+function getAuthCookieSecure(sameSiteValue) {
+  const configuredSecure = parseBooleanEnv(process.env.AUTH_COOKIE_SECURE);
+  if (configuredSecure !== null) {
+    // Browsers reject SameSite=None cookies unless Secure is enabled.
+    if (sameSiteValue === 'none' && configuredSecure === false) {
+      return true;
+    }
+    return configuredSecure;
+  }
+
+  if (sameSiteValue === 'none') {
+    return true;
+  }
+
+  return process.env.NODE_ENV === 'production';
+}
+
+function isValidCookieDomain(domainValue) {
+  if (!domainValue) {
+    return false;
+  }
+
+  if (
+    domainValue.includes('://') ||
+    domainValue.includes('/') ||
+    domainValue.includes(':') ||
+    domainValue.includes('*') ||
+    /\s/.test(domainValue)
+  ) {
+    return false;
+  }
+
+  const normalized = domainValue.startsWith('.') ? domainValue.slice(1) : domainValue;
+  if (
+    !normalized ||
+    normalized.startsWith('.') ||
+    normalized.endsWith('.') ||
+    normalized.includes('..')
+  ) {
+    return false;
+  }
+
+  return /^[a-z0-9.-]+$/i.test(normalized);
+}
+
+function getAuthCookieDomain() {
+  const configuredDomain = (process.env.AUTH_COOKIE_DOMAIN || '').trim().toLowerCase();
+  if (!configuredDomain) {
+    return undefined;
+  }
+
+  return isValidCookieDomain(configuredDomain) ? configuredDomain : undefined;
+}
+
+function getAuthCookieBaseOptions() {
+  const sameSite = getAuthCookieSameSite();
+  const secure = getAuthCookieSecure(sameSite);
+  const domain = getAuthCookieDomain();
+
+  return {
+    httpOnly: true,
+    secure,
+    sameSite,
+    ...(domain ? { domain } : {}),
+  };
+}
+
 const getAccessTokenExpiryMs = () => {
   const tokenExpiry = process.env.JWT_EXPIRE || '30m';
 
@@ -18,9 +111,7 @@ const getAccessTokenExpiryMs = () => {
 
 const getBaseCookieOptions = (expiryMs) => ({
   expires: new Date(Date.now() + expiryMs),
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
+  ...getAuthCookieBaseOptions(),
 });
 
 exports.getAuthCookieOptions = () => {
@@ -35,11 +126,7 @@ exports.getAuthCookieOptions = () => {
 };
 
 exports.clearAuthCookies = (res) => {
-  const cookieOptions = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-  };
+  const cookieOptions = getAuthCookieBaseOptions();
 
   res.clearCookie('token', cookieOptions);
   res.clearCookie('refreshToken', { ...cookieOptions, path: '/api/auth' });
@@ -73,7 +160,7 @@ exports.generateRefreshToken = (userId) => {
 exports.verifyToken = (token) => {
   try {
     return jwt.verify(token, process.env.JWT_SECRET);
-  } catch (error) {
+  } catch (_err) {
     return null;
   }
 };
@@ -82,7 +169,7 @@ exports.verifyToken = (token) => {
 exports.verifyRefreshToken = (token) => {
   try {
     return jwt.verify(token, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
-  } catch (error) {
+  } catch (_err) {
     return null;
   }
 };
@@ -111,7 +198,7 @@ exports.sendTokenResponse = (user, statusCode, res) => {
     ).catch((err) => {
       logger.error({ err, userId: user.id || user._id }, 'Failed to persist refresh token');
     });
-  } catch (_) {
+  } catch (_err) {
     // No-op: auth response should continue even if token persistence wiring fails.
   }
 

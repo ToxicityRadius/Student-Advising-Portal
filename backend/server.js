@@ -10,6 +10,7 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const logger = require('./utils/logger');
+const { createOriginAllowlist, isOriginAllowed } = require('./utils/originAllowlist');
 
 const ALLOWED_NODE_ENVS = ['development', 'test', 'production'];
 
@@ -172,9 +173,16 @@ app.use(cookieParser());
 // Support multiple allowed origins via comma-separated CLIENT_URL
 // CORS must be registered before CSRF so that error responses always
 // include the correct Access-Control-Allow-Origin header.
-const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000')
-  .split(',')
-  .map((o) => o.trim());
+const originAllowlist = createOriginAllowlist(process.env.CLIENT_URL, {
+  defaultOrigin: 'http://localhost:3000',
+});
+
+if (originAllowlist.invalidRules.length > 0) {
+  logger.warn(
+    { invalidRules: originAllowlist.invalidRules },
+    'Ignoring invalid CLIENT_URL origin rule(s). Use exact origins or https://*.example.com patterns.',
+  );
+}
 
 app.use(
   cors({
@@ -191,7 +199,7 @@ app.use(
         return callback(null, true);
       }
 
-      if (allowedOrigins.includes(origin)) {
+      if (isOriginAllowed(origin, originAllowlist)) {
         return callback(null, true);
       }
 
@@ -259,7 +267,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Error handling middleware
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   const isProduction = process.env.NODE_ENV === 'production';
   const statusCode = err.statusCode || err.status || 500;
 
@@ -421,7 +429,7 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Graceful handling of unhandled async errors to prevent silent crashes
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason, _promise) => {
   logger.error({ reason }, 'Unhandled Rejection');
 });
 
