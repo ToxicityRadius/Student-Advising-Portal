@@ -9,20 +9,18 @@ import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 const ActivateAccount = () => {
   const { token } = useParams();
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { refreshUser } = useAuth();
   const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('');
 
   useEffect(() => {
     const activateAccount = async () => {
       try {
-        const response = await api.get(`/auth/activate/${token}`);
-        const { token: authToken } = response.data;
-
-        await login(authToken);
+        await api.get(`/auth/activate/${token}`);
+        await refreshUser();
         setStatus('success');
         setMessage('Account activated successfully! Redirecting to dashboard...');
-        
+
         setTimeout(() => {
           navigate('/dashboard');
         }, 2000);
@@ -37,16 +35,16 @@ const ActivateAccount = () => {
   }, [token, navigate]);
 
   return (
-    <div 
-      className="min-vh-100 d-flex align-items-center justify-content-center position-relative" 
-      style={{ 
+    <div
+      className="min-vh-100 d-flex align-items-center justify-content-center position-relative"
+      style={{
         backgroundImage: `url(${backgroundImage})`,
         backgroundSize: 'cover',
-        backgroundPosition: 'center'
+        backgroundPosition: 'center',
       }}
     >
-      <div 
-        style={{ 
+      <div
+        style={{
           position: 'absolute',
           inset: 0,
           background:
@@ -58,7 +56,10 @@ const ActivateAccount = () => {
       <Container className="position-relative" style={{ zIndex: 1 }}>
         <Row className="justify-content-center">
           <Col xs={12} sm={10} md={8} lg={6} xl={5} style={{ maxWidth: '420px' }}>
-            <Card className="shadow-lg border-0" style={{ borderRadius: '20px', overflow: 'hidden' }}>
+            <Card
+              className="shadow-lg border-0"
+              style={{ borderRadius: '20px', overflow: 'hidden' }}
+            >
               <Card.Body className="p-4 p-md-5 text-center">
                 <div className="mb-3">
                   <img
@@ -68,7 +69,9 @@ const ActivateAccount = () => {
                   />
                 </div>
 
-                <h2 className="mb-3" style={{ fontSize: '1.55rem' }}>Account Activation</h2>
+                <h2 className="mb-3" style={{ fontSize: '1.55rem' }}>
+                  Account Activation
+                </h2>
 
                 {status === 'loading' && (
                   <Alert variant="info" className="mb-3">

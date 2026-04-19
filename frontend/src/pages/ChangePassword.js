@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert } from 'react-bootstrap';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -7,8 +7,7 @@ import { EyeIcon, EyeSlashIcon } from '../components/EyeIcons';
 
 const ChangePassword = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { login } = useAuth();
+  const { refreshUser } = useAuth();
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -18,30 +17,10 @@ const ChangePassword = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Prefer navigation state (in-memory, not persisted) over sessionStorage fallback
-  const tempToken = location.state?.token || sessionStorage.getItem('forcePasswordChangeToken');
-  const oldPassword = location.state?.oldPassword || null;
-  const persistentToken = localStorage.getItem('token');
-
-  const activeToken = useMemo(
-    () => tempToken || persistentToken || null,
-    [tempToken, persistentToken],
-  );
-
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
     setSuccess('');
-
-    if (!activeToken) {
-      setError('Your session has expired. Please log in again.');
-      return;
-    }
-
-    if (!oldPassword) {
-      setError('Original login password is required for verification. Please log in again.');
-      return;
-    }
 
     if (newPassword !== confirmPassword) {
       setError('Passwords do not match.');
@@ -63,29 +42,17 @@ const ChangePassword = () => {
     setLoading(true);
 
     try {
-      const response = await api.put(
-        '/auth/change-password',
-        {
-          oldPassword,
-          newPassword,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${activeToken}`,
-          },
-        },
-      );
-
-      sessionStorage.removeItem('forcePasswordChangeToken');
+      const response = await api.put('/auth/change-password', {
+        newPassword,
+      });
 
       if (response.data.mustChangeEmail) {
-        sessionStorage.setItem('forceEmailChangeToken', response.data.token);
         navigate('/change-email');
         return;
       }
 
       setSuccess('Password changed successfully. Redirecting...');
-      await login(response.data.token);
+      await refreshUser();
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to change password.');

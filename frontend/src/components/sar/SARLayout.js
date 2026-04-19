@@ -49,7 +49,43 @@ const statusVariant = (status) => {
 
 const formatPercent = (value) => `${Number(value || 0).toFixed(2)}%`;
 
-const formatDateTime = (value) => (value ? new Date(Number(value)).toLocaleString() : 'N/A');
+const parseDateValue = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === 'number') {
+    const normalized = value < 1e12 ? value * 1000 : value;
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    if (/^\d+$/.test(trimmed)) {
+      const numeric = Number(trimmed);
+      if (!Number.isNaN(numeric)) {
+        const normalized = numeric < 1e12 ? numeric * 1000 : numeric;
+        const date = new Date(normalized);
+        return Number.isNaN(date.getTime()) ? null : date;
+      }
+    }
+
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return null;
+};
+
+const formatDateTime = (value) => {
+  const parsed = parseDateValue(value);
+  return parsed ? parsed.toLocaleString() : 'N/A';
+};
 
 const TABS = [
   { key: 'profile', label: 'Profile & Identity' },

@@ -19,11 +19,15 @@ const api = axios.create({
 // Queue management for concurrent requests that arrive while a token refresh is in flight
 let isRefreshing = false;
 let failedRequestQueue = [];
+const ANON_BOOTSTRAP_REFRESH_GUARD_KEY = 'auth:anon-refresh-tried';
+const ANON_BOOTSTRAP_REFRESH_GUARD_TTL_MS = 60 * 1000;
+const SESSION_EXPIRED_EVENT_COOLDOWN_MS = 2000;
+let lastSessionExpiredEventAt = 0;
 
-const processQueue = (error, token = null) => {
+const processQueue = (error) => {
   failedRequestQueue.forEach(({ resolve, reject }) => {
     if (error) reject(error);
-    else resolve(token);
+    else resolve();
   });
   failedRequestQueue = [];
 };
@@ -51,15 +55,89 @@ function getCsrfToken() {
   return match ? match.trim().slice('csrfToken='.length) : null;
 }
 
-// Add token to requests
+function hasLocalUserHint() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    return Boolean(window.localStorage.getItem('user'));
+  } catch (_err) {
+    return false;
+  }
+}
+
+function hasTriedAnonymousBootstrapRefresh() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(ANON_BOOTSTRAP_REFRESH_GUARD_KEY);
+    const attemptedAt = raw ? Number(raw) : NaN;
+    if (!Number.isFinite(attemptedAt)) {
+      return false;
+    }
+
+    return Date.now() - attemptedAt < ANON_BOOTSTRAP_REFRESH_GUARD_TTL_MS;
+  } catch (_err) {
+    return false;
+  }
+}
+
+function markAnonymousBootstrapRefreshAttempted() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(ANON_BOOTSTRAP_REFRESH_GUARD_KEY, String(Date.now()));
+  } catch (_err) {
+    // Ignore storage write failures in restricted browsing contexts.
+  }
+}
+
+function clearAnonymousBootstrapRefreshGuard() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.sessionStorage.removeItem(ANON_BOOTSTRAP_REFRESH_GUARD_KEY);
+  } catch (_err) {
+    // Ignore storage write failures in restricted browsing contexts.
+  }
+}
+
+function clearLocalUserHint() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem('user');
+  } catch (_err) {
+    // Ignore storage failures in restricted contexts.
+  }
+}
+
+function dispatchSessionExpiredEvent() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const now = Date.now();
+  if (now - lastSessionExpiredEventAt < SESSION_EXPIRED_EVENT_COOLDOWN_MS) {
+    return;
+  }
+
+  lastSessionExpiredEventAt = now;
+  window.dispatchEvent(new Event('auth:session-expired'));
+}
+
+// Attach CSRF token on state-changing requests.
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    const hasExplicitAuthHeader =
-      Boolean(config.headers?.Authorization) || Boolean(config.headers?.authorization);
-    if (token && !hasExplicitAuthHeader) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
     // Let the browser set Content-Type automatically for FormData uploads
     // (it must include the multipart boundary which axios cannot generate)
     if (config.data instanceof FormData) {
@@ -77,7 +155,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// Response interceptor: capture refresh tokens and handle 401 with retry (Step 3.3)
+// Response interceptor: refresh cookie-based auth session and retry once on 401.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -87,19 +165,25 @@ api.interceptors.response.use(
     }
 
     const url = originalRequest?.url || '';
+    const isAuthMeEndpoint = url.includes('/auth/me');
+    const isAnonymousBootstrap = isAuthMeEndpoint && !hasLocalUserHint();
     const shouldSkipRefresh =
-      url.includes('/auth/me') || isRefreshEndpoint(url) || isPublicAuthEndpoint(url);
+      isRefreshEndpoint(url) ||
+      isPublicAuthEndpoint(url) ||
+      originalRequest._skipAuthRefresh === true ||
+      (isAnonymousBootstrap && hasTriedAnonymousBootstrapRefresh() && !isRefreshing);
 
     if (error.response?.status === 401 && !shouldSkipRefresh && !originalRequest._retry) {
+      if (isAnonymousBootstrap) {
+        markAnonymousBootstrapRefreshAttempted();
+      }
+
       if (isRefreshing) {
         // Another refresh is already in flight — queue this request
         return new Promise((resolve, reject) => {
           failedRequestQueue.push({ resolve, reject });
         })
-          .then((newToken) => {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            return api(originalRequest);
-          })
+          .then(() => api(originalRequest))
           .catch((err) => Promise.reject(err));
       }
 
@@ -109,20 +193,21 @@ api.interceptors.response.use(
       return new Promise((resolve, reject) => {
         axios
           .post(`${API_URL}/auth/refresh-token`, {}, { withCredentials: true })
-          .then(({ data }) => {
-            const payload = data?.data && typeof data.data === 'object' ? data.data : data;
-            const newToken = payload.token;
-            localStorage.setItem('token', newToken);
-            api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            processQueue(null, newToken);
+          .then(() => {
+            clearAnonymousBootstrapRefreshGuard();
+            processQueue(null);
             resolve(api(originalRequest));
           })
           .catch((err) => {
-            processQueue(err, null);
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            window.dispatchEvent(new Event('auth:session-expired'));
+            processQueue(err);
+            clearLocalUserHint();
+
+            const status = err?.response?.status;
+            if (!status || status >= 500) {
+              clearAnonymousBootstrapRefreshGuard();
+            }
+
+            dispatchSessionExpiredEvent();
             reject(err);
           })
           .finally(() => {

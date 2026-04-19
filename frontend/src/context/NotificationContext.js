@@ -13,6 +13,9 @@ const NotificationContext = createContext({
   markAllAsRead: () => {},
 });
 
+const isAbortLikeError = (err) =>
+  err?.name === 'CanceledError' || err?.name === 'AbortError' || err?.code === 'ERR_CANCELED';
+
 export function NotificationProvider({ children }) {
   const { isAuthenticated, user } = useAuth();
   const notifEnabled = isAuthenticated && user?.notifInapp !== false;
@@ -28,18 +31,52 @@ export function NotificationProvider({ children }) {
     }
     const abortController = new AbortController();
 
-    api
-      .get('/users/me/notifications', { signal: abortController.signal })
-      .then((response) => {
-        const payload = Array.isArray(response.data?.data) ? response.data.data : [];
-        setNotifications(payload);
-        setUnreadCount(payload.filter((n) => !n.isRead).length);
-      })
-      .catch((err) => {
-        if (err.name === 'CanceledError' || err.name === 'AbortError') return;
+    Promise.allSettled([
+      api.get('/notifications', {
+        params: { page: 1, pageSize: 20 },
+        signal: abortController.signal,
+      }),
+      api.get('/notifications/unread-count', { signal: abortController.signal }),
+    ]).then(([notificationsResult, unreadCountResult]) => {
+      const notificationsError =
+        notificationsResult.status === 'rejected' ? notificationsResult.reason : null;
+      const unreadCountError =
+        unreadCountResult.status === 'rejected' ? unreadCountResult.reason : null;
+
+      if (isAbortLikeError(notificationsError) || isAbortLikeError(unreadCountError)) {
+        return;
+      }
+
+      const notificationsFulfilled = notificationsResult.status === 'fulfilled';
+      const unreadCountFulfilled = unreadCountResult.status === 'fulfilled';
+
+      if (!notificationsFulfilled && !unreadCountFulfilled) {
         setNotifications([]);
         setUnreadCount(0);
-      });
+        return;
+      }
+
+      let payload = null;
+      if (notificationsFulfilled) {
+        payload = Array.isArray(notificationsResult.value.data?.data)
+          ? notificationsResult.value.data.data
+          : [];
+        setNotifications(payload);
+      }
+
+      if (unreadCountFulfilled) {
+        const countFromApi = Number(unreadCountResult.value.data?.data?.count);
+        if (Number.isFinite(countFromApi) && countFromApi >= 0) {
+          setUnreadCount(countFromApi);
+          return;
+        }
+      }
+
+      if (Array.isArray(payload)) {
+        const localUnreadCount = payload.filter((n) => !n.isRead).length;
+        setUnreadCount((previousCount) => Math.max(previousCount, localUnreadCount));
+      }
+    });
 
     return () => abortController.abort();
   }, [notifEnabled]);

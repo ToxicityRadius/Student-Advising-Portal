@@ -29,7 +29,7 @@ const Register = () => {
   const location = useLocation();
   const role = location.state?.role || 'student';
   const isFaculty = role === 'faculty';
-  const { register, login } = useAuth();
+  const { register, refreshUser } = useAuth();
 
   const handleChange = (e) => {
     setFormData({
@@ -109,8 +109,18 @@ const Register = () => {
         name: decoded.name,
       });
 
+      if (data.requiresVerification) {
+        navigate('/verify-code', {
+          state: {
+            userId: data.userId,
+            email: decoded.email,
+          },
+        });
+        return;
+      }
+
       // Route through AuthContext so inactivity timer and state are properly set up
-      await login(data.token);
+      await refreshUser();
 
       // Navigate to dashboard
       navigate('/dashboard');

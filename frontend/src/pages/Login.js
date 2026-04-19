@@ -44,7 +44,7 @@ const Login = () => {
   };
 
   const navigate = useNavigate();
-  const { login, setUser } = useAuth();
+  const { refreshUser, setUser } = useAuth();
 
   const needsAcademicInfo = (user) =>
     user?.role === 'student' &&
@@ -53,9 +53,8 @@ const Login = () => {
       !user.student_type ||
       (!user.sex && !user.gender));
 
-  const proceedAfterLogin = async (token, role) => {
-    const result = await login(token);
-    const resolvedUser = result?.user || result;
+  const proceedAfterLogin = async (role) => {
+    const resolvedUser = await refreshUser();
     const resolvedRole = resolvedUser?.role || role;
     if (needsAcademicInfo(resolvedUser)) {
       setPendingNavRole(resolvedRole);
@@ -111,16 +110,13 @@ const Login = () => {
         });
       } else if (data.mustChangePassword) {
         sessionStorage.removeItem('loginRole');
-        navigate('/change-password', {
-          state: { token: data.token, oldPassword: formData.password },
-        });
+        navigate('/change-password');
       } else if (data.mustChangeEmail) {
         sessionStorage.removeItem('loginRole');
-        sessionStorage.setItem('forceEmailChangeToken', data.token);
         navigate('/change-email');
       } else {
         sessionStorage.removeItem('loginRole');
-        await proceedAfterLogin(data.token, data.user?.role);
+        await proceedAfterLogin(data.user?.role);
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid Credentials. Please try again.');
@@ -183,14 +179,16 @@ const Login = () => {
         setError('This account must change password via email/password sign-in before continuing.');
       } else if (data.user && data.user.role === 'student' && !data.user.studentId) {
         // Student without a Student Number — show the modal.
-        setPendingGoogleUser({ email: decoded.email, token: data.token, role: data.user.role });
+        setPendingGoogleUser({ email: decoded.email, role: data.user.role });
         setShowStudentIdModal(true);
       } else {
         sessionStorage.removeItem('loginRole');
-        await proceedAfterLogin(data.token, data.user?.role);
+        await proceedAfterLogin(data.user?.role);
       }
     } catch (err) {
-      console.error('Google Sign-In error:', err);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Google Sign-In error:', err);
+      }
       setError('An error occurred during Google Sign-In. Please try again.');
     } finally {
       setLoading(false);
@@ -203,29 +201,16 @@ const Login = () => {
 
   const handleStudentIdSubmit = async (studentId) => {
     try {
-      const tokenForSession = pendingGoogleUser?.token;
       const roleForRedirect = pendingGoogleUser?.role;
 
-      if (!tokenForSession) {
-        throw new Error('Your session expired. Please sign in with Google again.');
-      }
-
-      const response = await api.patch(
-        '/users/update-student-id',
-        {
-          studentId,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${tokenForSession}`,
-          },
-        },
-      );
+      const response = await api.patch('/users/update-student-id', {
+        studentId,
+      });
       const data = response.data;
 
       setShowStudentIdModal(false);
       setPendingGoogleUser(null);
-      await proceedAfterLogin(tokenForSession, data.user?.role || roleForRedirect);
+      await proceedAfterLogin(data.user?.role || roleForRedirect);
     } catch (err) {
       throw new Error(
         err.response?.data?.message || err.message || 'Failed to update Student Number',
@@ -421,24 +406,21 @@ const Login = () => {
         <AcademicInfoModal
           onComplete={async (updatedUser) => {
             setShowAcademicModal(false);
-            const activeToken = localStorage.getItem('token');
-            if (activeToken) {
-              try {
-                await login(activeToken);
-              } catch {
-                if (updatedUser && typeof setUser === 'function') {
-                  const normalized = {
-                    ...updatedUser,
-                    firstName: updatedUser.firstName ?? updatedUser.first_name,
-                    lastName: updatedUser.lastName ?? updatedUser.last_name,
-                    yearLevel:
-                      updatedUser.yearLevel ??
-                      updatedUser.year_level ??
-                      updatedUser.current_year_level,
-                  };
-                  setUser(normalized);
-                  localStorage.setItem('user', JSON.stringify(normalized));
-                }
+            try {
+              await refreshUser();
+            } catch {
+              if (updatedUser && typeof setUser === 'function') {
+                const normalized = {
+                  ...updatedUser,
+                  firstName: updatedUser.firstName ?? updatedUser.first_name,
+                  lastName: updatedUser.lastName ?? updatedUser.last_name,
+                  yearLevel:
+                    updatedUser.yearLevel ??
+                    updatedUser.year_level ??
+                    updatedUser.current_year_level,
+                };
+                setUser(normalized);
+                localStorage.setItem('user', JSON.stringify(normalized));
               }
             }
             navigate(getHomePathForRole(pendingNavRole || 'student'));

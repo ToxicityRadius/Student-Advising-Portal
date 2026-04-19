@@ -18,6 +18,34 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const inactivityTimer = useRef(null);
+  const lastResetTime = useRef(0);
+  const THROTTLE_MS = 30000; // only reset timer every 30s at most
+
+  const normalizeUser = useCallback((rawUser) => {
+    if (!rawUser) return null;
+    const normalized = { ...rawUser };
+    normalized.firstName = normalized.firstName ?? normalized.first_name;
+    normalized.lastName = normalized.lastName ?? normalized.last_name;
+    normalized.yearLevel =
+      normalized.yearLevel ?? normalized.year_level ?? normalized.current_year_level;
+    normalized.contactNumber = normalized.contactNumber ?? normalized.contact_number;
+    normalized.profilePicture = normalized.profilePicture ?? normalized.profile_picture;
+    return normalized;
+  }, []);
+
+  const persistUser = useCallback(
+    (rawUser) => {
+      const normalized = normalizeUser(rawUser);
+      setUser(normalized);
+      if (normalized) {
+        localStorage.setItem('user', JSON.stringify(normalized));
+      } else {
+        localStorage.removeItem('user');
+      }
+      return normalized;
+    },
+    [normalizeUser],
+  );
 
   const clearInactivityTimer = () => {
     if (inactivityTimer.current) {
@@ -31,14 +59,8 @@ export const AuthProvider = ({ children }) => {
     try {
       await api.post('/auth/logout');
     } catch {}
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    setUser(null);
-  }, []);
-
-  const lastResetTime = useRef(0);
-  const THROTTLE_MS = 30000; // only reset timer every 30s at most
+    persistUser(null);
+  }, [persistUser]);
 
   const resetInactivityTimer = useCallback(() => {
     const now = Date.now();
@@ -67,161 +89,93 @@ export const AuthProvider = ({ children }) => {
     };
   }, [user, resetInactivityTimer]);
 
-  // Ensure consistent camelCase properties regardless of whether data came from
-  // the JWT token (old: snake_case) or the Sequelize /auth/me response (camelCase).
-  // Also handles the schema reality where 'first_name' and 'firstName' are separate
-  // DB columns — both may be present.
-  const normalizeUser = (rawUser) => {
-    if (!rawUser) return null;
-    const u = { ...rawUser };
-    u.firstName = u.firstName ?? u.first_name;
-    u.lastName = u.lastName ?? u.last_name;
-    u.yearLevel = u.yearLevel ?? u.year_level ?? u.current_year_level;
-    u.contactNumber = u.contactNumber ?? u.contact_number;
-    u.profilePicture = u.profilePicture ?? u.profile_picture;
-    return u;
-  };
-
-  const decodeToken = (token) => {
-    try {
-      const payload = token.split('.')[1];
-      if (!payload) return null;
-
-      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-      const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-      const decoded = JSON.parse(atob(padded));
-
-      if (!decoded.id || !decoded.role) return null;
-
-      // Slim tokens (Phase 2+) only carry id, role, is_verified.
-      // Only include PII fields when present to avoid overriding /auth/me response with undefined.
-      const result = {
-        id: decoded.id,
-        role: decoded.role,
-        is_verified: decoded.is_verified ?? false,
-      };
-      if (decoded.first_name !== null && decoded.first_name !== undefined) {
-        result.first_name = decoded.first_name;
-        result.firstName = decoded.first_name;
-      }
-      if (decoded.program !== null && decoded.program !== undefined)
-        result.program = decoded.program;
-      if (decoded.contact_number !== null && decoded.contact_number !== undefined)
-        result.contact_number = decoded.contact_number;
-      if (decoded.year_level !== null && decoded.year_level !== undefined)
-        result.year_level = decoded.year_level;
-
-      return result;
-    } catch {
-      return null;
-    }
-  };
-
-  const applyToken = async (token, fallbackUser = null) => {
-    localStorage.setItem('token', token);
-
-    const decodedUser = decodeToken(token);
-    const initialUser = fallbackUser ? { ...fallbackUser, ...decodedUser } : decodedUser || null;
-
-    const normalizedInitial = normalizeUser(initialUser);
-    if (normalizedInitial) {
-      setUser(normalizedInitial);
-      localStorage.setItem('user', JSON.stringify(normalizedInitial));
-    }
-
-    try {
-      const response = await api.get('/auth/me');
-      const merged = normalizeUser({
-        ...(response.data.user || {}),
-        ...(decodedUser || {}),
-      });
-      setUser(merged);
-      localStorage.setItem('user', JSON.stringify(merged));
-      return merged;
-    } catch {
-      if (initialUser) return initialUser;
-      throw new Error('Failed to hydrate user from token');
-    }
-  };
+  const refreshUser = useCallback(async () => {
+    const response = await api.get('/auth/me');
+    return persistUser(response.data?.user || null);
+  }, [persistUser]);
 
   useEffect(() => {
-    checkAuth();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const hydrate = async () => {
+      const cached = localStorage.getItem('user');
+      if (cached) {
+        try {
+          persistUser(JSON.parse(cached));
+        } catch {
+          localStorage.removeItem('user');
+        }
+      }
+
+      try {
+        await refreshUser();
+      } catch {
+        persistUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    hydrate();
+  }, [persistUser, refreshUser]);
 
   // Listen for session-expired events dispatched by the API interceptor
   useEffect(() => {
     const handleSessionExpired = () => {
       clearInactivityTimer();
-      setUser(null);
+      persistUser(null);
     };
     window.addEventListener('auth:session-expired', handleSessionExpired);
     return () => window.removeEventListener('auth:session-expired', handleSessionExpired);
-  }, []);
+  }, [persistUser]);
 
   // Sync auth state across browser tabs via localStorage 'storage' events
   useEffect(() => {
     const handleStorageChange = (event) => {
-      if (event.key === 'token') {
-        if (!event.newValue) {
-          // Token removed in another tab — log out this tab too
-          clearInactivityTimer();
-          setUser(null);
-        } else if (event.newValue !== event.oldValue) {
-          // Token updated (e.g. re-login) in another tab — re-hydrate
-          applyToken(event.newValue, JSON.parse(localStorage.getItem('user') || 'null')).catch(
-            () => {},
-          );
-        }
+      if (event.key !== 'user') {
+        return;
+      }
+
+      if (!event.newValue) {
+        clearInactivityTimer();
+        setUser(null);
+        return;
+      }
+
+      try {
+        setUser(normalizeUser(JSON.parse(event.newValue)));
+      } catch {
+        clearInactivityTimer();
+        setUser(null);
       }
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [normalizeUser]);
 
-  const checkAuth = async () => {
-    const token = localStorage.getItem('token');
-    if (token) {
+  const login = async (email, password) => {
+    const response = await api.post('/auth/login', { email, password });
+    const payload = response.data || {};
+
+    // 2FA verification happens before auth cookies are issued.
+    if (payload.requiresVerification) {
+      return payload;
+    }
+
+    // Restricted onboarding flows still receive auth cookies, but should keep
+    // the caller on dedicated routes until requirements are resolved.
+    if (payload.mustChangePassword || payload.mustChangeEmail) {
       try {
-        await applyToken(token, JSON.parse(localStorage.getItem('user') || 'null'));
-      } catch (error) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
+        await refreshUser();
+      } catch {
+        // Keep legacy response behavior even if /auth/me hydration fails.
       }
-    }
-    setLoading(false);
-  };
-
-  const login = async (emailOrToken, password) => {
-    // TODO [SECURITY H1]: The access token is currently echoed in JSON response bodies and stored
-    // in localStorage, making it accessible to XSS. The full fix requires:
-    //   1. Remove `token` from sendTokenResponse JSON body in backend/utils/jwt.js
-    //   2. Remove googleapis/googleAuthRoutes.js token-in-JSON pattern
-    //   3. Remove localStorage.setItem('token') here and in applyToken
-    //   4. Remove Bearer header injection from frontend/src/utils/api.js request interceptor
-    //   5. Add refreshUser() helper and update all page callers that pass login(token)
-    // Tracked. Mitigated by: strict CSP, no dangerouslySetInnerHTML, express-sanitizer.
-
-    // Token mode: login(token)
-    if (
-      password === undefined &&
-      typeof emailOrToken === 'string' &&
-      emailOrToken.split('.').length === 3
-    ) {
-      const mergedUser = await applyToken(
-        emailOrToken,
-        JSON.parse(localStorage.getItem('user') || 'null'),
-      );
-      return { token: emailOrToken, user: mergedUser };
+      return payload;
     }
 
-    // Credential mode: login(email, password)
-    const response = await api.post('/auth/login', { email: emailOrToken, password });
-    const { token, user } = response.data;
-    await applyToken(token, user);
-    return response.data;
+    const hydratedUser = await refreshUser();
+    return {
+      ...payload,
+      user: hydratedUser || payload.user || null,
+    };
   };
 
   const register = async (userData) => {
@@ -238,6 +192,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
+    refreshUser,
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin',
   };

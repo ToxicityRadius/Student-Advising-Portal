@@ -32,16 +32,42 @@ import useDebouncedValue from '../../utils/useDebouncedValue';
 import { getErrorMessage } from '../../utils/errorHelpers';
 const EMPTY_META = { page: 1, pageSize: 12, totalPages: 1, totalItems: 0 };
 
-const formatTimestamp = (value) => {
-  if (!value) {
-    return 'N/A';
+const parseDateValue = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
   }
 
-  try {
-    return new Date(Number(value)).toLocaleString();
-  } catch {
-    return 'N/A';
+  if (typeof value === 'number') {
+    const normalized = value < 1e12 ? value * 1000 : value;
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    if (/^\d+$/.test(trimmed)) {
+      const numeric = Number(trimmed);
+      if (!Number.isNaN(numeric)) {
+        const normalized = numeric < 1e12 ? numeric * 1000 : numeric;
+        const parsed = new Date(normalized);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+      }
+    }
+
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return null;
+};
+
+const formatTimestamp = (value) => {
+  const parsed = parseDateValue(value);
+  return parsed ? parsed.toLocaleString() : 'N/A';
 };
 
 const sortByCourseCode = (a, b) => (a.courseCode || '').localeCompare(b.courseCode || '');
@@ -354,7 +380,11 @@ const ForecastDashboard = () => {
     () =>
       history
         .slice()
-        .sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0))
+        .sort((a, b) => {
+          const leftTime = parseDateValue(a.createdAt)?.getTime() || 0;
+          const rightTime = parseDateValue(b.createdAt)?.getTime() || 0;
+          return leftTime - rightTime;
+        })
         .map((item) => ({
           label: `${item.schoolYear} S${item.semester}`,
           currentDemandRows: Number(item.currentDemandCount || 0),

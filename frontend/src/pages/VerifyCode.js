@@ -16,8 +16,8 @@ const VerifyCode = () => {
   const [successCountdown, setSuccessCountdown] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
-  
+  const { refreshUser } = useAuth();
+
   const userId = location.state?.userId;
   const userEmail = location.state?.email;
 
@@ -48,7 +48,7 @@ const VerifyCode = () => {
     if (value.length > 1) {
       value = value.slice(-1);
     }
-    
+
     if (!/^\d*$/.test(value)) {
       return;
     }
@@ -73,10 +73,7 @@ const VerifyCode = () => {
 
   const handlePaste = (e) => {
     e.preventDefault();
-    const pastedData = e.clipboardData
-      .getData('text')
-      .replace(/\D/g, '')
-      .slice(0, 6);
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
     if (!pastedData) return;
 
     const newCode = pastedData.split('');
@@ -92,7 +89,7 @@ const VerifyCode = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const verificationCode = code.join('');
-    
+
     if (verificationCode.length !== 6) {
       setError('Please enter the complete 6-digit code');
       return;
@@ -109,12 +106,11 @@ const VerifyCode = () => {
 
       if (data.success) {
         if (data.mustChangePassword) {
-          sessionStorage.setItem('forcePasswordChangeToken', data.token);
           navigate('/change-password');
           return;
         }
 
-        await login(data.token);
+        await refreshUser();
         setSuccessCountdown(3);
       } else {
         setError(data.message || 'Invalid verification code');
@@ -149,12 +145,12 @@ const VerifyCode = () => {
   };
 
   return (
-    <div 
-      className="min-vh-100 d-flex align-items-center justify-content-center position-relative" 
-      style={{ 
+    <div
+      className="min-vh-100 d-flex align-items-center justify-content-center position-relative"
+      style={{
         backgroundImage: `url(${backgroundImage})`,
         backgroundSize: 'cover',
-        backgroundPosition: 'center'
+        backgroundPosition: 'center',
       }}
     >
       <div
@@ -170,7 +166,10 @@ const VerifyCode = () => {
       <Container className="position-relative" style={{ zIndex: 1 }}>
         <Row className="justify-content-center">
           <Col xs={12} sm={10} md={8} lg={6} xl={5} style={{ maxWidth: '420px' }}>
-            <Card className="shadow-lg border-0" style={{ borderRadius: '20px', overflow: 'hidden' }}>
+            <Card
+              className="shadow-lg border-0"
+              style={{ borderRadius: '20px', overflow: 'hidden' }}
+            >
               <Card.Body className="p-4 p-md-5">
                 <div className="text-center mb-3">
                   <img

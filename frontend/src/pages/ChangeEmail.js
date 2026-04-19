@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert } from 'react-bootstrap';
 import api from '../utils/api';
@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 
 const ChangeEmail = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { refreshUser } = useAuth();
 
   const [step, setStep] = useState('enterEmail'); // 'enterEmail' | 'enterCode'
   const [newEmail, setNewEmail] = useState('');
@@ -15,21 +15,10 @@ const ChangeEmail = () => {
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const tempToken = sessionStorage.getItem('forceEmailChangeToken');
-  const persistentToken = localStorage.getItem('token');
-  const activeToken = useMemo(() => tempToken || persistentToken || null, [tempToken, persistentToken]);
-
-  const authHeader = activeToken ? { Authorization: `Bearer ${activeToken}` } : {};
-
   const handleSendCode = async (e) => {
     e.preventDefault();
     setError('');
     setInfo('');
-
-    if (!activeToken) {
-      setError('Your session has expired. Please log in again.');
-      return;
-    }
 
     if (!newEmail.trim()) {
       setError('Please enter your new email address.');
@@ -38,7 +27,7 @@ const ChangeEmail = () => {
 
     setLoading(true);
     try {
-      await api.post('/auth/initiate-email-change', { newEmail: newEmail.trim() }, { headers: authHeader });
+      await api.post('/auth/initiate-email-change', { newEmail: newEmail.trim() });
       setInfo(`Verification code sent to ${newEmail.trim()}. Check your inbox.`);
       setStep('enterCode');
     } catch (err) {
@@ -60,11 +49,9 @@ const ChangeEmail = () => {
 
     setLoading(true);
     try {
-      const response = await api.post('/auth/verify-email-change', { code: code.trim() }, { headers: authHeader });
-
-      sessionStorage.removeItem('forceEmailChangeToken');
+      await api.post('/auth/verify-email-change', { code: code.trim() });
       setInfo('Email verified successfully! Redirecting to dashboard...');
-      await login(response.data.token);
+      await refreshUser();
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Verification failed.');
@@ -78,7 +65,7 @@ const ChangeEmail = () => {
     setInfo('');
     setLoading(true);
     try {
-      await api.post('/auth/resend-email-change-code', {}, { headers: authHeader });
+      await api.post('/auth/resend-email-change-code', {});
       setInfo('New verification code sent. Check your inbox.');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to resend code.');
@@ -93,7 +80,10 @@ const ChangeEmail = () => {
         <Card.Body className="p-4">
           <h3 className="mb-1">Set Program Chair Email</h3>
           <p className="text-muted mb-3" style={{ fontSize: '0.92rem' }}>
-            Step {step === 'enterEmail' ? '1' : '2'} of 2 — {step === 'enterEmail' ? 'Enter a new institutional email address' : 'Enter the verification code sent to your new email'}
+            Step {step === 'enterEmail' ? '1' : '2'} of 2 —{' '}
+            {step === 'enterEmail'
+              ? 'Enter a new institutional email address'
+              : 'Enter the verification code sent to your new email'}
           </p>
 
           <Alert variant="warning" className="mb-3">
@@ -139,7 +129,12 @@ const ChangeEmail = () => {
                 />
               </Form.Group>
 
-              <Button type="submit" variant="success" className="w-100 fw-bold mb-2" disabled={loading}>
+              <Button
+                type="submit"
+                variant="success"
+                className="w-100 fw-bold mb-2"
+                disabled={loading}
+              >
                 {loading ? 'Verifying...' : 'Verify & Activate Email'}
               </Button>
 
@@ -148,7 +143,12 @@ const ChangeEmail = () => {
                   variant="link"
                   size="sm"
                   className="p-0"
-                  onClick={() => { setStep('enterEmail'); setCode(''); setError(''); setInfo(''); }}
+                  onClick={() => {
+                    setStep('enterEmail');
+                    setCode('');
+                    setError('');
+                    setInfo('');
+                  }}
                   disabled={loading}
                 >
                   Change email address

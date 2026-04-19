@@ -14,7 +14,7 @@ import './Profile.css';
 const semesterLabels = { 1: '1st Semester', 2: '2nd Semester', 3: 'Summer' };
 
 const Profile = () => {
-  const { user, login } = useAuth();
+  const { user, refreshUser } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -234,12 +234,7 @@ const Profile = () => {
       setCompletionScore(response.data.user?.profileCompletionScore ?? completionScore);
       setPreview(buildProfileImageUrl(response.data.user?.profile_picture));
       setRemoveProfilePicture(false);
-
-      const freshToken = response.data.token;
-      if (freshToken) {
-        localStorage.setItem('token', freshToken);
-        await login(freshToken);
-      }
+      await refreshUser();
 
       const refreshed = await api.get(`/users/${user.id}`);
       const p = refreshed.data.user || {};
@@ -283,9 +278,8 @@ const Profile = () => {
         oldPassword: passwordData.oldPassword,
         newPassword: passwordData.newPassword,
       });
-      if (response.data?.token) {
-        localStorage.setItem('token', response.data.token);
-        await login(response.data.token);
+      if (response.data?.success) {
+        await refreshUser();
       }
       setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
       setPasswordSuccess('Password changed successfully.');

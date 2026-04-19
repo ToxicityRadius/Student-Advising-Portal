@@ -24,6 +24,23 @@ const imgIcon = (src, size = 22) => (
   <img src={src} alt="" style={{ width: size, height: size, objectFit: 'contain' }} />
 );
 
+const DEFAULT_ACCOUNT_ITEMS = [
+  { key: 'profile', label: 'Profile', to: '/profile', icon: imgIcon(goldUserImg) },
+  { key: 'settings', label: 'Settings', to: '/settings', icon: imgIcon(goldSettingsImg) },
+  { key: 'help', label: 'Help & Support', to: '/help', icon: imgIcon(goldHelpImg) },
+];
+
+const DEFAULT_CLASS_NAMES = {
+  root: 'sidebar-layout',
+  sidebar: 'sidebar-layout__sidebar',
+  mobileButton: 'sidebar-layout__mobile-btn',
+  mobileOverlay: 'sidebar-layout__mobile-overlay',
+  main: 'sidebar-layout__main',
+  topbar: 'sidebar-layout__topbar',
+  content: 'sidebar-layout__content',
+  inner: 'sidebar-layout__inner',
+};
+
 /**
  * Shared sidebar layout for admin and adviser pages.
  *
@@ -34,10 +51,31 @@ const imgIcon = (src, size = 22) => (
  *  - roleLabel: e.g. "Program Chair" or "Adviser" (shown under name)
  *  - children: page content
  */
-const SidebarLayout = ({ activePage, pageTitle, navItems, roleLabel, children }) => {
+const SidebarLayout = ({
+  activePage,
+  pageTitle,
+  navItems = [],
+  roleLabel,
+  children,
+  avatarOverride,
+  profileIdentifier,
+  profileBadges,
+  renderProfileDetails,
+  accountItems,
+  classNames,
+  disableInnerWrapper = false,
+}) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificationContext();
+
+  const classes = {
+    ...DEFAULT_CLASS_NAMES,
+    ...(classNames || {}),
+  };
+
+  const resolvedAccountItems =
+    Array.isArray(accountItems) && accountItems.length > 0 ? accountItems : DEFAULT_ACCOUNT_ITEMS;
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -73,12 +111,13 @@ const SidebarLayout = ({ activePage, pageTitle, navItems, roleLabel, children })
   const lastName = user?.lastName || user?.last_name || '';
   const fullName = `${firstName} ${lastName}`.trim() || 'User';
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || 'U';
-  const avatarUrl = buildProfileImageUrl(user?.profile_picture || user?.profilePicture);
+  const avatarUrl =
+    avatarOverride || buildProfileImageUrl(user?.profile_picture || user?.profilePicture);
 
   return (
-    <div className="sidebar-layout">
+    <div className={classes.root}>
       {/* ══════════ SIDEBAR ══════════ */}
-      <aside className={`sidebar-layout__sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+      <aside className={`${classes.sidebar} ${mobileMenuOpen ? 'open' : ''}`}>
         {/* User profile */}
         <div
           style={{
@@ -129,9 +168,62 @@ const SidebarLayout = ({ activePage, pageTitle, navItems, roleLabel, children })
           >
             {fullName}
           </div>
-          <div style={{ fontSize: '0.82rem', color: '#888', fontWeight: 600, marginBottom: 14 }}>
-            {roleLabel}
-          </div>
+          {typeof renderProfileDetails === 'function' ? (
+            renderProfileDetails({
+              user,
+              roleLabel,
+              profileIdentifier,
+              profileBadges: Array.isArray(profileBadges) ? profileBadges : [],
+            })
+          ) : (
+            <>
+              {(profileIdentifier || roleLabel) && (
+                <div
+                  style={{
+                    fontSize: '0.82rem',
+                    color: '#888',
+                    fontWeight: 600,
+                    marginBottom: 14,
+                  }}
+                >
+                  {profileIdentifier || roleLabel}
+                </div>
+              )}
+              {Array.isArray(profileBadges) && profileBadges.length > 0 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    width: '100%',
+                    marginBottom: 8,
+                  }}
+                >
+                  {profileBadges.filter(Boolean).map((badge) => (
+                    <span
+                      key={badge}
+                      style={{
+                        background: 'linear-gradient(135deg, #FFD54F 0%, #FFC107 100%)',
+                        color: '#4E342E',
+                        fontSize: '0.73rem',
+                        fontWeight: 700,
+                        textTransform: 'capitalize',
+                        padding: '6px 14px',
+                        borderRadius: 20,
+                        whiteSpace: 'nowrap',
+                        textAlign: 'center',
+                        flex: '1 1 0',
+                        boxShadow: '0 2px 6px rgba(255,193,7,0.30)',
+                        letterSpacing: '0.2px',
+                      }}
+                    >
+                      {badge}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Navigation */}
@@ -154,6 +246,7 @@ const SidebarLayout = ({ activePage, pageTitle, navItems, roleLabel, children })
               icon={item.icon}
               label={item.label}
               to={item.to}
+              badge={item.badge}
             />
           ))}
 
@@ -168,14 +261,15 @@ const SidebarLayout = ({ activePage, pageTitle, navItems, roleLabel, children })
           >
             ACCOUNT
           </div>
-          <SideNavItem
-            icon={imgIcon(goldUserImg)}
-            label="Profile"
-            to="/profile"
-            active={activePage === 'profile'}
-          />
-          <SideNavItem icon={imgIcon(goldSettingsImg)} label="Settings" to="/settings" />
-          <SideNavItem icon={imgIcon(goldHelpImg)} label="Help & Support" to="/help" />
+          {resolvedAccountItems.map((item) => (
+            <SideNavItem
+              key={item.key}
+              icon={item.icon}
+              label={item.label}
+              to={item.to}
+              active={activePage === item.key}
+            />
+          ))}
 
           {/* Logout */}
           <button
@@ -235,16 +329,16 @@ const SidebarLayout = ({ activePage, pageTitle, navItems, roleLabel, children })
       {mobileMenuOpen && (
         <button
           type="button"
-          className="sidebar-layout__mobile-overlay"
+          className={classes.mobileOverlay}
           onClick={() => setMobileMenuOpen(false)}
           aria-label="Close menu overlay"
         />
       )}
 
       {/* ══════════ MAIN AREA ══════════ */}
-      <div className="sidebar-layout__main">
+      <div className={classes.main}>
         <header
-          className="sidebar-layout__topbar"
+          className={classes.topbar}
           style={{
             background: YELLOW,
             height: 70,
@@ -259,7 +353,7 @@ const SidebarLayout = ({ activePage, pageTitle, navItems, roleLabel, children })
           <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
             <button
               type="button"
-              className="sidebar-layout__mobile-btn"
+              className={classes.mobileButton}
               onClick={() => setMobileMenuOpen((v) => !v)}
               aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
             >
@@ -512,8 +606,8 @@ const SidebarLayout = ({ activePage, pageTitle, navItems, roleLabel, children })
           </div>
         </header>
 
-        <main className="sidebar-layout__content">
-          <div className="sidebar-layout__inner">{children}</div>
+        <main className={classes.content}>
+          {disableInnerWrapper ? children : <div className={classes.inner}>{children}</div>}
         </main>
       </div>
 

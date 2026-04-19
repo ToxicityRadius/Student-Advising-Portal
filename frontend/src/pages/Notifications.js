@@ -48,11 +48,45 @@ const FilterButton = ({ label, active, onClick }) => (
   </button>
 );
 
+const parseDateValue = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === 'number') {
+    const normalized = value < 1e12 ? value * 1000 : value;
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    if (/^\d+$/.test(trimmed)) {
+      const numeric = Number(trimmed);
+      if (!Number.isNaN(numeric)) {
+        const normalized = numeric < 1e12 ? numeric * 1000 : numeric;
+        const parsed = new Date(normalized);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+      }
+    }
+
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return null;
+};
+
 const formatTime = (timestamp) => {
-  if (!timestamp) return '';
-  const date = new Date(typeof timestamp === 'number' ? timestamp : Date.parse(timestamp));
+  const date = parseDateValue(timestamp);
+  if (!date) return '';
   const now = new Date();
   const diffMs = now - date;
+  if (Number.isNaN(diffMs)) return '';
   const diffMin = Math.floor(diffMs / 60000);
   if (diffMin < 1) return 'Just now';
   if (diffMin < 60) return `${diffMin}m ago`;
@@ -164,12 +198,10 @@ const NotificationsContent = () => {
     try {
       const params = { page, pageSize: PAGE_SIZE };
       if (filter === 'unread') params.unreadOnly = true;
+      if (['info', 'success', 'error', 'warning'].includes(filter)) params.type = filter;
       const res = await api.get('/notifications', { params });
-      let items = res.data?.data || res.data?.items || [];
-      // Client-side type filter (API doesn't support type filtering)
-      if (['info', 'success', 'error', 'warning'].includes(filter)) {
-        items = items.filter((n) => n.type === filter);
-      }
+      const items = res.data?.data || res.data?.items || [];
+
       setNotifications(items);
       setTotalPages(res.data?.totalPages || 1);
       setTotalItems(res.data?.totalItems || items.length);
@@ -187,13 +219,13 @@ const NotificationsContent = () => {
   const handleMarkRead = async (id) => {
     if (typeof id !== 'number') return;
     await markAsRead(id);
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+    await fetchNotifications();
   };
 
   const handleMarkAllRead = async () => {
     await markAllAsRead();
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     refreshContext();
+    await fetchNotifications();
   };
 
   const unreadInView = notifications.filter((n) => !n.isRead).length;

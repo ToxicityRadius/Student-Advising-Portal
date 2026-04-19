@@ -1,9 +1,8 @@
 import React, { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
-import Navbar from './components/Navbar';
 import PrivateRoute from './components/PrivateRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import { getHomePathForRole } from './utils/roleRedirect';
@@ -11,7 +10,6 @@ import { getGoogleClientId } from './utils/googleOAuthConfig';
 import './index.css';
 
 // Public / auth pages
-const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
 const ActivateAccount = lazy(() => import('./pages/ActivateAccount'));
@@ -20,13 +18,10 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const ChangePassword = lazy(() => import('./pages/ChangePassword'));
 const ChangeEmail = lazy(() => import('./pages/ChangeEmail'));
-const AboutUs = lazy(() => import('./pages/AboutUs'));
-const Purpose = lazy(() => import('./pages/Purpose'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Student pages
 const Dashboard = lazy(() => import('./pages/Dashboard'));
-const CompleteProfile = lazy(() => import('./pages/CompleteProfile'));
 const Profile = lazy(() => import('./pages/Profile'));
 const ViewGrades = lazy(() => import('./pages/ViewGrades'));
 const PlanOfStudy = lazy(() => import('./pages/PlanOfStudy'));
@@ -61,47 +56,27 @@ const PageFallback = () => (
 );
 
 function AppContent() {
-  const location = useLocation();
   const { user, isAuthenticated, loading } = useAuth();
 
   useEffect(() => {
     document.body.classList.toggle('compact-mode', Boolean(user?.compactMode));
   }, [user?.compactMode]);
   const homeElement = loading ? (
-    <Landing />
+    <PageFallback />
   ) : isAuthenticated ? (
     <Navigate to={getHomePathForRole(user?.role)} replace />
   ) : (
-    <Landing />
+    <Navigate to="/login" replace />
   );
-
-  const hideNavbar =
-    location.pathname === '/verify-code' ||
-    location.pathname === '/forgot-password' ||
-    location.pathname === '/change-password' ||
-    location.pathname === '/change-email' ||
-    location.pathname.startsWith('/reset-password') ||
-    location.pathname.startsWith('/activate') ||
-    location.pathname === '/dashboard' ||
-    location.pathname === '/profile' ||
-    location.pathname === '/grades' ||
-    location.pathname === '/plan-of-study' ||
-    location.pathname === '/subjects' ||
-    location.pathname === '/settings' ||
-    location.pathname === '/help' ||
-    location.pathname === '/notifications' ||
-    location.pathname.startsWith('/admin') ||
-    location.pathname.startsWith('/adviser');
 
   return (
     <>
-      {!hideNavbar && <Navbar />}
       <main id="main-content">
         <Suspense fallback={<PageFallback />}>
           <Routes>
             <Route path="/" element={homeElement} />
-            <Route path="/about" element={<AboutUs />} />
-            <Route path="/purpose" element={<Purpose />} />
+            <Route path="/about" element={<Navigate to="/login" replace />} />
+            <Route path="/purpose" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/verify-code" element={<VerifyCode />} />
@@ -115,14 +90,6 @@ function AppContent() {
               element={
                 <PrivateRoute>
                   <Dashboard />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/complete-profile"
-              element={
-                <PrivateRoute>
-                  <CompleteProfile />
                 </PrivateRoute>
               }
             />
@@ -306,11 +273,7 @@ function App() {
     return appTree;
   }
 
-  return (
-    <GoogleOAuthProvider clientId={googleClientId}>
-      {appTree}
-    </GoogleOAuthProvider>
-  );
+  return <GoogleOAuthProvider clientId={googleClientId}>{appTree}</GoogleOAuthProvider>;
 }
 
 export default App;
