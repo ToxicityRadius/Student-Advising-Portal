@@ -9,19 +9,11 @@ jest.mock('../../utils/api', () => ({
   __esModule: true,
   default: {
     post: jest.fn(),
-    get: jest.fn()
-  }
+    get: jest.fn(),
+  },
 }));
 
 import api from '../../utils/api';
-
-// Helper to build a valid-looking JWT from a payload
-const buildJwt = (payload) => {
-  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const body = btoa(JSON.stringify(payload));
-  const sig = 'testsignature';
-  return `${header}.${body}.${sig}`;
-};
 
 // Test consumer component that exposes auth state
 const AuthConsumer = ({ onRender }) => {
@@ -35,9 +27,18 @@ const AuthConsumer = ({ onRender }) => {
       <span data-testid="user">{auth.user ? JSON.stringify(auth.user) : 'null'}</span>
       <span data-testid="isAuthenticated">{String(auth.isAuthenticated)}</span>
       <span data-testid="isAdmin">{String(auth.isAdmin)}</span>
-      <button data-testid="login-btn" onClick={() => auth.login('test@test.com', 'password123')}>Login</button>
-      <button data-testid="logout-btn" onClick={() => auth.logout()}>Logout</button>
-      <button data-testid="register-btn" onClick={() => auth.register({ email: 'new@test.com', password: 'Pass1234!' })}>Register</button>
+      <button data-testid="login-btn" onClick={() => auth.login('test@test.com', 'password123')}>
+        Login
+      </button>
+      <button data-testid="logout-btn" onClick={() => auth.logout()}>
+        Logout
+      </button>
+      <button
+        data-testid="register-btn"
+        onClick={() => auth.register({ email: 'new@test.com', password: 'Pass1234!' })}
+      >
+        Register
+      </button>
     </div>
   );
 };
@@ -61,11 +62,12 @@ describe('AuthContext', () => {
   });
 
   test('initial state is loading=true then loading=false with no user', async () => {
-    // No token in localStorage
+    api.get.mockRejectedValueOnce(new Error('no active session'));
+
     render(
       <AuthProvider>
         <AuthConsumer />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     // After mount, checkAuth runs and sets loading=false
@@ -76,19 +78,25 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('isAuthenticated')).toHaveTextContent('false');
   });
 
-  test('hydrates user from localStorage token on mount', async () => {
-    const token = buildJwt({ id: 1, role: 'student', is_verified: true });
-    localStorage.setItem('token', token);
+  test('hydrates user from cached localStorage user and refreshes from /auth/me', async () => {
     localStorage.setItem('user', JSON.stringify({ id: 1, role: 'student', firstName: 'Alice' }));
 
     api.get.mockResolvedValueOnce({
-      data: { user: { id: 1, role: 'student', firstName: 'Alice', lastName: 'Smith', email: 'alice@test.com' } }
+      data: {
+        user: {
+          id: 1,
+          role: 'student',
+          firstName: 'Alice',
+          lastName: 'Smith',
+          email: 'alice@test.com',
+        },
+      },
     });
 
     render(
       <AuthProvider>
         <AuthConsumer />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => {
@@ -99,34 +107,43 @@ describe('AuthContext', () => {
     const userData = JSON.parse(screen.getByTestId('user').textContent);
     expect(userData.id).toBe(1);
     expect(userData.role).toBe('student');
+    expect(userData.lastName).toBe('Smith');
   });
 
-  test('clears auth state when stored token is invalid', async () => {
-    localStorage.setItem('token', 'invalid-token');
+  test('clears auth state when /auth/me fails during startup', async () => {
+    localStorage.setItem('user', JSON.stringify({ id: 1, role: 'student' }));
+    api.get.mockRejectedValueOnce(new Error('expired session'));
 
     render(
       <AuthProvider>
         <AuthConsumer />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => {
       expect(screen.getByTestId('loading')).toHaveTextContent('false');
     });
 
-    // Token removed because it couldn't be decoded
-    expect(localStorage.getItem('token')).toBeNull();
+    expect(localStorage.getItem('user')).toBeNull();
     expect(screen.getByTestId('isAuthenticated')).toHaveTextContent('false');
   });
 
-  test('login with credentials stores token and sets user', async () => {
-    const token = buildJwt({ id: 2, role: 'adviser', is_verified: true });
+  test('login with credentials refreshes user from /auth/me', async () => {
+    api.get.mockRejectedValueOnce(new Error('not authenticated')); // startup refresh
 
     api.post.mockResolvedValueOnce({
-      data: { token, user: { id: 2, role: 'adviser', firstName: 'Bob', lastName: 'Jones' } }
+      data: { success: true },
     });
     api.get.mockResolvedValueOnce({
-      data: { user: { id: 2, role: 'adviser', firstName: 'Bob', lastName: 'Jones', email: 'bob@test.com' } }
+      data: {
+        user: {
+          id: 2,
+          role: 'adviser',
+          firstName: 'Bob',
+          lastName: 'Jones',
+          email: 'bob@test.com',
+        },
+      },
     });
 
     const user = userEvent.setup();
@@ -134,7 +151,7 @@ describe('AuthContext', () => {
     render(
       <AuthProvider>
         <AuthConsumer />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => {
@@ -147,17 +164,44 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('isAuthenticated')).toHaveTextContent('true');
     });
 
-    expect(api.post).toHaveBeenCalledWith('/auth/login', { email: 'test@test.com', password: 'password123' });
-    expect(localStorage.getItem('token')).toBe(token);
+    expect(api.post).toHaveBeenCalledWith('/auth/login', {
+      email: 'test@test.com',
+      password: 'password123',
+    });
+    const storedUser = JSON.parse(localStorage.getItem('user'));
+    expect(storedUser.id).toBe(2);
+  });
+
+  test('login returns requiresVerification payload without setting user', async () => {
+    api.get.mockRejectedValueOnce(new Error('not authenticated')); // startup refresh
+    api.post.mockResolvedValueOnce({
+      data: { success: true, requiresVerification: true, userId: 44 },
+    });
+
+    const user = userEvent.setup();
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('false');
+    });
+
+    await user.click(screen.getByTestId('login-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('isAuthenticated')).toHaveTextContent('false');
+    });
   });
 
   test('logout clears user and localStorage', async () => {
-    const token = buildJwt({ id: 1, role: 'student', is_verified: true });
-    localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify({ id: 1, role: 'student', firstName: 'Alice' }));
 
     api.get.mockResolvedValueOnce({
-      data: { user: { id: 1, role: 'student', firstName: 'Alice' } }
+      data: { user: { id: 1, role: 'student', firstName: 'Alice' } },
     });
     api.post.mockResolvedValueOnce({}); // logout call
 
@@ -166,7 +210,7 @@ describe('AuthContext', () => {
     render(
       <AuthProvider>
         <AuthConsumer />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => {
@@ -179,14 +223,13 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('isAuthenticated')).toHaveTextContent('false');
     });
 
-    expect(localStorage.getItem('token')).toBeNull();
     expect(localStorage.getItem('user')).toBeNull();
     expect(screen.getByTestId('user')).toHaveTextContent('null');
   });
 
   test('register calls API without auto-login', async () => {
     api.post.mockResolvedValueOnce({
-      data: { success: true, message: 'Registration successful' }
+      data: { success: true, message: 'Registration successful' },
     });
 
     const user = userEvent.setup();
@@ -194,7 +237,7 @@ describe('AuthContext', () => {
     render(
       <AuthProvider>
         <AuthConsumer />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => {
@@ -203,24 +246,25 @@ describe('AuthContext', () => {
 
     await user.click(screen.getByTestId('register-btn'));
 
-    expect(api.post).toHaveBeenCalledWith('/auth/register', { email: 'new@test.com', password: 'Pass1234!' });
+    expect(api.post).toHaveBeenCalledWith('/auth/register', {
+      email: 'new@test.com',
+      password: 'Pass1234!',
+    });
     // User should NOT be set after register
     expect(screen.getByTestId('isAuthenticated')).toHaveTextContent('false');
   });
 
   test('isAdmin is true only for admin role', async () => {
-    const token = buildJwt({ id: 3, role: 'admin', is_verified: true });
-    localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify({ id: 3, role: 'admin', firstName: 'Admin' }));
 
     api.get.mockResolvedValueOnce({
-      data: { user: { id: 3, role: 'admin', firstName: 'Admin' } }
+      data: { user: { id: 3, role: 'admin', firstName: 'Admin' } },
     });
 
     render(
       <AuthProvider>
         <AuthConsumer />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => {
@@ -229,9 +273,6 @@ describe('AuthContext', () => {
   });
 
   test('normalizes user properties from snake_case to camelCase', async () => {
-    const token = buildJwt({ id: 1, role: 'student', is_verified: true });
-    localStorage.setItem('token', token);
-
     api.get.mockResolvedValueOnce({
       data: {
         user: {
@@ -241,15 +282,15 @@ describe('AuthContext', () => {
           last_name: 'Smith',
           year_level: 3,
           contact_number: '09123456789',
-          profile_picture: '/uploads/profiles/pic.jpg'
-        }
-      }
+          profile_picture: '/uploads/profiles/pic.jpg',
+        },
+      },
     });
 
     render(
       <AuthProvider>
         <AuthConsumer />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => {

@@ -31,7 +31,7 @@ test.describe.serial('Student Journey', () => {
       .catch(() => false);
 
     expect(
-      /\/(dashboard|complete-profile|verify-code|grades|notifications|settings)/.test(url) ||
+      /\/(dashboard|verify-code|grades|notifications|settings)/.test(url) ||
       (url.endsWith('/login') && onboardingModalVisible),
     ).toBe(true);
   });

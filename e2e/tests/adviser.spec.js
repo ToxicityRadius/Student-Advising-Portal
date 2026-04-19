@@ -17,7 +17,7 @@ test.describe.serial('Adviser Journey', () => {
   test('adviser login and see dashboard', async () => {
     await uiLogin(page, 'adviser');
     const url = page.url();
-    expect(url).toMatch(/\/(dashboard|complete-profile|verify-code|adviser)/);
+    expect(url).toMatch(/\/(dashboard|verify-code|adviser)/);
   });
 
   test('adviser can access student list', async () => {

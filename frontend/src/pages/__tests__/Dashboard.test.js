@@ -35,7 +35,10 @@ import api from '../../utils/api';
 
 const renderDashboard = () =>
   render(
-    <MemoryRouter initialEntries={['/dashboard']}>
+    <MemoryRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      initialEntries={['/dashboard']}
+    >
       <Dashboard />
     </MemoryRouter>,
   );

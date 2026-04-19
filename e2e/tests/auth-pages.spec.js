@@ -29,11 +29,20 @@ test.describe('Additional Auth Pages', () => {
       page.getByText(/you must change your password before continuing/i),
     ).toBeVisible();
 
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/auth/change-password') &&
+        response.request().method() === 'PUT',
+    );
+
     await page.locator('input[type="password"]').first().fill('Password123!');
     await page.locator('input[type="password"]').nth(1).fill('Password123!');
     await page.getByRole('button', { name: /update password/i }).click();
 
-    await expect(page.getByText(/session has expired|log in again|original login password/i)).toBeVisible();
+    const response = await responsePromise;
+    expect(response.status()).toBeGreaterThanOrEqual(400);
+    expect(response.status()).toBeLessThan(500);
+    await expect(page).toHaveURL(/\/change-password/);
   });
 
   test('change-email page guards unauthenticated access', async ({ page }) => {
@@ -44,10 +53,19 @@ test.describe('Additional Auth Pages', () => {
       page.getByText(/must have a verified institutional email before you can access the portal/i),
     ).toBeVisible();
 
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/auth/initiate-email-change') &&
+        response.request().method() === 'POST',
+    );
+
     await page.getByPlaceholder(/lastname\.cpe@tip\.edu\.ph/i).fill('test.cpe@tip.edu.ph');
     await page.getByRole('button', { name: /send verification code/i }).click();
 
-    await expect(page.getByText(/session has expired|log in again/i)).toBeVisible();
+    const response = await responsePromise;
+    expect(response.status()).toBeGreaterThanOrEqual(400);
+    expect(response.status()).toBeLessThan(500);
+    await expect(page).toHaveURL(/\/change-email/);
   });
 
   test('verify-code route redirects to login when state is missing', async ({ page }) => {

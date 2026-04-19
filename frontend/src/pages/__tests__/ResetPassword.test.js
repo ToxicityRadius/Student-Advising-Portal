@@ -17,7 +17,10 @@ import api from '../../utils/api';
 
 const renderResetPassword = (token = 'abc123') =>
   render(
-    <MemoryRouter initialEntries={[`/reset-password/${token}`]}>
+    <MemoryRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      initialEntries={[`/reset-password/${token}`]}
+    >
       <Routes>
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/login" element={<div>Login Page</div>} />

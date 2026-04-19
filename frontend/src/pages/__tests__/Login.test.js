@@ -30,7 +30,10 @@ import api from '../../utils/api';
 
 const renderLogin = (initialEntries = ['/login']) =>
   render(
-    <MemoryRouter initialEntries={initialEntries}>
+    <MemoryRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      initialEntries={initialEntries}
+    >
       <Login />
     </MemoryRouter>,
   );
@@ -39,7 +42,7 @@ describe('Login Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     sessionStorage.clear();
-    useAuth.mockReturnValue({ login: jest.fn() });
+    useAuth.mockReturnValue({ refreshUser: jest.fn(), setUser: jest.fn() });
   });
 
   // ── Role Selection Screen ─────────────────────────────────────────────
@@ -86,10 +89,10 @@ describe('Login Page', () => {
   });
 
   test('successful login navigates to home', async () => {
-    const mockLogin = jest.fn().mockResolvedValue({ role: 'student' });
-    useAuth.mockReturnValue({ login: mockLogin });
+    const mockRefreshUser = jest.fn().mockResolvedValue({ role: 'student' });
+    useAuth.mockReturnValue({ refreshUser: mockRefreshUser, setUser: jest.fn() });
     api.post.mockResolvedValue({
-      data: { token: 'jwt-token', user: { role: 'student' } },
+      data: { user: { role: 'student' } },
     });
 
     const user = userEvent.setup();
@@ -108,6 +111,10 @@ describe('Login Page', () => {
           password: 'Password1!',
         }),
       );
+    });
+
+    await waitFor(() => {
+      expect(mockRefreshUser).toHaveBeenCalled();
     });
   });
 

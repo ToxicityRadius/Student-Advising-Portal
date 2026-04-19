@@ -33,14 +33,17 @@ describe('Login Page - OAuth Disabled', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     sessionStorage.clear();
-    useAuth.mockReturnValue({ login: jest.fn() });
+    useAuth.mockReturnValue({ refreshUser: jest.fn(), setUser: jest.fn() });
   });
 
   test('shows fallback message and hides Google button when OAuth is not configured', async () => {
     const user = userEvent.setup();
 
     render(
-      <MemoryRouter initialEntries={['/login']}>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={['/login']}
+      >
         <Login />
       </MemoryRouter>,
     );

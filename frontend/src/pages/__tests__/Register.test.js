@@ -30,7 +30,10 @@ import api from '../../utils/api';
 
 const renderRegister = (role = 'student') =>
   render(
-    <MemoryRouter initialEntries={[{ pathname: '/register', state: { role } }]}>
+    <MemoryRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      initialEntries={[{ pathname: '/register', state: { role } }]}
+    >
       <Register />
     </MemoryRouter>,
   );
@@ -40,7 +43,7 @@ describe('Register Page', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    useAuth.mockReturnValue({ register: mockRegister, login: jest.fn() });
+    useAuth.mockReturnValue({ register: mockRegister, refreshUser: jest.fn() });
   });
 
   // ── Rendering ─────────────────────────────────────────────────────────

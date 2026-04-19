@@ -17,7 +17,10 @@ import api from '../../utils/api';
 
 const renderForgotPassword = () =>
   render(
-    <MemoryRouter initialEntries={['/forgot-password']}>
+    <MemoryRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      initialEntries={['/forgot-password']}
+    >
       <ForgotPassword />
     </MemoryRouter>,
   );

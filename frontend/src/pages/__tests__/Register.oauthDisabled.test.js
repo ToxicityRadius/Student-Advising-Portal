@@ -33,12 +33,15 @@ import { useAuth } from '../../context/AuthContext';
 describe('Register Page - OAuth Disabled', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useAuth.mockReturnValue({ register: jest.fn(), login: jest.fn() });
+    useAuth.mockReturnValue({ register: jest.fn(), refreshUser: jest.fn() });
   });
 
   test('shows fallback message and hides Google button when OAuth is not configured', () => {
     render(
-      <MemoryRouter initialEntries={[{ pathname: '/register', state: { role: 'student' } }]}>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={[{ pathname: '/register', state: { role: 'student' } }]}
+      >
         <Register />
       </MemoryRouter>,
     );

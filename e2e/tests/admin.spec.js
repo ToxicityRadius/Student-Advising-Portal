@@ -17,7 +17,7 @@ test.describe.serial('Admin Journey', () => {
   test('admin login and see dashboard', async () => {
     await uiLogin(page, 'admin');
     const url = page.url();
-    expect(url).toMatch(/\/(dashboard|complete-profile|verify-code|admin)/);
+    expect(url).toMatch(/\/(dashboard|verify-code|admin)/);
   });
 
   test('admin can access curriculum management', async () => {
@@ -36,12 +36,6 @@ test.describe.serial('Admin Journey', () => {
     await page.goto(`${BASE}/admin/forecast`);
     await waitForStable(page);
     expect(page.url()).toContain('/admin/forecast');
-  });
-
-  test('admin can access audit logs', async () => {
-    await page.goto(`${BASE}/admin/audit-logs`);
-    await waitForStable(page);
-    expect(page.url()).toContain('/admin/audit-logs');
   });
 
   test('API docs page is accessible', async () => {

@@ -42,7 +42,7 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { jwtDecode } from 'jwt-decode';
 
-const mockLogin = jest.fn();
+const mockRefreshUser = jest.fn();
 
 describe('Login Page - Google student ID completion', () => {
   beforeEach(() => {
@@ -50,7 +50,7 @@ describe('Login Page - Google student ID completion', () => {
     sessionStorage.clear();
 
     useAuth.mockReturnValue({
-      login: mockLogin.mockResolvedValue({
+      refreshUser: mockRefreshUser.mockResolvedValue({
         role: 'student',
         yearLevel: 1,
         curriculum_id: 1,
@@ -69,7 +69,6 @@ describe('Login Page - Google student ID completion', () => {
   test('uses the authenticated self-update endpoint for Google student ID submission', async () => {
     api.post.mockResolvedValueOnce({
       data: {
-        token: 'app-jwt-token',
         user: {
           id: 17,
           role: 'student',
@@ -91,7 +90,10 @@ describe('Login Page - Google student ID completion', () => {
     const user = userEvent.setup();
 
     render(
-      <MemoryRouter initialEntries={['/login']}>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={['/login']}
+      >
         <Login />
       </MemoryRouter>,
     );
@@ -100,33 +102,25 @@ describe('Login Page - Google student ID completion', () => {
     await user.click(screen.getByTestId('google-login'));
 
     expect(await screen.findByText('Enter Your Student Number')).toBeInTheDocument();
-    expect(mockLogin).not.toHaveBeenCalled();
+    expect(mockRefreshUser).not.toHaveBeenCalled();
 
     await user.type(screen.getByPlaceholderText('e.g. 2100123'), '2310675');
     await user.click(screen.getByRole('button', { name: /submit/i }));
 
     await waitFor(() => {
-      expect(api.patch).toHaveBeenCalledWith(
-        '/users/update-student-id',
-        {
-          studentId: '2310675',
-        },
-        {
-          headers: {
-            Authorization: 'Bearer app-jwt-token',
-          },
-        },
-      );
+      expect(api.patch).toHaveBeenCalledWith('/users/update-student-id', {
+        studentId: '2310675',
+      });
     });
 
     await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith('app-jwt-token');
+      expect(mockRefreshUser).toHaveBeenCalledTimes(1);
     });
   });
 
   test('opens academic onboarding when sex is missing and persists onboarding payload', async () => {
-    mockLogin.mockReset();
-    mockLogin
+    mockRefreshUser.mockReset();
+    mockRefreshUser
       .mockResolvedValueOnce({
         role: 'student',
         yearLevel: 2,
@@ -144,7 +138,6 @@ describe('Login Page - Google student ID completion', () => {
 
     api.post.mockResolvedValueOnce({
       data: {
-        token: 'app-jwt-token',
         user: {
           id: 17,
           role: 'student',
@@ -175,7 +168,10 @@ describe('Login Page - Google student ID completion', () => {
     const user = userEvent.setup();
 
     render(
-      <MemoryRouter initialEntries={['/login']}>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={['/login']}
+      >
         <Login />
       </MemoryRouter>,
     );
@@ -210,7 +206,7 @@ describe('Login Page - Google student ID completion', () => {
     });
 
     await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledTimes(2);
+      expect(mockRefreshUser).toHaveBeenCalledTimes(2);
     });
   });
 });

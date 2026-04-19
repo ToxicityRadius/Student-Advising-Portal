@@ -26,17 +26,20 @@ import api from '../../utils/api';
 
 const renderVerifyCode = (state = { userId: 42, email: 'test@tip.edu.ph' }) =>
   render(
-    <MemoryRouter initialEntries={[{ pathname: '/verify', state }]}>
+    <MemoryRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      initialEntries={[{ pathname: '/verify', state }]}
+    >
       <VerifyCode />
     </MemoryRouter>,
   );
 
 describe('VerifyCode Page', () => {
-  const mockLogin = jest.fn();
+  const mockRefreshUser = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
-    useAuth.mockReturnValue({ login: mockLogin });
+    useAuth.mockReturnValue({ refreshUser: mockRefreshUser });
   });
 
   test('renders verification form with email', () => {
@@ -71,11 +74,11 @@ describe('VerifyCode Page', () => {
     });
   });
 
-  test('successful verification calls login', async () => {
+  test('successful verification refreshes user session', async () => {
     api.post.mockResolvedValue({
-      data: { success: true, token: 'jwt-token' },
+      data: { success: true },
     });
-    mockLogin.mockResolvedValue(undefined);
+    mockRefreshUser.mockResolvedValue(undefined);
 
     const user = userEvent.setup();
     renderVerifyCode();
@@ -95,7 +98,7 @@ describe('VerifyCode Page', () => {
     });
 
     await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith('jwt-token');
+      expect(mockRefreshUser).toHaveBeenCalled();
     });
   });
 

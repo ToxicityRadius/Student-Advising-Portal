@@ -7,19 +7,22 @@ import { useAuth } from '../../context/AuthContext';
 
 // Mock AuthContext
 jest.mock('../../context/AuthContext', () => ({
-  useAuth: jest.fn()
+  useAuth: jest.fn(),
 }));
 
 const renderWithRouter = (ui, { initialEntries = ['/protected'] } = {}) => {
   return render(
-    <MemoryRouter initialEntries={initialEntries}>
+    <MemoryRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      initialEntries={initialEntries}
+    >
       <Routes>
         <Route path="/login" element={<div>Login Page</div>} />
         <Route path="/dashboard" element={<div>Dashboard Page</div>} />
         <Route path="/change-email" element={<div>Change Email Page</div>} />
         <Route path="/protected" element={ui} />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 };
 
@@ -32,7 +35,9 @@ describe('PrivateRoute', () => {
     useAuth.mockReturnValue({ user: null, loading: true });
 
     renderWithRouter(
-      <PrivateRoute><div>Protected Content</div></PrivateRoute>
+      <PrivateRoute>
+        <div>Protected Content</div>
+      </PrivateRoute>,
     );
 
     expect(screen.getByText('Loading...')).toBeInTheDocument();
@@ -43,7 +48,9 @@ describe('PrivateRoute', () => {
     useAuth.mockReturnValue({ user: null, loading: false });
 
     renderWithRouter(
-      <PrivateRoute><div>Protected Content</div></PrivateRoute>
+      <PrivateRoute>
+        <div>Protected Content</div>
+      </PrivateRoute>,
     );
 
     expect(screen.getByText('Login Page')).toBeInTheDocument();
@@ -53,11 +60,13 @@ describe('PrivateRoute', () => {
   test('renders children when user is authenticated', () => {
     useAuth.mockReturnValue({
       user: { id: 1, role: 'student' },
-      loading: false
+      loading: false,
     });
 
     renderWithRouter(
-      <PrivateRoute><div>Protected Content</div></PrivateRoute>
+      <PrivateRoute>
+        <div>Protected Content</div>
+      </PrivateRoute>,
     );
 
     expect(screen.getByText('Protected Content')).toBeInTheDocument();
@@ -66,11 +75,13 @@ describe('PrivateRoute', () => {
   test('redirects to change-email when user has mustChangeEmail flag', () => {
     useAuth.mockReturnValue({
       user: { id: 1, role: 'student', mustChangeEmail: true },
-      loading: false
+      loading: false,
     });
 
     renderWithRouter(
-      <PrivateRoute><div>Protected Content</div></PrivateRoute>
+      <PrivateRoute>
+        <div>Protected Content</div>
+      </PrivateRoute>,
     );
 
     expect(screen.getByText('Change Email Page')).toBeInTheDocument();
@@ -80,11 +91,13 @@ describe('PrivateRoute', () => {
   test('redirects non-admin to dashboard when adminOnly is true', () => {
     useAuth.mockReturnValue({
       user: { id: 1, role: 'student' },
-      loading: false
+      loading: false,
     });
 
     renderWithRouter(
-      <PrivateRoute adminOnly><div>Admin Content</div></PrivateRoute>
+      <PrivateRoute adminOnly>
+        <div>Admin Content</div>
+      </PrivateRoute>,
     );
 
     expect(screen.getByText('Dashboard Page')).toBeInTheDocument();
@@ -94,11 +107,13 @@ describe('PrivateRoute', () => {
   test('allows admin access when adminOnly is true', () => {
     useAuth.mockReturnValue({
       user: { id: 1, role: 'admin' },
-      loading: false
+      loading: false,
     });
 
     renderWithRouter(
-      <PrivateRoute adminOnly><div>Admin Content</div></PrivateRoute>
+      <PrivateRoute adminOnly>
+        <div>Admin Content</div>
+      </PrivateRoute>,
     );
 
     expect(screen.getByText('Admin Content')).toBeInTheDocument();
@@ -107,11 +122,13 @@ describe('PrivateRoute', () => {
   test('redirects when user role is not in allowed roles', () => {
     useAuth.mockReturnValue({
       user: { id: 1, role: 'student' },
-      loading: false
+      loading: false,
     });
 
     renderWithRouter(
-      <PrivateRoute roles={['admin', 'adviser']}><div>Staff Content</div></PrivateRoute>
+      <PrivateRoute roles={['admin', 'adviser']}>
+        <div>Staff Content</div>
+      </PrivateRoute>,
     );
 
     expect(screen.getByText('Dashboard Page')).toBeInTheDocument();
@@ -121,11 +138,13 @@ describe('PrivateRoute', () => {
   test('allows access when user role is in allowed roles', () => {
     useAuth.mockReturnValue({
       user: { id: 1, role: 'adviser' },
-      loading: false
+      loading: false,
     });
 
     renderWithRouter(
-      <PrivateRoute roles={['admin', 'adviser']}><div>Staff Content</div></PrivateRoute>
+      <PrivateRoute roles={['admin', 'adviser']}>
+        <div>Staff Content</div>
+      </PrivateRoute>,
     );
 
     expect(screen.getByText('Staff Content')).toBeInTheDocument();
@@ -134,11 +153,13 @@ describe('PrivateRoute', () => {
   test('allows access when roles array is empty (no role restriction)', () => {
     useAuth.mockReturnValue({
       user: { id: 1, role: 'student' },
-      loading: false
+      loading: false,
     });
 
     renderWithRouter(
-      <PrivateRoute roles={[]}><div>Any Role Content</div></PrivateRoute>
+      <PrivateRoute roles={[]}>
+        <div>Any Role Content</div>
+      </PrivateRoute>,
     );
 
     expect(screen.getByText('Any Role Content')).toBeInTheDocument();

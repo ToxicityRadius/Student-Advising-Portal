@@ -72,7 +72,7 @@ async function uiLogin(page, role) {
   // 1) URL redirect to an authenticated page, OR
   // 2) student onboarding modal displayed on /login.
   const redirected = page
-    .waitForURL(/\/(verify-code|dashboard|complete-profile|admin|adviser|grades|notifications|settings)/, {
+    .waitForURL(/\/(verify-code|dashboard|admin|adviser|grades|notifications|settings)/, {
       timeout: 15000,
     })
     .then(() => true)
