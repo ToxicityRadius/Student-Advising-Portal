@@ -8,8 +8,16 @@ exports.getNotifications = async (req, res, next) => {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 50));
     const unreadOnly = req.query.unreadOnly === 'true';
+    const type = ['info', 'success', 'error', 'warning'].includes(req.query.type)
+      ? req.query.type
+      : null;
 
-    const result = await NotificationService.getNotifications(req.user.id, { page, pageSize, unreadOnly });
+    const result = await NotificationService.getNotifications(req.user.id, {
+      page,
+      pageSize,
+      unreadOnly,
+      type,
+    });
 
     const notifications = result.items.map((n) => ({
       id: n.id,
@@ -20,13 +28,15 @@ exports.getNotifications = async (req, res, next) => {
       isRead: n.isRead,
       resourceType: n.resourceType,
       resourceId: n.resourceId,
-      actor: n.Actor ? {
-        id: n.Actor.id,
-        firstName: n.Actor.firstName,
-        lastName: n.Actor.lastName,
-        role: n.Actor.role
-      } : null,
-      createdAt: n.createdAt
+      actor: n.Actor
+        ? {
+            id: n.Actor.id,
+            firstName: n.Actor.firstName,
+            lastName: n.Actor.lastName,
+            role: n.Actor.role,
+          }
+        : null,
+      createdAt: n.createdAt,
     }));
 
     return res.status(200).json({
@@ -35,7 +45,7 @@ exports.getNotifications = async (req, res, next) => {
       page: result.page,
       pageSize: result.pageSize,
       totalItems: result.totalItems,
-      totalPages: Math.ceil(result.totalItems / result.pageSize)
+      totalPages: Math.ceil(result.totalItems / result.pageSize),
     });
   } catch (error) {
     next(error);
@@ -81,7 +91,9 @@ exports.markAsRead = async (req, res, next) => {
 exports.markAllAsRead = async (req, res, next) => {
   try {
     const count = await NotificationService.markAllAsRead(req.user.id);
-    return res.status(200).json({ success: true, message: `${count} notification(s) marked as read` });
+    return res
+      .status(200)
+      .json({ success: true, message: `${count} notification(s) marked as read` });
   } catch (error) {
     next(error);
   }

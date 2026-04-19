@@ -9,6 +9,16 @@ const normalizeEmail = (email) =>
 
 const normalizeStudentId = (studentId) => String(studentId || '').trim();
 
+const getFirstNameAliasValues = (user) => ({
+  camel: String(user?.firstName || '').trim(),
+  snake: String(user?.first_name || '').trim(),
+});
+
+const getLastNameAliasValues = (user) => ({
+  camel: String(user?.lastName || '').trim(),
+  snake: String(user?.last_name || '').trim(),
+});
+
 const buildMatchConditions = ({ email, studentId }) => {
   const conditions = [];
 
@@ -62,7 +72,7 @@ exports.linkStudentAccountToSar = async ({ userId, email, studentId, transaction
  *
  * - studentNumber is synced to User.studentId.
  * - studentName is parsed (last word = last_name, rest = first_name) and synced
- *   to User.first_name + User.last_name.
+ *   to both User.firstName/User.first_name and User.lastName/User.last_name.
  *
  * Only applies when the SAR has a linked userId. Idempotent — no-op when values
  * already match.
@@ -89,20 +99,41 @@ exports.syncSarToProfile = async (sar, options = {}) => {
     }
   }
 
-  // Sync studentName → first_name + last_name
+  // Sync studentName → firstName/first_name + lastName/last_name
   if (sar.studentName) {
     const nameParts = String(sar.studentName).trim().split(/\s+/).filter(Boolean);
     if (nameParts.length >= 2) {
       const sarLastName = nameParts[nameParts.length - 1];
       const sarFirstName = nameParts.slice(0, -1).join(' ');
-      if (sarFirstName && sarFirstName !== String(user.first_name || '').trim()) {
+      const firstNameAliases = getFirstNameAliasValues(user);
+      const lastNameAliases = getLastNameAliasValues(user);
+
+      if (
+        sarFirstName &&
+        (sarFirstName !== firstNameAliases.camel || sarFirstName !== firstNameAliases.snake)
+      ) {
+        updates.firstName = sarFirstName;
         updates.first_name = sarFirstName;
       }
-      if (sarLastName && sarLastName !== String(user.last_name || '').trim()) {
+
+      if (
+        sarLastName &&
+        (sarLastName !== lastNameAliases.camel || sarLastName !== lastNameAliases.snake)
+      ) {
+        updates.lastName = sarLastName;
         updates.last_name = sarLastName;
       }
-    } else if (nameParts.length === 1 && !user.first_name) {
-      updates.first_name = nameParts[0];
+    } else if (nameParts.length === 1) {
+      const sarSingleName = nameParts[0];
+      const firstNameAliases = getFirstNameAliasValues(user);
+      const hasAnyFirstName = Boolean(firstNameAliases.camel || firstNameAliases.snake);
+
+      // For single-token names, only fill empty profile aliases.
+      // This avoids clobbering an already populated first name with partial SAR input.
+      if (sarSingleName && !hasAnyFirstName) {
+        updates.firstName = sarSingleName;
+        updates.first_name = sarSingleName;
+      }
     }
   }
 

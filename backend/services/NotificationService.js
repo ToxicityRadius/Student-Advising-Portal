@@ -79,9 +79,13 @@ async function notify({
 /**
  * Fetch notifications for a user, newest first.
  */
-async function getNotifications(userId, { page = 1, pageSize = 50, unreadOnly = false } = {}) {
+async function getNotifications(
+  userId,
+  { page = 1, pageSize = 50, unreadOnly = false, type = null } = {},
+) {
   const where = { recipientId: userId };
   if (unreadOnly) where.isRead = false;
+  if (type) where.type = type;
 
   const { rows, count } = await Notification.findAndCountAll({
     where,

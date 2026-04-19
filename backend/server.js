@@ -333,6 +333,43 @@ const syncOptions =
     ? {} // production: authenticate only, use migrations
     : { alter: { drop: false } }; // dev: auto-alter tables
 
+function isPolicyDependentAlterTypeError(err) {
+  const dbErr = err && (err.original || err.parent || err);
+  const message = String(dbErr?.message || err?.message || '').toLowerCase();
+  const detail = String(dbErr?.detail || '').toLowerCase();
+
+  return (
+    dbErr?.code === '0A000' &&
+    message.includes('cannot alter type of a column used in a policy definition') &&
+    detail.includes('policy')
+  );
+}
+
+async function connectDatabase() {
+  if (process.env.NODE_ENV === 'production') {
+    await sequelize.authenticate();
+    return;
+  }
+
+  try {
+    await sequelize.sync(syncOptions);
+  } catch (err) {
+    if (!isPolicyDependentAlterTypeError(err)) {
+      throw err;
+    }
+
+    logger.warn(
+      {
+        detail: err?.original?.detail || err?.parent?.detail,
+        sql: err?.sql,
+      },
+      'Skipping dev schema alter because an RLS policy depends on a column type. Continuing with existing schema.',
+    );
+
+    await sequelize.authenticate();
+  }
+}
+
 async function runPendingMigrations() {
   const { Umzug, SequelizeStorage } = require('umzug');
   const Sequelize = require('sequelize');
@@ -371,21 +408,24 @@ async function runPendingMigrations() {
 }
 
 if (process.env.NODE_ENV !== 'test') {
-  (process.env.NODE_ENV === 'production' ? sequelize.authenticate() : sequelize.sync(syncOptions))
-    .then(async () => {
+  (async () => {
+    try {
+      await connectDatabase();
       logger.info('Database connected successfully');
+
       try {
         await runPendingMigrations();
       } catch (migErr) {
         logger.error({ err: migErr }, 'Migration failed — server starting without migration');
       }
+
       server = app.listen(PORT, () => {
         logger.info({ port: PORT }, 'Server running');
       });
-    })
-    .catch((err) => {
+    } catch (err) {
       logger.fatal({ err }, 'Failed to connect to database');
-    });
+    }
+  })();
 }
 
 const gracefulShutdown = (signal) => {

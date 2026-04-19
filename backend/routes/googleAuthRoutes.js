@@ -4,7 +4,7 @@ const router = express.Router();
 const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
-const { generateToken } = require('../utils/jwt');
+const { sendTokenResponse } = require('../utils/jwt');
 const { sendVerificationCode } = require('../utils/email');
 const { FACULTY_EMAIL_WHITELIST } = require('../constants');
 
@@ -168,19 +168,7 @@ router.post('/google', googleAuthLimiter, async (req, res) => {
         { where: { id: user.id } },
       );
       const updatedUser = await User.findByPk(user.id);
-      const jwtToken = generateToken(updatedUser);
-
-      res.json({
-        token: jwtToken,
-        user: {
-          id: updatedUser.id,
-          firstName: updatedUser.firstName,
-          lastName: updatedUser.lastName,
-          email: updatedUser.email,
-          role: updatedUser.role,
-          studentId: updatedUser.studentId,
-        },
-      });
+      sendTokenResponse(updatedUser, 200, res);
     }
   } catch (error) {
     console.error('Google authentication error:', error);

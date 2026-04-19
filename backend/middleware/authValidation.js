@@ -14,7 +14,9 @@ const passwordChain = (fieldName, label) => {
     .withMessage(`${label} is required`)
     .bail()
     .matches(PASSWORD_REQUIREMENTS_REGEX)
-    .withMessage(`${label} must be at least 8 characters and include at least one uppercase letter, one lowercase letter, and one number`);
+    .withMessage(
+      `${label} must be at least 8 characters and include at least one uppercase letter, one lowercase letter, and one number`,
+    );
 };
 
 const optionalRefreshTokenChain = () => {
@@ -29,14 +31,8 @@ const optionalRefreshTokenChain = () => {
 };
 
 exports.registerValidation = [
-  body('firstName')
-    .trim()
-    .notEmpty()
-    .withMessage('First name is required'),
-  body('lastName')
-    .trim()
-    .notEmpty()
-    .withMessage('Last name is required'),
+  body('firstName').trim().notEmpty().withMessage('First name is required'),
+  body('lastName').trim().notEmpty().withMessage('Last name is required'),
   body('email')
     .trim()
     .notEmpty()
@@ -58,7 +54,7 @@ exports.registerValidation = [
   body('gender')
     .optional({ values: 'falsy' })
     .isIn(ALLOWED_SEX_VALUES)
-    .withMessage('Gender selection is invalid')
+    .withMessage('Gender selection is invalid'),
 ];
 
 exports.loginValidation = [
@@ -70,14 +66,11 @@ exports.loginValidation = [
     .isEmail()
     .withMessage('Email must be valid')
     .normalizeEmail(),
-  body('password')
-    .trim()
-    .notEmpty()
-    .withMessage('Password is required'),
+  body('password').trim().notEmpty().withMessage('Password is required'),
   body('selectedRole')
     .optional({ values: 'falsy' })
     .isIn(ALLOWED_LOGIN_PORTALS)
-    .withMessage('Selected role must be student or faculty')
+    .withMessage('Selected role must be student or faculty'),
 ];
 
 exports.verifyCodeValidation = [
@@ -94,7 +87,7 @@ exports.verifyCodeValidation = [
     .withMessage('Verification code is required')
     .bail()
     .matches(SIX_DIGIT_CODE_REGEX)
-    .withMessage('Verification code must be a 6-digit number')
+    .withMessage('Verification code must be a 6-digit number'),
 ];
 
 exports.resendCodeValidation = [
@@ -104,7 +97,7 @@ exports.resendCodeValidation = [
     .bail()
     .isInt({ min: 1 })
     .withMessage('User ID must be a positive integer')
-    .toInt()
+    .toInt(),
 ];
 
 exports.forgotPasswordValidation = [
@@ -115,7 +108,7 @@ exports.forgotPasswordValidation = [
     .bail()
     .isEmail()
     .withMessage('Email must be valid')
-    .normalizeEmail()
+    .normalizeEmail(),
 ];
 
 exports.refreshTokenValidation = [
@@ -127,27 +120,23 @@ exports.refreshTokenValidation = [
     }
 
     return true;
-  })
+  }),
 ];
 
-exports.logoutValidation = [
-  optionalRefreshTokenChain()
-];
+exports.logoutValidation = [optionalRefreshTokenChain()];
 
 exports.resetPasswordValidation = [
-  param('token')
-    .trim()
-    .notEmpty()
-    .withMessage('Reset token is required'),
-  passwordChain('password', 'Password')
+  param('token').trim().notEmpty().withMessage('Reset token is required'),
+  passwordChain('password', 'Password'),
 ];
 
 exports.changePasswordValidation = [
   body('oldPassword')
+    .optional({ values: 'undefined' })
     .trim()
     .notEmpty()
-    .withMessage('Old password is required'),
-  passwordChain('newPassword', 'New password')
+    .withMessage('Old password must not be empty'),
+  passwordChain('newPassword', 'New password'),
 ];
 
 exports.initiateEmailChangeValidation = [
@@ -158,7 +147,7 @@ exports.initiateEmailChangeValidation = [
     .bail()
     .isEmail()
     .withMessage('New email must be valid')
-    .normalizeEmail()
+    .normalizeEmail(),
 ];
 
 exports.verifyEmailChangeValidation = [
@@ -168,7 +157,7 @@ exports.verifyEmailChangeValidation = [
     .withMessage('Verification code is required')
     .bail()
     .matches(SIX_DIGIT_CODE_REGEX)
-    .withMessage('Verification code must be a 6-digit number')
+    .withMessage('Verification code must be a 6-digit number'),
 ];
 
 exports.transferOwnershipValidation = [
@@ -178,5 +167,5 @@ exports.transferOwnershipValidation = [
     .bail()
     .isInt({ min: 1 })
     .withMessage('targetUserId must be a positive integer')
-    .toInt()
+    .toInt(),
 ];

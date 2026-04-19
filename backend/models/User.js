@@ -1,6 +1,30 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../database/db');
 
+const coalesceNameValue = (...values) => {
+  for (const value of values) {
+    if (value !== undefined && value !== null && value !== '') {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const syncNameAliases = (user) => {
+  const normalizedFirstName = coalesceNameValue(user.first_name, user.firstName);
+  const normalizedLastName = coalesceNameValue(user.last_name, user.lastName);
+
+  if (normalizedFirstName !== undefined) {
+    user.firstName = normalizedFirstName;
+    user.first_name = normalizedFirstName;
+  }
+
+  if (normalizedLastName !== undefined) {
+    user.lastName = normalizedLastName;
+    user.last_name = normalizedLastName;
+  }
+};
+
 const User = sequelize.define(
   'User',
   {
@@ -235,6 +259,10 @@ const User = sequelize.define(
   {
     tableName: 'users',
     timestamps: false,
+    hooks: {
+      beforeValidate: syncNameAliases,
+      beforeSave: syncNameAliases,
+    },
     indexes: [
       { fields: ['email'], unique: true },
       { fields: ['adviserId'] },

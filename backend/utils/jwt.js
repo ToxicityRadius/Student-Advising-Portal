@@ -174,8 +174,9 @@ exports.verifyRefreshToken = (token) => {
   }
 };
 
-// Send token response with refresh token
-exports.sendTokenResponse = (user, statusCode, res) => {
+// Send auth cookies with a sanitized JSON user payload.
+// Access tokens are intentionally omitted from JSON bodies.
+exports.sendTokenResponse = (user, statusCode, res, extraPayload = {}) => {
   const token = exports.generateToken(user);
   const refreshToken = exports.generateRefreshToken(user.id || user._id);
 
@@ -214,18 +215,34 @@ exports.sendTokenResponse = (user, statusCode, res) => {
     studentId: user.studentId,
   };
 
+  const safeExtra =
+    extraPayload && typeof extraPayload === 'object' && !Array.isArray(extraPayload)
+      ? { ...extraPayload }
+      : {};
+  const customMessage =
+    typeof safeExtra.message === 'string' && safeExtra.message.trim().length > 0
+      ? safeExtra.message
+      : 'Authentication successful';
+  delete safeExtra.message;
+
+  const extraData =
+    safeExtra.data && typeof safeExtra.data === 'object' && !Array.isArray(safeExtra.data)
+      ? safeExtra.data
+      : {};
+  delete safeExtra.data;
+
   res
     .status(statusCode)
     .cookie('token', token, cookieOptions.token)
     .cookie('refreshToken', refreshToken, cookieOptions.refreshToken)
     .json({
       success: true,
-      message: 'Authentication successful',
+      message: customMessage,
       data: {
-        token,
         user: userResponse,
+        ...extraData,
       },
-      token,
+      ...safeExtra,
       user: userResponse,
     });
 };

@@ -6,7 +6,7 @@ const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagin
 const { imageSize } = require('image-size');
 const { uploadProfilePicture, deleteProfilePictureAsset } = require('../utils/profileStorage');
 const { validateUploadedImageFile } = require('../utils/imageValidation');
-const { sanitizeUserWithProfile, computeProfileCompletionScore } = require('../utils/sanitize');
+const { sanitizeUserWithProfile } = require('../utils/sanitize');
 const UserService = require('../services/UserService');
 
 // Allowed enum values for validated fields
@@ -21,24 +21,29 @@ const getTermKey = UserService.getTermKey;
 
 const getStudentProfileLockMeta = UserService.getStudentProfileLockMeta;
 
-const REQUIRED_PROFILE_FIELDS_COMMON = [
-  'first_name',
-  'last_name',
-  'contact_number',
-  'sex',
-  'citizenship',
-  'address',
-  'emergency_contact_name',
-  'emergency_contact_number',
-  'profile_picture',
-];
+const getCanonicalFirstName = (userLike) => {
+  const camel = String(userLike?.firstName || '').trim();
+  const legacy = String(userLike?.first_name || '').trim();
 
-const REQUIRED_PROFILE_FIELDS_STUDENT = [
-  'program',
-  'curriculum_id',
-  'student_type',
-  'current_year_level',
-];
+  // During transition, prefer legacy value when aliases conflict.
+  if (camel && legacy && camel !== legacy) {
+    return legacy;
+  }
+
+  return camel || legacy || null;
+};
+
+const getCanonicalLastName = (userLike) => {
+  const camel = String(userLike?.lastName || '').trim();
+  const legacy = String(userLike?.last_name || '').trim();
+
+  // During transition, prefer legacy value when aliases conflict.
+  if (camel && legacy && camel !== legacy) {
+    return legacy;
+  }
+
+  return camel || legacy || null;
+};
 
 // Alias for backward-compat inside this controller — delegates to shared utility
 const sanitizeUser = sanitizeUserWithProfile;
@@ -248,18 +253,26 @@ exports.updateUser = async (req, res, next) => {
       });
     }
 
+    const updatePayload = {
+      firstName,
+      lastName,
+      email,
+      role,
+      isActive,
+      updatedAt: Date.now(),
+    };
+
+    // Keep legacy aliases synchronized for bulk update paths.
+    if (firstName !== undefined) {
+      updatePayload.first_name = firstName;
+    }
+
+    if (lastName !== undefined) {
+      updatePayload.last_name = lastName;
+    }
+
     // Update user
-    await User.update(
-      {
-        firstName,
-        lastName,
-        email,
-        role,
-        isActive,
-        updatedAt: Date.now(),
-      },
-      { where: { id: req.params.id } },
-    );
+    await User.update(updatePayload, { where: { id: req.params.id } });
 
     const updatedUser = await User.findByPk(req.params.id);
 
@@ -387,8 +400,8 @@ exports.updateStudentId = async (req, res, next) => {
       await syncProfileToSar({
         userId: updatedUser.id,
         email: updatedUser.email,
-        firstName: updatedUser.first_name || updatedUser.firstName,
-        lastName: updatedUser.last_name || updatedUser.lastName,
+        firstName: getCanonicalFirstName(updatedUser),
+        lastName: getCanonicalLastName(updatedUser),
         studentId: updatedUser.studentId,
       });
     } catch (syncError) {
@@ -457,8 +470,8 @@ exports.updateUserStudentId = async (req, res, next) => {
       await syncProfileToSar({
         userId: finalUser.id,
         email: finalUser.email,
-        firstName: finalUser.first_name || finalUser.firstName,
-        lastName: finalUser.last_name || finalUser.lastName,
+        firstName: getCanonicalFirstName(finalUser),
+        lastName: getCanonicalLastName(finalUser),
         studentId: finalUser.studentId,
       });
     } catch (syncError) {
@@ -524,8 +537,10 @@ exports.updateProfile = async (req, res, next) => {
 
     const allowedFields = [
       // Identity
+      'firstName',
       'first_name',
       'middle_name',
+      'lastName',
       'last_name',
       'suffix',
       'preferred_name',
@@ -569,6 +584,41 @@ exports.updateProfile = async (req, res, next) => {
       Object.prototype.hasOwnProperty.call(req.body, 'gender')
     ) {
       updatePayload.sex = req.body.gender;
+    }
+
+    // Support both canonical camelCase and legacy snake_case name fields.
+    // If both are provided, they must match to avoid ambiguous updates.
+    const hasFirstName = Object.prototype.hasOwnProperty.call(req.body, 'firstName');
+    const hasLegacyFirstName = Object.prototype.hasOwnProperty.call(req.body, 'first_name');
+    const hasLastName = Object.prototype.hasOwnProperty.call(req.body, 'lastName');
+    const hasLegacyLastName = Object.prototype.hasOwnProperty.call(req.body, 'last_name');
+
+    if (
+      hasFirstName &&
+      hasLegacyFirstName &&
+      String(req.body.firstName).trim() !== String(req.body.first_name).trim()
+    ) {
+      validationErrors.firstName = 'firstName and first_name must match when both are provided';
+    }
+
+    if (
+      hasLastName &&
+      hasLegacyLastName &&
+      String(req.body.lastName).trim() !== String(req.body.last_name).trim()
+    ) {
+      validationErrors.lastName = 'lastName and last_name must match when both are provided';
+    }
+
+    if (hasFirstName || hasLegacyFirstName) {
+      const normalizedFirstName = hasFirstName ? req.body.firstName : req.body.first_name;
+      updatePayload.firstName = normalizedFirstName;
+      updatePayload.first_name = normalizedFirstName;
+    }
+
+    if (hasLastName || hasLegacyLastName) {
+      const normalizedLastName = hasLastName ? req.body.lastName : req.body.last_name;
+      updatePayload.lastName = normalizedLastName;
+      updatePayload.last_name = normalizedLastName;
     }
 
     // Validate: sex enum
@@ -750,14 +800,6 @@ exports.updateProfile = async (req, res, next) => {
       updatePayload.profile_submission_locked_at = now;
     }
 
-    // Keep camelCase columns in sync with snake_case columns
-    if (Object.prototype.hasOwnProperty.call(updatePayload, 'first_name')) {
-      updatePayload.firstName = updatePayload.first_name;
-    }
-    if (Object.prototype.hasOwnProperty.call(updatePayload, 'last_name')) {
-      updatePayload.lastName = updatePayload.last_name;
-    }
-
     Object.assign(user, updatePayload);
     await user.save();
 
@@ -773,15 +815,17 @@ exports.updateProfile = async (req, res, next) => {
 
     // Profile → SAR sync: if name fields changed, mirror to linked SAR
     const nameChanged =
+      Object.prototype.hasOwnProperty.call(updatePayload, 'firstName') ||
       Object.prototype.hasOwnProperty.call(updatePayload, 'first_name') ||
+      Object.prototype.hasOwnProperty.call(updatePayload, 'lastName') ||
       Object.prototype.hasOwnProperty.call(updatePayload, 'last_name');
     if (nameChanged && user.role === 'student') {
       try {
         await syncProfileToSar({
           userId: user.id,
           email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
+          firstName: getCanonicalFirstName(user),
+          lastName: getCanonicalLastName(user),
           studentId: user.studentId,
         });
       } catch (syncError) {

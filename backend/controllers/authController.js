@@ -1,7 +1,6 @@
 ﻿const { User } = require('../models');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const { sendTokenResponse, clearAuthCookies, getAuthCookieOptions } = require('../utils/jwt');
 const {
@@ -26,18 +25,6 @@ const VERIFY_LOCKOUT_MS = 15 * 60 * 1000; // 15-minute lockout window
 // Helper: generate a cryptographically secure 6-digit verification code
 function generateVerificationCode() {
   return crypto.randomInt(100000, 1000000).toString();
-}
-
-function generatePasswordChangeToken(user) {
-  return jwt.sign(
-    {
-      id: user.id,
-      role: user.role,
-      purpose: 'password_change',
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: '15m' },
-  );
 }
 
 // @desc    Register user
@@ -466,22 +453,15 @@ exports.login = async (req, res, next) => {
 
     // Check if 2FA is enabled
     if (user.mustChangePassword && !shouldBypassAdminFirstLoginEnforcement(user)) {
-      return res.status(200).json({
-        success: true,
+      return sendTokenResponse(user, 200, res, {
         mustChangePassword: true,
-        token: generatePasswordChangeToken(user),
       });
     }
 
     // Phase 2A: if email change is pending, return restricted response
     if (user.mustChangeEmail && !shouldBypassAdminFirstLoginEnforcement(user)) {
-      const { generateToken } = require('../utils/jwt');
-      const token = generateToken(user);
-      return res.status(200).json({
-        success: true,
+      return sendTokenResponse(user, 200, res, {
         mustChangeEmail: true,
-        token,
-        user: sanitizeUser(user),
       });
     }
 
@@ -609,10 +589,8 @@ exports.verifyCode = async (req, res, next) => {
     const updatedUser = await User.findByPk(user.id);
 
     if (updatedUser.mustChangePassword && !shouldBypassAdminFirstLoginEnforcement(updatedUser)) {
-      return res.status(200).json({
-        success: true,
+      return sendTokenResponse(updatedUser, 200, res, {
         mustChangePassword: true,
-        token: generatePasswordChangeToken(updatedUser),
       });
     }
 
@@ -725,10 +703,10 @@ exports.changePassword = async (req, res, next) => {
   try {
     const { oldPassword, newPassword } = req.body;
 
-    if (!oldPassword || !newPassword) {
+    if (!newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'Old password and new password are required',
+        message: 'New password is required',
       });
     }
 
@@ -755,15 +733,28 @@ exports.changePassword = async (req, res, next) => {
       });
     }
 
-    const isMatch = await bcrypt.compare(oldPassword, user.password);
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Old password is incorrect',
-      });
+    const isForcedPasswordRotation =
+      user.mustChangePassword && !shouldBypassAdminFirstLoginEnforcement(user);
+
+    if (!isForcedPasswordRotation) {
+      if (!oldPassword) {
+        return res.status(400).json({
+          success: false,
+          message: 'Old password is required',
+        });
+      }
+
+      const isMatch = await bcrypt.compare(oldPassword, user.password);
+      if (!isMatch) {
+        return res.status(401).json({
+          success: false,
+          message: 'Old password is incorrect',
+        });
+      }
     }
 
-    if (oldPassword === newPassword) {
+    const isReusedPassword = await bcrypt.compare(newPassword, user.password);
+    if (isReusedPassword) {
       return res.status(400).json({
         success: false,
         message: 'New password must be different from old password',
@@ -787,17 +778,12 @@ exports.changePassword = async (req, res, next) => {
 
     // Phase 2A: if email change is still required, return restricted response
     if (updatedUser.mustChangeEmail && !shouldBypassAdminFirstLoginEnforcement(updatedUser)) {
-      const { generateToken } = require('../utils/jwt');
-      const token = generateToken(updatedUser);
       logger.info(
         { userId: updatedUser.id, role: updatedUser.role },
         '[AUDIT] password rotated, email change still required',
       );
-      return res.status(200).json({
-        success: true,
+      return sendTokenResponse(updatedUser, 200, res, {
         mustChangeEmail: true,
-        token,
-        user: sanitizeUser(updatedUser),
       });
     }
 
@@ -1163,6 +1149,7 @@ exports.refreshToken = async (req, res, next) => {
     const refreshToken = req.cookies?.refreshToken;
 
     if (!refreshToken) {
+      clearAuthCookies(res);
       return res.status(400).json({
         success: false,
         message: 'Refresh token is required',
@@ -1173,6 +1160,7 @@ exports.refreshToken = async (req, res, next) => {
     const decoded = verifyRefreshToken(refreshToken);
 
     if (!decoded) {
+      clearAuthCookies(res);
       return res.status(401).json({
         success: false,
         message: 'Invalid or expired refresh token',
@@ -1181,6 +1169,7 @@ exports.refreshToken = async (req, res, next) => {
 
     const user = await User.findByPk(decoded.id);
     if (!user) {
+      clearAuthCookies(res);
       return res.status(404).json({
         success: false,
         message: 'User not found',
@@ -1191,6 +1180,7 @@ exports.refreshToken = async (req, res, next) => {
     // Compare hash to prevent token exposure from DB compromise (H2)
     const incomingHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
     if (!user.refreshToken || user.refreshToken !== incomingHash) {
+      clearAuthCookies(res);
       return res.status(401).json({
         success: false,
         message: 'Invalid or expired refresh token',
@@ -1218,7 +1208,9 @@ exports.refreshToken = async (req, res, next) => {
       .cookie('refreshToken', newRefreshToken, cookieOptions.refreshToken)
       .json({
         success: true,
-        token: newToken,
+        data: {
+          user: sanitizeUser(user),
+        },
         user: {
           id: user.id,
           firstName: user.firstName,

@@ -84,18 +84,6 @@ const spec = {
           isRead: { type: 'boolean' },
         },
       },
-      AuditLog: {
-        type: 'object',
-        properties: {
-          id: { type: 'integer' },
-          userId: { type: 'integer' },
-          action: { type: 'string' },
-          resource: { type: 'string' },
-          resourceId: { type: 'string' },
-          metadata: { type: 'object' },
-          ipAddress: { type: 'string' },
-        },
-      },
     },
     parameters: {
       PageParam: { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
@@ -116,7 +104,6 @@ const spec = {
     { name: 'Export', description: 'PDF export' },
     { name: 'Notifications', description: 'User notifications' },
     { name: 'Validation', description: 'Study plan validation' },
-    { name: 'Audit', description: 'Admin audit log' },
   ],
   paths: {
     '/auth/register': {
@@ -729,26 +716,6 @@ const spec = {
           { name: 'versionId', in: 'path', required: true, schema: { type: 'integer' } },
         ],
         responses: { 200: { description: 'Updated' } },
-      },
-    },
-    '/admin/audit-logs': {
-      get: {
-        tags: ['Audit'],
-        summary: 'List audit logs (admin)',
-        parameters: [
-          { $ref: '#/components/parameters/PageParam' },
-          { $ref: '#/components/parameters/LimitParam' },
-          { name: 'action', in: 'query', schema: { type: 'string' } },
-          { name: 'resource', in: 'query', schema: { type: 'string' } },
-        ],
-        responses: { 200: { description: 'Audit entries' } },
-      },
-    },
-    '/admin/audit-logs/actions': {
-      get: {
-        tags: ['Audit'],
-        summary: 'List audit action types',
-        responses: { 200: { description: 'Action list' } },
       },
     },
     '/health': {
