@@ -133,8 +133,7 @@
 | **React Scripts** | ^5.0.1 | Create React App build tooling |
 
 **Supported Routes:**
-- `/` — Public landing page
-- `/about`, `/purpose` — Public info pages
+- `/` — Redirects to `/login` (unauthenticated) or role home (authenticated)
 - `/login` — Login & Google OAuth
 - `/dashboard` — Role-specific dashboards
 - `/grades` — Student grades view

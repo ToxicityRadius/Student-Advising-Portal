@@ -107,7 +107,6 @@ Student-Advising-Portal/
         │   └── AuthContext.js
         ├── components/
         │   ├── ErrorBoundary.js
-        │   ├── Navbar.js
         │   ├── PaginationControls.js
         │   ├── PrivateRoute.js
         │   ├── StudentIdModal.js
@@ -120,17 +119,13 @@ Student-Advising-Portal/
         │   └── sar/
         │       └── SARLayout.js
         ├── pages/
-        │   ├── AboutUs.js / AboutUs.css
         │   ├── ActivateAccount.js
         │   ├── ChangeEmail.js
         │   ├── ChangePassword.js
-        │   ├── CompleteProfile.js
         │   ├── Dashboard.js
         │   ├── ForgotPassword.js
-        │   ├── Landing.js / Landing.css
         │   ├── Login.js
         │   ├── Profile.js
-        │   ├── Purpose.js / Purpose.css
         │   ├── Register.js
         │   ├── ResetPassword.js
         │   ├── VerifyCode.js
@@ -286,13 +281,10 @@ Student-Advising-Portal/
 
 ## Frontend Pages & Components
 
-### Public Pages (no auth required)
+### Public/Auth Pages (no auth required)
 | Page | Route | Description |
 |---|---|---|
-| `Landing.js` | `/` | Marketing/landing page with role-based sign-in links |
-| `AboutUs.js` | `/about` | About the system |
-| `Purpose.js` | `/purpose` | Purpose/mission page |
-| `Login.js` | `/login` | Unified login with role selection |
+| `Login.js` | `/login` | Unified login with role selection (default public entry) |
 | `Register.js` | `/register` | Student self-registration |
 | `ForgotPassword.js` | `/forgot-password` | Password reset request |
 | `ResetPassword.js` | `/reset-password/:token` | Password reset form |
@@ -306,7 +298,6 @@ Student-Advising-Portal/
 |---|---|---|
 | `Dashboard.js` | `/dashboard` | Role-specific summary dashboard with KPIs and quicklinks |
 | `Profile.js` | `/profile` | Extended profile editor with photo, contact, academic fields |
-| `CompleteProfile.js` | `/complete-profile` | Minimal profile completion for first-time users |
 
 ### Admin Pages
 | Page | Route | Description |
@@ -335,7 +326,6 @@ Student-Advising-Portal/
 ### Shared Components
 | Component | Description |
 |---|---|
-| `Navbar.js` | Fixed top navbar; role-aware quicklinks; public/private rendering modes |
 | `PrivateRoute.js` | Route guard supporting `roles` prop for role-based access control |
 | `PaginationControls.js` | Reusable pagination with page size selector |
 | `ErrorBoundary.js` | React error boundary to catch unhandled render errors |

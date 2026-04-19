@@ -358,7 +358,7 @@ The system follows a three-tier architecture with the following layers:
 - Student Interface
 - Adviser Interface
 - Program Chair Interface
-- Public pages (Landing, About, Purpose)
+- Public auth entry pages (Login, Register, verification/reset flows)
 - Communication: HTTPS / REST API
 
 **4.1.2 Application Layer (Service Logic)**

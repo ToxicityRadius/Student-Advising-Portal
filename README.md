@@ -37,7 +37,7 @@ It also includes common troubleshooting and a recommended routine for each role.
 - 📈 **Academic Term & Forecasting** — term lifecycle management, current/next/comparison/history demand charts
 - 🧾 **PDF Export & Reporting** — professional SAR PDF export for all roles
 - 🏠 **Role-Specific Dashboards** — KPI summaries and quicklinks tailored to Program Chair, Adviser, and Student
-- 🌐 **Public Pages** — Landing, About, and Purpose pages accessible without authentication
+- 🔑 **Public Auth Entry** — unauthenticated users are routed directly to sign in (`/login`)
 
 ### High-Level Architecture
 - **Backend:** Node.js, Express, Sequelize, PostgreSQL

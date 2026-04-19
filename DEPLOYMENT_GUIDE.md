@@ -35,6 +35,33 @@ Before starting, ensure you have:
 - [ ] SSH client (Windows Terminal / PowerShell has built-in `ssh`)
 - [ ] Your existing `.env` values from local development
 
+### 1.1 Cloudflare Pages + Render Variant
+
+If you are deploying the frontend to Cloudflare Pages and the backend to Render,
+use these production defaults for cross-site auth to work correctly:
+
+```env
+# Render backend env
+CLIENT_URL=https://student-advising-portal.pages.dev
+AUTH_COOKIE_SAME_SITE=none
+AUTH_COOKIE_SECURE=true
+# Leave AUTH_COOKIE_DOMAIN empty unless you are intentionally setting a shared parent domain.
+AUTH_COOKIE_DOMAIN=
+```
+
+Optional (trusted preview scope only):
+
+```env
+CLIENT_URL=https://student-advising-portal.pages.dev,https://*.student-advising-portal.pages.dev
+```
+
+```env
+# Cloudflare Pages env
+REACT_APP_API_URL=https://your-render-service.onrender.com/api
+```
+
+> Prefer exact trusted origins for credentialed CORS. Do not use broad wildcards like `https://*`.
+
 ---
 
 ## 2. Phase 1 — Oracle Cloud VM Setup
