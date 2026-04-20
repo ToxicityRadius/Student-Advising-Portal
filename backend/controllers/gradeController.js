@@ -1,7 +1,5 @@
 const {
   sequelize,
-  StudentAcademicRecord,
-  StudyPlan,
   StudyPlanVersion,
   StudyPlanCourse,
   CurriculumCourse,
@@ -10,7 +8,6 @@ const {
   ElectiveTrack,
   ElectiveTrackCourse,
   Course,
-  User,
 } = require('../models');
 const {
   buildElectiveTrackPlan,
@@ -18,16 +15,9 @@ const {
   yearSemesterFromSlotIndex,
 } = require('../utils/studyPlan');
 
-const {
-  VALID_STATUSES,
-  parseGradeInput,
-  parseGradePayload,
-  formatQuarterGrade,
-} = require('../utils/gradeValidation');
+const { parseGradeInput, parseGradePayload } = require('../utils/gradeValidation');
 const GradeService = require('../services/GradeService');
 const NotificationService = require('../services/NotificationService');
-
-const personAttributes = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId'];
 
 const toNumber = (value) => Number(value);
 
@@ -394,9 +384,6 @@ exports.triggerRegeneration = async (req, res, next) => {
     });
 
     const selectedTrackPlan = buildElectiveTrackPlan(selectedTrackCourses || []);
-    const selectedTrackPlanByCourseId = new Map(
-      selectedTrackPlan.map((item) => [String(item.courseId), item]),
-    );
     const selectedTrackCourseIds = new Set(selectedTrackPlan.map((item) => String(item.courseId)));
     const curriculumTrackCourseIds = new Set(
       (curriculumTrackCourses || []).map((item) => String(item.courseId)),

@@ -1,6 +1,15 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { BASE, uiLogin, waitForStable } = require('./helpers');
+const { BASE, API, API_ROOT, uiLogin, waitForStable } = require('./helpers');
+
+const isLocalApi = (() => {
+  try {
+    const apiUrl = new URL(API_ROOT);
+    return apiUrl.hostname === 'localhost' || apiUrl.hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+})();
 
 test.describe.serial('Admin Journey', () => {
   /** @type {import('@playwright/test').Page} */
@@ -38,15 +47,16 @@ test.describe.serial('Admin Journey', () => {
     expect(page.url()).toContain('/admin/forecast');
   });
 
-  test('API docs page is accessible', async () => {
-    await page.goto('http://localhost:5000/api/docs/');
+  test('API docs page is accessible (local only)', async () => {
+    test.skip(!isLocalApi, 'API docs are disabled outside local environments.');
+    await page.goto(`${API_ROOT}/api/docs/`);
     await waitForStable(page);
     const title = await page.title();
     expect(title).toContain('Student Advising Portal');
   });
 
   test('health endpoint returns OK', async () => {
-    const response = await page.request.get('http://localhost:5000/api/health');
+    const response = await page.request.get(`${API}/health`);
     expect(response.ok()).toBeTruthy();
   });
 });

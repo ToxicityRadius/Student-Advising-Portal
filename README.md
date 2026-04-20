@@ -133,3 +133,65 @@ Notes:
 - 👔 Program Chair account is seeded with first-login security rotation enabled (`mustChangePassword` and `mustChangeEmail`).
 - 🧭 Use the correct login portal selection by role in the frontend (faculty for admin/adviser, student for student).
 - 🛠️ For local development only, you can temporarily bypass the seeded Program Chair first-login enforcement with `DISABLE_ADMIN_FIRST_LOGIN_ENFORCEMENT=true` in `backend/.env`.
+
+## ✅ Pre-Deploy Verification
+
+Run the repository-level pre-deploy gate from the project root:
+
+```bash
+npm run verify:predeploy
+```
+
+If npm audit endpoint availability is temporarily unstable, use:
+
+```bash
+npm run verify:predeploy:soft
+```
+
+Use the soft variant only for transient registry outages. The strict command remains the default release gate.
+
+This command runs:
+- Backend lint (`backend/**`)
+- Frontend production build
+- Frontend test suite (CI mode)
+- Backend unit tests
+- Backend integration tests
+- Backend production dependency audit (`high` threshold)
+
+Optional E2E gate (after core checks):
+
+```bash
+npm run verify:predeploy:e2e
+```
+
+E2E defaults to local targets:
+- Frontend: `http://localhost:3000`
+- Backend API: `http://localhost:5000/api`
+
+You can run E2E against deployed services using:
+
+```bash
+npm run test:e2e:prod
+```
+
+By default, the production command runs public auth-page smoke tests only.
+This avoids requiring seeded login credentials on live environments.
+
+To run additional specs explicitly, pass the target file path:
+
+```bash
+npm run test:e2e:prod -- tests/student.spec.js
+```
+
+Override targets when needed with:
+- `E2E_BASE_URL`
+- `E2E_API_URL`
+
+## 🔒 Frontend Vulnerability Strategy (react-scripts)
+
+The frontend currently uses `react-scripts` 5.x. `npm audit` may report transitive vulnerabilities that cannot be safely removed without a tooling migration.
+
+Current policy:
+- Block release on backend high-severity production vulnerabilities.
+- Track frontend audit findings separately and review them each release.
+- Plan migration away from CRA/react-scripts to reduce persistent transitive risk.

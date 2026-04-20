@@ -11,7 +11,7 @@ jest.mock('../../context/AuthContext', () => ({
 
 jest.mock('../../utils/api', () => ({
   __esModule: true,
-  default: { post: jest.fn(), get: jest.fn() },
+  default: { post: jest.fn(), get: jest.fn(), patch: jest.fn() },
 }));
 
 jest.mock('@react-oauth/google', () => ({
@@ -116,6 +116,78 @@ describe('Login Page', () => {
     await waitFor(() => {
       expect(mockRefreshUser).toHaveBeenCalled();
     });
+  });
+
+  test('email login shows student number modal first, then academic onboarding when fields are missing', async () => {
+    const mockRefreshUser = jest
+      .fn()
+      .mockResolvedValueOnce({
+        role: 'student',
+        email: 'student@tip.edu.ph',
+        studentId: null,
+        yearLevel: null,
+        program: null,
+        curriculum_id: null,
+        student_type: null,
+        sex: null,
+      })
+      .mockResolvedValueOnce({
+        role: 'student',
+        email: 'student@tip.edu.ph',
+        studentId: '2310675',
+        yearLevel: null,
+        program: null,
+        curriculum_id: null,
+        student_type: null,
+        sex: null,
+      });
+
+    useAuth.mockReturnValue({ refreshUser: mockRefreshUser, setUser: jest.fn() });
+
+    api.post.mockResolvedValueOnce({
+      data: {
+        user: {
+          role: 'student',
+        },
+      },
+    });
+
+    api.patch.mockResolvedValueOnce({
+      data: {
+        success: true,
+        user: {
+          role: 'student',
+          studentId: '2310675',
+        },
+      },
+    });
+
+    api.get.mockResolvedValueOnce({
+      data: {
+        items: [{ id: 1, name: 'BS CPE Curriculum 2025' }],
+      },
+    });
+
+    const user = userEvent.setup();
+    renderLogin();
+
+    await user.click(screen.getByLabelText('Login as Student'));
+    await user.type(screen.getByPlaceholderText('Email Address'), 'student@tip.edu.ph');
+    await user.type(screen.getByPlaceholderText('Password'), 'Password1!');
+    await user.click(screen.getByRole('button', { name: /login/i }));
+
+    expect(await screen.findByText('Enter Your Student Number')).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText('e.g. 2100123'), '2310675');
+    await user.click(screen.getByRole('button', { name: /submit/i }));
+
+    await waitFor(() => {
+      expect(api.patch).toHaveBeenCalledWith('/users/update-student-id', {
+        studentId: '2310675',
+      });
+    });
+
+    expect(await screen.findByText('Complete Your Academic Profile')).toBeInTheDocument();
   });
 
   test('shows error on login failure', async () => {

@@ -46,16 +46,32 @@ const Login = () => {
   const navigate = useNavigate();
   const { refreshUser, setUser } = useAuth();
 
+  const hasStudentNumber = (user) => Boolean(user?.studentId || user?.student_id);
+
+  const needsStudentNumber = (user) => user?.role === 'student' && !hasStudentNumber(user);
+
   const needsAcademicInfo = (user) =>
     user?.role === 'student' &&
-    ((!user.yearLevel && !user.year_level && !user.current_year_level) ||
-      !user.curriculum_id ||
-      !user.student_type ||
+    ((!user.yearLevel && !user.year_level && !user.current_year_level && !user.currentYearLevel) ||
+      !user.program ||
+      (!user.curriculum_id && !user.curriculumId && !user.userCurriculumId) ||
+      (!user.student_type && !user.studentType) ||
       (!user.sex && !user.gender));
 
-  const proceedAfterLogin = async (role) => {
+  const proceedAfterLogin = async (role, fallbackEmail = '') => {
     const resolvedUser = await refreshUser();
     const resolvedRole = resolvedUser?.role || role;
+
+    if (needsStudentNumber(resolvedUser)) {
+      setPendingNavRole(resolvedRole);
+      setPendingGoogleUser({
+        email: resolvedUser?.email || fallbackEmail,
+        role: resolvedRole,
+      });
+      setShowStudentIdModal(true);
+      return;
+    }
+
     if (needsAcademicInfo(resolvedUser)) {
       setPendingNavRole(resolvedRole);
       setShowAcademicModal(true);
@@ -116,7 +132,7 @@ const Login = () => {
         navigate('/change-email');
       } else {
         sessionStorage.removeItem('loginRole');
-        await proceedAfterLogin(data.user?.role);
+        await proceedAfterLogin(data.user?.role, formData.email);
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid Credentials. Please try again.');
@@ -177,13 +193,16 @@ const Login = () => {
       } else if (data.mustChangePassword) {
         sessionStorage.removeItem('loginRole');
         setError('This account must change password via email/password sign-in before continuing.');
-      } else if (data.user && data.user.role === 'student' && !data.user.studentId) {
+      } else if (needsStudentNumber(data.user)) {
         // Student without a Student Number — show the modal.
-        setPendingGoogleUser({ email: decoded.email, role: data.user.role });
+        setPendingGoogleUser({
+          email: data.user?.email || decoded.email,
+          role: data.user?.role || 'student',
+        });
         setShowStudentIdModal(true);
       } else {
         sessionStorage.removeItem('loginRole');
-        await proceedAfterLogin(data.user?.role);
+        await proceedAfterLogin(data.user?.role, decoded.email);
       }
     } catch (err) {
       if (process.env.NODE_ENV !== 'production') {

@@ -11,12 +11,12 @@
  * to create the initial tables, then running migrations for incremental changes.
  */
 module.exports = {
-  async up(queryInterface) {
+  async up(_queryInterface) {
     // Record that the baseline has been applied.  No DDL needed — tables
     // already exist from sequelize.sync().
   },
 
   async down() {
     // Intentionally empty — rolling back the baseline is not supported.
-  }
+  },
 };

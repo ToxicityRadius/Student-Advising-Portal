@@ -160,7 +160,7 @@ exports.generateRefreshToken = (userId) => {
 exports.verifyToken = (token) => {
   try {
     return jwt.verify(token, process.env.JWT_SECRET);
-  } catch (_err) {
+  } catch {
     return null;
   }
 };
@@ -169,7 +169,7 @@ exports.verifyToken = (token) => {
 exports.verifyRefreshToken = (token) => {
   try {
     return jwt.verify(token, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
-  } catch (_err) {
+  } catch {
     return null;
   }
 };
@@ -199,7 +199,7 @@ exports.sendTokenResponse = (user, statusCode, res, extraPayload = {}) => {
     ).catch((err) => {
       logger.error({ err, userId: user.id || user._id }, 'Failed to persist refresh token');
     });
-  } catch (_err) {
+  } catch {
     // No-op: auth response should continue even if token persistence wiring fails.
   }
 

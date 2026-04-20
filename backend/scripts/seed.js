@@ -410,7 +410,7 @@ const readImportCsv = (fileName) => {
     console.error('[seed] error:', error.message || error);
     try {
       await sequelize.close();
-    } catch (_) {
+    } catch {
       /* ignore close error */
     }
     process.exit(1);

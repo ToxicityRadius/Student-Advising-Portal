@@ -16,7 +16,7 @@ module.exports = {
         await queryInterface.addIndex(table, ['deletedAt'], {
           name: `${table}_deleted_at_idx`,
         });
-      } catch (_err) {
+      } catch {
         // Column may already exist (fresh DB via sync)
       }
     }
@@ -28,7 +28,7 @@ module.exports = {
       try {
         await queryInterface.removeIndex(table, `${table}_deleted_at_idx`);
         await queryInterface.removeColumn(table, 'deletedAt');
-      } catch (_err) {
+      } catch {
         // Ignore if column doesn't exist
       }
     }

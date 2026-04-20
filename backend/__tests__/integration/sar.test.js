@@ -8,12 +8,12 @@
 const request = require('supertest');
 const { app, models, helpers } = require('./support/helpers');
 
-const { User, StudentAcademicRecord, Curriculum } = models;
+const { StudentAcademicRecord } = models;
 const { syncDB, closeDB, createUser, authToken, createCurriculum } = helpers;
 
 let adviser, admin, student;
 let adviserToken, adminToken, studentToken;
-let curriculum, courses;
+let curriculum;
 
 beforeAll(async () => {
   await syncDB();
@@ -32,7 +32,7 @@ beforeAll(async () => {
   studentToken = authToken(student);
 
   // Seed curriculum with courses
-  ({ curriculum, courses } = await createCurriculum(admin, 5));
+  ({ curriculum } = await createCurriculum(admin, 5));
 }, 120000);
 
 afterAll(async () => {

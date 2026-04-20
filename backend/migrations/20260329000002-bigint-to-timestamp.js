@@ -35,7 +35,7 @@ async function safeAlter(queryInterface, table, column) {
     await queryInterface.sequelize.query(
       `ALTER TABLE "${table}" ALTER COLUMN "${column}" TYPE TIMESTAMP WITH TIME ZONE USING to_timestamp("${column}" / 1000.0)`,
     );
-  } catch (_err) {
+  } catch {
     // Column may already be TIMESTAMP (fresh DB) or not exist
   }
 }
@@ -45,7 +45,7 @@ async function safeRevert(queryInterface, table, column) {
     await queryInterface.sequelize.query(
       `ALTER TABLE "${table}" ALTER COLUMN "${column}" TYPE BIGINT USING (EXTRACT(EPOCH FROM "${column}") * 1000)::BIGINT`,
     );
-  } catch (_err) {
+  } catch {
     // Ignore if column doesn't exist or is already BIGINT
   }
 }

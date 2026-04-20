@@ -30,7 +30,7 @@ const RENAMES = [
 async function safeRename(queryInterface, table, oldName, newName) {
   try {
     await queryInterface.renameColumn(table, oldName, newName);
-  } catch (_err) {
+  } catch {
     // Column may already have the new name (fresh DB via sync)
   }
 }

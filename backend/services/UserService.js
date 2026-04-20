@@ -7,7 +7,7 @@
 
 const { Op } = require('sequelize');
 const { User, AcademicTerm, Curriculum } = require('../models');
-const { sanitizeUserWithProfile, computeProfileCompletionScore } = require('../utils/sanitize');
+const { sanitizeUserWithProfile } = require('../utils/sanitize');
 
 const NO_ACTIVE_TERM_KEY = 'NO_ACTIVE_TERM';
 

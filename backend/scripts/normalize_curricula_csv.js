@@ -6,7 +6,7 @@ const rootDir = path.resolve(__dirname, '..', '..');
 const inputFiles = [
   path.join(rootDir, 'bs_cpe_curriculum_2025_full.csv'),
   path.join(rootDir, 'bs_cpe_curriculum_2023_full.csv'),
-  path.join(rootDir, 'bs_cpe_curriculum_2018_full.csv')
+  path.join(rootDir, 'bs_cpe_curriculum_2018_full.csv'),
 ];
 
 const outputDir = path.join(rootDir, 'data', 'curriculum_normalized');
@@ -51,10 +51,16 @@ const escapeCsvValue = (value) => {
   return stringValue;
 };
 
-const normalizeCourseCode = (value) => String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
+const normalizeCourseCode = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
 
 const parseSemester = (value) => {
-  const normalized = String(value || '').trim().toLowerCase();
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
   if (normalized === '1') return 1;
   if (normalized === '2') return 2;
   if (normalized === '3' || normalized === 'summer') return 3;
@@ -103,22 +109,27 @@ const parseRawRow = (cells) => {
     prerequisites: cells[5],
     year: cells[6],
     semester: cells[7],
-    category: cells[8]
+    category: cells[8],
   };
 
-  if (cells.length === 10 && String(cells[6] || '').trim().toLowerCase() === 'elective') {
+  if (
+    cells.length === 10 &&
+    String(cells[6] || '')
+      .trim()
+      .toLowerCase() === 'elective'
+  ) {
     return {
       ...standard,
       year: '',
       semester: '',
       category: 'elective-track',
-      track_name: cells[9]
+      track_name: cells[9],
     };
   }
 
   return {
     ...standard,
-    track_name: ''
+    track_name: '',
   };
 };
 
@@ -131,7 +142,7 @@ const buildCurriculumMeta = (filePath) => {
     curriculum_year: Number(year),
     name: `BS CPE Curriculum ${year}`,
     description: `Imported from ${base}`,
-    is_active: year === '2025' ? 'true' : 'false'
+    is_active: year === '2025' ? 'true' : 'false',
   };
 };
 
@@ -141,7 +152,7 @@ const normalized = {
   curriculumCourses: [],
   prerequisites: [],
   electiveTracks: new Map(),
-  electiveTrackCourses: []
+  electiveTrackCourses: [],
 };
 
 const tempRows = [];
@@ -164,7 +175,7 @@ inputFiles.forEach((filePath) => {
       ...parsed,
       curriculum_code: meta.curriculum_code,
       source_file: path.basename(filePath),
-      source_row: index + 2
+      source_row: index + 2,
     });
   });
 });
@@ -187,7 +198,7 @@ for (const row of tempRows) {
       course_title: name,
       credit_units: String(Math.round(units)),
       lecture_hours: String(Number(row.lecture_hours || 0) || 0),
-      lab_hours: String(Number(row.lab_hours || 0) || 0)
+      lab_hours: String(Number(row.lab_hours || 0) || 0),
     });
   }
 
@@ -206,9 +217,12 @@ for (const row of tempRows) {
 
   const yearLevel = parseYear(row.year);
   const semester = parseSemester(row.semester);
-  const category = String(row.category || '').trim().toLowerCase();
+  const category = String(row.category || '')
+    .trim()
+    .toLowerCase();
 
-  const isElectivePlaceholder = /see\s*track/i.test(String(row.prerequisites || '')) || /^CPEC\b/i.test(courseCode);
+  const isElectivePlaceholder =
+    /see\s*track/i.test(String(row.prerequisites || '')) || /^CPEC\b/i.test(courseCode);
 
   if (yearLevel && semester) {
     const ccKey = `${row.curriculum_code}|${courseCode}|${yearLevel}|${semester}`;
@@ -219,14 +233,17 @@ for (const row of tempRows) {
         course_code: courseCode,
         year_level: String(yearLevel),
         semester: String(semester),
-        is_elective: isElectivePlaceholder ? 'true' : 'false'
+        is_elective: isElectivePlaceholder ? 'true' : 'false',
       });
     }
   }
 
   // Track courses
-  const inferredTrackName = row.track_name || (category === 'elective-track' ? String(row.category || '') : '');
-  const isTrackRow = category === 'elective-track' || String(row.year || '').trim().toLowerCase() === 'elective';
+  const isTrackRow =
+    category === 'elective-track' ||
+    String(row.year || '')
+      .trim()
+      .toLowerCase() === 'elective';
 
   if (isTrackRow) {
     const trackName = String(row.track_name || row.category || '').trim();
@@ -236,7 +253,7 @@ for (const row of tempRows) {
         normalized.electiveTracks.set(trackKey, {
           curriculum_code: row.curriculum_code,
           track_name: trackName,
-          description: ''
+          description: '',
         });
       }
 
@@ -248,7 +265,7 @@ for (const row of tempRows) {
           track_name: trackName,
           course_code: courseCode,
           year_level: '',
-          semester: ''
+          semester: '',
         });
       }
     }
@@ -270,58 +287,96 @@ for (const row of tempRows) {
     normalized.prerequisites.push({
       curriculum_code: row.curriculum_code,
       course_code: courseCode,
-      prerequisite_course_code: prereqCode
+      prerequisite_course_code: prereqCode,
     });
   });
 }
 
-const coursesArray = Array.from(normalized.courses.values()).sort((a, b) => a.course_code.localeCompare(b.course_code));
-const curriculumsArray = normalized.curriculums.sort((a, b) => a.curriculum_year - b.curriculum_year);
-const curriculumCoursesArray = normalized.curriculumCourses.sort((a, b) => (
-  a.curriculum_code.localeCompare(b.curriculum_code)
-  || Number(a.year_level) - Number(b.year_level)
-  || Number(a.semester) - Number(b.semester)
-  || a.course_code.localeCompare(b.course_code)
-));
-const prerequisitesArray = normalized.prerequisites.sort((a, b) => (
-  a.curriculum_code.localeCompare(b.curriculum_code)
-  || a.course_code.localeCompare(b.course_code)
-  || a.prerequisite_course_code.localeCompare(b.prerequisite_course_code)
-));
-const electiveTracksArray = Array.from(normalized.electiveTracks.values()).sort((a, b) => (
-  a.curriculum_code.localeCompare(b.curriculum_code) || a.track_name.localeCompare(b.track_name)
-));
-const electiveTrackCoursesArray = normalized.electiveTrackCourses.sort((a, b) => (
-  a.curriculum_code.localeCompare(b.curriculum_code)
-  || a.track_name.localeCompare(b.track_name)
-  || a.course_code.localeCompare(b.course_code)
-));
+const coursesArray = Array.from(normalized.courses.values()).sort((a, b) =>
+  a.course_code.localeCompare(b.course_code),
+);
+const curriculumsArray = normalized.curriculums.sort(
+  (a, b) => a.curriculum_year - b.curriculum_year,
+);
+const curriculumCoursesArray = normalized.curriculumCourses.sort(
+  (a, b) =>
+    a.curriculum_code.localeCompare(b.curriculum_code) ||
+    Number(a.year_level) - Number(b.year_level) ||
+    Number(a.semester) - Number(b.semester) ||
+    a.course_code.localeCompare(b.course_code),
+);
+const prerequisitesArray = normalized.prerequisites.sort(
+  (a, b) =>
+    a.curriculum_code.localeCompare(b.curriculum_code) ||
+    a.course_code.localeCompare(b.course_code) ||
+    a.prerequisite_course_code.localeCompare(b.prerequisite_course_code),
+);
+const electiveTracksArray = Array.from(normalized.electiveTracks.values()).sort(
+  (a, b) =>
+    a.curriculum_code.localeCompare(b.curriculum_code) || a.track_name.localeCompare(b.track_name),
+);
+const electiveTrackCoursesArray = normalized.electiveTrackCourses.sort(
+  (a, b) =>
+    a.curriculum_code.localeCompare(b.curriculum_code) ||
+    a.track_name.localeCompare(b.track_name) ||
+    a.course_code.localeCompare(b.course_code),
+);
 
 ensureDir(outputDir);
 
-writeCsv(path.join(outputDir, 'curriculums.csv'), ['curriculum_code', 'name', 'description', 'is_active'], curriculumsArray);
-writeCsv(path.join(outputDir, 'courses.csv'), ['course_code', 'course_title', 'credit_units', 'lecture_hours', 'lab_hours'], coursesArray);
-writeCsv(path.join(outputDir, 'curriculum_courses.csv'), ['curriculum_code', 'course_code', 'year_level', 'semester', 'is_elective'], curriculumCoursesArray);
-writeCsv(path.join(outputDir, 'prerequisites.csv'), ['curriculum_code', 'course_code', 'prerequisite_course_code'], prerequisitesArray);
-writeCsv(path.join(outputDir, 'elective_tracks.csv'), ['curriculum_code', 'track_name', 'description'], electiveTracksArray);
-writeCsv(path.join(outputDir, 'elective_track_courses.csv'), ['curriculum_code', 'track_name', 'course_code', 'year_level', 'semester'], electiveTrackCoursesArray);
+writeCsv(
+  path.join(outputDir, 'curriculums.csv'),
+  ['curriculum_code', 'name', 'description', 'is_active'],
+  curriculumsArray,
+);
+writeCsv(
+  path.join(outputDir, 'courses.csv'),
+  ['course_code', 'course_title', 'credit_units', 'lecture_hours', 'lab_hours'],
+  coursesArray,
+);
+writeCsv(
+  path.join(outputDir, 'curriculum_courses.csv'),
+  ['curriculum_code', 'course_code', 'year_level', 'semester', 'is_elective'],
+  curriculumCoursesArray,
+);
+writeCsv(
+  path.join(outputDir, 'prerequisites.csv'),
+  ['curriculum_code', 'course_code', 'prerequisite_course_code'],
+  prerequisitesArray,
+);
+writeCsv(
+  path.join(outputDir, 'elective_tracks.csv'),
+  ['curriculum_code', 'track_name', 'description'],
+  electiveTracksArray,
+);
+writeCsv(
+  path.join(outputDir, 'elective_track_courses.csv'),
+  ['curriculum_code', 'track_name', 'course_code', 'year_level', 'semester'],
+  electiveTrackCoursesArray,
+);
 
-console.log(JSON.stringify({
-  outputDir,
-  files: [
-    'curriculums.csv',
-    'courses.csv',
-    'curriculum_courses.csv',
-    'prerequisites.csv',
-    'elective_tracks.csv',
-    'elective_track_courses.csv'
-  ],
-  counts: {
-    curriculums: curriculumsArray.length,
-    courses: coursesArray.length,
-    curriculumCourses: curriculumCoursesArray.length,
-    prerequisites: prerequisitesArray.length,
-    electiveTracks: electiveTracksArray.length,
-    electiveTrackCourses: electiveTrackCoursesArray.length
-  }
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      outputDir,
+      files: [
+        'curriculums.csv',
+        'courses.csv',
+        'curriculum_courses.csv',
+        'prerequisites.csv',
+        'elective_tracks.csv',
+        'elective_track_courses.csv',
+      ],
+      counts: {
+        curriculums: curriculumsArray.length,
+        courses: coursesArray.length,
+        curriculumCourses: curriculumCoursesArray.length,
+        prerequisites: prerequisitesArray.length,
+        electiveTracks: electiveTracksArray.length,
+        electiveTrackCourses: electiveTrackCoursesArray.length,
+      },
+    },
+    null,
+    2,
+  ),
+);

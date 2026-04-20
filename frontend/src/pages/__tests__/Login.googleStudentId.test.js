@@ -52,7 +52,9 @@ describe('Login Page - Google student ID completion', () => {
     useAuth.mockReturnValue({
       refreshUser: mockRefreshUser.mockResolvedValue({
         role: 'student',
+        studentId: '2310675',
         yearLevel: 1,
+        program: 'BSCpE',
         curriculum_id: 1,
         student_type: 'regular',
         sex: 'Male',
@@ -123,14 +125,18 @@ describe('Login Page - Google student ID completion', () => {
     mockRefreshUser
       .mockResolvedValueOnce({
         role: 'student',
+        studentId: '2310675',
         yearLevel: 2,
+        program: 'BSCpE',
         curriculum_id: 1,
         student_type: 'regular',
         sex: null,
       })
       .mockResolvedValueOnce({
         role: 'student',
+        studentId: '2310675',
         yearLevel: 2,
+        program: 'BSCpE',
         curriculum_id: 1,
         student_type: 'regular',
         sex: 'Male',

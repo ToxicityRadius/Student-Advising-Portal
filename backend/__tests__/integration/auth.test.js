@@ -8,7 +8,7 @@
 const request = require('supertest');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const { app, sequelize, models, helpers, mocks } = require('./support/helpers');
+const { app, models, helpers, mocks } = require('./support/helpers');
 
 const { User } = models;
 const { syncDB, closeDB, createUser, authToken, refreshTokenFor } = helpers;
@@ -140,10 +140,8 @@ describe('GET /api/auth/activate/:token', () => {
 // ─── Login ──────────────────────────────────────────────────────────────────
 
 describe('POST /api/auth/login', () => {
-  let activeUser;
-
   beforeAll(async () => {
-    activeUser = await createUser({
+    await createUser({
       email: 'login.test@tip.edu.ph',
       isActive: true,
       isVerified: true,

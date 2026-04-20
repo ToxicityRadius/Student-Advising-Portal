@@ -41,7 +41,7 @@ const StudentLayout = ({
       .catch(() => {});
   }, []);
 
-  const studentId = user?.student_id || user?.studentId || user?.id || '';
+  const studentId = user?.student_id || user?.studentId || '';
   const yearLevel = user?.year_level || user?.yearLevel || '';
   const program = user?.program || '';
   const studentType = user?.student_type || user?.studentType || '';
@@ -101,7 +101,7 @@ const StudentLayout = ({
           textAlign: 'center',
         }}
       >
-        {studentId}
+        {studentId || 'No Student Number'}
       </div>
       <div
         style={{

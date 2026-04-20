@@ -47,22 +47,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { generateToken, generateRefreshToken } = require('../../../utils/jwt');
 
-const {
-  sequelize,
-  User,
-  Curriculum,
-  Course,
-  CurriculumCourse,
-  Prerequisite,
-  StudentAcademicRecord,
-  AcademicTerm,
-  ElectiveTrack,
-  ElectiveTrackCourse,
-  Notification,
-  StudyPlan,
-  StudyPlanVersion,
-  StudyPlanCourse,
-} = db;
+const { sequelize, User, Curriculum, Course, CurriculumCourse } = db;
 
 // ── DB lifecycle ────────────────────────────────────────────────────────────
 

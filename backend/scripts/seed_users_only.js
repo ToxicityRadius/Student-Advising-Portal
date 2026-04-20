@@ -24,7 +24,7 @@ const { sequelize, User } = require('../models');
     console.log('[seed:users-only] connected to database');
 
     const [tableRows] = await sequelize.query(
-      "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('SequelizeMeta') ORDER BY tablename"
+      "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('SequelizeMeta') ORDER BY tablename",
     );
 
     if (tableRows.length > 0) {
@@ -50,7 +50,7 @@ const { sequelize, User } = require('../models');
         mustChangePassword: true,
         mustChangeEmail: true,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         firstName: 'Student',
@@ -61,7 +61,7 @@ const { sequelize, User } = require('../models');
         isActive: true,
         isVerified: true,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         studentId: '1234567',
@@ -73,8 +73,8 @@ const { sequelize, User } = require('../models');
         isActive: true,
         isVerified: true,
         createdAt: now,
-        updatedAt: now
-      }
+        updatedAt: now,
+      },
     ]);
 
     const users = await User.count();
@@ -85,7 +85,12 @@ const { sequelize, User } = require('../models');
     await sequelize.close();
   } catch (error) {
     console.error('[seed:users-only] error:', error.message || error);
-    try { await sequelize.close(); } catch {}
+    try {
+      await sequelize.close();
+    } catch (closeError) {
+      // Ignore close errors while exiting after a seed failure.
+      void closeError;
+    }
     process.exit(1);
   }
 })();

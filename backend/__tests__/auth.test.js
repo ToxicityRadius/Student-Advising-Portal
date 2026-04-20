@@ -9,7 +9,7 @@ process.env.ENABLE_2FA = 'false';
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
-const { generateToken, generateRefreshToken } = require('../utils/jwt');
+const { generateToken } = require('../utils/jwt');
 
 // ---- Mock Sequelize models ----
 const mockUserInstance = (data) => ({
@@ -66,7 +66,7 @@ function buildApp() {
   app.use(cookieParser());
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
-  app.use((err, req, res, next) => {
+  app.use((err, req, res, _next) => {
     res.status(err.statusCode || 500).json({ success: false, message: err.message });
   });
   return app;

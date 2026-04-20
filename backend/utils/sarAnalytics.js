@@ -7,9 +7,14 @@ const STATUS_DROPPED = 'dropped';
 const STATUS_INCOMPLETE = 'incomplete';
 const STATUS_ONGOING = 'ongoing';
 
-const DEFAULT_AVG_UNITS_PER_SEMESTER = Number(process.env.SAR_ANALYTICS_AVG_UNITS_PER_SEMESTER || 18);
-const DEFAULT_AVG_SUBJECTS_PER_SEMESTER = Number(process.env.SAR_ANALYTICS_AVG_SUBJECTS_PER_SEMESTER || 6);
-const INCLUDE_SUMMER_IN_ESTIMATE = String(process.env.INCLUDE_SUMMER_IN_ESTIMATE || 'false').toLowerCase() === 'true';
+const DEFAULT_AVG_UNITS_PER_SEMESTER = Number(
+  process.env.SAR_ANALYTICS_AVG_UNITS_PER_SEMESTER || 18,
+);
+const DEFAULT_AVG_SUBJECTS_PER_SEMESTER = Number(
+  process.env.SAR_ANALYTICS_AVG_SUBJECTS_PER_SEMESTER || 6,
+);
+const INCLUDE_SUMMER_IN_ESTIMATE =
+  String(process.env.INCLUDE_SUMMER_IN_ESTIMATE || 'false').toLowerCase() === 'true';
 
 const toPlain = (value) => (value?.get ? value.get({ plain: true }) : value);
 
@@ -36,7 +41,7 @@ const toTermIndex = (yearLevel, semester) => {
 
   const cycleLength = cycle.length;
   const semesterOffset = cycle.indexOf(normalizedSemester);
-  return ((normalizedYearLevel - 1) * cycleLength) + semesterOffset;
+  return (normalizedYearLevel - 1) * cycleLength + semesterOffset;
 };
 
 const parseSchoolYear = (schoolYear) => {
@@ -81,7 +86,7 @@ const advanceAcademicTerm = ({ schoolYear, semester }, steps, { includeSummer = 
   return {
     schoolYear: `${currentStart}-${currentEnd}`,
     semester: currentSemester,
-    label: `${currentStart}-${currentEnd} ${semesterLabel(currentSemester)}`
+    label: `${currentStart}-${currentEnd} ${semesterLabel(currentSemester)}`,
   };
 };
 
@@ -98,9 +103,20 @@ const parseNumericGrade = (grade) => {
   return parsed;
 };
 
-const inferSubjectStatus = ({ rawStatus, grade, yearLevel, semester, currentYearLevel, currentSemester }) => {
-  const normalizedRawStatus = String(rawStatus || '').trim().toLowerCase();
-  const normalizedGrade = String(grade || '').trim().toLowerCase();
+const inferSubjectStatus = ({
+  rawStatus,
+  grade,
+  yearLevel,
+  semester,
+  currentYearLevel,
+  currentSemester,
+}) => {
+  const normalizedRawStatus = String(rawStatus || '')
+    .trim()
+    .toLowerCase();
+  const normalizedGrade = String(grade || '')
+    .trim()
+    .toLowerCase();
 
   if (normalizedRawStatus === 'passed') {
     if (normalizedGrade === 'credited') {
@@ -148,7 +164,7 @@ const buildStatusRank = (status) => {
     [STATUS_INCOMPLETE]: 4,
     [STATUS_ONGOING]: 3,
     [STATUS_PENDING]: 2,
-    [STATUS_NOT_YET_TAKEN]: 1
+    [STATUS_NOT_YET_TAKEN]: 1,
   };
 
   return ranking[status] || 0;
@@ -164,7 +180,7 @@ const computeGwa = (entries) => {
       }
       return {
         gradePoints: numericGrade * units,
-        units
+        units,
       };
     })
     .filter(Boolean);
@@ -202,7 +218,7 @@ const statusCounterTemplate = () => ({
   [STATUS_CREDITED]: 0,
   [STATUS_DROPPED]: 0,
   [STATUS_INCOMPLETE]: 0,
-  [STATUS_ONGOING]: 0
+  [STATUS_ONGOING]: 0,
 });
 
 const toSubjectKey = (courseId) => String(courseId || '');
@@ -215,28 +231,25 @@ const computeSarAnalytics = ({
   prerequisites,
   currentTerm,
   electiveTrackCourses,
-  allCurriculumTrackCourses
+  allCurriculumTrackCourses,
 }) => {
   const sarPlain = toPlain(sar) || {};
   const versions = Array.isArray(studyPlanVersions)
-    ? studyPlanVersions.map((version) => toPlain(version)).sort((left, right) => {
-      if (toNumber(right.versionNumber) !== toNumber(left.versionNumber)) {
-        return toNumber(right.versionNumber) - toNumber(left.versionNumber);
-      }
-      return toNumber(right.createdAt) - toNumber(left.createdAt);
-    })
+    ? studyPlanVersions
+        .map((version) => toPlain(version))
+        .sort((left, right) => {
+          if (toNumber(right.versionNumber) !== toNumber(left.versionNumber)) {
+            return toNumber(right.versionNumber) - toNumber(left.versionNumber);
+          }
+          return toNumber(right.createdAt) - toNumber(left.createdAt);
+        })
     : [];
 
-  const resolvedActiveVersion = toPlain(activeStudyPlanVersion)
-    || versions.find((version) => String(version.status) === 'active')
-    || null;
+  const resolvedActiveVersion =
+    toPlain(activeStudyPlanVersion) ||
+    versions.find((version) => String(version.status) === 'active') ||
+    null;
   const latestVersion = versions[0] || resolvedActiveVersion || null;
-
-  const subjectPool = Array.isArray(resolvedActiveVersion?.StudyPlanCourses)
-    ? resolvedActiveVersion.StudyPlanCourses.map((entry) => toPlain(entry))
-    : Array.isArray(latestVersion?.StudyPlanCourses)
-      ? latestVersion.StudyPlanCourses.map((entry) => toPlain(entry))
-      : [];
 
   const normalizedCurriculumCourses = Array.isArray(curriculumCourses)
     ? curriculumCourses.map((entry) => toPlain(entry))
@@ -248,15 +261,15 @@ const computeSarAnalytics = ({
   const currentYearLevel = toNumber(sarPlain.yearLevel);
   const currentSemester = toNumber(currentTerm?.semester || 1);
 
-  const allVersionRows = versions.flatMap((version) => (
+  const allVersionRows = versions.flatMap((version) =>
     Array.isArray(version.StudyPlanCourses)
       ? version.StudyPlanCourses.map((entry) => ({
-        ...toPlain(entry),
-        versionNumber: toNumber(version.versionNumber),
-        versionStatus: version.status
-      }))
-      : []
-  ));
+          ...toPlain(entry),
+          versionNumber: toNumber(version.versionNumber),
+          versionStatus: version.status,
+        }))
+      : [],
+  );
 
   const latestStatusByCourseId = new Map();
 
@@ -273,7 +286,7 @@ const computeSarAnalytics = ({
       yearLevel: entry.yearLevel,
       semester: entry.semester,
       currentYearLevel,
-      currentSemester
+      currentSemester,
     });
 
     const candidate = {
@@ -286,7 +299,7 @@ const computeSarAnalytics = ({
       grade: entry.grade,
       rawStatus: entry.status,
       status,
-      versionNumber: toNumber(entry.versionNumber)
+      versionNumber: toNumber(entry.versionNumber),
     };
 
     const existing = latestStatusByCourseId.get(key);
@@ -301,73 +314,80 @@ const computeSarAnalytics = ({
 
   // Build sets for elective track resolution
   const normalizedSelectedTrackCourses = Array.isArray(electiveTrackCourses)
-    ? electiveTrackCourses.map((e) => toPlain(e)) : [];
+    ? electiveTrackCourses.map((e) => toPlain(e))
+    : [];
   const normalizedAllTrackCourses = Array.isArray(allCurriculumTrackCourses)
-    ? allCurriculumTrackCourses.map((e) => toPlain(e)) : [];
+    ? allCurriculumTrackCourses.map((e) => toPlain(e))
+    : [];
   const selectedTrackCourseIds = new Set(
-    normalizedSelectedTrackCourses.map((e) => String(e.courseId || e.Course?.id))
+    normalizedSelectedTrackCourses.map((e) => String(e.courseId || e.Course?.id)),
   );
   const allTrackCourseIds = new Set(
-    normalizedAllTrackCourses.map((e) => String(e.courseId || e.Course?.id))
+    normalizedAllTrackCourses.map((e) => String(e.courseId || e.Course?.id)),
   );
   const selectedTrackByCourseId = new Map(
     normalizedSelectedTrackCourses.map((e) => [
       String(e.courseId || e.Course?.id),
-      { yearLevel: toNumber(e.yearLevel), semester: toNumber(e.semester), Course: e.Course }
-    ])
+      { yearLevel: toNumber(e.yearLevel), semester: toNumber(e.semester), Course: e.Course },
+    ]),
   );
 
-  const checklistBase = normalizedCurriculumCourses.length > 0
-    ? normalizedCurriculumCourses
-      .filter((entry) => {
-        const courseId = String(entry.courseId || entry.Course?.id);
-        // Remove placeholder elective courses that belong to OTHER tracks
-        if (Boolean(entry.isElective) && allTrackCourseIds.has(courseId) && !selectedTrackCourseIds.has(courseId)) {
-          return false;
-        }
-        return true;
-      })
-      .map((entry) => {
-        const courseId = String(entry.courseId || entry.Course?.id);
-        const trackOverride = selectedTrackByCourseId.get(courseId);
-        return {
-          courseId: toNumber(entry.courseId || entry.Course?.id),
-          code: trackOverride?.Course?.code || entry.Course?.code,
-          name: trackOverride?.Course?.name || entry.Course?.name,
-          units: toNumber(trackOverride?.Course?.units || entry.Course?.units),
-          yearLevel: toNumber(trackOverride?.yearLevel || entry.yearLevel),
-          semester: toNumber(trackOverride?.semester || entry.semester),
-          isElective: Boolean(entry.isElective)
-        };
-      })
-      // Add selected track courses not already in curriculum list
-      .concat(
-        normalizedSelectedTrackCourses
-          .filter((e) => {
-            const cid = String(e.courseId || e.Course?.id);
-            return !normalizedCurriculumCourses.some(
-              (cc) => String(cc.courseId || cc.Course?.id) === cid
-            );
+  const checklistBase =
+    normalizedCurriculumCourses.length > 0
+      ? normalizedCurriculumCourses
+          .filter((entry) => {
+            const courseId = String(entry.courseId || entry.Course?.id);
+            // Remove placeholder elective courses that belong to OTHER tracks
+            if (
+              Boolean(entry.isElective) &&
+              allTrackCourseIds.has(courseId) &&
+              !selectedTrackCourseIds.has(courseId)
+            ) {
+              return false;
+            }
+            return true;
           })
-          .map((e) => ({
-            courseId: toNumber(e.courseId || e.Course?.id),
-            code: e.Course?.code,
-            name: e.Course?.name,
-            units: toNumber(e.Course?.units),
-            yearLevel: toNumber(e.yearLevel),
-            semester: toNumber(e.semester),
-            isElective: true
-          }))
-      )
-    : Array.from(latestStatusByCourseId.values()).map((entry) => ({
-      courseId: toNumber(entry.courseId),
-      code: entry.code,
-      name: entry.name,
-      units: toNumber(entry.units),
-      yearLevel: toNumber(entry.yearLevel),
-      semester: toNumber(entry.semester),
-      isElective: false
-    }));
+          .map((entry) => {
+            const courseId = String(entry.courseId || entry.Course?.id);
+            const trackOverride = selectedTrackByCourseId.get(courseId);
+            return {
+              courseId: toNumber(entry.courseId || entry.Course?.id),
+              code: trackOverride?.Course?.code || entry.Course?.code,
+              name: trackOverride?.Course?.name || entry.Course?.name,
+              units: toNumber(trackOverride?.Course?.units || entry.Course?.units),
+              yearLevel: toNumber(trackOverride?.yearLevel || entry.yearLevel),
+              semester: toNumber(trackOverride?.semester || entry.semester),
+              isElective: Boolean(entry.isElective),
+            };
+          })
+          // Add selected track courses not already in curriculum list
+          .concat(
+            normalizedSelectedTrackCourses
+              .filter((e) => {
+                const cid = String(e.courseId || e.Course?.id);
+                return !normalizedCurriculumCourses.some(
+                  (cc) => String(cc.courseId || cc.Course?.id) === cid,
+                );
+              })
+              .map((e) => ({
+                courseId: toNumber(e.courseId || e.Course?.id),
+                code: e.Course?.code,
+                name: e.Course?.name,
+                units: toNumber(e.Course?.units),
+                yearLevel: toNumber(e.yearLevel),
+                semester: toNumber(e.semester),
+                isElective: true,
+              })),
+          )
+      : Array.from(latestStatusByCourseId.values()).map((entry) => ({
+          courseId: toNumber(entry.courseId),
+          code: entry.code,
+          name: entry.name,
+          units: toNumber(entry.units),
+          yearLevel: toNumber(entry.yearLevel),
+          semester: toNumber(entry.semester),
+          isElective: false,
+        }));
 
   const prerequisiteMap = new Map();
   normalizedPrerequisites.forEach((rule) => {
@@ -383,58 +403,73 @@ const computeSarAnalytics = ({
     prerequisiteMap.get(targetCourseId).push({
       courseId: toNumber(rule.prerequisiteCourseId),
       code: rule.PrerequisiteCourse?.code,
-      name: rule.PrerequisiteCourse?.name
+      name: rule.PrerequisiteCourse?.name,
     });
   });
 
   const completedCourseIds = new Set(
     Array.from(latestStatusByCourseId.values())
       .filter((entry) => entry.status === STATUS_COMPLETED || entry.status === STATUS_CREDITED)
-      .map((entry) => toSubjectKey(entry.courseId))
+      .map((entry) => toSubjectKey(entry.courseId)),
   );
 
   const statusCounters = statusCounterTemplate();
 
-  const subjectIndicators = checklistBase.map((subject) => {
-    const latest = latestStatusByCourseId.get(toSubjectKey(subject.courseId));
-    const status = latest?.status
-      || inferSubjectStatus({
-        rawStatus: STATUS_PENDING,
-        grade: null,
-        yearLevel: subject.yearLevel,
-        semester: subject.semester,
-        currentYearLevel,
-        currentSemester
-      });
+  const subjectIndicators = checklistBase
+    .map((subject) => {
+      const latest = latestStatusByCourseId.get(toSubjectKey(subject.courseId));
+      const status =
+        latest?.status ||
+        inferSubjectStatus({
+          rawStatus: STATUS_PENDING,
+          grade: null,
+          yearLevel: subject.yearLevel,
+          semester: subject.semester,
+          currentYearLevel,
+          currentSemester,
+        });
 
-    statusCounters[status] = (statusCounters[status] || 0) + 1;
+      statusCounters[status] = (statusCounters[status] || 0) + 1;
 
-    const requiredPrereqs = prerequisiteMap.get(toSubjectKey(subject.courseId)) || [];
-    const unmetPrerequisites = requiredPrereqs.filter((rule) => !completedCourseIds.has(toSubjectKey(rule.courseId)));
+      const requiredPrereqs = prerequisiteMap.get(toSubjectKey(subject.courseId)) || [];
+      const unmetPrerequisites = requiredPrereqs.filter(
+        (rule) => !completedCourseIds.has(toSubjectKey(rule.courseId)),
+      );
 
-    return {
-      studyPlanCourseId: latest?.id || null,
-      courseId: subject.courseId,
-      code: subject.code || latest?.code || null,
-      name: subject.name || latest?.name || null,
-      units: toNumber(subject.units || latest?.units),
-      yearLevel: toNumber(subject.yearLevel || latest?.yearLevel),
-      semester: toNumber(subject.semester || latest?.semester),
-      grade: latest?.grade || null,
-      rawStatus: latest?.rawStatus || STATUS_PENDING,
-      status,
-      isElective: Boolean(subject.isElective),
-      prerequisites: requiredPrereqs,
-      unmetPrerequisites,
-      isPrerequisiteMet: unmetPrerequisites.length === 0,
-      isEligible: unmetPrerequisites.length === 0 && (status === STATUS_PENDING || status === STATUS_NOT_YET_TAKEN || status === STATUS_ONGOING),
-      isPriority: false
-    };
-  }).sort(sortByPlacement);
+      return {
+        studyPlanCourseId: latest?.id || null,
+        courseId: subject.courseId,
+        code: subject.code || latest?.code || null,
+        name: subject.name || latest?.name || null,
+        units: toNumber(subject.units || latest?.units),
+        yearLevel: toNumber(subject.yearLevel || latest?.yearLevel),
+        semester: toNumber(subject.semester || latest?.semester),
+        grade: latest?.grade || null,
+        rawStatus: latest?.rawStatus || STATUS_PENDING,
+        status,
+        isElective: Boolean(subject.isElective),
+        prerequisites: requiredPrereqs,
+        unmetPrerequisites,
+        isPrerequisiteMet: unmetPrerequisites.length === 0,
+        isEligible:
+          unmetPrerequisites.length === 0 &&
+          (status === STATUS_PENDING ||
+            status === STATUS_NOT_YET_TAKEN ||
+            status === STATUS_ONGOING),
+        isPriority: false,
+      };
+    })
+    .sort(sortByPlacement);
 
-  const pendingEligible = subjectIndicators.filter((subject) => subject.isEligible && (subject.status === STATUS_PENDING || subject.status === STATUS_NOT_YET_TAKEN || subject.status === STATUS_ONGOING));
+  const pendingEligible = subjectIndicators.filter(
+    (subject) =>
+      subject.isEligible &&
+      (subject.status === STATUS_PENDING ||
+        subject.status === STATUS_NOT_YET_TAKEN ||
+        subject.status === STATUS_ONGOING),
+  );
   const earliestPrioritySlot = pendingEligible.reduce((minimum, subject) => {
-    const slot = (toNumber(subject.yearLevel) * 10) + toNumber(subject.semester);
+    const slot = toNumber(subject.yearLevel) * 10 + toNumber(subject.semester);
     if (!minimum || slot < minimum) {
       return slot;
     }
@@ -442,7 +477,7 @@ const computeSarAnalytics = ({
   }, null);
 
   subjectIndicators.forEach((subject) => {
-    const slot = (toNumber(subject.yearLevel) * 10) + toNumber(subject.semester);
+    const slot = toNumber(subject.yearLevel) * 10 + toNumber(subject.semester);
     if (earliestPrioritySlot && slot === earliestPrioritySlot && subject.isEligible) {
       subject.isPriority = true;
     }
@@ -453,24 +488,27 @@ const computeSarAnalytics = ({
     .filter((item) => item.status === STATUS_COMPLETED || item.status === STATUS_CREDITED)
     .reduce((sum, item) => sum + toNumber(item.units), 0);
   const remainingUnits = Math.max(totalUnits - completedUnits, 0);
-  const completionPercentage = totalUnits > 0
-    ? Number(((completedUnits / totalUnits) * 100).toFixed(2))
-    : 0;
+  const completionPercentage =
+    totalUnits > 0 ? Number(((completedUnits / totalUnits) * 100).toFixed(2)) : 0;
 
   const checklistTotalSubjects = checklistBase.length;
-  const completedSubjects = subjectIndicators
-    .filter((item) => item.status === STATUS_COMPLETED || item.status === STATUS_CREDITED)
-    .length;
+  const completedSubjects = subjectIndicators.filter(
+    (item) => item.status === STATUS_COMPLETED || item.status === STATUS_CREDITED,
+  ).length;
   const remainingSubjects = Math.max(checklistTotalSubjects - completedSubjects, 0);
 
   const takenSummary = {
     passed: statusCounters[STATUS_COMPLETED],
-    failed: statusCounters[STATUS_FAILED] + statusCounters[STATUS_DROPPED] + statusCounters[STATUS_INCOMPLETE],
-    credited: statusCounters[STATUS_CREDITED]
+    failed:
+      statusCounters[STATUS_FAILED] +
+      statusCounters[STATUS_DROPPED] +
+      statusCounters[STATUS_INCOMPLETE],
+    credited: statusCounters[STATUS_CREDITED],
   };
 
-  const rowsForGwa = subjectIndicators
-    .filter((item) => [STATUS_COMPLETED, STATUS_FAILED, STATUS_DROPPED].includes(item.status));
+  const rowsForGwa = subjectIndicators.filter((item) =>
+    [STATUS_COMPLETED, STATUS_FAILED, STATUS_DROPPED].includes(item.status),
+  );
 
   const groupedSemester = new Map();
   subjectIndicators.forEach((item) => {
@@ -493,10 +531,16 @@ const computeSarAnalytics = ({
         completedUnits: entries
           .filter((entry) => entry.status === STATUS_COMPLETED || entry.status === STATUS_CREDITED)
           .reduce((sum, entry) => sum + toNumber(entry.units), 0),
-        passedSubjects: entries.filter((entry) => entry.status === STATUS_COMPLETED || entry.status === STATUS_CREDITED).length,
-        failedSubjects: entries.filter((entry) => [STATUS_FAILED, STATUS_DROPPED, STATUS_INCOMPLETE].includes(entry.status)).length,
-        pendingSubjects: entries.filter((entry) => [STATUS_PENDING, STATUS_NOT_YET_TAKEN].includes(entry.status)).length,
-        gpa: computeGwa(entries)
+        passedSubjects: entries.filter(
+          (entry) => entry.status === STATUS_COMPLETED || entry.status === STATUS_CREDITED,
+        ).length,
+        failedSubjects: entries.filter((entry) =>
+          [STATUS_FAILED, STATUS_DROPPED, STATUS_INCOMPLETE].includes(entry.status),
+        ).length,
+        pendingSubjects: entries.filter((entry) =>
+          [STATUS_PENDING, STATUS_NOT_YET_TAKEN].includes(entry.status),
+        ).length,
+        gpa: computeGwa(entries),
       };
     })
     .sort((left, right) => {
@@ -506,9 +550,12 @@ const computeSarAnalytics = ({
       return left.semester - right.semester;
     });
 
-  const currentOrLatestSemester = semesterAcademicSummary.find((entry) => (
-    entry.yearLevel === currentYearLevel && entry.semester === currentSemester
-  )) || semesterAcademicSummary[semesterAcademicSummary.length - 1] || null;
+  const currentOrLatestSemester =
+    semesterAcademicSummary.find(
+      (entry) => entry.yearLevel === currentYearLevel && entry.semester === currentSemester,
+    ) ||
+    semesterAcademicSummary[semesterAcademicSummary.length - 1] ||
+    null;
 
   // Count remaining semesters from the actual study plan schedule:
   // Find distinct year/semester slots that still have incomplete courses.
@@ -530,9 +577,11 @@ const computeSarAnalytics = ({
 
   // Keep average-based values for informational display only
   const averageUnits = DEFAULT_AVG_UNITS_PER_SEMESTER > 0 ? DEFAULT_AVG_UNITS_PER_SEMESTER : 18;
-  const averageSubjects = DEFAULT_AVG_SUBJECTS_PER_SEMESTER > 0 ? DEFAULT_AVG_SUBJECTS_PER_SEMESTER : 6;
+  const averageSubjects =
+    DEFAULT_AVG_SUBJECTS_PER_SEMESTER > 0 ? DEFAULT_AVG_SUBJECTS_PER_SEMESTER : 6;
   const semestersByUnits = remainingUnits > 0 ? Math.ceil(remainingUnits / averageUnits) : 0;
-  const semestersBySubjects = remainingSubjects > 0 ? Math.ceil(remainingSubjects / averageSubjects) : 0;
+  const semestersBySubjects =
+    remainingSubjects > 0 ? Math.ceil(remainingSubjects / averageSubjects) : 0;
 
   const placementRemainingSemesters = (() => {
     if (remainingSubjects <= 0) {
@@ -554,7 +603,7 @@ const computeSarAnalytics = ({
     }
 
     const furthestRemainingIndex = Math.max(...remainingIndices);
-    return Math.max((furthestRemainingIndex - currentIndex) + 1, 1);
+    return Math.max(furthestRemainingIndex - currentIndex + 1, 1);
   })();
 
   const standingRemainingSemesters = (() => {
@@ -567,58 +616,58 @@ const computeSarAnalytics = ({
       return null;
     }
 
-    return Math.max((targetIndex - currentIndex) + 1, 0);
+    return Math.max(targetIndex - currentIndex + 1, 0);
   })();
 
   const unconstrainedEstimatedRemainingSemesters = Math.max(
     semestersByUnits,
     semestersBySubjects,
     placementRemainingSemesters,
-    0
+    0,
   );
 
-  const hasBacklog = (
-    statusCounters[STATUS_FAILED] > 0
-    || statusCounters[STATUS_DROPPED] > 0
-    || statusCounters[STATUS_INCOMPLETE] > 0
-  );
+  const hasBacklog =
+    statusCounters[STATUS_FAILED] > 0 ||
+    statusCounters[STATUS_DROPPED] > 0 ||
+    statusCounters[STATUS_INCOMPLETE] > 0;
 
-  const estimatedRemainingSemesters = (
-    !hasBacklog
-    && Number.isFinite(standingRemainingSemesters)
-    && standingRemainingSemesters !== null
-    && standingRemainingSemesters > 0
-  )
-    ? Math.min(unconstrainedEstimatedRemainingSemesters, standingRemainingSemesters)
-    : unconstrainedEstimatedRemainingSemesters;
+  const estimatedRemainingSemesters =
+    !hasBacklog &&
+    Number.isFinite(standingRemainingSemesters) &&
+    standingRemainingSemesters !== null &&
+    standingRemainingSemesters > 0
+      ? Math.min(unconstrainedEstimatedRemainingSemesters, standingRemainingSemesters)
+      : unconstrainedEstimatedRemainingSemesters;
 
-  const advancementSteps = estimatedRemainingSemesters > 0
-    ? Math.max(estimatedRemainingSemesters - 1, 0)
-    : 0;
+  const advancementSteps =
+    estimatedRemainingSemesters > 0 ? Math.max(estimatedRemainingSemesters - 1, 0) : 0;
 
   const projectedTerm = currentTerm?.schoolYear
     ? advanceAcademicTerm(
-      {
-        schoolYear: currentTerm.schoolYear,
-        semester: currentTerm.semester
-      },
-      advancementSteps
-    )
+        {
+          schoolYear: currentTerm.schoolYear,
+          semester: currentTerm.semester,
+        },
+        advancementSteps,
+      )
     : null;
 
   const projectedDate = projectedTerm
     ? null
     : (() => {
-      const now = new Date();
-      const monthAdvance = advancementSteps * 6;
-      const projected = new Date(now.getFullYear(), now.getMonth() + monthAdvance, 1);
-      return projected.toISOString();
-    })();
+        const now = new Date();
+        const monthAdvance = advancementSteps * 6;
+        const projected = new Date(now.getFullYear(), now.getMonth() + monthAdvance, 1);
+        return projected.toISOString();
+      })();
 
-  const prerequisiteCourseEntries = subjectIndicators
-    .filter((subject) => Array.isArray(subject.prerequisites) && subject.prerequisites.length > 0);
+  const prerequisiteCourseEntries = subjectIndicators.filter(
+    (subject) => Array.isArray(subject.prerequisites) && subject.prerequisites.length > 0,
+  );
 
-  const prerequisitesMetCount = prerequisiteCourseEntries.filter((subject) => subject.isPrerequisiteMet).length;
+  const prerequisitesMetCount = prerequisiteCourseEntries.filter(
+    (subject) => subject.isPrerequisiteMet,
+  ).length;
   const prerequisitesUnmetCount = prerequisiteCourseEntries.length - prerequisitesMetCount;
 
   const reviewStatus = resolvedActiveVersion?.validatedAt
@@ -640,12 +689,12 @@ const computeSarAnalytics = ({
       schoolYear: currentTerm?.schoolYear || null,
       program,
       studentType,
-      curriculumName: sarPlain.Curriculum?.name || null
+      curriculumName: sarPlain.Curriculum?.name || null,
     },
     usedCurriculum: {
       id: sarPlain.Curriculum?.id || sarPlain.curriculumId || null,
       name: sarPlain.Curriculum?.name || null,
-      description: sarPlain.Curriculum?.description || null
+      description: sarPlain.Curriculum?.description || null,
     },
     progress: {
       unitsCompletedVsTotal: `${completedUnits} / ${totalUnits}`,
@@ -656,18 +705,18 @@ const computeSarAnalytics = ({
       completionPercentage,
       completedSubjects,
       remainingSubjects,
-      totalSubjects: checklistTotalSubjects
+      totalSubjects: checklistTotalSubjects,
     },
     statusCounters: {
       ...statusCounters,
-      totalSubjects: checklistTotalSubjects
+      totalSubjects: checklistTotalSubjects,
     },
     subjectsTakenSummary: takenSummary,
     gpaMonitoring: {
       gwa: computeGwa(rowsForGwa),
       gradedUnits: rowsForGwa.reduce((sum, entry) => sum + toNumber(entry.units), 0),
       gradedSubjects: rowsForGwa.length,
-      latestSemesterGpa: currentOrLatestSemester?.gpa || null
+      latestSemesterGpa: currentOrLatestSemester?.gpa || null,
     },
     semesterAcademicSummary,
     adviserReviewWorkflow: {
@@ -675,16 +724,18 @@ const computeSarAnalytics = ({
       totalVersions: versions.length,
       latestVersionStatus: latestVersion?.status || null,
       activeVersionStatus: resolvedActiveVersion?.status || null,
-      needsRevalidation: Boolean(resolvedActiveVersion?.needsRevalidation || latestVersion?.needsRevalidation),
+      needsRevalidation: Boolean(
+        resolvedActiveVersion?.needsRevalidation || latestVersion?.needsRevalidation,
+      ),
       lastValidatedAt: resolvedActiveVersion?.validatedAt || null,
       reviewStatus,
       reviewedBy: resolvedActiveVersion?.ValidatedByAdviser
         ? {
-          id: resolvedActiveVersion.ValidatedByAdviser.id,
-          name: `${resolvedActiveVersion.ValidatedByAdviser.firstName || ''} ${resolvedActiveVersion.ValidatedByAdviser.lastName || ''}`.trim(),
-          email: resolvedActiveVersion.ValidatedByAdviser.email || null
-        }
-        : null
+            id: resolvedActiveVersion.ValidatedByAdviser.id,
+            name: `${resolvedActiveVersion.ValidatedByAdviser.firstName || ''} ${resolvedActiveVersion.ValidatedByAdviser.lastName || ''}`.trim(),
+            email: resolvedActiveVersion.ValidatedByAdviser.email || null,
+          }
+        : null,
     },
     prerequisiteChecking: {
       totalRules: normalizedPrerequisites.length,
@@ -697,14 +748,14 @@ const computeSarAnalytics = ({
         prerequisites: subject.prerequisites,
         unmetPrerequisites: subject.unmetPrerequisites,
         isPrerequisiteMet: subject.isPrerequisiteMet,
-        eligibility: subject.isPrerequisiteMet ? 'eligible' : 'not-eligible'
-      }))
+        eligibility: subject.isPrerequisiteMet ? 'eligible' : 'not-eligible',
+      })),
     },
     curriculumChecklistOverview: {
       totalSubjects: checklistTotalSubjects,
       completedSubjects,
       remainingSubjects,
-      items: subjectIndicators
+      items: subjectIndicators,
     },
     prioritySubjectIndicators: subjectIndicators.filter((subject) => subject.isPriority),
     remainingSemestersTracking: {
@@ -717,19 +768,21 @@ const computeSarAnalytics = ({
       assumptions: {
         averageUnitsPerSemester: averageUnits,
         averageSubjectsPerSemester: averageSubjects,
-        includeSummer: curriculumHasSummer
-      }
+        includeSummer: curriculumHasSummer,
+      },
     },
     estimatedGraduationDate: {
       estimatedTerm: projectedTerm,
       estimatedDateISO: projectedDate,
-      label: projectedTerm?.label || (projectedDate ? new Date(projectedDate).toLocaleDateString() : 'N/A')
-    }
+      label:
+        projectedTerm?.label ||
+        (projectedDate ? new Date(projectedDate).toLocaleDateString() : 'N/A'),
+    },
   };
 };
 
 module.exports = {
   computeSarAnalytics,
   inferSubjectStatus,
-  semesterLabel
+  semesterLabel,
 };

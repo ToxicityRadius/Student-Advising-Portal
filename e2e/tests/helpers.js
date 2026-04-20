@@ -4,8 +4,9 @@
  */
 const { expect } = require('@playwright/test');
 
-const BASE = 'http://localhost:3000';
-const API  = 'http://localhost:5000/api';
+const BASE = (process.env.E2E_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
+const API = (process.env.E2E_API_URL || 'http://localhost:5000/api').replace(/\/+$/, '');
+const API_ROOT = API.endsWith('/api') ? API.slice(0, -4) : API;
 
 const CREDENTIALS = {
   student:  { email: 'student@tip.edu.ph',       password: 'Password123!' },
@@ -98,4 +99,4 @@ async function waitForStable(page) {
   await page.waitForLoadState('networkidle');
 }
 
-module.exports = { BASE, API, CREDENTIALS, apiLogin, uiLogin, waitForStable };
+module.exports = { BASE, API, API_ROOT, CREDENTIALS, apiLogin, uiLogin, waitForStable };

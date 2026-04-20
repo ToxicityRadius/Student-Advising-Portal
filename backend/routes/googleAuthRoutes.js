@@ -43,7 +43,7 @@ function generateVerificationCode() {
 // Google Sign-In route
 router.post('/google', googleAuthLimiter, async (req, res) => {
   try {
-    const { token, email, name, selectedRole } = req.body;
+    const { token, name, selectedRole } = req.body;
 
     // Verify the Google token
     const audiences = getGoogleAudiences();

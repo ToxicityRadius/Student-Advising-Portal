@@ -1,5 +1,4 @@
-const { Op } = require('sequelize');
-const { User, AcademicTerm, Curriculum } = require('../models');
+const { User, AcademicTerm } = require('../models');
 const { generateToken } = require('../utils/jwt');
 const { linkStudentAccountToSar, syncProfileToSar } = require('../utils/sarLinking');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');

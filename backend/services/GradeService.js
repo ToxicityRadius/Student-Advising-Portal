@@ -13,7 +13,6 @@ const {
   Course,
   User,
 } = require('../models');
-const { parseGradeInput } = require('../utils/gradeValidation');
 const { sortStudyPlanCourses } = require('../utils/studyPlan');
 
 const PERSON_ATTRIBUTES = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId'];
@@ -46,19 +45,6 @@ const getActiveVersion = async (studyPlanId, transaction) => {
     ],
     transaction,
   });
-};
-
-/**
- * Fetches the latest StudyPlanVersion number for a study plan.
- */
-const getLatestVersionNumber = async (studyPlanId, transaction) => {
-  const latest = await StudyPlanVersion.findOne({
-    where: { studyPlanId },
-    order: [['versionNumber', 'DESC']],
-    transaction,
-    lock: transaction.LOCK.UPDATE,
-  });
-  return Number(latest?.versionNumber || 0);
 };
 
 /**

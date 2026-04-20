@@ -11,7 +11,7 @@ const buildDerivedData = (body) => {
     return body;
   }
 
-  const { success, message, ...rest } = body;
+  const { success: _success, message: _message, ...rest } = body;
   const keys = Object.keys(rest);
 
   if (keys.length === 0) {
@@ -36,7 +36,7 @@ module.exports = function responseEnvelope(req, res, next) {
       return originalJson({
         success: true,
         message: 'Success',
-        data: body
+        data: body,
       });
     }
 
@@ -49,7 +49,7 @@ module.exports = function responseEnvelope(req, res, next) {
       const normalized = {
         ...body,
         message: body.message || (body.success ? 'Success' : 'Request failed'),
-        data: hasData ? body.data : buildDerivedData(body)
+        data: hasData ? body.data : buildDerivedData(body),
       };
 
       return originalJson(normalized);
@@ -59,7 +59,7 @@ module.exports = function responseEnvelope(req, res, next) {
       ...body,
       success: true,
       message: body.message || 'Success',
-      data: body
+      data: body,
     });
   };
 

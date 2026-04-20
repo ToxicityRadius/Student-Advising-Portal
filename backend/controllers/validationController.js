@@ -12,7 +12,7 @@ const {
   User,
 } = require('../models');
 const { buildElectiveTrackPlan, isElectiveTrackSelectionRequired } = require('../utils/studyPlan');
-const { meetsStandingRequirement, standingLabel } = require('../utils/standingValidation');
+const { standingLabel } = require('../utils/standingValidation');
 const NotificationService = require('../services/NotificationService');
 
 const personAttributes = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId'];

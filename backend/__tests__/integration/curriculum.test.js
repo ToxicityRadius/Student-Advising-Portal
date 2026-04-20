@@ -9,7 +9,7 @@
 const request = require('supertest');
 const { app, models, helpers } = require('./support/helpers');
 
-const { Curriculum, Course, CurriculumCourse, Prerequisite } = models;
+const { Curriculum, Course, CurriculumCourse } = models;
 const { syncDB, closeDB, createUser, authToken } = helpers;
 
 let admin, adviser, student;

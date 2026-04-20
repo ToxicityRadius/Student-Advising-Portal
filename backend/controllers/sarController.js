@@ -1,4 +1,3 @@
-const { Op } = require('sequelize');
 const { imageSize } = require('image-size');
 const {
   sequelize,
@@ -8,8 +7,6 @@ const {
   StudyPlanCourse,
   Curriculum,
   CurriculumCourse,
-  Prerequisite,
-  AcademicTerm,
   Course,
   ElectiveTrack,
   ElectiveTrackCourse,
@@ -17,7 +14,6 @@ const {
 } = require('../models');
 const { syncSarToProfile } = require('../utils/sarLinking');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
-const { computeSarAnalytics } = require('../utils/sarAnalytics');
 const { buildElectiveTrackPlan } = require('../utils/studyPlan');
 
 const {
@@ -59,8 +55,6 @@ const personAttributes = [
 ];
 const curriculumAttributes = ['id', 'name', 'description', 'isActive'];
 const electiveTrackAttributes = ['id', 'name', 'description'];
-const ALLOWED_SEX = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
-const ALLOWED_STUDENT_TYPES = ['regular', 'irregular', 'transferee', 'ladderized'];
 const MAX_PROFILE_IMAGE_WIDTH = 2000;
 const MAX_PROFILE_IMAGE_HEIGHT = 2000;
 
@@ -79,53 +73,6 @@ const normalizeEmail = (email) =>
 const parseYearLevel = (value) => Number(value);
 
 const isValidYearLevel = (value) => Number.isInteger(value) && value >= 1 && value <= 5;
-
-const normalizeProfileField = (value) => {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value === null) {
-    return null;
-  }
-
-  const normalized = String(value).trim();
-  return normalized === '' ? null : normalized;
-};
-
-const composeStudentDisplayName = (studentUser) => {
-  if (!studentUser) {
-    return '';
-  }
-
-  const firstName = String(studentUser.first_name || studentUser.firstName || '').trim();
-  const lastName = String(studentUser.last_name || studentUser.lastName || '').trim();
-  const fallback = [firstName, lastName].filter(Boolean).join(' ').trim();
-
-  if (fallback) {
-    return fallback;
-  }
-
-  return String(studentUser.preferred_name || '').trim();
-};
-
-const buildStudentOwnershipWhere = (user) => {
-  const ownershipChecks = [];
-
-  if (user?.id) {
-    ownershipChecks.push({ userId: user.id });
-  }
-
-  if (user?.email) {
-    ownershipChecks.push({ email: normalizeEmail(user.email) });
-  }
-
-  if (user?.studentId) {
-    ownershipChecks.push({ studentNumber: user.studentId });
-  }
-
-  return ownershipChecks.length > 0 ? { [Op.or]: ownershipChecks } : { id: null };
-};
 
 const isSarOwnedByUser = (sar, user) => {
   if (!sar || !user) {
