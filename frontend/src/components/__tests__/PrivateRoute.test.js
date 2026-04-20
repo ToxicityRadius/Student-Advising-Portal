@@ -10,6 +10,17 @@ jest.mock('../../context/AuthContext', () => ({
   useAuth: jest.fn(),
 }));
 
+const completeStudentUser = {
+  id: 1,
+  role: 'student',
+  studentId: '2310675',
+  yearLevel: 2,
+  program: 'BS CpE',
+  curriculum_id: 1,
+  student_type: 'regular',
+  sex: 'Male',
+};
+
 const renderWithRouter = (ui, { initialEntries = ['/protected'] } = {}) => {
   return render(
     <MemoryRouter
@@ -59,7 +70,7 @@ describe('PrivateRoute', () => {
 
   test('renders children when user is authenticated', () => {
     useAuth.mockReturnValue({
-      user: { id: 1, role: 'student' },
+      user: completeStudentUser,
       loading: false,
     });
 
@@ -74,7 +85,7 @@ describe('PrivateRoute', () => {
 
   test('redirects to change-email when user has mustChangeEmail flag', () => {
     useAuth.mockReturnValue({
-      user: { id: 1, role: 'student', mustChangeEmail: true },
+      user: { ...completeStudentUser, mustChangeEmail: true },
       loading: false,
     });
 
@@ -90,7 +101,7 @@ describe('PrivateRoute', () => {
 
   test('redirects non-admin to dashboard when adminOnly is true', () => {
     useAuth.mockReturnValue({
-      user: { id: 1, role: 'student' },
+      user: completeStudentUser,
       loading: false,
     });
 
@@ -121,7 +132,7 @@ describe('PrivateRoute', () => {
 
   test('redirects when user role is not in allowed roles', () => {
     useAuth.mockReturnValue({
-      user: { id: 1, role: 'student' },
+      user: completeStudentUser,
       loading: false,
     });
 
@@ -152,7 +163,7 @@ describe('PrivateRoute', () => {
 
   test('allows access when roles array is empty (no role restriction)', () => {
     useAuth.mockReturnValue({
-      user: { id: 1, role: 'student' },
+      user: completeStudentUser,
       loading: false,
     });
 
@@ -163,5 +174,45 @@ describe('PrivateRoute', () => {
     );
 
     expect(screen.getByText('Any Role Content')).toBeInTheDocument();
+  });
+
+  test('redirects incomplete student profile to login even when only one required field is missing', () => {
+    useAuth.mockReturnValue({
+      user: {
+        ...completeStudentUser,
+        sex: '',
+      },
+      loading: false,
+    });
+
+    renderWithRouter(
+      <PrivateRoute>
+        <div>Protected Content</div>
+      </PrivateRoute>,
+    );
+
+    expect(screen.getByText('Login Page')).toBeInTheDocument();
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+  });
+
+  test('accepts valid fallback numeric aliases when primary aliases are invalid', () => {
+    useAuth.mockReturnValue({
+      user: {
+        ...completeStudentUser,
+        yearLevel: 0,
+        year_level: 2,
+        curriculum_id: 0,
+        curriculumId: 1,
+      },
+      loading: false,
+    });
+
+    renderWithRouter(
+      <PrivateRoute>
+        <div>Protected Content</div>
+      </PrivateRoute>,
+    );
+
+    expect(screen.getByText('Protected Content')).toBeInTheDocument();
   });
 });

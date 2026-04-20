@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { isStudentOnboardingIncomplete } from '../utils/studentProfileCompletion';
 
 const PrivateRoute = ({ children, adminOnly = false, roles = [] }) => {
   const { user, loading } = useAuth();
@@ -15,6 +16,10 @@ const PrivateRoute = ({ children, adminOnly = false, roles = [] }) => {
 
   if (user.mustChangeEmail) {
     return <Navigate to="/change-email" />;
+  }
+
+  if (isStudentOnboardingIncomplete(user)) {
+    return <Navigate to="/login" replace />;
   }
 
   if (adminOnly && user.role !== 'admin') {

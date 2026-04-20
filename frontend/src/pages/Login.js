@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap';
 import { GoogleLogin } from '@react-oauth/google';
@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { getHomePathForRole } from '../utils/roleRedirect';
 import { isGoogleOAuthConfigured } from '../utils/googleOAuthConfig';
+import { needsAcademicInfo, needsStudentNumber } from '../utils/studentProfileCompletion';
 import StudentIdModal from '../components/StudentIdModal';
 import AcademicInfoModal from '../components/AcademicInfoModal';
 import backgroundImage from '../assets/images/bg.png';
@@ -44,19 +45,37 @@ const Login = () => {
   };
 
   const navigate = useNavigate();
-  const { refreshUser, setUser } = useAuth();
+  const { refreshUser, setUser, user, loading: authLoading } = useAuth();
 
-  const hasStudentNumber = (user) => Boolean(user?.studentId || user?.student_id);
+  const currentUserNeedsStudentNumber = needsStudentNumber(user);
+  const currentUserNeedsAcademicInfo = needsAcademicInfo(user);
 
-  const needsStudentNumber = (user) => user?.role === 'student' && !hasStudentNumber(user);
+  useEffect(() => {
+    if (authLoading || !user) {
+      return;
+    }
 
-  const needsAcademicInfo = (user) =>
-    user?.role === 'student' &&
-    ((!user.yearLevel && !user.year_level && !user.current_year_level && !user.currentYearLevel) ||
-      !user.program ||
-      (!user.curriculum_id && !user.curriculumId && !user.userCurriculumId) ||
-      (!user.student_type && !user.studentType) ||
-      (!user.sex && !user.gender));
+    if (currentUserNeedsStudentNumber) {
+      setPendingNavRole(user.role || 'student');
+      setPendingGoogleUser({
+        email: user.email || '',
+        role: user.role || 'student',
+      });
+      setShowAcademicModal(false);
+      setShowStudentIdModal(true);
+      return;
+    }
+
+    if (currentUserNeedsAcademicInfo) {
+      setPendingNavRole(user.role || 'student');
+      setShowStudentIdModal(false);
+      setPendingGoogleUser(null);
+      setShowAcademicModal(true);
+      return;
+    }
+
+    navigate(getHomePathForRole(user.role), { replace: true });
+  }, [authLoading, currentUserNeedsAcademicInfo, currentUserNeedsStudentNumber, navigate, user]);
 
   const proceedAfterLogin = async (role, fallbackEmail = '') => {
     const resolvedUser = await refreshUser();
@@ -220,7 +239,7 @@ const Login = () => {
 
   const handleStudentIdSubmit = async (studentId) => {
     try {
-      const roleForRedirect = pendingGoogleUser?.role;
+      const roleForRedirect = pendingGoogleUser?.role || user?.role || 'student';
 
       const response = await api.patch('/users/update-student-id', {
         studentId,
@@ -238,7 +257,7 @@ const Login = () => {
   };
 
   // Role selector screen
-  if (!selectedRole) {
+  if (!selectedRole && !user) {
     return (
       <div
         style={{

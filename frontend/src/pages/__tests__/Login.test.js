@@ -42,7 +42,12 @@ describe('Login Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     sessionStorage.clear();
-    useAuth.mockReturnValue({ refreshUser: jest.fn(), setUser: jest.fn() });
+    useAuth.mockReturnValue({
+      refreshUser: jest.fn(),
+      setUser: jest.fn(),
+      user: null,
+      loading: false,
+    });
   });
 
   // ── Role Selection Screen ─────────────────────────────────────────────
@@ -90,7 +95,12 @@ describe('Login Page', () => {
 
   test('successful login navigates to home', async () => {
     const mockRefreshUser = jest.fn().mockResolvedValue({ role: 'student' });
-    useAuth.mockReturnValue({ refreshUser: mockRefreshUser, setUser: jest.fn() });
+    useAuth.mockReturnValue({
+      refreshUser: mockRefreshUser,
+      setUser: jest.fn(),
+      user: null,
+      loading: false,
+    });
     api.post.mockResolvedValue({
       data: { user: { role: 'student' } },
     });
@@ -142,7 +152,12 @@ describe('Login Page', () => {
         sex: null,
       });
 
-    useAuth.mockReturnValue({ refreshUser: mockRefreshUser, setUser: jest.fn() });
+    useAuth.mockReturnValue({
+      refreshUser: mockRefreshUser,
+      setUser: jest.fn(),
+      user: null,
+      loading: false,
+    });
 
     api.post.mockResolvedValueOnce({
       data: {
@@ -188,6 +203,100 @@ describe('Login Page', () => {
     });
 
     expect(await screen.findByText('Complete Your Academic Profile')).toBeInTheDocument();
+  });
+
+  test('email login shows academic onboarding when only one required field is missing', async () => {
+    const mockRefreshUser = jest.fn().mockResolvedValue({
+      role: 'student',
+      email: 'student@tip.edu.ph',
+      studentId: '2310675',
+      yearLevel: 2,
+      program: 'BS CpE',
+      curriculum_id: 1,
+      student_type: null,
+      sex: 'Male',
+    });
+
+    useAuth.mockReturnValue({
+      refreshUser: mockRefreshUser,
+      setUser: jest.fn(),
+      user: null,
+      loading: false,
+    });
+
+    api.post.mockResolvedValueOnce({
+      data: {
+        user: {
+          role: 'student',
+        },
+      },
+    });
+
+    api.get.mockResolvedValueOnce({
+      data: {
+        items: [{ id: 1, name: 'BS CPE Curriculum 2025' }],
+      },
+    });
+
+    const user = userEvent.setup();
+    renderLogin();
+
+    await user.click(screen.getByLabelText('Login as Student'));
+    await user.type(screen.getByPlaceholderText('Email Address'), 'student@tip.edu.ph');
+    await user.type(screen.getByPlaceholderText('Password'), 'Password1!');
+    await user.click(screen.getByRole('button', { name: /login/i }));
+
+    expect(await screen.findByText('Complete Your Academic Profile')).toBeInTheDocument();
+  });
+
+  test('authenticated student session forces academic onboarding when one required field is missing', async () => {
+    useAuth.mockReturnValue({
+      refreshUser: jest.fn(),
+      setUser: jest.fn(),
+      user: {
+        role: 'student',
+        email: 'student@tip.edu.ph',
+        studentId: '2310675',
+        yearLevel: 2,
+        program: 'BS CpE',
+        curriculum_id: 1,
+        student_type: 'regular',
+        sex: '',
+      },
+      loading: false,
+    });
+
+    api.get.mockResolvedValueOnce({
+      data: {
+        items: [{ id: 1, name: 'BS CPE Curriculum 2025' }],
+      },
+    });
+
+    renderLogin();
+
+    expect(await screen.findByText('Complete Your Academic Profile')).toBeInTheDocument();
+  });
+
+  test('authenticated student session forces student number modal when only student number is missing', async () => {
+    useAuth.mockReturnValue({
+      refreshUser: jest.fn(),
+      setUser: jest.fn(),
+      user: {
+        role: 'student',
+        email: 'student@tip.edu.ph',
+        studentId: null,
+        yearLevel: 2,
+        program: 'BS CpE',
+        curriculum_id: 1,
+        student_type: 'regular',
+        sex: 'Male',
+      },
+      loading: false,
+    });
+
+    renderLogin();
+
+    expect(await screen.findByText('Enter Your Student Number')).toBeInTheDocument();
   });
 
   test('shows error on login failure', async () => {
