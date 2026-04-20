@@ -10,6 +10,28 @@ import backgroundImage from '../assets/images/bg.png';
 import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 import { EyeIcon, EyeSlashIcon } from '../components/EyeIcons';
 
+const PASSWORD_POLICY_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+
+const getRegistrationErrorMessage = (err) => {
+  const responseData = err?.response?.data;
+  if (!responseData) {
+    return 'Registration failed. Please try again.';
+  }
+
+  if (responseData.message && responseData.message !== 'Validation failed') {
+    return responseData.message;
+  }
+
+  if (responseData.errors && typeof responseData.errors === 'object') {
+    const firstField = Object.keys(responseData.errors)[0];
+    if (firstField && responseData.errors[firstField]) {
+      return responseData.errors[firstField];
+    }
+  }
+
+  return responseData.message || 'Registration failed. Please try again.';
+};
+
 const Register = () => {
   const [formData, setFormData] = useState({
     studentId: '',
@@ -60,8 +82,10 @@ const Register = () => {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (!PASSWORD_POLICY_REGEX.test(formData.password)) {
+      setError(
+        'Password must be at least 8 characters and include at least one uppercase letter, one lowercase letter, and one number',
+      );
       return;
     }
 
@@ -83,7 +107,7 @@ const Register = () => {
         navigate('/login');
       }, 3000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+      setError(getRegistrationErrorMessage(err));
     } finally {
       setLoading(false);
     }

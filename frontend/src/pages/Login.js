@@ -285,10 +285,10 @@ const Login = () => {
             zIndex: 1,
             background: 'white',
             borderRadius: '22px',
-            padding: '60px 70px',
+            padding: 'clamp(24px, 6vw, 60px) clamp(18px, 7vw, 70px)',
             textAlign: 'center',
             maxWidth: '720px',
-            width: '90%',
+            width: 'min(92vw, 720px)',
             boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
           }}
         >
@@ -297,10 +297,26 @@ const Login = () => {
             alt="Student Advising"
             style={{ width: '220px', marginBottom: '22px' }}
           />
-          <h2 style={{ fontWeight: 800, fontSize: '2rem', marginBottom: '40px', color: '#222' }}>
+          <h2
+            style={{
+              fontWeight: 800,
+              fontSize: 'clamp(1.75rem, 6.5vw, 2.4rem)',
+              marginBottom: 'clamp(20px, 5vw, 40px)',
+              color: '#222',
+            }}
+          >
             Welcome Back!
           </h2>
-          <div style={{ display: 'flex', gap: '40px', justifyContent: 'center' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: 'clamp(12px, 4vw, 28px)',
+              justifyContent: 'center',
+              maxWidth: '560px',
+              margin: '0 auto',
+            }}
+          >
             <div
               onClick={() => selectRole('student')}
               role="button"
@@ -314,10 +330,12 @@ const Login = () => {
               }}
               style={{
                 cursor: 'pointer',
-                padding: '36px 30px 26px',
+                padding: 'clamp(22px, 5vw, 36px) clamp(18px, 4vw, 30px) clamp(18px, 4vw, 26px)',
                 borderRadius: '18px',
                 border: '2px solid #eee',
-                width: '240px',
+                width: '100%',
+                maxWidth: '240px',
+                margin: '0 auto',
                 transition: 'all 0.2s',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
               }}
@@ -369,10 +387,12 @@ const Login = () => {
               }}
               style={{
                 cursor: 'pointer',
-                padding: '36px 30px 26px',
+                padding: 'clamp(22px, 5vw, 36px) clamp(18px, 4vw, 30px) clamp(18px, 4vw, 26px)',
                 borderRadius: '18px',
                 border: '2px solid #eee',
-                width: '240px',
+                width: '100%',
+                maxWidth: '240px',
+                margin: '0 auto',
                 transition: 'all 0.2s',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
               }}
@@ -468,7 +488,7 @@ const Login = () => {
 
       <Container className="position-relative" style={{ zIndex: 1 }}>
         <Row className="justify-content-center">
-          <Col xs={13} sm={10} md={8} lg={6} xl={5} style={{ maxWidth: '380px' }}>
+          <Col xs={12} sm={10} md={8} lg={6} xl={5} style={{ maxWidth: '380px' }}>
             <Card
               className="shadow-lg border-0"
               style={{ position: 'relative', zIndex: 3, borderRadius: '20px', overflow: 'hidden' }}

@@ -1,5 +1,6 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
 const validate = require('../middleware/validate');
 const {
   register,
@@ -16,7 +17,7 @@ const {
   transferOwnership,
   initiateEmailChange,
   verifyEmailChange,
-  resendEmailChangeCode
+  resendEmailChangeCode,
 } = require('../controllers/authController');
 const { protect, requireRole } = require('../middleware/auth');
 const {
@@ -31,43 +32,107 @@ const {
   changePasswordValidation,
   initiateEmailChangeValidation,
   verifyEmailChangeValidation,
-  transferOwnershipValidation
+  transferOwnershipValidation,
 } = require('../middleware/authValidation');
 
 const router = express.Router();
 
+const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
+
+const userIdOrIpKey = (req) => {
+  const rawUserId = req.body?.userId;
+  if (rawUserId === undefined || rawUserId === null || String(rawUserId).trim().length === 0) {
+    const requestIp = req.ip || req.socket?.remoteAddress || 'unknown';
+    return ipKeyGenerator(requestIp);
+  }
+
+  return `user:${String(rawUserId).trim()}`;
+};
+
 // Rate limiters to prevent brute force and abuse
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: FIFTEEN_MINUTES_MS,
   max: 15,
   message: { success: false, message: 'Too many attempts, please try again after 15 minutes' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
 });
 
-const strictLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+const strictAuthLimiter = rateLimit({
+  windowMs: FIFTEEN_MINUTES_MS,
   max: 5,
   message: { success: false, message: 'Too many attempts, please try again after 15 minutes' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+});
+
+const verifyCodeLimiter = rateLimit({
+  windowMs: FIVE_MINUTES_MS,
+  max: 20,
+  keyGenerator: userIdOrIpKey,
+  skipSuccessfulRequests: true,
+  message: {
+    success: false,
+    message: 'Too many verification attempts. Please try again after 5 minutes',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const resendCodeLimiter = rateLimit({
+  windowMs: FIVE_MINUTES_MS,
+  max: 3,
+  keyGenerator: userIdOrIpKey,
+  message: {
+    success: false,
+    message: 'Too many code resend attempts. Please try again after 5 minutes',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 router.post('/register', authLimiter, validate(registerValidation), register);
 router.post('/login', authLimiter, validate(loginValidation), login);
-router.post('/verify-code', strictLimiter, validate(verifyCodeValidation), verifyCode);
-router.post('/resend-code', strictLimiter, validate(resendCodeValidation), resendCode);
-router.post('/forgot-password', strictLimiter, validate(forgotPasswordValidation), forgotPassword);
+router.post('/verify-code', verifyCodeLimiter, validate(verifyCodeValidation), verifyCode);
+router.post('/resend-code', resendCodeLimiter, validate(resendCodeValidation), resendCode);
+router.post(
+  '/forgot-password',
+  strictAuthLimiter,
+  validate(forgotPasswordValidation),
+  forgotPassword,
+);
 router.post('/refresh', authLimiter, validate(refreshTokenValidation), refreshToken);
 router.post('/refresh-token', authLimiter, validate(refreshTokenValidation), refreshToken);
-router.put('/reset-password/:token', strictLimiter, validate(resetPasswordValidation), resetPassword);
+router.put(
+  '/reset-password/:token',
+  strictAuthLimiter,
+  validate(resetPasswordValidation),
+  resetPassword,
+);
 router.post('/logout', validate(logoutValidation), logout);
 router.get('/activate/:token', activateAccount);
 router.get('/me', protect, getMe);
 router.put('/change-password', protect, validate(changePasswordValidation), changePassword);
-router.patch('/transfer-ownership', protect, requireRole('admin'), validate(transferOwnershipValidation), transferOwnership);
-router.post('/initiate-email-change', protect, validate(initiateEmailChangeValidation), initiateEmailChange);
-router.post('/verify-email-change', protect, validate(verifyEmailChangeValidation), verifyEmailChange);
+router.patch(
+  '/transfer-ownership',
+  protect,
+  requireRole('admin'),
+  validate(transferOwnershipValidation),
+  transferOwnership,
+);
+router.post(
+  '/initiate-email-change',
+  protect,
+  validate(initiateEmailChangeValidation),
+  initiateEmailChange,
+);
+router.post(
+  '/verify-email-change',
+  protect,
+  validate(verifyEmailChangeValidation),
+  verifyEmailChange,
+);
 router.post('/resend-email-change-code', protect, resendEmailChangeCode);
 
 module.exports = router;

@@ -19,8 +19,8 @@ const { FACULTY_EMAIL_WHITELIST } = require('../constants');
 // This resets on server restart which is acceptable for a single-instance deployment.
 // For clustered deployments, replace with a shared store (e.g., Redis).
 const verifyAttempts = new Map();
-const MAX_VERIFY_ATTEMPTS = 5;
-const VERIFY_LOCKOUT_MS = 15 * 60 * 1000; // 15-minute lockout window
+const MAX_VERIFY_ATTEMPTS = 3;
+const VERIFY_LOCKOUT_MS = 5 * 60 * 1000; // 5-minute lockout window
 
 // Helper: generate a cryptographically secure 6-digit verification code
 function generateVerificationCode() {
@@ -481,6 +481,9 @@ exports.login = async (req, res, next) => {
         { where: { id: user.id } },
       );
 
+      // New verification code issuance should start a fresh attempt window.
+      verifyAttempts.delete(String(user.id));
+
       // Send verification code email
       await sendVerificationCode(user.email, verificationCode, user.firstName);
 
@@ -529,9 +532,10 @@ exports.verifyCode = async (req, res, next) => {
     const now = Date.now();
     const attempt = verifyAttempts.get(key);
     if (attempt && attempt.count >= MAX_VERIFY_ATTEMPTS && now < attempt.resetAt) {
+      const remainingMinutes = Math.max(1, Math.ceil((attempt.resetAt - now) / (60 * 1000)));
       return res.status(429).json({
         success: false,
-        message: 'Too many failed attempts. Please request a new verification code.',
+        message: `Too many failed attempts. Please request a new verification code or try again in ${remainingMinutes} minute${remainingMinutes === 1 ? '' : 's'}.`,
       });
     }
 
@@ -553,14 +557,31 @@ exports.verifyCode = async (req, res, next) => {
     if (!codesMatch) {
       // Increment attempt counter
       const cur = verifyAttempts.get(key);
+      let failedAttempts;
       if (!cur || now >= cur.resetAt) {
-        verifyAttempts.set(key, { count: 1, resetAt: now + VERIFY_LOCKOUT_MS });
+        failedAttempts = 1;
+        verifyAttempts.set(key, { count: failedAttempts, resetAt: now + VERIFY_LOCKOUT_MS });
       } else {
-        cur.count++;
+        failedAttempts = cur.count + 1;
+        cur.count = failedAttempts;
       }
+
+      if (failedAttempts >= MAX_VERIFY_ATTEMPTS) {
+        verifyAttempts.set(key, {
+          count: MAX_VERIFY_ATTEMPTS,
+          resetAt: now + VERIFY_LOCKOUT_MS,
+        });
+        return res.status(429).json({
+          success: false,
+          message:
+            'Too many failed attempts. Please request a new verification code or try again in 5 minutes.',
+        });
+      }
+
+      const remainingAttempts = Math.max(0, MAX_VERIFY_ATTEMPTS - failedAttempts);
       return res.status(400).json({
         success: false,
-        message: 'Invalid verification code',
+        message: `Invalid verification code. ${remainingAttempts} attempt${remainingAttempts === 1 ? '' : 's'} remaining.`,
       });
     }
 

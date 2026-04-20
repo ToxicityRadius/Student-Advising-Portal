@@ -17,7 +17,8 @@ const { ipKeyGenerator } = rateLimit;
  * Key generator: uses authenticated user ID when available, falls back to IP.
  */
 const userOrIpKey = (req) =>
-  (req.user && req.user.id ? String(req.user.id) : null) || ipKeyGenerator(req);
+  (req.user && req.user.id ? String(req.user.id) : null) ||
+  ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown');
 
 const defaultOptions = {
   standardHeaders: true,
@@ -26,9 +27,9 @@ const defaultOptions = {
   handler: (req, res) => {
     res.status(429).json({
       success: false,
-      message: 'Too many requests. Please slow down and try again later.'
+      message: 'Too many requests. Please slow down and try again later.',
     });
-  }
+  },
 };
 
 /**
@@ -39,7 +40,7 @@ const mutationLimiter = rateLimit({
   ...defaultOptions,
   windowMs: 15 * 60 * 1000,
   max: 100,
-  keyGenerator: userOrIpKey
+  keyGenerator: userOrIpKey,
 });
 
 /**
@@ -53,9 +54,9 @@ const sarMutationLimiter = rateLimit({
   handler: (req, res) => {
     res.status(429).json({
       success: false,
-      message: 'Too many SAR mutation requests. Please try again later.'
+      message: 'Too many SAR mutation requests. Please try again later.',
     });
-  }
+  },
 });
 
 /**
@@ -70,9 +71,9 @@ const gradeEntryLimiter = rateLimit({
   handler: (req, res) => {
     res.status(429).json({
       success: false,
-      message: 'Too many grade entry requests. Please try again later.'
+      message: 'Too many grade entry requests. Please try again later.',
     });
-  }
+  },
 });
 
 module.exports = { mutationLimiter, sarMutationLimiter, gradeEntryLimiter };

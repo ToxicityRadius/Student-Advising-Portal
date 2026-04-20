@@ -193,6 +193,74 @@ describe('POST /api/auth/login', () => {
   });
 });
 
+// ─── Verify Code / Resend Code ─────────────────────────────────────────────
+
+describe('POST /api/auth/verify-code', () => {
+  test('does not lock on first try, then locks on the third failed attempt', async () => {
+    const user = await createUser({
+      isVerified: false,
+      verificationCode: '123456',
+      verificationCodeExpires: Date.now() + 10 * 60 * 1000,
+    });
+
+    const first = await request(app).post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: '000000',
+    });
+    expect(first.status).toBe(400);
+    expect(first.body.message).toContain('2 attempts remaining');
+
+    const second = await request(app).post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: '000000',
+    });
+    expect(second.status).toBe(400);
+    expect(second.body.message).toContain('1 attempt remaining');
+
+    const third = await request(app).post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: '000000',
+    });
+    expect(third.status).toBe(429);
+    expect(third.body.message).toMatch(/Too many failed attempts/i);
+    expect(third.body.message).toMatch(/5 minutes/i);
+  });
+
+  test('resend code resets failed verification attempt count', async () => {
+    const user = await createUser({
+      isVerified: false,
+      verificationCode: '123456',
+      verificationCodeExpires: Date.now() + 10 * 60 * 1000,
+    });
+
+    await request(app).post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: '000000',
+    });
+    await request(app).post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: '000000',
+    });
+
+    const resend = await request(app).post('/api/auth/resend-code').send({
+      userId: user.id,
+    });
+    expect(resend.status).toBe(200);
+    expect(resend.body.success).toBe(true);
+
+    const refreshedUser = await User.findByPk(user.id);
+    const wrongCode = refreshedUser.verificationCode === '000000' ? '111111' : '000000';
+
+    const afterResend = await request(app).post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: wrongCode,
+    });
+
+    expect(afterResend.status).toBe(400);
+    expect(afterResend.body.message).toContain('2 attempts remaining');
+  });
+});
+
 // ─── GET /me ────────────────────────────────────────────────────────────────
 
 describe('GET /api/auth/me', () => {
