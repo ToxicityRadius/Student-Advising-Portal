@@ -196,68 +196,197 @@ describe('POST /api/auth/login', () => {
 // ─── Verify Code / Resend Code ─────────────────────────────────────────────
 
 describe('POST /api/auth/verify-code', () => {
-  test('does not lock on first try, then locks on the third failed attempt', async () => {
+  const hadOriginalEnable2FA = Object.prototype.hasOwnProperty.call(process.env, 'ENABLE_2FA');
+  const originalEnable2FA = process.env.ENABLE_2FA;
+
+  const createVerificationAgent = async (user) => {
+    const agent = request.agent(app);
+    const loginResponse = await agent.post('/api/auth/login').send({
+      email: user.email,
+      password: 'Password1!',
+    });
+
+    expect(loginResponse.status).toBe(200);
+    expect(loginResponse.body.success).toBe(true);
+    expect(loginResponse.body.requiresVerification).toBe(true);
+    expect(
+      loginResponse.headers['set-cookie']?.some((cookie) =>
+        cookie.startsWith('verificationSession='),
+      ),
+    ).toBe(true);
+
+    return agent;
+  };
+
+  const getWrongCodeFor = async (userId) => {
+    const refreshedUser = await User.findByPk(userId);
+    return refreshedUser.verificationCode === '000000' ? '111111' : '000000';
+  };
+
+  beforeAll(() => {
+    process.env.ENABLE_2FA = 'true';
+  });
+
+  afterAll(() => {
+    if (!hadOriginalEnable2FA) {
+      delete process.env.ENABLE_2FA;
+      return;
+    }
+
+    process.env.ENABLE_2FA = originalEnable2FA;
+  });
+
+  test('rejects verify requests when verification session is missing', async () => {
     const user = await createUser({
       isVerified: false,
       verificationCode: '123456',
       verificationCodeExpires: Date.now() + 10 * 60 * 1000,
     });
 
-    const first = await request(app).post('/api/auth/verify-code').send({
+    const response = await request(app).post('/api/auth/verify-code').send({
       userId: user.id,
       code: '000000',
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body.message).toMatch(/Verification session expired/i);
+  });
+
+  test('does not lock on first try, then locks on the third failed attempt', async () => {
+    const user = await createUser({ isVerified: false });
+    const agent = await createVerificationAgent(user);
+    const wrongCode = await getWrongCodeFor(user.id);
+
+    const first = await agent.post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: wrongCode,
     });
     expect(first.status).toBe(400);
     expect(first.body.message).toContain('2 attempts remaining');
 
-    const second = await request(app).post('/api/auth/verify-code').send({
+    const second = await agent.post('/api/auth/verify-code').send({
       userId: user.id,
-      code: '000000',
+      code: wrongCode,
     });
     expect(second.status).toBe(400);
     expect(second.body.message).toContain('1 attempt remaining');
 
-    const third = await request(app).post('/api/auth/verify-code').send({
+    const third = await agent.post('/api/auth/verify-code').send({
       userId: user.id,
-      code: '000000',
+      code: wrongCode,
     });
     expect(third.status).toBe(429);
     expect(third.body.message).toMatch(/Too many failed attempts/i);
     expect(third.body.message).toMatch(/5 minutes/i);
   });
 
+  test('keeps failed-attempt lockout across new verification sessions for the same user', async () => {
+    const user = await createUser({ isVerified: false });
+    const firstSessionAgent = await createVerificationAgent(user);
+    const firstWrongCode = await getWrongCodeFor(user.id);
+
+    const firstAttempt = await firstSessionAgent.post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: firstWrongCode,
+    });
+    const secondAttempt = await firstSessionAgent.post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: firstWrongCode,
+    });
+
+    expect(firstAttempt.status).toBe(400);
+    expect(secondAttempt.status).toBe(400);
+
+    const secondSessionAgent = await createVerificationAgent(user);
+    const secondWrongCode = await getWrongCodeFor(user.id);
+
+    const thirdAttempt = await secondSessionAgent.post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: secondWrongCode,
+    });
+
+    expect(thirdAttempt.status).toBe(429);
+    expect(thirdAttempt.body.message).toMatch(/Too many failed attempts/i);
+  });
+
   test('resend code resets failed verification attempt count', async () => {
-    const user = await createUser({
-      isVerified: false,
-      verificationCode: '123456',
-      verificationCodeExpires: Date.now() + 10 * 60 * 1000,
+    const user = await createUser({ isVerified: false });
+    const agent = await createVerificationAgent(user);
+    const wrongCodeBeforeResend = await getWrongCodeFor(user.id);
+
+    await agent.post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: wrongCodeBeforeResend,
+    });
+    await agent.post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: wrongCodeBeforeResend,
     });
 
-    await request(app).post('/api/auth/verify-code').send({
-      userId: user.id,
-      code: '000000',
-    });
-    await request(app).post('/api/auth/verify-code').send({
-      userId: user.id,
-      code: '000000',
-    });
-
-    const resend = await request(app).post('/api/auth/resend-code').send({
+    const resend = await agent.post('/api/auth/resend-code').send({
       userId: user.id,
     });
     expect(resend.status).toBe(200);
     expect(resend.body.success).toBe(true);
 
-    const refreshedUser = await User.findByPk(user.id);
-    const wrongCode = refreshedUser.verificationCode === '000000' ? '111111' : '000000';
+    const wrongCodeAfterResend = await getWrongCodeFor(user.id);
 
-    const afterResend = await request(app).post('/api/auth/verify-code').send({
+    const afterResend = await agent.post('/api/auth/verify-code').send({
       userId: user.id,
-      code: wrongCode,
+      code: wrongCodeAfterResend,
     });
 
     expect(afterResend.status).toBe(400);
     expect(afterResend.body.message).toContain('2 attempts remaining');
+  });
+
+  test('does not allow one user session to consume another user attempts', async () => {
+    const victim = await createUser({ isVerified: false });
+    const attacker = await createUser({ isVerified: false });
+
+    const victimAgent = await createVerificationAgent(victim);
+    const attackerAgent = await createVerificationAgent(attacker);
+
+    const attackerTamperAttempt = await attackerAgent.post('/api/auth/verify-code').send({
+      userId: victim.id,
+      code: '000000',
+    });
+    expect(attackerTamperAttempt.status).toBe(401);
+
+    const victimWrongCode = await getWrongCodeFor(victim.id);
+    const victimFirstAttempt = await victimAgent.post('/api/auth/verify-code').send({
+      userId: victim.id,
+      code: victimWrongCode,
+    });
+    expect(victimFirstAttempt.status).toBe(400);
+    expect(victimFirstAttempt.body.message).toContain('2 attempts remaining');
+  });
+
+  test('applies resend limiter within the same verification session', async () => {
+    const user = await createUser({ isVerified: false });
+    const agent = await createVerificationAgent(user);
+
+    const canonicalUserId = String(user.id);
+    const paddedUserId = `00${canonicalUserId}`;
+
+    const resend1 = await agent.post('/api/auth/resend-code').send({
+      userId: canonicalUserId,
+    });
+    const resend2 = await agent.post('/api/auth/resend-code').send({
+      userId: paddedUserId,
+    });
+    const resend3 = await agent.post('/api/auth/resend-code').send({
+      userId: canonicalUserId,
+    });
+    const resend4 = await agent.post('/api/auth/resend-code').send({
+      userId: paddedUserId,
+    });
+
+    expect(resend1.status).toBe(200);
+    expect(resend2.status).toBe(200);
+    expect(resend3.status).toBe(200);
+    expect(resend4.status).toBe(429);
+    expect(resend4.body.message).toMatch(/Too many code resend attempts/i);
   });
 });
 

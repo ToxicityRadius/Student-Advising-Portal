@@ -19,8 +19,137 @@ const { FACULTY_EMAIL_WHITELIST } = require('../constants');
 // This resets on server restart which is acceptable for a single-instance deployment.
 // For clustered deployments, replace with a shared store (e.g., Redis).
 const verifyAttempts = new Map();
+const verificationSessions = new Map();
 const MAX_VERIFY_ATTEMPTS = 3;
 const VERIFY_LOCKOUT_MS = 5 * 60 * 1000; // 5-minute lockout window
+const VERIFY_ATTEMPT_CLEANUP_INTERVAL_MS = 60 * 1000;
+const VERIFICATION_SESSION_COOKIE = 'verificationSession';
+const VERIFICATION_SESSION_TTL_MS = 10 * 60 * 1000;
+let lastVerifyAttemptCleanupAt = 0;
+
+function normalizePositiveIntegerString(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  if (!/^\d+$/.test(normalized)) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(normalized, 10);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return String(parsed);
+}
+
+function getVerificationSessionCookieOptions() {
+  const authCookieOptions = getAuthCookieOptions();
+  return {
+    ...authCookieOptions.token,
+    path: '/api/auth',
+    expires: new Date(Date.now() + VERIFICATION_SESSION_TTL_MS),
+  };
+}
+
+function purgeExpiredVerificationSessions(now = Date.now()) {
+  for (const [sessionId, sessionState] of verificationSessions.entries()) {
+    if (!sessionState || now >= sessionState.expiresAt) {
+      verificationSessions.delete(sessionId);
+    }
+  }
+}
+
+function purgeExpiredVerifyAttempts(now = Date.now()) {
+  if (now - lastVerifyAttemptCleanupAt < VERIFY_ATTEMPT_CLEANUP_INTERVAL_MS) {
+    return;
+  }
+
+  lastVerifyAttemptCleanupAt = now;
+  for (const [attemptKey, attemptState] of verifyAttempts.entries()) {
+    if (!attemptState || now >= attemptState.resetAt) {
+      verifyAttempts.delete(attemptKey);
+    }
+  }
+}
+
+function createVerificationSession(userId) {
+  const normalizedUserId = normalizePositiveIntegerString(userId);
+  if (!normalizedUserId) {
+    return null;
+  }
+
+  const now = Date.now();
+  purgeExpiredVerificationSessions(now);
+
+  for (const [sessionId, sessionState] of verificationSessions.entries()) {
+    if (sessionState.userId === normalizedUserId) {
+      verificationSessions.delete(sessionId);
+    }
+  }
+
+  const sessionId = crypto.randomBytes(32).toString('hex');
+  verificationSessions.set(sessionId, {
+    userId: normalizedUserId,
+    expiresAt: now + VERIFICATION_SESSION_TTL_MS,
+  });
+  return sessionId;
+}
+
+function getVerificationSessionFromRequest(req) {
+  const rawSessionId = req.cookies?.[VERIFICATION_SESSION_COOKIE];
+  if (typeof rawSessionId !== 'string' || rawSessionId.trim().length === 0) {
+    return null;
+  }
+
+  const sessionId = rawSessionId.trim();
+  const sessionState = verificationSessions.get(sessionId);
+  if (!sessionState) {
+    return null;
+  }
+
+  if (Date.now() >= sessionState.expiresAt) {
+    verificationSessions.delete(sessionId);
+    return null;
+  }
+
+  return {
+    sessionId,
+    userId: sessionState.userId,
+  };
+}
+
+function refreshVerificationSession(sessionId, userId) {
+  const normalizedUserId = normalizePositiveIntegerString(userId);
+  if (!normalizedUserId || typeof sessionId !== 'string' || sessionId.trim().length === 0) {
+    return;
+  }
+
+  verificationSessions.set(sessionId, {
+    userId: normalizedUserId,
+    expiresAt: Date.now() + VERIFICATION_SESSION_TTL_MS,
+  });
+}
+
+function clearVerificationSession(res, req) {
+  const rawSessionId = req?.cookies?.[VERIFICATION_SESSION_COOKIE];
+  if (typeof rawSessionId === 'string' && rawSessionId.trim().length > 0) {
+    const sessionId = rawSessionId.trim();
+    verificationSessions.delete(sessionId);
+  }
+
+  const tokenCookieOptions = getAuthCookieOptions().token;
+  const { expires, maxAge, ...baseCookieOptions } = tokenCookieOptions;
+
+  res.clearCookie(VERIFICATION_SESSION_COOKIE, {
+    ...baseCookieOptions,
+    path: '/api/auth',
+  });
+}
+
+exports.resolveVerificationSessionFromRequest = getVerificationSessionFromRequest;
 
 // Helper: generate a cryptographically secure 6-digit verification code
 function generateVerificationCode() {
@@ -481,19 +610,31 @@ exports.login = async (req, res, next) => {
         { where: { id: user.id } },
       );
 
-      // New verification code issuance should start a fresh attempt window.
-      verifyAttempts.delete(String(user.id));
+      const verificationSessionId = createVerificationSession(user.id);
+      if (!verificationSessionId) {
+        return res.status(500).json({
+          success: false,
+          message: 'Unable to initialize verification session. Please try again.',
+        });
+      }
 
       // Send verification code email
       await sendVerificationCode(user.email, verificationCode, user.firstName);
 
       // Return success without token - user needs to verify first
-      res.status(200).json({
-        success: true,
-        message: 'Verification code sent to your email. Please check your inbox.',
-        userId: user.id,
-        requiresVerification: true,
-      });
+      res
+        .status(200)
+        .cookie(
+          VERIFICATION_SESSION_COOKIE,
+          verificationSessionId,
+          getVerificationSessionCookieOptions(),
+        )
+        .json({
+          success: true,
+          message: 'Verification code sent to your email. Please check your inbox.',
+          userId: user.id,
+          requiresVerification: true,
+        });
     } else {
       // 2FA disabled - log in directly; reset lockout counters on success (Step 3.1)
       await User.update(
@@ -506,6 +647,7 @@ exports.login = async (req, res, next) => {
         { where: { id: user.id } },
       );
       const updatedUser = await User.findByPk(user.id);
+      clearVerificationSession(res, req);
       sendTokenResponse(updatedUser, 200, res);
     }
   } catch (error) {
@@ -519,17 +661,28 @@ exports.login = async (req, res, next) => {
 exports.verifyCode = async (req, res, next) => {
   try {
     const { userId, code } = req.body;
+    const normalizedUserId = normalizePositiveIntegerString(userId);
 
-    if (!userId || !code) {
+    if (!normalizedUserId || !code) {
       return res.status(400).json({
         success: false,
         message: 'Please provide user ID and verification code',
       });
     }
 
+    const verificationSession = getVerificationSessionFromRequest(req);
+    if (!verificationSession || verificationSession.userId !== normalizedUserId) {
+      clearVerificationSession(res, req);
+      return res.status(401).json({
+        success: false,
+        message: 'Verification session expired. Please log in again.',
+      });
+    }
+
     // Enforce attempt-based lockout before hitting the database
-    const key = String(userId);
+    const key = `user:${verificationSession.userId}`;
     const now = Date.now();
+    purgeExpiredVerifyAttempts(now);
     const attempt = verifyAttempts.get(key);
     if (attempt && attempt.count >= MAX_VERIFY_ATTEMPTS && now < attempt.resetAt) {
       const remainingMinutes = Math.max(1, Math.ceil((attempt.resetAt - now) / (60 * 1000)));
@@ -539,12 +692,42 @@ exports.verifyCode = async (req, res, next) => {
       });
     }
 
-    const user = await User.findByPk(userId);
+    const registerFailedAttempt = () => {
+      const currentAttempt = verifyAttempts.get(key);
+      if (!currentAttempt || now >= currentAttempt.resetAt) {
+        verifyAttempts.set(key, { count: 1, resetAt: now + VERIFY_LOCKOUT_MS });
+        return 1;
+      }
+
+      const nextCount = Math.min(MAX_VERIFY_ATTEMPTS, currentAttempt.count + 1);
+      verifyAttempts.set(key, { count: nextCount, resetAt: currentAttempt.resetAt });
+      return nextCount;
+    };
+
+    const buildFailure = (failedAttempts) => {
+      if (failedAttempts >= MAX_VERIFY_ATTEMPTS) {
+        return {
+          status: 429,
+          message:
+            'Too many failed attempts. Please request a new verification code or try again in 5 minutes.',
+        };
+      }
+
+      const remainingAttempts = Math.max(0, MAX_VERIFY_ATTEMPTS - failedAttempts);
+      return {
+        status: 400,
+        message: `Invalid verification code. ${remainingAttempts} attempt${remainingAttempts === 1 ? '' : 's'} remaining.`,
+      };
+    };
+
+    const user = await User.findByPk(Number.parseInt(verificationSession.userId, 10));
 
     if (!user) {
-      return res.status(404).json({
+      const failedAttempts = registerFailedAttempt();
+      const failure = buildFailure(failedAttempts);
+      return res.status(failure.status).json({
         success: false,
-        message: 'User not found',
+        message: failure.message,
       });
     }
 
@@ -555,33 +738,11 @@ exports.verifyCode = async (req, res, next) => {
       storedCode.length === submittedCode.length &&
       crypto.timingSafeEqual(Buffer.from(storedCode), Buffer.from(submittedCode));
     if (!codesMatch) {
-      // Increment attempt counter
-      const cur = verifyAttempts.get(key);
-      let failedAttempts;
-      if (!cur || now >= cur.resetAt) {
-        failedAttempts = 1;
-        verifyAttempts.set(key, { count: failedAttempts, resetAt: now + VERIFY_LOCKOUT_MS });
-      } else {
-        failedAttempts = cur.count + 1;
-        cur.count = failedAttempts;
-      }
-
-      if (failedAttempts >= MAX_VERIFY_ATTEMPTS) {
-        verifyAttempts.set(key, {
-          count: MAX_VERIFY_ATTEMPTS,
-          resetAt: now + VERIFY_LOCKOUT_MS,
-        });
-        return res.status(429).json({
-          success: false,
-          message:
-            'Too many failed attempts. Please request a new verification code or try again in 5 minutes.',
-        });
-      }
-
-      const remainingAttempts = Math.max(0, MAX_VERIFY_ATTEMPTS - failedAttempts);
-      return res.status(400).json({
+      const failedAttempts = registerFailedAttempt();
+      const failure = buildFailure(failedAttempts);
+      return res.status(failure.status).json({
         success: false,
-        message: `Invalid verification code. ${remainingAttempts} attempt${remainingAttempts === 1 ? '' : 's'} remaining.`,
+        message: failure.message,
       });
     }
 
@@ -594,6 +755,8 @@ exports.verifyCode = async (req, res, next) => {
 
     // Successful verification — clear attempt counter
     verifyAttempts.delete(key);
+    verificationSessions.delete(verificationSession.sessionId);
+    clearVerificationSession(res, req);
 
     // Clear verification code and mark as verified
     await User.update(
@@ -627,15 +790,25 @@ exports.verifyCode = async (req, res, next) => {
 exports.resendCode = async (req, res, next) => {
   try {
     const { userId } = req.body;
+    const normalizedUserId = normalizePositiveIntegerString(userId);
 
-    if (!userId) {
+    if (!normalizedUserId) {
       return res.status(400).json({
         success: false,
         message: 'Please provide user ID',
       });
     }
 
-    const user = await User.findByPk(userId);
+    const verificationSession = getVerificationSessionFromRequest(req);
+    if (!verificationSession || verificationSession.userId !== normalizedUserId) {
+      clearVerificationSession(res, req);
+      return res.status(401).json({
+        success: false,
+        message: 'Verification session expired. Please log in again.',
+      });
+    }
+
+    const user = await User.findByPk(Number.parseInt(verificationSession.userId, 10));
 
     // Always return 200 to avoid leaking whether a userId exists (enumeration defence).
     // Only generate and send a code when the user is actually found.
@@ -653,9 +826,19 @@ exports.resendCode = async (req, res, next) => {
       );
 
       // Reset attempt counter so the user gets a fresh set of attempts
-      verifyAttempts.delete(String(userId));
+      verifyAttempts.delete(`user:${verificationSession.userId}`);
+      refreshVerificationSession(verificationSession.sessionId, user.id);
 
       await sendVerificationCode(user.email, verificationCode, user.firstName);
+
+      res.cookie(
+        VERIFICATION_SESSION_COOKIE,
+        verificationSession.sessionId,
+        getVerificationSessionCookieOptions(),
+      );
+    } else {
+      verificationSessions.delete(verificationSession.sessionId);
+      clearVerificationSession(res, req);
     }
 
     res.status(200).json({
@@ -690,6 +873,7 @@ exports.logout = async (req, res, next) => {
       }
     }
 
+    clearVerificationSession(res, req);
     clearAuthCookies(res);
 
     res.status(200).json({

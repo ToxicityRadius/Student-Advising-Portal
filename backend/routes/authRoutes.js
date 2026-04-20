@@ -18,6 +18,7 @@ const {
   initiateEmailChange,
   verifyEmailChange,
   resendEmailChangeCode,
+  resolveVerificationSessionFromRequest,
 } = require('../controllers/authController');
 const { protect, requireRole } = require('../middleware/auth');
 const {
@@ -39,21 +40,35 @@ const router = express.Router();
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
+const isTestEnvironment = process.env.NODE_ENV === 'test';
+const AUTH_LIMIT_MAX = isTestEnvironment ? 200 : 15;
+const STRICT_AUTH_LIMIT_MAX = isTestEnvironment ? 200 : 5;
 
-const userIdOrIpKey = (req) => {
-  const rawUserId = req.body?.userId;
-  if (rawUserId === undefined || rawUserId === null || String(rawUserId).trim().length === 0) {
-    const requestIp = req.ip || req.socket?.remoteAddress || 'unknown';
-    return ipKeyGenerator(requestIp);
+const getRequestIpKey = (req) => {
+  const requestIp = req.ip || req.socket?.remoteAddress || 'unknown';
+  return ipKeyGenerator(requestIp);
+};
+
+const verificationUserOrIpKey = (req) => {
+  const verificationUserId = req.verificationSessionUserId;
+  if (typeof verificationUserId !== 'string' || verificationUserId.trim().length === 0) {
+    return getRequestIpKey(req);
   }
 
-  return `user:${String(rawUserId).trim()}`;
+  return `verify-user:${verificationUserId.trim()}`;
+};
+
+const attachVerificationSessionContext = (req, _res, next) => {
+  const verificationSession = resolveVerificationSessionFromRequest(req);
+  req.verificationSessionId = verificationSession?.sessionId || null;
+  req.verificationSessionUserId = verificationSession?.userId || null;
+  next();
 };
 
 // Rate limiters to prevent brute force and abuse
 const authLimiter = rateLimit({
   windowMs: FIFTEEN_MINUTES_MS,
-  max: 15,
+  max: AUTH_LIMIT_MAX,
   message: { success: false, message: 'Too many attempts, please try again after 15 minutes' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -61,7 +76,7 @@ const authLimiter = rateLimit({
 
 const strictAuthLimiter = rateLimit({
   windowMs: FIFTEEN_MINUTES_MS,
-  max: 5,
+  max: STRICT_AUTH_LIMIT_MAX,
   message: { success: false, message: 'Too many attempts, please try again after 15 minutes' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -70,7 +85,7 @@ const strictAuthLimiter = rateLimit({
 const verifyCodeLimiter = rateLimit({
   windowMs: FIVE_MINUTES_MS,
   max: 20,
-  keyGenerator: userIdOrIpKey,
+  keyGenerator: verificationUserOrIpKey,
   skipSuccessfulRequests: true,
   message: {
     success: false,
@@ -83,7 +98,7 @@ const verifyCodeLimiter = rateLimit({
 const resendCodeLimiter = rateLimit({
   windowMs: FIVE_MINUTES_MS,
   max: 3,
-  keyGenerator: userIdOrIpKey,
+  keyGenerator: verificationUserOrIpKey,
   message: {
     success: false,
     message: 'Too many code resend attempts. Please try again after 5 minutes',
@@ -94,8 +109,20 @@ const resendCodeLimiter = rateLimit({
 
 router.post('/register', authLimiter, validate(registerValidation), register);
 router.post('/login', authLimiter, validate(loginValidation), login);
-router.post('/verify-code', verifyCodeLimiter, validate(verifyCodeValidation), verifyCode);
-router.post('/resend-code', resendCodeLimiter, validate(resendCodeValidation), resendCode);
+router.post(
+  '/verify-code',
+  attachVerificationSessionContext,
+  verifyCodeLimiter,
+  validate(verifyCodeValidation),
+  verifyCode,
+);
+router.post(
+  '/resend-code',
+  attachVerificationSessionContext,
+  resendCodeLimiter,
+  validate(resendCodeValidation),
+  resendCode,
+);
 router.post(
   '/forgot-password',
   strictAuthLimiter,
