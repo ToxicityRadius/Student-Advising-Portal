@@ -119,6 +119,12 @@ const { setupSwagger } = require('./docs/swagger');
 
 const app = express();
 
+// Render sits behind a proxy. Trust one hop in production so req.ip and rate limiting
+// use the real client IP from X-Forwarded-For instead of collapsing all users together.
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Swagger API docs — available in non-production environments only
 if (process.env.NODE_ENV !== 'production') {
   setupSwagger(app);
