@@ -87,6 +87,10 @@ const User = sequelize.define(
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
+    verificationSessionId: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+    },
     mustChangePassword: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,

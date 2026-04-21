@@ -185,6 +185,25 @@ function clearVerificationSession(res, req) {
 }
 
 exports.resolveVerificationSessionFromRequest = getVerificationSessionFromRequest;
+exports.createVerificationSession = createVerificationSession;
+exports.getVerificationSessionCookieOptions = getVerificationSessionCookieOptions;
+exports.VERIFICATION_SESSION_COOKIE = VERIFICATION_SESSION_COOKIE;
+
+// Async helper: clear verificationSessionId from DB. Call alongside clearVerificationSession().
+async function clearVerificationSessionFromDb(req) {
+  const rawSessionId = req?.cookies?.[VERIFICATION_SESSION_COOKIE];
+  if (typeof rawSessionId === 'string' && rawSessionId.trim().length > 0) {
+    try {
+      await User.update(
+        { verificationSessionId: null },
+        { where: { verificationSessionId: rawSessionId.trim() } },
+      );
+    } catch (_) {
+      // non-critical cleanup — log silently
+    }
+  }
+}
+exports.clearVerificationSessionFromDb = clearVerificationSessionFromDb;
 
 // Helper: generate a cryptographically secure 6-digit verification code
 function generateVerificationCode() {
@@ -634,18 +653,20 @@ exports.login = async (req, res, next) => {
       const verificationCode = generateVerificationCode();
       const verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-      // Update user with verification code
+      const verificationSessionId = createVerificationSession(user.id);
+
+      // Update user with verification code AND persist sessionId to DB so pod
+      // restarts don't invalidate the pending 2FA session.
       await User.update(
         {
           verificationCode,
           verificationCodeExpires,
           isVerified: false,
+          verificationSessionId,
           updatedAt: Date.now(),
         },
         { where: { id: user.id } },
       );
-
-      const verificationSessionId = createVerificationSession(user.id);
       if (!verificationSessionId) {
         return res.status(500).json({
           success: false,
@@ -719,7 +740,29 @@ exports.verifyCode = async (req, res, next) => {
       });
     }
 
-    const verificationSession = getVerificationSessionFromRequest(req);
+    // Try in-memory session first (fast path), then fall back to DB-persisted
+    // session ID to survive pod restarts on Render/clustered deployments.
+    let verificationSession = getVerificationSessionFromRequest(req);
+    if (!verificationSession || verificationSession.userId !== normalizedUserId) {
+      const rawSessionId = req.cookies?.[VERIFICATION_SESSION_COOKIE];
+      if (rawSessionId) {
+        const userBySession = await User.findOne({
+          where: {
+            verificationSessionId: rawSessionId.trim(),
+            id: Number.parseInt(normalizedUserId, 10),
+          },
+          attributes: ['id', 'verificationCodeExpires'],
+        });
+        if (
+          userBySession &&
+          userBySession.verificationCodeExpires &&
+          Date.now() < new Date(userBySession.verificationCodeExpires).getTime()
+        ) {
+          verificationSession = { sessionId: rawSessionId.trim(), userId: normalizedUserId };
+        }
+      }
+    }
+
     if (!verificationSession || verificationSession.userId !== normalizedUserId) {
       logVerifyEvent(
         req,
@@ -843,6 +886,7 @@ exports.verifyCode = async (req, res, next) => {
     verifyAttempts.delete(key);
     verificationSessions.delete(verificationSession.sessionId);
     clearVerificationSession(res, req);
+    await clearVerificationSessionFromDb(req);
 
     // Clear verification code and mark as verified
     await User.update(
@@ -887,7 +931,28 @@ exports.resendCode = async (req, res, next) => {
       });
     }
 
-    const verificationSession = getVerificationSessionFromRequest(req);
+    // Try in-memory session first, fall back to DB-persisted session.
+    let verificationSession = getVerificationSessionFromRequest(req);
+    if (!verificationSession || verificationSession.userId !== normalizedUserId) {
+      const rawSessionId = req.cookies?.[VERIFICATION_SESSION_COOKIE];
+      if (rawSessionId) {
+        const userBySession = await User.findOne({
+          where: {
+            verificationSessionId: rawSessionId.trim(),
+            id: Number.parseInt(normalizedUserId, 10),
+          },
+          attributes: ['id', 'verificationCodeExpires'],
+        });
+        if (
+          userBySession &&
+          userBySession.verificationCodeExpires &&
+          Date.now() < new Date(userBySession.verificationCodeExpires).getTime()
+        ) {
+          verificationSession = { sessionId: rawSessionId.trim(), userId: normalizedUserId };
+        }
+      }
+    }
+
     if (!verificationSession || verificationSession.userId !== normalizedUserId) {
       logVerifyEvent(
         req,

@@ -7,6 +7,11 @@ const bcrypt = require('bcryptjs');
 const { sendTokenResponse } = require('../utils/jwt');
 const { sendVerificationCode } = require('../utils/email');
 const { FACULTY_EMAIL_WHITELIST } = require('../constants');
+const {
+  createVerificationSession,
+  getVerificationSessionCookieOptions,
+  VERIFICATION_SESSION_COOKIE,
+} = require('../controllers/authController');
 
 const googleAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -133,12 +138,17 @@ router.post('/google', googleAuthLimiter, async (req, res) => {
       const verificationCode = generateVerificationCode();
       const verificationCodeExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-      // Update user with verification code
+      // Create a server-side verification session (in-memory + DB) so that
+      // the verify-code endpoint can confirm the same browser initiated this flow,
+      // and so the session survives pod restarts on Render.
+      const verificationSessionId = createVerificationSession(user.id);
+
       await User.update(
         {
           verificationCode,
           verificationCodeExpires,
           isVerified: false,
+          verificationSessionId: verificationSessionId || null,
           updatedAt: Date.now(),
         },
         { where: { id: user.id } },
@@ -147,8 +157,18 @@ router.post('/google', googleAuthLimiter, async (req, res) => {
       // Send verification code email
       await sendVerificationCode(user.email, verificationCode, user.firstName);
 
-      // Return success without token - user needs to verify first
-      res.json({
+      // Return success without token - user needs to verify first.
+      // Set the verificationSession cookie so verify-code can validate the session.
+      const responseBase = res;
+      if (verificationSessionId) {
+        responseBase.cookie(
+          VERIFICATION_SESSION_COOKIE,
+          verificationSessionId,
+          getVerificationSessionCookieOptions(),
+        );
+      }
+
+      responseBase.json({
         success: true,
         message: 'Verification code sent to your email. Please check your inbox.',
         userId: user.id,
