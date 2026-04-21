@@ -5,14 +5,7 @@ import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
 const sexOptions = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
 const studentTypeOptions = ['regular', 'irregular', 'transferee', 'ladderized'];
 
-const EditSARModal = ({
-  show,
-  onHide,
-  onSubmit,
-  sar,
-  curriculums = [],
-  submitting = false
-}) => {
+const EditSARModal = ({ show, onHide, onSubmit, sar, curriculums = [], submitting = false }) => {
   const [form, setForm] = useState({
     studentName: '',
     studentNumber: '',
@@ -34,7 +27,7 @@ const EditSARModal = ({
     emergency_contact_relationship: '',
     emergency_contact_number: '',
     profile_picture: null,
-    remove_profile_picture: false
+    remove_profile_picture: false,
   });
   const [picturePreview, setPicturePreview] = useState('');
   const [error, setError] = useState('');
@@ -67,7 +60,7 @@ const EditSARModal = ({
       emergency_contact_relationship: profile.emergency_contact_relationship || '',
       emergency_contact_number: profile.emergency_contact_number || '',
       profile_picture: null,
-      remove_profile_picture: false
+      remove_profile_picture: false,
     });
     setPicturePreview(buildProfileImageUrl(profile.profile_picture));
     setError('');
@@ -96,14 +89,16 @@ const EditSARModal = ({
     setForm((previous) => ({
       ...previous,
       profile_picture: file,
-      remove_profile_picture: false
+      remove_profile_picture: false,
     }));
 
     if (picturePreview && picturePreview.startsWith('blob:')) {
       URL.revokeObjectURL(picturePreview);
     }
 
-    setPicturePreview(file ? URL.createObjectURL(file) : buildProfileImageUrl(sar?.Student?.profile_picture));
+    setPicturePreview(
+      file ? URL.createObjectURL(file) : buildProfileImageUrl(sar?.Student?.profile_picture),
+    );
   };
 
   const handleRemoveProfilePicture = () => {
@@ -114,7 +109,7 @@ const EditSARModal = ({
     setForm((previous) => ({
       ...previous,
       profile_picture: null,
-      remove_profile_picture: true
+      remove_profile_picture: true,
     }));
     setPicturePreview('');
   };
@@ -146,7 +141,7 @@ const EditSARModal = ({
         studentName,
         studentNumber,
         yearLevel: Number(form.yearLevel),
-        curriculumId: Number(form.curriculumId)
+        curriculumId: Number(form.curriculumId),
       };
 
       if (sar?.isLinkedToAccount) {
@@ -165,7 +160,7 @@ const EditSARModal = ({
           address: form.address,
           emergency_contact_name: form.emergency_contact_name,
           emergency_contact_relationship: form.emergency_contact_relationship,
-          emergency_contact_number: form.emergency_contact_number
+          emergency_contact_number: form.emergency_contact_number,
         };
 
         payload.profilePicture = form.profile_picture || null;
@@ -175,7 +170,9 @@ const EditSARModal = ({
       await onSubmit(payload);
       handleClose();
     } catch (submitError) {
-      setError(submitError?.response?.data?.message || 'Failed to update the student academic record.');
+      setError(
+        submitError?.response?.data?.message || 'Failed to update the student academic record.',
+      );
     }
   };
 
@@ -232,7 +229,8 @@ const EditSARModal = ({
               <option value="">Select curriculum</option>
               {curriculums.map((curriculum) => (
                 <option key={curriculum.id} value={curriculum.id}>
-                  {curriculum.name}{curriculum.isActive ? ' (Active)' : ''}
+                  {curriculum.name}
+                  {curriculum.isActive ? ' (Active)' : ''}
                 </option>
               ))}
             </Form.Select>
@@ -241,7 +239,9 @@ const EditSARModal = ({
           {sar?.isLinkedToAccount ? (
             <>
               <hr />
-              <h6 className="text-uppercase text-muted mb-2" style={{ letterSpacing: '0.08em' }}>Profile & Identity</h6>
+              <h6 className="text-uppercase text-muted mb-2" style={{ letterSpacing: '0.08em' }}>
+                Profile & Identity
+              </h6>
 
               <Form.Group className="mb-3">
                 <Form.Label>First Name</Form.Label>
@@ -252,11 +252,24 @@ const EditSARModal = ({
                 <Form.Label>Profile Picture</Form.Label>
                 <div className="d-flex align-items-center gap-3 mb-2">
                   {picturePreview ? (
-                    <Image src={picturePreview} roundedCircle width={56} height={56} style={{ objectFit: 'cover' }} />
+                    <Image
+                      src={picturePreview}
+                      roundedCircle
+                      width={56}
+                      height={56}
+                      style={{ objectFit: 'cover' }}
+                    />
                   ) : (
                     <div
                       className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center"
-                      style={{ width: 56, height: 56, fontWeight: 700 }}
+                      style={{
+                        width: 56,
+                        height: 56,
+                        minWidth: 56,
+                        minHeight: 56,
+                        flexShrink: 0,
+                        fontWeight: 700,
+                      }}
                     >
                       {getInitials(form.studentName)}
                     </div>
@@ -276,7 +289,9 @@ const EditSARModal = ({
                   accept="image/jpeg,image/png,image/webp"
                   onChange={handleProfilePictureChange}
                 />
-                <Form.Text className="text-muted">JPEG, PNG, or WEBP. Max 2 MB. Recommended up to 2000x2000.</Form.Text>
+                <Form.Text className="text-muted">
+                  JPEG, PNG, or WEBP. Max 2 MB. Recommended up to 2000x2000.
+                </Form.Text>
               </Form.Group>
 
               <Form.Group className="mb-3">
@@ -296,7 +311,11 @@ const EditSARModal = ({
 
               <Form.Group className="mb-3">
                 <Form.Label>Preferred Name</Form.Label>
-                <Form.Control name="preferred_name" value={form.preferred_name} onChange={handleChange} />
+                <Form.Control
+                  name="preferred_name"
+                  value={form.preferred_name}
+                  onChange={handleChange}
+                />
               </Form.Group>
 
               <Form.Group className="mb-3">
@@ -318,12 +337,21 @@ const EditSARModal = ({
 
               <Form.Group className="mb-3">
                 <Form.Label>Contact Number</Form.Label>
-                <Form.Control name="contact_number" value={form.contact_number} onChange={handleChange} />
+                <Form.Control
+                  name="contact_number"
+                  value={form.contact_number}
+                  onChange={handleChange}
+                />
               </Form.Group>
 
               <Form.Group className="mb-3">
                 <Form.Label>Alternate Email</Form.Label>
-                <Form.Control type="email" name="alternate_email" value={form.alternate_email} onChange={handleChange} />
+                <Form.Control
+                  type="email"
+                  name="alternate_email"
+                  value={form.alternate_email}
+                  onChange={handleChange}
+                />
               </Form.Group>
 
               <Form.Group className="mb-3">
@@ -331,7 +359,9 @@ const EditSARModal = ({
                 <Form.Select name="sex" value={form.sex} onChange={handleChange}>
                   <option value="">Select</option>
                   {sexOptions.map((option) => (
-                    <option key={option} value={option}>{option}</option>
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
                   ))}
                 </Form.Select>
               </Form.Group>
@@ -343,22 +373,40 @@ const EditSARModal = ({
 
               <Form.Group className="mb-3">
                 <Form.Label>Address</Form.Label>
-                <Form.Control as="textarea" rows={2} name="address" value={form.address} onChange={handleChange} />
+                <Form.Control
+                  as="textarea"
+                  rows={2}
+                  name="address"
+                  value={form.address}
+                  onChange={handleChange}
+                />
               </Form.Group>
 
               <Form.Group className="mb-3">
                 <Form.Label>Emergency Contact Name</Form.Label>
-                <Form.Control name="emergency_contact_name" value={form.emergency_contact_name} onChange={handleChange} />
+                <Form.Control
+                  name="emergency_contact_name"
+                  value={form.emergency_contact_name}
+                  onChange={handleChange}
+                />
               </Form.Group>
 
               <Form.Group className="mb-3">
                 <Form.Label>Emergency Contact Relationship</Form.Label>
-                <Form.Control name="emergency_contact_relationship" value={form.emergency_contact_relationship} onChange={handleChange} />
+                <Form.Control
+                  name="emergency_contact_relationship"
+                  value={form.emergency_contact_relationship}
+                  onChange={handleChange}
+                />
               </Form.Group>
 
               <Form.Group>
                 <Form.Label>Emergency Contact Number</Form.Label>
-                <Form.Control name="emergency_contact_number" value={form.emergency_contact_number} onChange={handleChange} />
+                <Form.Control
+                  name="emergency_contact_number"
+                  value={form.emergency_contact_number}
+                  onChange={handleChange}
+                />
               </Form.Group>
             </>
           ) : (

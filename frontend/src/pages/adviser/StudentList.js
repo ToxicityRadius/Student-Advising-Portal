@@ -244,6 +244,9 @@ const StudentList = () => {
                               style={{
                                 width: 32,
                                 height: 32,
+                                minWidth: 32,
+                                minHeight: 32,
+                                flexShrink: 0,
                                 fontSize: '0.75rem',
                                 fontWeight: 700,
                               }}

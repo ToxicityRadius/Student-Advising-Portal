@@ -261,7 +261,15 @@ const SARLayout = ({
                       ) : (
                         <div
                           className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center"
-                          style={{ width: 64, height: 64, fontWeight: 700, fontSize: '1.1rem' }}
+                          style={{
+                            width: 64,
+                            height: 64,
+                            minWidth: 64,
+                            minHeight: 64,
+                            flexShrink: 0,
+                            fontWeight: 700,
+                            fontSize: '1.1rem',
+                          }}
                         >
                           {getInitials(sar.studentName)}
                         </div>
