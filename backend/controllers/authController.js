@@ -1,4 +1,4 @@
-﻿const { User } = require('../models');
+const { User } = require('../models');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
@@ -26,6 +26,41 @@ const VERIFY_ATTEMPT_CLEANUP_INTERVAL_MS = 60 * 1000;
 const VERIFICATION_SESSION_COOKIE = 'verificationSession';
 const VERIFICATION_SESSION_TTL_MS = 10 * 60 * 1000;
 let lastVerifyAttemptCleanupAt = 0;
+
+const VERIFY_REASON_CODES = Object.freeze({
+  BAD_REQUEST: 'VERIFY_BAD_REQUEST',
+  SESSION_EXPIRED: 'VERIFY_SESSION_EXPIRED',
+  INVALID_CODE: 'VERIFY_INVALID_CODE',
+  LOCKOUT_ACTIVE: 'VERIFY_LOCKOUT_ACTIVE',
+  CODE_EXPIRED: 'VERIFY_CODE_EXPIRED',
+});
+
+const RESEND_REASON_CODES = Object.freeze({
+  BAD_REQUEST: 'RESEND_BAD_REQUEST',
+  SESSION_EXPIRED: 'RESEND_SESSION_EXPIRED',
+});
+
+function buildAuthLogContext(req, extra = {}) {
+  return {
+    ...extra,
+    requestId: req?.ctx?.requestId || null,
+    ip: req?.ctx?.ip || req?.ip || null,
+  };
+}
+
+function logVerifyEvent(req, event, extra = {}, level = 'info') {
+  const payload = buildAuthLogContext(req, {
+    event,
+    ...extra,
+  });
+
+  if (typeof logger[level] === 'function') {
+    logger[level](payload, '[AUTH_VERIFY]');
+    return;
+  }
+
+  logger.info(payload, '[AUTH_VERIFY]');
+}
 
 function normalizePositiveIntegerString(value) {
   if (value === undefined || value === null) {
@@ -618,6 +653,10 @@ exports.login = async (req, res, next) => {
         });
       }
 
+      // Reset failed-attempt counter: the user proved they know their password,
+      // and a fresh code was issued, so prior failed attempts are no longer relevant.
+      verifyAttempts.delete(`user:${String(user.id)}`);
+
       // Send verification code email
       await sendVerificationCode(user.email, verificationCode, user.firstName);
 
@@ -664,17 +703,37 @@ exports.verifyCode = async (req, res, next) => {
     const normalizedUserId = normalizePositiveIntegerString(userId);
 
     if (!normalizedUserId || !code) {
+      logVerifyEvent(
+        req,
+        'verify.bad_request',
+        {
+          hasUserId: Boolean(normalizedUserId),
+          hasCode: Boolean(code),
+        },
+        'warn',
+      );
       return res.status(400).json({
         success: false,
+        reasonCode: VERIFY_REASON_CODES.BAD_REQUEST,
         message: 'Please provide user ID and verification code',
       });
     }
 
     const verificationSession = getVerificationSessionFromRequest(req);
     if (!verificationSession || verificationSession.userId !== normalizedUserId) {
+      logVerifyEvent(
+        req,
+        'verify.session_expired',
+        {
+          userId: normalizedUserId,
+          sessionUserId: verificationSession?.userId || null,
+        },
+        'warn',
+      );
       clearVerificationSession(res, req);
       return res.status(401).json({
         success: false,
+        reasonCode: VERIFY_REASON_CODES.SESSION_EXPIRED,
         message: 'Verification session expired. Please log in again.',
       });
     }
@@ -686,8 +745,14 @@ exports.verifyCode = async (req, res, next) => {
     const attempt = verifyAttempts.get(key);
     if (attempt && attempt.count >= MAX_VERIFY_ATTEMPTS && now < attempt.resetAt) {
       const remainingMinutes = Math.max(1, Math.ceil((attempt.resetAt - now) / (60 * 1000)));
+      logVerifyEvent(req, 'verify.lockout_active', {
+        userId: verificationSession.userId,
+        attemptCount: attempt.count,
+        resetAt: attempt.resetAt,
+      });
       return res.status(429).json({
         success: false,
+        reasonCode: VERIFY_REASON_CODES.LOCKOUT_ACTIVE,
         message: `Too many failed attempts. Please request a new verification code or try again in ${remainingMinutes} minute${remainingMinutes === 1 ? '' : 's'}.`,
       });
     }
@@ -708,6 +773,7 @@ exports.verifyCode = async (req, res, next) => {
       if (failedAttempts >= MAX_VERIFY_ATTEMPTS) {
         return {
           status: 429,
+          reasonCode: VERIFY_REASON_CODES.LOCKOUT_ACTIVE,
           message:
             'Too many failed attempts. Please request a new verification code or try again in 5 minutes.',
         };
@@ -716,6 +782,7 @@ exports.verifyCode = async (req, res, next) => {
       const remainingAttempts = Math.max(0, MAX_VERIFY_ATTEMPTS - failedAttempts);
       return {
         status: 400,
+        reasonCode: VERIFY_REASON_CODES.INVALID_CODE,
         message: `Invalid verification code. ${remainingAttempts} attempt${remainingAttempts === 1 ? '' : 's'} remaining.`,
       };
     };
@@ -725,8 +792,14 @@ exports.verifyCode = async (req, res, next) => {
     if (!user) {
       const failedAttempts = registerFailedAttempt();
       const failure = buildFailure(failedAttempts);
+      logVerifyEvent(req, 'verify.failed', {
+        userId: verificationSession.userId,
+        failedAttempts,
+        reasonCode: failure.reasonCode,
+      });
       return res.status(failure.status).json({
         success: false,
+        reasonCode: failure.reasonCode,
         message: failure.message,
       });
     }
@@ -740,20 +813,33 @@ exports.verifyCode = async (req, res, next) => {
     if (!codesMatch) {
       const failedAttempts = registerFailedAttempt();
       const failure = buildFailure(failedAttempts);
+      logVerifyEvent(req, 'verify.failed', {
+        userId: verificationSession.userId,
+        failedAttempts,
+        reasonCode: failure.reasonCode,
+      });
       return res.status(failure.status).json({
         success: false,
+        reasonCode: failure.reasonCode,
         message: failure.message,
       });
     }
 
     if (Date.now() > user.verificationCodeExpires) {
+      logVerifyEvent(req, 'verify.code_expired', {
+        userId: verificationSession.userId,
+      });
       return res.status(400).json({
         success: false,
+        reasonCode: VERIFY_REASON_CODES.CODE_EXPIRED,
         message: 'Verification code has expired. Please request a new one.',
       });
     }
 
     // Successful verification — clear attempt counter
+    logVerifyEvent(req, 'verify.success', {
+      userId: verificationSession.userId,
+    });
     verifyAttempts.delete(key);
     verificationSessions.delete(verificationSession.sessionId);
     clearVerificationSession(res, req);
@@ -793,17 +879,29 @@ exports.resendCode = async (req, res, next) => {
     const normalizedUserId = normalizePositiveIntegerString(userId);
 
     if (!normalizedUserId) {
+      logVerifyEvent(req, 'resend.bad_request', {}, 'warn');
       return res.status(400).json({
         success: false,
+        reasonCode: RESEND_REASON_CODES.BAD_REQUEST,
         message: 'Please provide user ID',
       });
     }
 
     const verificationSession = getVerificationSessionFromRequest(req);
     if (!verificationSession || verificationSession.userId !== normalizedUserId) {
+      logVerifyEvent(
+        req,
+        'resend.session_expired',
+        {
+          userId: normalizedUserId,
+          sessionUserId: verificationSession?.userId || null,
+        },
+        'warn',
+      );
       clearVerificationSession(res, req);
       return res.status(401).json({
         success: false,
+        reasonCode: RESEND_REASON_CODES.SESSION_EXPIRED,
         message: 'Verification session expired. Please log in again.',
       });
     }
@@ -828,6 +926,9 @@ exports.resendCode = async (req, res, next) => {
       // Reset attempt counter so the user gets a fresh set of attempts
       verifyAttempts.delete(`user:${verificationSession.userId}`);
       refreshVerificationSession(verificationSession.sessionId, user.id);
+      logVerifyEvent(req, 'resend.code_sent', {
+        userId: verificationSession.userId,
+      });
 
       await sendVerificationCode(user.email, verificationCode, user.firstName);
 
@@ -837,6 +938,9 @@ exports.resendCode = async (req, res, next) => {
         getVerificationSessionCookieOptions(),
       );
     } else {
+      logVerifyEvent(req, 'resend.user_missing', {
+        userId: verificationSession.userId,
+      });
       verificationSessions.delete(verificationSession.sessionId);
       clearVerificationSession(res, req);
     }

@@ -249,6 +249,7 @@ describe('POST /api/auth/verify-code', () => {
     });
 
     expect(response.status).toBe(401);
+    expect(response.body.reasonCode).toBe('VERIFY_SESSION_EXPIRED');
     expect(response.body.message).toMatch(/Verification session expired/i);
   });
 
@@ -262,6 +263,7 @@ describe('POST /api/auth/verify-code', () => {
       code: wrongCode,
     });
     expect(first.status).toBe(400);
+    expect(first.body.reasonCode).toBe('VERIFY_INVALID_CODE');
     expect(first.body.message).toContain('2 attempts remaining');
 
     const second = await agent.post('/api/auth/verify-code').send({
@@ -269,6 +271,7 @@ describe('POST /api/auth/verify-code', () => {
       code: wrongCode,
     });
     expect(second.status).toBe(400);
+    expect(second.body.reasonCode).toBe('VERIFY_INVALID_CODE');
     expect(second.body.message).toContain('1 attempt remaining');
 
     const third = await agent.post('/api/auth/verify-code').send({
@@ -276,39 +279,80 @@ describe('POST /api/auth/verify-code', () => {
       code: wrongCode,
     });
     expect(third.status).toBe(429);
+    expect(third.body.reasonCode).toBe('VERIFY_LOCKOUT_ACTIVE');
     expect(third.body.message).toMatch(/Too many failed attempts/i);
     expect(third.body.message).toMatch(/5 minutes/i);
   });
 
-  test('keeps failed-attempt lockout across new verification sessions for the same user', async () => {
+  test('keeps lockout active within the same session after 3 failed attempts', async () => {
+    // Verifies that exhausting all 3 attempts locks the user for the duration
+    // of the current session — they cannot keep retrying without re-authenticating.
     const user = await createUser({ isVerified: false });
-    const firstSessionAgent = await createVerificationAgent(user);
-    const firstWrongCode = await getWrongCodeFor(user.id);
+    const agent = await createVerificationAgent(user);
+    const wrongCode = await getWrongCodeFor(user.id);
 
-    const firstAttempt = await firstSessionAgent.post('/api/auth/verify-code').send({
+    const firstAttempt = await agent.post('/api/auth/verify-code').send({
       userId: user.id,
-      code: firstWrongCode,
+      code: wrongCode,
     });
-    const secondAttempt = await firstSessionAgent.post('/api/auth/verify-code').send({
+    const secondAttempt = await agent.post('/api/auth/verify-code').send({
       userId: user.id,
-      code: firstWrongCode,
+      code: wrongCode,
     });
 
     expect(firstAttempt.status).toBe(400);
     expect(secondAttempt.status).toBe(400);
 
-    const secondSessionAgent = await createVerificationAgent(user);
-    const secondWrongCode = await getWrongCodeFor(user.id);
-
-    const thirdAttempt = await secondSessionAgent.post('/api/auth/verify-code').send({
+    // Third attempt in the same session — triggers lockout
+    const thirdAttempt = await agent.post('/api/auth/verify-code').send({
       userId: user.id,
-      code: secondWrongCode,
+      code: wrongCode,
     });
 
     expect(thirdAttempt.status).toBe(429);
+    expect(thirdAttempt.body.reasonCode).toBe('VERIFY_LOCKOUT_ACTIVE');
     expect(thirdAttempt.body.message).toMatch(/Too many failed attempts/i);
+
+    // A 4th attempt on the same session still returns lockout (not a fresh attempt)
+    const fourthAttempt = await agent.post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: wrongCode,
+    });
+    expect(fourthAttempt.status).toBe(429);
+    expect(fourthAttempt.body.reasonCode).toBe('VERIFY_LOCKOUT_ACTIVE');
   });
 
+  // NOTE: The above test validates that a new *session cookie* alone does not reset the
+  // lockout — the user must fully re-authenticate (provide their password again).
+  test('resets attempt counter when user re-authenticates (re-login) after failed attempts', async () => {
+    const user = await createUser({ isVerified: false });
+    const firstSessionAgent = await createVerificationAgent(user);
+    const firstWrongCode = await getWrongCodeFor(user.id);
+
+    // Burn 2 out of 3 attempts in the first session
+    await firstSessionAgent.post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: firstWrongCode,
+    });
+    await firstSessionAgent.post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: firstWrongCode,
+    });
+
+    // User goes back to login and fully re-authenticates (proves password again)
+    const reLoginAgent = await createVerificationAgent(user);
+    const freshWrongCode = await getWrongCodeFor(user.id);
+
+    // First attempt on the new session should show 2 remaining (counter was reset)
+    const attemptAfterReLogin = await reLoginAgent.post('/api/auth/verify-code').send({
+      userId: user.id,
+      code: freshWrongCode,
+    });
+
+    expect(attemptAfterReLogin.status).toBe(400);
+    expect(attemptAfterReLogin.body.reasonCode).toBe('VERIFY_INVALID_CODE');
+    expect(attemptAfterReLogin.body.message).toContain('2 attempts remaining');
+  });
   test('resend code resets failed verification attempt count', async () => {
     const user = await createUser({ isVerified: false });
     const agent = await createVerificationAgent(user);
@@ -337,6 +381,7 @@ describe('POST /api/auth/verify-code', () => {
     });
 
     expect(afterResend.status).toBe(400);
+    expect(afterResend.body.reasonCode).toBe('VERIFY_INVALID_CODE');
     expect(afterResend.body.message).toContain('2 attempts remaining');
   });
 
@@ -352,6 +397,7 @@ describe('POST /api/auth/verify-code', () => {
       code: '000000',
     });
     expect(attackerTamperAttempt.status).toBe(401);
+    expect(attackerTamperAttempt.body.reasonCode).toBe('VERIFY_SESSION_EXPIRED');
 
     const victimWrongCode = await getWrongCodeFor(victim.id);
     const victimFirstAttempt = await victimAgent.post('/api/auth/verify-code').send({
@@ -386,7 +432,23 @@ describe('POST /api/auth/verify-code', () => {
     expect(resend2.status).toBe(200);
     expect(resend3.status).toBe(200);
     expect(resend4.status).toBe(429);
+    expect(resend4.body.reasonCode).toBe('RESEND_ROUTE_RATE_LIMITED');
     expect(resend4.body.message).toMatch(/Too many code resend attempts/i);
+  });
+
+  test('returns verify route limiter reason code after repeated invalid requests', async () => {
+    let finalResponse;
+
+    for (let attempt = 0; attempt < 21; attempt += 1) {
+      finalResponse = await request(app).post('/api/auth/verify-code').send({
+        userId: 999999,
+        code: '12',
+      });
+    }
+
+    expect(finalResponse.status).toBe(429);
+    expect(finalResponse.body.reasonCode).toBe('VERIFY_ROUTE_RATE_LIMITED');
+    expect(finalResponse.body.message).toMatch(/Too many verification attempts/i);
   });
 });
 

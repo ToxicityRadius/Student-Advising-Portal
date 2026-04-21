@@ -257,6 +257,24 @@ const VerifyCode = () => {
                           : 'Resend Code'}
                     </button>
                   </div>
+
+                  <div className="text-center mt-2" style={{ fontSize: '0.85rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/login')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#6c757d',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        padding: 0,
+                      }}
+                    >
+                      ← Back to Login
+                    </button>
+                  </div>
                 </Form>
               </Card.Body>
             </Card>

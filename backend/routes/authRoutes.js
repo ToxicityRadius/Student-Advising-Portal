@@ -89,6 +89,7 @@ const verifyCodeLimiter = rateLimit({
   skipSuccessfulRequests: true,
   message: {
     success: false,
+    reasonCode: 'VERIFY_ROUTE_RATE_LIMITED',
     message: 'Too many verification attempts. Please try again after 5 minutes',
   },
   standardHeaders: true,
@@ -101,6 +102,7 @@ const resendCodeLimiter = rateLimit({
   keyGenerator: verificationUserOrIpKey,
   message: {
     success: false,
+    reasonCode: 'RESEND_ROUTE_RATE_LIMITED',
     message: 'Too many code resend attempts. Please try again after 5 minutes',
   },
   standardHeaders: true,
