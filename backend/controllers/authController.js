@@ -25,6 +25,7 @@ const VERIFY_LOCKOUT_MS = 5 * 60 * 1000; // 5-minute lockout window
 const VERIFY_ATTEMPT_CLEANUP_INTERVAL_MS = 60 * 1000;
 const VERIFICATION_SESSION_COOKIE = 'verificationSession';
 const VERIFICATION_SESSION_TTL_MS = 10 * 60 * 1000;
+const VERIFICATION_SESSION_ID_REGEX = /^[a-f0-9]{64}$/i;
 let lastVerifyAttemptCleanupAt = 0;
 
 const VERIFY_REASON_CODES = Object.freeze({
@@ -78,6 +79,36 @@ function normalizePositiveIntegerString(value) {
   }
 
   return String(parsed);
+}
+
+function normalizeVerificationSessionId(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim();
+  return VERIFICATION_SESSION_ID_REGEX.test(normalized) ? normalized : null;
+}
+
+function getVerificationSessionIdFromRequest(req) {
+  const cookieSessionId = normalizeVerificationSessionId(
+    req?.cookies?.[VERIFICATION_SESSION_COOKIE],
+  );
+  if (cookieSessionId) {
+    return cookieSessionId;
+  }
+
+  const bodySessionId = normalizeVerificationSessionId(req?.body?.verificationSessionId);
+  if (bodySessionId) {
+    return bodySessionId;
+  }
+
+  const headerCandidate =
+    req?.get?.('x-verification-session') || req?.headers?.['x-verification-session'];
+  const headerSessionId = normalizeVerificationSessionId(
+    Array.isArray(headerCandidate) ? headerCandidate[0] : headerCandidate,
+  );
+  return headerSessionId;
 }
 
 function getVerificationSessionCookieOptions() {
@@ -134,12 +165,11 @@ function createVerificationSession(userId) {
 }
 
 function getVerificationSessionFromRequest(req) {
-  const rawSessionId = req.cookies?.[VERIFICATION_SESSION_COOKIE];
-  if (typeof rawSessionId !== 'string' || rawSessionId.trim().length === 0) {
+  const sessionId = getVerificationSessionIdFromRequest(req);
+  if (!sessionId) {
     return null;
   }
 
-  const sessionId = rawSessionId.trim();
   const sessionState = verificationSessions.get(sessionId);
   if (!sessionState) {
     return null;
@@ -169,9 +199,8 @@ function refreshVerificationSession(sessionId, userId) {
 }
 
 function clearVerificationSession(res, req) {
-  const rawSessionId = req?.cookies?.[VERIFICATION_SESSION_COOKIE];
-  if (typeof rawSessionId === 'string' && rawSessionId.trim().length > 0) {
-    const sessionId = rawSessionId.trim();
+  const sessionId = getVerificationSessionIdFromRequest(req);
+  if (sessionId) {
     verificationSessions.delete(sessionId);
   }
 
@@ -191,12 +220,12 @@ exports.VERIFICATION_SESSION_COOKIE = VERIFICATION_SESSION_COOKIE;
 
 // Async helper: clear verificationSessionId from DB. Call alongside clearVerificationSession().
 async function clearVerificationSessionFromDb(req) {
-  const rawSessionId = req?.cookies?.[VERIFICATION_SESSION_COOKIE];
-  if (typeof rawSessionId === 'string' && rawSessionId.trim().length > 0) {
+  const sessionId = getVerificationSessionIdFromRequest(req);
+  if (sessionId) {
     try {
       await User.update(
         { verificationSessionId: null },
-        { where: { verificationSessionId: rawSessionId.trim() } },
+        { where: { verificationSessionId: sessionId } },
       );
     } catch (_) {
       // non-critical cleanup — log silently
@@ -694,6 +723,7 @@ exports.login = async (req, res, next) => {
           message: 'Verification code sent to your email. Please check your inbox.',
           userId: user.id,
           requiresVerification: true,
+          verificationSessionId,
         });
     } else {
       // 2FA disabled - log in directly; reset lockout counters on success (Step 3.1)
@@ -744,11 +774,11 @@ exports.verifyCode = async (req, res, next) => {
     // session ID to survive pod restarts on Render/clustered deployments.
     let verificationSession = getVerificationSessionFromRequest(req);
     if (!verificationSession || verificationSession.userId !== normalizedUserId) {
-      const rawSessionId = req.cookies?.[VERIFICATION_SESSION_COOKIE];
+      const rawSessionId = getVerificationSessionIdFromRequest(req);
       if (rawSessionId) {
         const userBySession = await User.findOne({
           where: {
-            verificationSessionId: rawSessionId.trim(),
+            verificationSessionId: rawSessionId,
             id: Number.parseInt(normalizedUserId, 10),
           },
           attributes: ['id', 'verificationCodeExpires'],
@@ -758,7 +788,7 @@ exports.verifyCode = async (req, res, next) => {
           userBySession.verificationCodeExpires &&
           Date.now() < new Date(userBySession.verificationCodeExpires).getTime()
         ) {
-          verificationSession = { sessionId: rawSessionId.trim(), userId: normalizedUserId };
+          verificationSession = { sessionId: rawSessionId, userId: normalizedUserId };
         }
       }
     }
@@ -934,11 +964,11 @@ exports.resendCode = async (req, res, next) => {
     // Try in-memory session first, fall back to DB-persisted session.
     let verificationSession = getVerificationSessionFromRequest(req);
     if (!verificationSession || verificationSession.userId !== normalizedUserId) {
-      const rawSessionId = req.cookies?.[VERIFICATION_SESSION_COOKIE];
+      const rawSessionId = getVerificationSessionIdFromRequest(req);
       if (rawSessionId) {
         const userBySession = await User.findOne({
           where: {
-            verificationSessionId: rawSessionId.trim(),
+            verificationSessionId: rawSessionId,
             id: Number.parseInt(normalizedUserId, 10),
           },
           attributes: ['id', 'verificationCodeExpires'],
@@ -948,7 +978,7 @@ exports.resendCode = async (req, res, next) => {
           userBySession.verificationCodeExpires &&
           Date.now() < new Date(userBySession.verificationCodeExpires).getTime()
         ) {
-          verificationSession = { sessionId: rawSessionId.trim(), userId: normalizedUserId };
+          verificationSession = { sessionId: rawSessionId, userId: normalizedUserId };
         }
       }
     }

@@ -4,6 +4,7 @@ const ALLOWED_REGISTRATION_ROLES = ['student', 'adviser', 'admin'];
 const ALLOWED_LOGIN_PORTALS = ['student', 'faculty'];
 const ALLOWED_SEX_VALUES = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
 const SIX_DIGIT_CODE_REGEX = /^\d{6}$/;
+const VERIFICATION_SESSION_ID_REGEX = /^[a-f0-9]{64}$/i;
 const SEVEN_DIGIT_STUDENT_ID_REGEX = /^\d{7}$/;
 const PASSWORD_REQUIREMENTS_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
@@ -88,6 +89,11 @@ exports.verifyCodeValidation = [
     .bail()
     .matches(SIX_DIGIT_CODE_REGEX)
     .withMessage('Verification code must be a 6-digit number'),
+  body('verificationSessionId')
+    .optional({ values: 'falsy' })
+    .trim()
+    .matches(VERIFICATION_SESSION_ID_REGEX)
+    .withMessage('Verification session is invalid'),
 ];
 
 exports.resendCodeValidation = [
@@ -98,6 +104,11 @@ exports.resendCodeValidation = [
     .isInt({ min: 1 })
     .withMessage('User ID must be a positive integer')
     .toInt(),
+  body('verificationSessionId')
+    .optional({ values: 'falsy' })
+    .trim()
+    .matches(VERIFICATION_SESSION_ID_REGEX)
+    .withMessage('Verification session is invalid'),
 ];
 
 exports.forgotPasswordValidation = [

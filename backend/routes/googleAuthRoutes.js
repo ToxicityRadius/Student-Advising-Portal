@@ -173,6 +173,7 @@ router.post('/google', googleAuthLimiter, async (req, res) => {
         message: 'Verification code sent to your email. Please check your inbox.',
         userId: user.id,
         requiresVerification: true,
+        verificationSessionId: verificationSessionId || null,
         user: {
           id: user.id,
           firstName: user.firstName,

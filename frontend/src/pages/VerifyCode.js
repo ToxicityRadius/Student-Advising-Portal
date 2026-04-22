@@ -7,8 +7,76 @@ import { getHomePathForRole } from '../utils/roleRedirect';
 import backgroundImage from '../assets/images/bg.png';
 import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 
+const VERIFICATION_CODE_LENGTH = 6;
+const PENDING_VERIFICATION_CONTEXT_KEY = 'pendingVerificationContext';
+
+const sanitizeVerificationSessionId = (value) => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim();
+  return /^[a-f0-9]{64}$/i.test(normalized) ? normalized : null;
+};
+
+const loadPendingVerificationContext = () => {
+  try {
+    const raw = sessionStorage.getItem(PENDING_VERIFICATION_CONTEXT_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      return null;
+    }
+
+    const normalizedUserId = Number.parseInt(parsed.userId, 10);
+    if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) {
+      return null;
+    }
+
+    return {
+      userId: normalizedUserId,
+      email:
+        typeof parsed.email === 'string' && parsed.email.trim().length > 0 ? parsed.email : null,
+      verificationSessionId: sanitizeVerificationSessionId(parsed.verificationSessionId),
+    };
+  } catch (_error) {
+    return null;
+  }
+};
+
+const savePendingVerificationContext = ({ userId, email, verificationSessionId }) => {
+  try {
+    const normalizedUserId = Number.parseInt(userId, 10);
+    if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) {
+      return;
+    }
+
+    sessionStorage.setItem(
+      PENDING_VERIFICATION_CONTEXT_KEY,
+      JSON.stringify({
+        userId: normalizedUserId,
+        email: typeof email === 'string' ? email : null,
+        verificationSessionId: sanitizeVerificationSessionId(verificationSessionId),
+      }),
+    );
+  } catch (_error) {
+    // Ignore storage write errors in restricted contexts.
+  }
+};
+
+const clearPendingVerificationContext = () => {
+  try {
+    sessionStorage.removeItem(PENDING_VERIFICATION_CONTEXT_KEY);
+  } catch (_error) {
+    // Ignore storage failures in restricted contexts.
+  }
+};
+
 const VerifyCode = () => {
-  const [code, setCode] = useState(['', '', '', '', '', '']);
+  const [code, setCode] = useState(new Array(VERIFICATION_CODE_LENGTH).fill(''));
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
@@ -18,8 +86,28 @@ const VerifyCode = () => {
   const location = useLocation();
   const { refreshUser } = useAuth();
 
-  const userId = location.state?.userId;
-  const userEmail = location.state?.email;
+  const pendingContext = loadPendingVerificationContext();
+
+  const stateUserId = location.state?.userId;
+  const userId =
+    Number.isInteger(Number.parseInt(stateUserId, 10)) && Number.parseInt(stateUserId, 10) > 0
+      ? Number.parseInt(stateUserId, 10)
+      : pendingContext?.userId || null;
+  const userEmail = location.state?.email || pendingContext?.email;
+  const verificationSessionId =
+    sanitizeVerificationSessionId(location.state?.verificationSessionId) ||
+    pendingContext?.verificationSessionId ||
+    null;
+
+  useEffect(() => {
+    if (userId) {
+      savePendingVerificationContext({
+        userId,
+        email: userEmail,
+        verificationSessionId,
+      });
+    }
+  }, [userId, userEmail, verificationSessionId]);
 
   useEffect(() => {
     if (!userId) {
@@ -44,53 +132,86 @@ const VerifyCode = () => {
     }
   }, [successCountdown, navigate]);
 
-  const handleChange = (index, value) => {
-    if (value.length > 1) {
-      value = value.slice(-1);
+  const focusCodeInput = (index) => {
+    const boundedIndex = Math.max(0, Math.min(index, VERIFICATION_CODE_LENGTH - 1));
+    const input = document.getElementById(`code-input-${boundedIndex}`);
+    if (input) {
+      input.focus();
     }
+  };
 
-    if (!/^\d*$/.test(value)) {
+  const applyDigitsStartingAt = (startIndex, digits) => {
+    const normalizedStartIndex = Math.max(0, Math.min(startIndex, VERIFICATION_CODE_LENGTH - 1));
+    const safeDigits = digits.filter((digit) => /^\d$/.test(digit));
+
+    if (safeDigits.length === 0) {
       return;
     }
 
-    const newCode = [...code];
-    newCode[index] = value;
-    setCode(newCode);
+    const nextCode = [...code];
+    let cursor = normalizedStartIndex;
 
-    // Auto-focus next input
-    if (value && index < 5) {
-      const nextInput = document.getElementById(`code-input-${index + 1}`);
-      if (nextInput) nextInput.focus();
+    for (const digit of safeDigits) {
+      if (cursor >= VERIFICATION_CODE_LENGTH) {
+        break;
+      }
+      nextCode[cursor] = digit;
+      cursor += 1;
     }
+
+    setCode(nextCode);
+    focusCodeInput(cursor >= VERIFICATION_CODE_LENGTH ? VERIFICATION_CODE_LENGTH - 1 : cursor);
+  };
+
+  const handleChange = (index, value) => {
+    const digits = String(value || '').replace(/\D/g, '');
+
+    if (!digits) {
+      const newCode = [...code];
+      newCode[index] = '';
+      setCode(newCode);
+      return;
+    }
+
+    if (digits.length === 1) {
+      const newCode = [...code];
+      newCode[index] = digits;
+      setCode(newCode);
+
+      if (index < VERIFICATION_CODE_LENGTH - 1) {
+        focusCodeInput(index + 1);
+      }
+      return;
+    }
+
+    // Mobile OTP autofill can inject the whole code into a single input.
+    applyDigitsStartingAt(index, digits.split(''));
   };
 
   const handleKeyDown = (index, e) => {
     if (e.key === 'Backspace' && !code[index] && index > 0) {
-      const prevInput = document.getElementById(`code-input-${index - 1}`);
-      if (prevInput) prevInput.focus();
+      focusCodeInput(index - 1);
     }
   };
 
   const handlePaste = (e) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (!pastedData) return;
+    const pastedData = e.clipboardData
+      .getData('text')
+      .replace(/\D/g, '')
+      .slice(0, VERIFICATION_CODE_LENGTH);
+    if (!pastedData) {
+      return;
+    }
 
-    const newCode = pastedData.split('');
-    while (newCode.length < 6) newCode.push('');
-    setCode(newCode);
-
-    // Focus last filled input
-    const lastIndex = Math.min(pastedData.length - 1, 5);
-    const lastInput = document.getElementById(`code-input-${lastIndex}`);
-    if (lastInput) lastInput.focus();
+    applyDigitsStartingAt(0, pastedData.split(''));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const verificationCode = code.join('');
 
-    if (verificationCode.length !== 6) {
+    if (verificationCode.length !== VERIFICATION_CODE_LENGTH) {
       setError('Please enter the complete 6-digit code');
       return;
     }
@@ -102,24 +223,27 @@ const VerifyCode = () => {
       const { data } = await api.post('/auth/verify-code', {
         userId,
         code: verificationCode,
+        ...(verificationSessionId ? { verificationSessionId } : {}),
       });
 
       if (data.success) {
         if (data.mustChangePassword) {
+          clearPendingVerificationContext();
           navigate('/change-password');
           return;
         }
 
         await refreshUser();
+        clearPendingVerificationContext();
         setSuccessCountdown(3);
       } else {
         setError(data.message || 'Invalid verification code');
-        setCode(['', '', '', '', '', '']);
+        setCode(new Array(VERIFICATION_CODE_LENGTH).fill(''));
         document.getElementById('code-input-0')?.focus();
       }
     } catch (err) {
       setError(err.response?.data?.message || 'An error occurred. Please try again.');
-      setCode(['', '', '', '', '', '']);
+      setCode(new Array(VERIFICATION_CODE_LENGTH).fill(''));
       document.getElementById('code-input-0')?.focus();
     } finally {
       setLoading(false);
@@ -133,9 +257,12 @@ const VerifyCode = () => {
     setError('');
 
     try {
-      await api.post('/auth/resend-code', { userId });
+      await api.post('/auth/resend-code', {
+        userId,
+        ...(verificationSessionId ? { verificationSessionId } : {}),
+      });
       setCountdown(60); // 60 second cooldown
-      setCode(['', '', '', '', '', '']);
+      setCode(new Array(VERIFICATION_CODE_LENGTH).fill(''));
       document.getElementById('code-input-0')?.focus();
     } catch (err) {
       setError(err.response?.data?.message || 'An error occurred. Please try again.');
@@ -209,6 +336,8 @@ const VerifyCode = () => {
                         aria-label={`Verification code digit ${index + 1} of 6`}
                         type="text"
                         inputMode="numeric"
+                        pattern="[0-9]*"
+                        autoComplete={index === 0 ? 'one-time-code' : 'off'}
                         maxLength="1"
                         value={digit}
                         onChange={(e) => handleChange(index, e.target.value)}

@@ -141,6 +141,7 @@ const Login = () => {
           state: {
             userId: data.userId,
             email: formData.email,
+            verificationSessionId: data.verificationSessionId,
           },
         });
       } else if (data.mustChangePassword) {
@@ -207,6 +208,7 @@ const Login = () => {
           state: {
             userId: data.userId,
             email: decoded.email,
+            verificationSessionId: data.verificationSessionId,
           },
         });
       } else if (data.mustChangePassword) {
