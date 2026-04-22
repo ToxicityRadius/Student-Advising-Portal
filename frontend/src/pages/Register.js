@@ -138,6 +138,7 @@ const Register = () => {
           state: {
             userId: data.userId,
             email: decoded.email,
+            verificationSessionId: data.verificationSessionId,
           },
         });
         return;
