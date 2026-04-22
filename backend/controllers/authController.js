@@ -684,6 +684,14 @@ exports.login = async (req, res, next) => {
 
       const verificationSessionId = createVerificationSession(user.id);
 
+      // Guard: if session creation fails, bail out BEFORE writing partial state to DB.
+      if (!verificationSessionId) {
+        return res.status(500).json({
+          success: false,
+          message: 'Unable to initialize verification session. Please try again.',
+        });
+      }
+
       // Update user with verification code AND persist sessionId to DB so pod
       // restarts don't invalidate the pending 2FA session.
       await User.update(
@@ -696,12 +704,6 @@ exports.login = async (req, res, next) => {
         },
         { where: { id: user.id } },
       );
-      if (!verificationSessionId) {
-        return res.status(500).json({
-          success: false,
-          message: 'Unable to initialize verification session. Please try again.',
-        });
-      }
 
       // Reset failed-attempt counter: the user proved they know their password,
       // and a fresh code was issued, so prior failed attempts are no longer relevant.
@@ -878,18 +880,25 @@ exports.verifyCode = async (req, res, next) => {
     }
 
     // Check if code matches and hasn't expired (timing-safe to prevent timing oracle)
-    const storedCode = String(user.verificationCode || '');
-    const submittedCode = String(code || '');
+    // Trim stored code defensively — some DB drivers/connections can return
+    // CHAR-padded values even for VARCHAR columns in edge cases.
+    const storedCode = String(user.verificationCode || '').trim();
+    const submittedCode = String(code || '').trim();
     const codesMatch =
+      storedCode.length > 0 &&
       storedCode.length === submittedCode.length &&
       crypto.timingSafeEqual(Buffer.from(storedCode), Buffer.from(submittedCode));
     if (!codesMatch) {
       const failedAttempts = registerFailedAttempt();
       const failure = buildFailure(failedAttempts);
+      // Debug log: record lengths to diagnose potential type/encoding mismatches.
       logVerifyEvent(req, 'verify.failed', {
         userId: verificationSession.userId,
         failedAttempts,
         reasonCode: failure.reasonCode,
+        storedCodeLen: storedCode.length,
+        submittedCodeLen: submittedCode.length,
+        hasStoredCode: storedCode.length > 0,
       });
       return res.status(failure.status).json({
         success: false,

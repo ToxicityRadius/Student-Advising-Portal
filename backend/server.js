@@ -214,6 +214,15 @@ app.use(
       return callback(corsErr);
     },
     credentials: true,
+    // Explicitly allow the custom verification session header so cross-origin
+    // preflight requests from Cloudflare Pages to Render pass through.
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-CSRF-Token',
+      'X-Requested-With',
+      'x-verification-session',
+    ],
   }),
 );
 app.use(csrf);

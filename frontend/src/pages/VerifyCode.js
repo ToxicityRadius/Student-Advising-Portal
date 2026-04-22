@@ -220,11 +220,19 @@ const VerifyCode = () => {
     setLoading(true);
 
     try {
-      const { data } = await api.post('/auth/verify-code', {
-        userId,
-        code: verificationCode,
-        ...(verificationSessionId ? { verificationSessionId } : {}),
-      });
+      const { data } = await api.post(
+        '/auth/verify-code',
+        {
+          userId,
+          code: verificationCode,
+          ...(verificationSessionId ? { verificationSessionId } : {}),
+        },
+        {
+          // Send session ID in header as well so it works even when
+          // cross-site cookies are blocked (e.g. Safari ITP on iOS).
+          headers: verificationSessionId ? { 'x-verification-session': verificationSessionId } : {},
+        },
+      );
 
       if (data.success) {
         if (data.mustChangePassword) {
@@ -257,10 +265,16 @@ const VerifyCode = () => {
     setError('');
 
     try {
-      await api.post('/auth/resend-code', {
-        userId,
-        ...(verificationSessionId ? { verificationSessionId } : {}),
-      });
+      await api.post(
+        '/auth/resend-code',
+        {
+          userId,
+          ...(verificationSessionId ? { verificationSessionId } : {}),
+        },
+        {
+          headers: verificationSessionId ? { 'x-verification-session': verificationSessionId } : {},
+        },
+      );
       setCountdown(60); // 60 second cooldown
       setCode(new Array(VERIFICATION_CODE_LENGTH).fill(''));
       document.getElementById('code-input-0')?.focus();
