@@ -238,6 +238,13 @@ exports.sendTokenResponse = (user, statusCode, res, extraPayload = {}) => {
     .json({
       success: true,
       message: customMessage,
+      // token is included in the body so cross-site mobile browsers (e.g.
+      // Safari on iOS) that block third-party Set-Cookie headers can store
+      // it in localStorage and attach it as Authorization: Bearer on
+      // subsequent requests.  The httpOnly cookie remains the primary
+      // mechanism for desktop browsers.
+      token,
+      refreshToken,
       data: {
         user: userResponse,
         ...extraData,

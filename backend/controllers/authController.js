@@ -1559,7 +1559,9 @@ exports.resetPassword = async (req, res, next) => {
 // @access  Public
 exports.refreshToken = async (req, res, next) => {
   try {
-    const refreshToken = req.cookies?.refreshToken;
+    // Accept refresh token from the httpOnly cookie (desktop, primary) or from
+    // the request body (mobile fallback when cross-site cookies are blocked).
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
 
     if (!refreshToken) {
       clearAuthCookies(res);
@@ -1621,6 +1623,10 @@ exports.refreshToken = async (req, res, next) => {
       .cookie('refreshToken', newRefreshToken, cookieOptions.refreshToken)
       .json({
         success: true,
+        // Include tokens in body so mobile browsers (Safari ITP) can persist
+        // them in localStorage and attach as Authorization: Bearer headers.
+        token: newToken,
+        refreshToken: newRefreshToken,
         data: {
           user: sanitizeUser(user),
         },

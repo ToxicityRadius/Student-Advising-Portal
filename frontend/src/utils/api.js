@@ -50,6 +50,48 @@ const isPublicAuthEndpoint = (url = '') =>
 
 const CSRF_SAFE_METHODS = new Set(['get', 'head', 'options']);
 
+// ---------------------------------------------------------------------------
+// Token storage helpers — used as a fallback for browsers that block
+// third-party / cross-site Set-Cookie headers (e.g. Safari ITP on iOS).
+// The httpOnly cookie remains the primary mechanism on desktop browsers.
+// ---------------------------------------------------------------------------
+const AUTH_TOKEN_KEY = 'auth_token';
+const AUTH_REFRESH_TOKEN_KEY = 'auth_refresh_token';
+
+export function getStoredToken() {
+  try {
+    return window.localStorage.getItem(AUTH_TOKEN_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+export function storeAuthTokens(token, refreshToken) {
+  try {
+    if (token) window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+    if (refreshToken) window.localStorage.setItem(AUTH_REFRESH_TOKEN_KEY, refreshToken);
+  } catch {
+    // Ignore storage failures in restricted contexts (e.g. private browsing).
+  }
+}
+
+export function clearStoredTokens() {
+  try {
+    window.localStorage.removeItem(AUTH_TOKEN_KEY);
+    window.localStorage.removeItem(AUTH_REFRESH_TOKEN_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function getStoredRefreshToken() {
+  try {
+    return window.localStorage.getItem(AUTH_REFRESH_TOKEN_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
 function getCsrfToken() {
   const match = document.cookie.split(';').find((c) => c.trim().startsWith('csrfToken='));
   return match ? match.trim().slice('csrfToken='.length) : null;
@@ -150,6 +192,17 @@ api.interceptors.request.use(
         config.headers['X-CSRF-Token'] = csrfToken;
       }
     }
+    // Attach stored Bearer token as Authorization header fallback.
+    // This is the primary auth path for mobile browsers (e.g. Safari on iOS)
+    // where cross-site httpOnly cookies are blocked by ITP.  We only inject
+    // the header when no Authorization is already present so explicit overrides
+    // from callers are respected.
+    if (!config.headers['Authorization']) {
+      const storedToken = getStoredToken();
+      if (storedToken) {
+        config.headers['Authorization'] = `Bearer ${storedToken}`;
+      }
+    }
     return config;
   },
   (error) => Promise.reject(error),
@@ -190,10 +243,20 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
+      // Include the locally-stored refresh token in the request body as a
+      // fallback for mobile browsers where the httpOnly cookie is blocked.
+      const storedRefreshToken = getStoredRefreshToken();
+      const refreshBody = storedRefreshToken ? { refreshToken: storedRefreshToken } : {};
+
       return new Promise((resolve, reject) => {
         axios
-          .post(`${API_URL}/auth/refresh-token`, {}, { withCredentials: true })
-          .then(() => {
+          .post(`${API_URL}/auth/refresh-token`, refreshBody, { withCredentials: true })
+          .then((refreshRes) => {
+            // If the refresh endpoint returns new tokens in the body (mobile
+            // cross-site flow), persist them for subsequent requests.
+            const newToken = refreshRes?.data?.token;
+            const newRefresh = refreshRes?.data?.refreshToken;
+            if (newToken) storeAuthTokens(newToken, newRefresh);
             clearAnonymousBootstrapRefreshGuard();
             processQueue(null);
             resolve(api(originalRequest));
@@ -201,6 +264,7 @@ api.interceptors.response.use(
           .catch((err) => {
             processQueue(err);
             clearLocalUserHint();
+            clearStoredTokens();
 
             const status = err?.response?.status;
             if (!status || status >= 500) {

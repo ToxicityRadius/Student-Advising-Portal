@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert, Row, Col } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
-import api from '../utils/api';
+import api, { storeAuthTokens } from '../utils/api';
 import { getHomePathForRole } from '../utils/roleRedirect';
 import backgroundImage from '../assets/images/bg.png';
 import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
@@ -239,6 +239,12 @@ const VerifyCode = () => {
           clearPendingVerificationContext();
           navigate('/change-password');
           return;
+        }
+
+        // Persist tokens so mobile browsers (Safari ITP) can use them as
+        // Authorization: Bearer fallback on all subsequent API calls.
+        if (data.token) {
+          storeAuthTokens(data.token, data.refreshToken);
         }
 
         await refreshUser();

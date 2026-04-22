@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useContext, useRef, useCallback } from 'react';
-import api from '../utils/api';
+import api, { clearStoredTokens } from '../utils/api';
 
 const AuthContext = createContext();
 
@@ -59,6 +59,9 @@ export const AuthProvider = ({ children }) => {
     try {
       await api.post('/auth/logout');
     } catch {}
+    // Clear locally-stored tokens so mobile browsers (Safari ITP) stop
+    // sending stale Authorization: Bearer headers after logout.
+    clearStoredTokens();
     persistUser(null);
   }, [persistUser]);
 

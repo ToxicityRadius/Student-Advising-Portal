@@ -216,12 +216,16 @@ app.use(
     credentials: true,
     // Explicitly allow the custom verification session header so cross-origin
     // preflight requests from Cloudflare Pages to Render pass through.
+    // Also include cache-busting headers used by the curriculum management page.
     allowedHeaders: [
       'Content-Type',
       'Authorization',
       'X-CSRF-Token',
       'X-Requested-With',
       'x-verification-session',
+      'Cache-Control',
+      'Pragma',
+      'Accept',
     ],
   }),
 );
