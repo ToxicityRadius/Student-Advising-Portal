@@ -32,6 +32,7 @@ const PERSON_ATTRIBUTES = [
   'email',
   'role',
   'studentId',
+  'adviserId',
   'profile_picture',
   'first_name',
   'middle_name',
@@ -85,6 +86,14 @@ const buildStudentOwnershipWhere = (user) => {
   return checks.length > 0 ? { [Op.or]: checks } : { id: null };
 };
 
+const buildAdviserOwnershipWhere = (user) => {
+  if (!user?.id) return { id: null };
+
+  return {
+    [Op.or]: [{ createdByAdviserId: user.id }, { '$Student.adviserId$': user.id }],
+  };
+};
+
 const isSarOwnedByUser = (sar, user) => {
   if (!sar || !user) return false;
   const sarEmail = normalizeEmail(sar.email);
@@ -93,6 +102,15 @@ const isSarOwnedByUser = (sar, user) => {
     String(sar.userId || '') === String(user.id || '') ||
     (sarEmail && userEmail && sarEmail === userEmail) ||
     (sar.studentNumber && user.studentId && String(sar.studentNumber) === String(user.studentId))
+  );
+};
+
+const isSarAccessibleToAdviser = (sar, user) => {
+  if (!sar || !user?.id) return false;
+
+  return (
+    String(sar.createdByAdviserId || '') === String(user.id) ||
+    String(sar.Student?.adviserId || '') === String(user.id)
   );
 };
 
@@ -273,7 +291,7 @@ const listSARs = async ({ user, paginationParams }) => {
     user.role === 'student'
       ? buildStudentOwnershipWhere(user)
       : user.role === 'adviser'
-        ? { createdByAdviserId: user.id }
+        ? buildAdviserOwnershipWhere(user)
         : {};
   const searchWhere = search
     ? {
@@ -290,6 +308,7 @@ const listSARs = async ({ user, paginationParams }) => {
   const { rows, count } = await StudentAcademicRecord.findAndCountAll({
     where,
     include: buildSarIncludes(),
+    distinct: true,
     order: [
       [sortBy, sortOrder],
       ['studentNumber', 'ASC'],
@@ -322,11 +341,7 @@ const getSARDetail = async (sarId, requestUser) => {
     throw err;
   }
 
-  if (
-    requestUser.role === 'adviser' &&
-    sar.createdByAdviserId !== null &&
-    String(sar.createdByAdviserId) !== String(requestUser.id)
-  ) {
+  if (requestUser.role === 'adviser' && !isSarAccessibleToAdviser(sar, requestUser)) {
     const err = new Error('Forbidden');
     err.statusCode = 403;
     throw err;
@@ -579,8 +594,10 @@ module.exports = {
   parseYearLevel,
   isValidYearLevel,
   composeStudentDisplayName,
+  buildAdviserOwnershipWhere,
   buildStudentOwnershipWhere,
   isSarOwnedByUser,
+  isSarAccessibleToAdviser,
   serializeSar,
   serializeStudyPlanVersion,
   buildSarIncludes,

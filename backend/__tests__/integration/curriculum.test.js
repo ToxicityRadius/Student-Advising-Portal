@@ -95,12 +95,22 @@ describe('GET /api/curriculums', () => {
     expect(res.status).toBe(200);
   });
 
-  test('student cannot list curricula', async () => {
+  test('student can list curricula with compact fields for onboarding', async () => {
     const res = await request(app)
       .get('/api/curriculums')
       .set('Authorization', `Bearer ${studentToken}`);
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.data[0]).toEqual(
+      expect.objectContaining({
+        id: expect.any(Number),
+        name: expect.any(String),
+      }),
+    );
+    expect(res.body.data[0].CreatedBy).toBeUndefined();
   });
 });
 

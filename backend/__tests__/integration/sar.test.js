@@ -14,6 +14,7 @@ const { syncDB, closeDB, createUser, authToken, createCurriculum } = helpers;
 let adviser, admin, student;
 let adviserToken, adminToken, studentToken;
 let curriculum;
+let assignedStudentSarId;
 
 beforeAll(async () => {
   await syncDB();
@@ -174,6 +175,36 @@ describe('GET /api/sars', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
   });
+
+  test('adviser can list assigned student SARs created by another owner', async () => {
+    await student.update({
+      adviserId: adviser.id,
+      current_year_level: 2,
+      curriculum_id: curriculum.id,
+      updatedAt: Date.now(),
+    });
+
+    const createRes = await request(app)
+      .post('/api/sars')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        studentName: 'Assigned Student',
+        studentNumber: student.studentId,
+        email: student.email,
+        yearLevel: 2,
+        curriculumId: curriculum.id,
+      });
+
+    expect(createRes.status).toBe(201);
+    assignedStudentSarId = createRes.body.data.id;
+
+    const res = await request(app).get('/api/sars').set('Authorization', `Bearer ${adviserToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.some((sar) => sar.id === assignedStudentSarId)).toBe(true);
+  });
 });
 
 // ─── Get SAR by ID ──────────────────────────────────────────────────────────
@@ -202,6 +233,16 @@ describe('GET /api/sars/:id', () => {
       .set('Authorization', `Bearer ${adviserToken}`);
 
     expect(res.status).toBe(404);
+  });
+
+  test('adviser can fetch assigned student SAR by id even when created by another owner', async () => {
+    const res = await request(app)
+      .get(`/api/sars/${assignedStudentSarId}`)
+      .set('Authorization', `Bearer ${adviserToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.id).toBe(assignedStudentSarId);
   });
 });
 

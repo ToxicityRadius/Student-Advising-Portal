@@ -494,30 +494,173 @@ exports.activateAccount = async (req, res, next) => {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Account Activated</title>
     <style>
-      body { font-family: Arial, sans-serif; background: #f7f7f7; color: #222; margin: 0; }
-      .wrap { max-width: 560px; margin: 48px auto; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
-      h1 { margin: 0 0 12px; font-size: 24px; }
-      p { line-height: 1.5; }
-      .row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
-      a.btn { text-decoration: none; background: #FFC107; color: #111; padding: 12px 16px; border-radius: 8px; display: inline-block; }
-      a.alt { background: #e9e9e9; color: #111; }
-      .small { margin-top: 16px; color: #555; font-size: 13px; word-break: break-all; }
+      :root {
+        color-scheme: light;
+        --bg: #f4f1e7;
+        --panel: #ffffff;
+        --text: #111111;
+        --muted: #5f6368;
+        --border: #ece5d3;
+        --primary: #ffc107;
+        --primaryText: #111111;
+        --secondary: #f3f4f6;
+        --shadow: 0 18px 54px rgba(17, 17, 17, 0.08);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Arial, sans-serif;
+        background: linear-gradient(180deg, #6b5200 0, #7f6200 180px, var(--bg) 180px, var(--bg) 100%);
+        color: var(--text);
+      }
+      .shell {
+        max-width: 420px;
+        margin: 0 auto;
+        padding: 32px 20px 40px;
+      }
+      .brand {
+        color: #111;
+        margin-bottom: 28px;
+      }
+      .brand-title {
+        font-size: 2rem;
+        font-weight: 800;
+        line-height: 1;
+      }
+      .brand-subtitle {
+        margin-top: 6px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        opacity: 0.82;
+        text-transform: uppercase;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid rgba(255, 255, 255, 0.45);
+        border-radius: 22px;
+        box-shadow: var(--shadow);
+        padding: 28px 22px 24px;
+      }
+      .status-icon {
+        width: 68px;
+        height: 68px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        margin-bottom: 18px;
+        background: rgba(255, 193, 7, 0.12);
+        border: 2px solid rgba(255, 193, 7, 0.35);
+        color: #9a6e00;
+        font-size: 1.8rem;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 2rem;
+        line-height: 1.05;
+      }
+      p {
+        margin: 0;
+        line-height: 1.6;
+        color: var(--muted);
+        font-size: 1rem;
+      }
+      .actions {
+        display: grid;
+        gap: 12px;
+        margin-top: 24px;
+      }
+      .btn {
+        appearance: none;
+        border: none;
+        border-radius: 14px;
+        min-height: 52px;
+        padding: 0 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        font-size: 1rem;
+        font-weight: 700;
+      }
+      .btn-primary {
+        background: var(--primary);
+        color: var(--primaryText);
+      }
+      .btn-secondary {
+        background: var(--secondary);
+        color: var(--text);
+      }
+      .note {
+        margin-top: 20px;
+        padding-top: 18px;
+        border-top: 1px solid var(--border);
+      }
+      .note strong {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--text);
+        font-size: 0.95rem;
+      }
+      .links {
+        margin-top: 12px;
+        display: grid;
+        gap: 8px;
+      }
+      .link-row {
+        display: block;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: #faf8f2;
+        border: 1px solid var(--border);
+        color: #4a4f55;
+        font-size: 0.82rem;
+        line-height: 1.5;
+        word-break: break-all;
+        text-decoration: none;
+      }
+      .hint {
+        margin-top: 12px;
+        font-size: 0.82rem;
+      }
+      @media (min-width: 640px) {
+        .shell {
+          max-width: 560px;
+          padding-top: 48px;
+        }
+        .actions {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
     </style>
   </head>
   <body>
-    <div class="wrap">
-      <h1>Account Activated</h1>
-      <p>Your account is now active. We will try to open the mobile app automatically. If it does not open, use one of the buttons below.</p>
-      <div class="row">
-        <a class="btn" href="${mobileDeepLink}">Open Mobile App</a>
-        <a class="btn alt" href="${webLoginUrl}">Open Web Login</a>
+    <main class="shell">
+      <div class="brand">
+        <div class="brand-title">Student Advising</div>
+        <div class="brand-subtitle">Account Activation</div>
       </div>
-      <p class="small">Mobile link: ${mobileDeepLink}</p>
-      <p class="small">Web link: ${webLoginUrl}</p>
-    </div>
+      <section class="card">
+        <div class="status-icon">&#10003;</div>
+        <h1>Account Activated</h1>
+        <p>Your account is now active. Open the mobile app and sign in to continue with your profile setup.</p>
+        <div class="actions">
+          <a class="btn btn-primary" href="${mobileDeepLink}">Open Mobile App</a>
+          <a class="btn btn-secondary" href="${webLoginUrl}">Open Web Login</a>
+        </div>
+        <div class="note">
+          <strong>Having trouble?</strong>
+          <p>Use the app button first. If your browser blocks it, open the app manually and sign in, or use the web login link below.</p>
+          <div class="links">
+            <a class="link-row" href="${mobileDeepLink}">${mobileDeepLink}</a>
+            <a class="link-row" href="${webLoginUrl}">${webLoginUrl}</a>
+          </div>
+          <p class="hint">We will also try to open the mobile app automatically.</p>
+        </div>
+      </section>
+    </main>
     <script>
-      setTimeout(function () { window.location.href = '${mobileDeepLink}'; }, 50);
-      setTimeout(function () { window.location.href = '${webLoginUrl}'; }, 1200);
+      setTimeout(function () { window.location.href = '${mobileDeepLink}'; }, 150);
     </script>
   </body>
 </html>

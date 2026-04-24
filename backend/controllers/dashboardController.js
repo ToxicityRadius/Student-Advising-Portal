@@ -13,14 +13,14 @@ const {
   StudyPlan,
   StudyPlanVersion,
   StudyPlanCourse,
-  User
+  User,
 } = require('../models');
 const { computeSarAnalytics } = require('../utils/sarAnalytics');
 
 const semesterLabel = {
   1: '1st Semester',
   2: '2nd Semester',
-  3: 'Summer'
+  3: 'Summer',
 };
 
 const getTermSummary = async () => {
@@ -35,7 +35,7 @@ const getTermSummary = async () => {
     semester: currentTerm.semester,
     semesterLabel: semesterLabel[currentTerm.semester] || `Semester ${currentTerm.semester}`,
     startedAt: currentTerm.startedAt,
-    endedAt: currentTerm.endedAt
+    endedAt: currentTerm.endedAt,
   };
 };
 
@@ -57,6 +57,16 @@ const buildStudentOwnershipWhere = (user) => {
   return ownershipChecks.length > 0 ? { [Op.or]: ownershipChecks } : { id: null };
 };
 
+const buildAdviserSarWhere = (user) => {
+  if (!user?.id) {
+    return { id: null };
+  }
+
+  return {
+    [Op.or]: [{ createdByAdviserId: user.id }, { '$Student.adviserId$': user.id }],
+  };
+};
+
 const fetchStudyPlanVersions = async (studyPlanId) => {
   if (!studyPlanId) {
     return [];
@@ -64,11 +74,16 @@ const fetchStudyPlanVersions = async (studyPlanId) => {
 
   return StudyPlanVersion.findAll({
     where: { studyPlanId },
-    include: [{
-      model: StudyPlanCourse,
-      include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-    }],
-    order: [['versionNumber', 'DESC'], ['createdAt', 'DESC']]
+    include: [
+      {
+        model: StudyPlanCourse,
+        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+      },
+    ],
+    order: [
+      ['versionNumber', 'DESC'],
+      ['createdAt', 'DESC'],
+    ],
   });
 };
 
@@ -77,38 +92,58 @@ const getSarAnalyticsPayload = async (sar) => {
     return null;
   }
 
-  const [versions, curriculumCourses, prerequisites, currentTerm, electiveTrackCourses, allCurriculumTrackCourses] = await Promise.all([
+  const [
+    versions,
+    curriculumCourses,
+    prerequisites,
+    currentTerm,
+    electiveTrackCourses,
+    allCurriculumTrackCourses,
+  ] = await Promise.all([
     fetchStudyPlanVersions(sar.StudyPlan?.id),
     CurriculumCourse.findAll({
       where: { curriculumId: sar.curriculumId },
       include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
-      order: [['yearLevel', 'ASC'], ['semester', 'ASC'], [Course, 'code', 'ASC']]
+      order: [
+        ['yearLevel', 'ASC'],
+        ['semester', 'ASC'],
+        [Course, 'code', 'ASC'],
+      ],
     }),
     Prerequisite.findAll({
       where: { curriculumId: sar.curriculumId },
-      include: [{ model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] }]
+      include: [{ model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] }],
     }),
-    AcademicTerm.findOne({ where: { isCurrent: true }, attributes: ['id', 'schoolYear', 'semester'] }),
+    AcademicTerm.findOne({
+      where: { isCurrent: true },
+      attributes: ['id', 'schoolYear', 'semester'],
+    }),
     sar.electiveTrackId
       ? ElectiveTrackCourse.findAll({
-        where: { electiveTrackId: sar.electiveTrackId },
-        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-      })
+          where: { electiveTrackId: sar.electiveTrackId },
+          include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+        })
       : [],
     ElectiveTrackCourse.findAll({
-      include: [{
-        model: ElectiveTrack,
-        attributes: ['id', 'curriculumId'],
-        where: { curriculumId: sar.curriculumId }
-      }, {
-        model: Course,
-        attributes: ['id', 'code', 'name', 'units']
-      }]
-    })
+      include: [
+        {
+          model: ElectiveTrack,
+          attributes: ['id', 'curriculumId'],
+          where: { curriculumId: sar.curriculumId },
+        },
+        {
+          model: Course,
+          attributes: ['id', 'code', 'name', 'units'],
+        },
+      ],
+    }),
   ]);
 
-  const plainVersions = versions.map((version) => (version.get ? version.get({ plain: true }) : version));
-  const activeStudyPlanVersion = plainVersions.find((version) => version.status === 'active') || null;
+  const plainVersions = versions.map((version) =>
+    version.get ? version.get({ plain: true }) : version,
+  );
+  const activeStudyPlanVersion =
+    plainVersions.find((version) => version.status === 'active') || null;
 
   return computeSarAnalytics({
     sar,
@@ -118,7 +153,7 @@ const getSarAnalyticsPayload = async (sar) => {
     prerequisites,
     currentTerm,
     electiveTrackCourses,
-    allCurriculumTrackCourses
+    allCurriculumTrackCourses,
   });
 };
 
@@ -127,15 +162,18 @@ const buildStudentSummary = async (user) => {
     where: buildStudentOwnershipWhere(user),
     include: [
       { model: Curriculum, attributes: ['id', 'name'] },
-      { model: StudyPlan, attributes: ['id'] }
+      { model: StudyPlan, attributes: ['id'] },
     ],
-    order: [['updatedAt', 'DESC'], ['id', 'DESC']]
+    order: [
+      ['updatedAt', 'DESC'],
+      ['id', 'DESC'],
+    ],
   });
 
   if (!sar) {
     return {
       sarAvailable: false,
-      sar: null
+      sar: null,
     };
   }
 
@@ -143,7 +181,7 @@ const buildStudentSummary = async (user) => {
   const analytics = await getSarAnalyticsPayload(plainSar);
   const activeVersion = await StudyPlanVersion.findOne({
     where: { studyPlanId: plainSar.StudyPlan?.id || null, status: 'active' },
-    order: [['versionNumber', 'DESC']]
+    order: [['versionNumber', 'DESC']],
   });
 
   return {
@@ -163,34 +201,46 @@ const buildStudentSummary = async (user) => {
         remainingSubjects: analytics?.progress?.remainingSubjects ?? 0,
         gwa: analytics?.gpaMonitoring?.gwa ?? null,
         prerequisiteRiskSubjects: Array.isArray(analytics?.prerequisiteChecking?.subjects)
-          ? analytics.prerequisiteChecking.subjects.filter((subject) => (subject.unmetPrerequisites || []).length > 0).length
-          : 0
-      }
-    }
+          ? analytics.prerequisiteChecking.subjects.filter(
+              (subject) => (subject.unmetPrerequisites || []).length > 0,
+            ).length
+          : 0,
+      },
+    },
   };
 };
 
 const buildAdviserSummary = async (user) => {
   const assignedSars = await StudentAcademicRecord.findAll({
-    where: { createdByAdviserId: user.id },
+    where: buildAdviserSarWhere(user),
     include: [
+      { model: User, as: 'Student', attributes: ['id', 'adviserId'] },
       { model: Curriculum, attributes: ['id', 'name'] },
-      { model: StudyPlan, attributes: ['id'] }
+      { model: StudyPlan, attributes: ['id'] },
     ],
-    order: [['updatedAt', 'DESC'], ['id', 'DESC']]
+    order: [
+      ['updatedAt', 'DESC'],
+      ['id', 'DESC'],
+    ],
   });
 
   const studyPlanIds = assignedSars.map((sar) => sar.StudyPlan?.id).filter(Boolean);
-  const versions = studyPlanIds.length > 0
-    ? await StudyPlanVersion.findAll({
-      where: { studyPlanId: { [Op.in]: studyPlanIds } },
-      include: [{
-        model: StudyPlanCourse,
-        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-      }],
-      order: [['versionNumber', 'DESC'], ['createdAt', 'DESC']]
-    })
-    : [];
+  const versions =
+    studyPlanIds.length > 0
+      ? await StudyPlanVersion.findAll({
+          where: { studyPlanId: { [Op.in]: studyPlanIds } },
+          include: [
+            {
+              model: StudyPlanCourse,
+              include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+            },
+          ],
+          order: [
+            ['versionNumber', 'DESC'],
+            ['createdAt', 'DESC'],
+          ],
+        })
+      : [];
 
   const versionsByPlanId = versions.reduce((acc, version) => {
     const planId = String(version.studyPlanId);
@@ -205,17 +255,22 @@ const buildAdviserSummary = async (user) => {
   const [curriculumCourses, prerequisites, currentTerm] = await Promise.all([
     curriculumIds.length > 0
       ? CurriculumCourse.findAll({
-        where: { curriculumId: { [Op.in]: curriculumIds } },
-        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }]
-      })
+          where: { curriculumId: { [Op.in]: curriculumIds } },
+          include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+        })
       : [],
     curriculumIds.length > 0
       ? Prerequisite.findAll({
-        where: { curriculumId: { [Op.in]: curriculumIds } },
-        include: [{ model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] }]
-      })
+          where: { curriculumId: { [Op.in]: curriculumIds } },
+          include: [
+            { model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] },
+          ],
+        })
       : [],
-    AcademicTerm.findOne({ where: { isCurrent: true }, attributes: ['id', 'schoolYear', 'semester'] })
+    AcademicTerm.findOne({
+      where: { isCurrent: true },
+      attributes: ['id', 'schoolYear', 'semester'],
+    }),
   ]);
 
   const coursesByCurriculum = curriculumCourses.reduce((acc, row) => {
@@ -244,8 +299,9 @@ const buildAdviserSummary = async (user) => {
     const planId = String(plainSar.StudyPlan?.id || '');
     const sarVersions = versionsByPlanId[planId] || [];
 
-    const needsReview = sarVersions.some((version) => version.status === 'draft')
-      || sarVersions.some((version) => version.status === 'active' && version.needsRevalidation);
+    const needsReview =
+      sarVersions.some((version) => version.status === 'draft') ||
+      sarVersions.some((version) => version.status === 'active' && version.needsRevalidation);
 
     if (needsReview) {
       studentsNeedingReview += 1;
@@ -257,11 +313,14 @@ const buildAdviserSummary = async (user) => {
       activeStudyPlanVersion: sarVersions.find((version) => version.status === 'active') || null,
       curriculumCourses: coursesByCurriculum[String(plainSar.curriculumId)] || [],
       prerequisites: prereqByCurriculum[String(plainSar.curriculumId)] || [],
-      currentTerm
+      currentTerm,
     });
 
-    const hasRisk = Array.isArray(analytics?.prerequisiteChecking?.subjects)
-      && analytics.prerequisiteChecking.subjects.some((subject) => (subject.unmetPrerequisites || []).length > 0);
+    const hasRisk =
+      Array.isArray(analytics?.prerequisiteChecking?.subjects) &&
+      analytics.prerequisiteChecking.subjects.some(
+        (subject) => (subject.unmetPrerequisites || []).length > 0,
+      );
 
     if (hasRisk) {
       prerequisiteRiskCount += 1;
@@ -277,8 +336,8 @@ const buildAdviserSummary = async (user) => {
       studentName: sar.studentName,
       studentNumber: sar.studentNumber,
       curriculumName: sar.Curriculum?.name || null,
-      yearLevel: sar.yearLevel
-    }))
+      yearLevel: sar.yearLevel,
+    })),
   };
 };
 
@@ -292,25 +351,42 @@ const buildAdminSummary = async () => {
     adviserUsers,
     workloadRows,
     currentTerm,
-    recentTerms
+    recentTerms,
   ] = await Promise.all([
-    ForecastSnapshot.findOne({ order: [['createdAt', 'DESC'], ['id', 'DESC']] }),
+    ForecastSnapshot.findOne({
+      order: [
+        ['createdAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
+    }),
     Curriculum.findAll({ attributes: ['id', 'name', 'isActive'] }),
     Course.count(),
     CourseEquivalency.count(),
     ElectiveTrack.count(),
-    User.findAll({ where: { role: 'adviser' }, attributes: ['id', 'firstName', 'lastName', 'email'] }),
-    StudentAcademicRecord.findAll({
-      attributes: ['createdByAdviserId', [fn('COUNT', col('StudentAcademicRecord.id')), 'assignedCount']],
-      where: { createdByAdviserId: { [Op.ne]: null } },
-      group: ['createdByAdviserId']
+    User.findAll({
+      where: { role: 'adviser' },
+      attributes: ['id', 'firstName', 'lastName', 'email'],
     }),
-    AcademicTerm.findOne({ where: { isCurrent: true }, attributes: ['id', 'schoolYear', 'semester', 'startedAt'] }),
+    StudentAcademicRecord.findAll({
+      attributes: [
+        'createdByAdviserId',
+        [fn('COUNT', col('StudentAcademicRecord.id')), 'assignedCount'],
+      ],
+      where: { createdByAdviserId: { [Op.ne]: null } },
+      group: ['createdByAdviserId'],
+    }),
+    AcademicTerm.findOne({
+      where: { isCurrent: true },
+      attributes: ['id', 'schoolYear', 'semester', 'startedAt'],
+    }),
     AcademicTerm.findAll({
       attributes: ['id', 'schoolYear', 'semester', 'isCurrent'],
-      order: [['schoolYear', 'DESC'], ['semester', 'DESC']],
-      limit: 3
-    })
+      order: [
+        ['schoolYear', 'DESC'],
+        ['semester', 'DESC'],
+      ],
+      limit: 3,
+    }),
   ]);
 
   const workloadByAdviser = workloadRows.reduce((acc, row) => {
@@ -318,55 +394,61 @@ const buildAdminSummary = async () => {
     return acc;
   }, {});
 
-  const adviserWorkload = adviserUsers.map((adviser) => ({
-    id: adviser.id,
-    name: [adviser.firstName, adviser.lastName].filter(Boolean).join(' ').trim() || adviser.email,
-    email: adviser.email,
-    assignedStudents: workloadByAdviser[String(adviser.id)] || 0
-  })).sort((left, right) => right.assignedStudents - left.assignedStudents);
+  const adviserWorkload = adviserUsers
+    .map((adviser) => ({
+      id: adviser.id,
+      name: [adviser.firstName, adviser.lastName].filter(Boolean).join(' ').trim() || adviser.email,
+      email: adviser.email,
+      assignedStudents: workloadByAdviser[String(adviser.id)] || 0,
+    }))
+    .sort((left, right) => right.assignedStudents - left.assignedStudents);
 
   return {
     forecastSnapshotPreview: latestSnapshot
       ? {
-        id: latestSnapshot.id,
-        schoolYear: latestSnapshot.schoolYear,
-        semester: latestSnapshot.semester,
-        semesterLabel: semesterLabel[latestSnapshot.semester] || `Semester ${latestSnapshot.semester}`,
-        createdAt: latestSnapshot.createdAt,
-        currentDemandCount: Array.isArray(latestSnapshot.snapshotData?.currentDemand)
-          ? latestSnapshot.snapshotData.currentDemand.length
-          : 0,
-        nextSemesterForecastCount: Array.isArray(latestSnapshot.snapshotData?.nextSemesterForecast)
-          ? latestSnapshot.snapshotData.nextSemesterForecast.length
-          : 0
-      }
+          id: latestSnapshot.id,
+          schoolYear: latestSnapshot.schoolYear,
+          semester: latestSnapshot.semester,
+          semesterLabel:
+            semesterLabel[latestSnapshot.semester] || `Semester ${latestSnapshot.semester}`,
+          createdAt: latestSnapshot.createdAt,
+          currentDemandCount: Array.isArray(latestSnapshot.snapshotData?.currentDemand)
+            ? latestSnapshot.snapshotData.currentDemand.length
+            : 0,
+          nextSemesterForecastCount: Array.isArray(
+            latestSnapshot.snapshotData?.nextSemesterForecast,
+          )
+            ? latestSnapshot.snapshotData.nextSemesterForecast.length
+            : 0,
+        }
       : null,
     curriculumHealth: {
       totalCurriculums: curriculums.length,
       activeCurriculumCount: curriculums.filter((curriculum) => curriculum.isActive).length,
       totalCourses: courseCount,
       totalEquivalencies: equivalencyCount,
-      totalElectiveTracks: electiveTrackCount
+      totalElectiveTracks: electiveTrackCount,
     },
     termManagement: {
       currentTerm: currentTerm
         ? {
-          id: currentTerm.id,
-          schoolYear: currentTerm.schoolYear,
-          semester: currentTerm.semester,
-          semesterLabel: semesterLabel[currentTerm.semester] || `Semester ${currentTerm.semester}`,
-          startedAt: currentTerm.startedAt
-        }
+            id: currentTerm.id,
+            schoolYear: currentTerm.schoolYear,
+            semester: currentTerm.semester,
+            semesterLabel:
+              semesterLabel[currentTerm.semester] || `Semester ${currentTerm.semester}`,
+            startedAt: currentTerm.startedAt,
+          }
         : null,
       recentTerms: recentTerms.map((term) => ({
         id: term.id,
         schoolYear: term.schoolYear,
         semester: term.semester,
         semesterLabel: semesterLabel[term.semester] || `Semester ${term.semester}`,
-        isCurrent: term.isCurrent
-      }))
+        isCurrent: term.isCurrent,
+      })),
     },
-    adviserWorkload
+    adviserWorkload,
   };
 };
 
@@ -379,16 +461,22 @@ exports.getDashboardSummary = async (req, res, next) => {
 
     if (req.user.role === 'student') {
       const studentSummary = await buildStudentSummary(req.user);
-      return res.status(200).json({ success: true, data: { role: 'student', currentTerm, ...studentSummary } });
+      return res
+        .status(200)
+        .json({ success: true, data: { role: 'student', currentTerm, ...studentSummary } });
     }
 
     if (req.user.role === 'adviser') {
       const adviserSummary = await buildAdviserSummary(req.user);
-      return res.status(200).json({ success: true, data: { role: 'adviser', currentTerm, ...adviserSummary } });
+      return res
+        .status(200)
+        .json({ success: true, data: { role: 'adviser', currentTerm, ...adviserSummary } });
     }
 
     const adminSummary = await buildAdminSummary();
-    return res.status(200).json({ success: true, data: { role: 'admin', currentTerm, ...adminSummary } });
+    return res
+      .status(200)
+      .json({ success: true, data: { role: 'admin', currentTerm, ...adminSummary } });
   } catch (error) {
     next(error);
   }
@@ -403,9 +491,12 @@ exports.getStudentDashboard = async (req, res, next) => {
       where: buildStudentOwnershipWhere(req.user),
       include: [
         { model: Curriculum, attributes: ['id', 'name'] },
-        { model: StudyPlan, attributes: ['id'] }
+        { model: StudyPlan, attributes: ['id'] },
       ],
-      order: [['updatedAt', 'DESC'], ['id', 'DESC']]
+      order: [
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
     });
 
     if (!sar) {
@@ -419,8 +510,8 @@ exports.getStudentDashboard = async (req, res, next) => {
           subjectsCompleted: 0,
           subjectsPending: 0,
           semesterSummary: [],
-          adviserReviewWorkflow: null
-        }
+          adviserReviewWorkflow: null,
+        },
       });
     }
 
@@ -438,8 +529,8 @@ exports.getStudentDashboard = async (req, res, next) => {
           subjectsCompleted: 0,
           subjectsPending: 0,
           semesterSummary: [],
-          adviserReviewWorkflow: null
-        }
+          adviserReviewWorkflow: null,
+        },
       });
     }
 
@@ -448,19 +539,24 @@ exports.getStudentDashboard = async (req, res, next) => {
     (analytics.curriculumChecklistOverview?.items || []).forEach((subject) => {
       const key = `${subject.yearLevel}-${subject.semester}`;
       if (!groupMap.has(key)) {
-        groupMap.set(key, { yearLevel: subject.yearLevel, semester: subject.semester, courses: [] });
+        groupMap.set(key, {
+          yearLevel: subject.yearLevel,
+          semester: subject.semester,
+          courses: [],
+        });
       }
       groupMap.get(key).courses.push({
         code: subject.code,
         name: subject.name,
         units: subject.units,
         status: subject.status,
-        grade: subject.grade
+        grade: subject.grade,
       });
     });
 
-    const semesterSummary = Array.from(groupMap.values())
-      .sort((a, b) => a.yearLevel !== b.yearLevel ? a.yearLevel - b.yearLevel : a.semester - b.semester);
+    const semesterSummary = Array.from(groupMap.values()).sort((a, b) =>
+      a.yearLevel !== b.yearLevel ? a.yearLevel - b.yearLevel : a.semester - b.semester,
+    );
 
     return res.status(200).json({
       success: true,
@@ -472,8 +568,8 @@ exports.getStudentDashboard = async (req, res, next) => {
         subjectsCompleted: analytics.progress?.completedSubjects ?? 0,
         subjectsPending: analytics.progress?.remainingSubjects ?? 0,
         semesterSummary,
-        adviserReviewWorkflow: analytics.adviserReviewWorkflow || null
-      }
+        adviserReviewWorkflow: analytics.adviserReviewWorkflow || null,
+      },
     });
   } catch (error) {
     next(error);

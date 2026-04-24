@@ -1,4 +1,4 @@
-﻿const { Op } = require('sequelize');
+const { Op } = require('sequelize');
 const {
   sequelize,
   Curriculum,
@@ -34,7 +34,7 @@ const CURRICULUM_CSV_COLUMNS = [
   'notes',
 ];
 
-// Columns that may be absent in older CSV exports — treated as null when missing.
+// Columns that may be absent in older CSV exports � treated as null when missing.
 const OPTIONAL_CSV_COLUMNS = new Set([
   'lectureHours',
   'laboratoryHours',
@@ -249,7 +249,7 @@ const validateAndNormalizeCsvRows = ({ csvRows, expectedCurriculumId }) => {
         errors.push({
           rowNumber,
           rowType: normalized.rowType,
-          message: 'minYearStandingRequired must be 1–5 or empty for structure rows.',
+          message: 'minYearStandingRequired must be 1�5 or empty for structure rows.',
         });
     }
 
@@ -374,7 +374,7 @@ const resolveCourseByCodeMap = async ({ rows, transaction }) => {
   return map;
 };
 
-// ─── Curriculum ───────────────────────────────────────────────────────────────
+// --- Curriculum ---------------------------------------------------------------
 
 // @desc   Create a new curriculum
 // @route  POST /api/curriculums
@@ -399,7 +399,7 @@ exports.createCurriculum = async (req, res, next) => {
 
 // @desc   Get all curricula
 // @route  GET /api/curriculums
-// @access admin, adviser
+// @access admin, adviser, student
 exports.getCurriculums = async (req, res, next) => {
   try {
     const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
@@ -409,7 +409,8 @@ exports.getCurriculums = async (req, res, next) => {
         allowedSortBy: ['createdAt', 'name', 'isActive'],
       },
     );
-    const compact = String(req.query.compact || 'false').toLowerCase() === 'true';
+    const isStudent = req.user?.role === 'student';
+    const compact = isStudent || String(req.query.compact || 'false').toLowerCase() === 'true';
 
     const where = search
       ? {
@@ -450,7 +451,7 @@ exports.getCurriculums = async (req, res, next) => {
 
 // @desc   Get all curriculums with mapped course placements
 // @route  GET /api/curriculums-map
-// @access admin, adviser
+// @access admin, adviser, student
 exports.getCurriculumsMap = async (req, res, next) => {
   try {
     const curriculums = await Curriculum.findAll({
@@ -501,10 +502,11 @@ exports.getCurriculumsMap = async (req, res, next) => {
 
 // @desc   Get one curriculum with full course/track structure
 // @route  GET /api/curriculums/:id
-// @access admin, adviser
+// @access admin, adviser, student
 exports.getCurriculumById = async (req, res, next) => {
   try {
-    const compact = String(req.query.compact || 'false').toLowerCase() === 'true';
+    const isStudent = req.user?.role === 'student';
+    const compact = isStudent || String(req.query.compact || 'false').toLowerCase() === 'true';
     const curriculum = await Curriculum.findByPk(req.params.id, {
       attributes: compact
         ? ['id', 'name', 'description', 'isActive', 'createdAt', 'updatedAt']
@@ -598,7 +600,7 @@ exports.setActiveCurriculum = async (req, res, next) => {
   }
 };
 
-// ─── Course ───────────────────────────────────────────────────────────────────
+// --- Course -------------------------------------------------------------------
 
 // @desc   Create a new course
 // @route  POST /api/courses
@@ -667,7 +669,7 @@ exports.createCourse = async (req, res, next) => {
 
 // @desc   Get all courses
 // @route  GET /api/courses
-// @access admin, adviser
+// @access admin, adviser, student
 exports.getCourses = async (req, res, next) => {
   try {
     const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
@@ -828,7 +830,7 @@ exports.deleteCourse = async (req, res, next) => {
   }
 };
 
-// ─── Curriculum–Course Assignment ─────────────────────────────────────────────
+// --- Curriculum�Course Assignment ---------------------------------------------
 
 // @desc   Add a course to a curriculum at a specific year/semester position
 // @route  POST /api/curriculums/:id/courses
@@ -848,12 +850,10 @@ exports.addCourseToCurriculum = async (req, res, next) => {
     if (minYearStandingRequired !== undefined && minYearStandingRequired !== null) {
       const standing = Number(minYearStandingRequired);
       if (!Number.isInteger(standing) || standing < 1 || standing > 5) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: 'minYearStandingRequired must be an integer between 1 and 5',
-          });
+        return res.status(400).json({
+          success: false,
+          message: 'minYearStandingRequired must be an integer between 1 and 5',
+        });
       }
     }
     const course = await Course.findByPk(courseId);
@@ -901,7 +901,7 @@ exports.removeCourseFromCurriculum = async (req, res, next) => {
 
 // @desc   Get all courses in a curriculum
 // @route  GET /api/curriculums/:id/courses
-// @access admin, adviser
+// @access admin, adviser, student
 exports.getCurriculumCourses = async (req, res, next) => {
   try {
     const curriculum = await Curriculum.findByPk(req.params.id);
@@ -954,7 +954,7 @@ exports.getCurriculumCourses = async (req, res, next) => {
   }
 };
 
-// ─── Prerequisites ────────────────────────────────────────────────────────────
+// --- Prerequisites ------------------------------------------------------------
 
 // @desc   Add a prerequisite relationship
 // @route  POST /api/curriculums/:id/prerequisites
@@ -1019,7 +1019,7 @@ exports.removePrerequisite = async (req, res, next) => {
 
 // @desc   Get all prerequisites for a curriculum
 // @route  GET /api/curriculums/:id/prerequisites
-// @access admin, adviser
+// @access admin, adviser, student
 exports.getPrerequisites = async (req, res, next) => {
   try {
     const curriculum = await Curriculum.findByPk(req.params.id);
@@ -1076,7 +1076,7 @@ exports.getPrerequisites = async (req, res, next) => {
   }
 };
 
-// ─── Co-Requisites ────────────────────────────────────────────────────────────
+// --- Co-Requisites ------------------------------------------------------------
 
 // @desc   Add a co-requisite relationship
 // @route  POST /api/curriculums/:id/corequisites
@@ -1141,7 +1141,7 @@ exports.removeCoRequisite = async (req, res, next) => {
 
 // @desc   Get all co-requisites for a curriculum
 // @route  GET /api/curriculums/:id/corequisites
-// @access admin, adviser
+// @access admin, adviser, student
 exports.getCoRequisites = async (req, res, next) => {
   try {
     const curriculum = await Curriculum.findByPk(req.params.id);
@@ -1198,7 +1198,7 @@ exports.getCoRequisites = async (req, res, next) => {
   }
 };
 
-// ─── Equivalencies ────────────────────────────────────────────────────────────
+// --- Equivalencies ------------------------------------------------------------
 
 // @desc   Add a course equivalency
 // @route  POST /api/equivalencies
@@ -1255,7 +1255,7 @@ exports.removeEquivalency = async (req, res, next) => {
 
 // @desc   Get all course equivalencies
 // @route  GET /api/equivalencies
-// @access admin, adviser
+// @access admin, adviser, student
 exports.getEquivalencies = async (req, res, next) => {
   try {
     const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
@@ -1306,7 +1306,7 @@ exports.getEquivalencies = async (req, res, next) => {
   }
 };
 
-// ─── Elective Tracks ──────────────────────────────────────────────────────────
+// --- Elective Tracks ----------------------------------------------------------
 
 // @desc   Create an elective track for a curriculum
 // @route  POST /api/curriculums/:id/elective-tracks
@@ -1334,7 +1334,7 @@ exports.createElectiveTrack = async (req, res, next) => {
 
 // @desc   Get all elective tracks for a curriculum
 // @route  GET /api/curriculums/:id/elective-tracks
-// @access admin, adviser
+// @access admin, adviser, student
 exports.getElectiveTracks = async (req, res, next) => {
   try {
     const curriculum = await Curriculum.findByPk(req.params.id);
@@ -1538,7 +1538,7 @@ exports.removeCourseFromTrack = async (req, res, next) => {
   }
 };
 
-// ─── Curriculum CSV Import/Export ────────────────────────────────────────────
+// --- Curriculum CSV Import/Export --------------------------------------------
 
 // @desc   Export curriculum structure and mappings to CSV
 // @route  GET /api/curriculums/:id/export/csv
