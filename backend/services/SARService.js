@@ -89,9 +89,8 @@ const buildStudentOwnershipWhere = (user) => {
 const buildAdviserOwnershipWhere = (user) => {
   if (!user?.id) return { id: null };
 
-  return {
-    [Op.or]: [{ createdByAdviserId: user.id }, { '$Student.adviserId$': user.id }],
-  };
+  // Advisers share admin-level SAR access, so adviser list queries are not ownership-scoped.
+  return {};
 };
 
 const isSarOwnedByUser = (sar, user) => {
@@ -102,15 +101,6 @@ const isSarOwnedByUser = (sar, user) => {
     String(sar.userId || '') === String(user.id || '') ||
     (sarEmail && userEmail && sarEmail === userEmail) ||
     (sar.studentNumber && user.studentId && String(sar.studentNumber) === String(user.studentId))
-  );
-};
-
-const isSarAccessibleToAdviser = (sar, user) => {
-  if (!sar || !user?.id) return false;
-
-  return (
-    String(sar.createdByAdviserId || '') === String(user.id) ||
-    String(sar.Student?.adviserId || '') === String(user.id)
   );
 };
 
@@ -336,12 +326,6 @@ const getSARDetail = async (sarId, requestUser) => {
   if (!sar) return null;
 
   if (requestUser.role === 'student' && !isSarOwnedByUser(sar, requestUser)) {
-    const err = new Error('Forbidden');
-    err.statusCode = 403;
-    throw err;
-  }
-
-  if (requestUser.role === 'adviser' && !isSarAccessibleToAdviser(sar, requestUser)) {
     const err = new Error('Forbidden');
     err.statusCode = 403;
     throw err;
@@ -597,7 +581,6 @@ module.exports = {
   buildAdviserOwnershipWhere,
   buildStudentOwnershipWhere,
   isSarOwnedByUser,
-  isSarAccessibleToAdviser,
   serializeSar,
   serializeStudyPlanVersion,
   buildSarIncludes,

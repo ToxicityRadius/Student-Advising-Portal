@@ -14,7 +14,7 @@ const { syncDB, closeDB, createUser, authToken, createCurriculum } = helpers;
 let adviser, admin, student;
 let adviserToken, adminToken, studentToken;
 let curriculum;
-let assignedStudentSarId;
+let adminCreatedSarId;
 
 beforeAll(async () => {
   await syncDB();
@@ -34,6 +34,19 @@ beforeAll(async () => {
 
   // Seed curriculum with courses
   ({ curriculum } = await createCurriculum(admin, 5));
+
+  const adminCreatedSar = await StudentAcademicRecord.create({
+    curriculumId: curriculum.id,
+    studentName: 'Shared Student',
+    studentNumber: '2100202',
+    email: 'shared.student@tip.edu.ph',
+    yearLevel: 2,
+    createdByAdviserId: admin.id,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+
+  adminCreatedSarId = adminCreatedSar.id;
 }, 120000);
 
 afterAll(async () => {
@@ -176,34 +189,13 @@ describe('GET /api/sars', () => {
     expect(res.body.success).toBe(true);
   });
 
-  test('adviser can list assigned student SARs created by another owner', async () => {
-    await student.update({
-      adviserId: adviser.id,
-      current_year_level: 2,
-      curriculum_id: curriculum.id,
-      updatedAt: Date.now(),
-    });
-
-    const createRes = await request(app)
-      .post('/api/sars')
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({
-        studentName: 'Assigned Student',
-        studentNumber: student.studentId,
-        email: student.email,
-        yearLevel: 2,
-        curriculumId: curriculum.id,
-      });
-
-    expect(createRes.status).toBe(201);
-    assignedStudentSarId = createRes.body.data.id;
-
+  test('adviser can list existing SARs created by another owner', async () => {
     const res = await request(app).get('/api/sars').set('Authorization', `Bearer ${adviserToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(Array.isArray(res.body.data)).toBe(true);
-    expect(res.body.data.some((sar) => sar.id === assignedStudentSarId)).toBe(true);
+    expect(res.body.data.some((sar) => sar.id === adminCreatedSarId)).toBe(true);
   });
 });
 
@@ -235,14 +227,14 @@ describe('GET /api/sars/:id', () => {
     expect(res.status).toBe(404);
   });
 
-  test('adviser can fetch assigned student SAR by id even when created by another owner', async () => {
+  test('adviser can fetch existing SAR by id even when created by another owner', async () => {
     const res = await request(app)
-      .get(`/api/sars/${assignedStudentSarId}`)
+      .get(`/api/sars/${adminCreatedSarId}`)
       .set('Authorization', `Bearer ${adviserToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.id).toBe(assignedStudentSarId);
+    expect(res.body.data.id).toBe(adminCreatedSarId);
   });
 });
 

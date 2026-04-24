@@ -62,9 +62,8 @@ const buildAdviserSarWhere = (user) => {
     return { id: null };
   }
 
-  return {
-    [Op.or]: [{ createdByAdviserId: user.id }, { '$Student.adviserId$': user.id }],
-  };
+  // Advisers share admin-level SAR visibility, so dashboard SAR summaries are global.
+  return {};
 };
 
 const fetchStudyPlanVersions = async (studyPlanId) => {
