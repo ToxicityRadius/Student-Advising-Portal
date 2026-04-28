@@ -35,6 +35,24 @@ const NOTIFICATION_TEMPLATES = {
     body: (meta) =>
       `Elective track "${meta.trackName || ''}" has been set for your academic record.`,
   },
+  prerequisite_override_requested: {
+    type: 'warning',
+    title: 'Prerequisite override request',
+    body: (meta) =>
+      `${meta.adviserName || 'An adviser'} requested concurrent enrollment approval for ${meta.prerequisiteCode || 'a prerequisite'} and ${meta.dependentCode || 'a dependent course'}.`,
+  },
+  prerequisite_override_approved: {
+    type: 'success',
+    title: 'Prerequisite override approved',
+    body: (meta) =>
+      `Concurrent enrollment was approved for ${meta.prerequisiteCode || 'the prerequisite'} and ${meta.dependentCode || 'the dependent course'}.`,
+  },
+  prerequisite_override_rejected: {
+    type: 'warning',
+    title: 'Prerequisite override rejected',
+    body: (meta) =>
+      `Concurrent enrollment was rejected for ${meta.prerequisiteCode || 'the prerequisite'} and ${meta.dependentCode || 'the dependent course'}.`,
+  },
 };
 
 /**

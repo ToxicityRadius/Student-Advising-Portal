@@ -66,6 +66,19 @@ const deriveStatusFromGrade = (gradeInput) => {
   return 'failed';
 };
 
+const slotIndexFromYearSemester = (yearLevel, semester) =>
+  (Number(yearLevel || 1) - 1) * 3 + (Number(semester || 1) - 1);
+
+const yearSemesterFromSlotIndex = (slotIndex) => ({
+  yearLevel: Math.floor(Number(slotIndex || 0) / 3) + 1,
+  semester: (Number(slotIndex || 0) % 3) + 1,
+});
+
+const nextTermAfter = (yearLevel, semester) =>
+  yearSemesterFromSlotIndex(slotIndexFromYearSemester(yearLevel, semester) + 1);
+
+const isRetakeStatus = (status) => status === 'failed' || status === 'dropped';
+
 const GradeEntry = () => {
   const navigate = useNavigate();
   const { sarId } = useParams();
@@ -99,20 +112,59 @@ const GradeEntry = () => {
       return;
     }
     setRows(
-      (active.StudyPlanCourses || []).map((courseEntry) => ({
-        id: courseEntry.id,
-        courseId: courseEntry.courseId,
-        code: courseEntry.Course?.code || 'No code',
-        name: courseEntry.Course?.name || 'Unnamed course',
-        units: Number(courseEntry.Course?.units || 0),
-        yearLevel: courseEntry.yearLevel,
-        semester: courseEntry.semester,
-        specialChoice: normalizeSpecialOption(courseEntry.grade),
-        numericGrade: normalizeSpecialOption(courseEntry.grade) ? '' : courseEntry.grade || '',
-        status: courseEntry.status || deriveStatusFromGrade(courseEntry.grade),
-      })),
+      (active.StudyPlanCourses || []).map((courseEntry) => {
+        const retakeTerm = nextTermAfter(courseEntry.yearLevel, courseEntry.semester);
+        const specialChoice = normalizeSpecialOption(courseEntry.grade);
+
+        return {
+          id: courseEntry.id,
+          courseId: courseEntry.courseId,
+          code: courseEntry.Course?.code || 'No code',
+          name: courseEntry.Course?.name || 'Unnamed course',
+          units: Number(courseEntry.Course?.units || 0),
+          yearLevel: courseEntry.yearLevel,
+          semester: courseEntry.semester,
+          specialChoice,
+          numericGrade: specialChoice ? '' : courseEntry.grade || '',
+          status: courseEntry.status || deriveStatusFromGrade(courseEntry.grade),
+          retakeYearLevel: retakeTerm.yearLevel,
+          retakeSemester: retakeTerm.semester,
+          overrideRequests: {},
+        };
+      }),
     );
   }, [loading, versions, sarFetchError]);
+
+  const dependentCoursesByPrereqId = useMemo(() => {
+    const map = new Map();
+    const subjects = sar?.analytics?.prerequisiteChecking?.subjects || [];
+
+    subjects.forEach((subject) => {
+      (subject.prerequisites || []).forEach((prerequisite) => {
+        const key = String(prerequisite.courseId);
+        const list = map.get(key) || [];
+
+        list.push({
+          courseId: subject.courseId,
+          code: subject.code,
+          name: subject.name,
+        });
+        map.set(key, list);
+      });
+    });
+
+    return map;
+  }, [sar]);
+
+  const yearLevelOptions = useMemo(() => {
+    const maxYearLevel = Math.max(
+      1,
+      ...rows.map((row) => Number(row.yearLevel || 1)),
+      ...rows.map((row) => Number(row.retakeYearLevel || 1)),
+    );
+
+    return Array.from({ length: maxYearLevel + 2 }, (_, index) => index + 1);
+  }, [rows]);
 
   const unresolvedCount = useMemo(
     () =>
@@ -144,6 +196,30 @@ const GradeEntry = () => {
   const updateRow = (rowId, updates) => {
     setRows((currentRows) =>
       currentRows.map((row) => (row.id === rowId ? { ...row, ...updates } : row)),
+    );
+  };
+
+  const updateOverrideRequest = (rowId, dependentCourseId, updates) => {
+    setRows((currentRows) =>
+      currentRows.map((row) => {
+        if (row.id !== rowId) {
+          return row;
+        }
+
+        const key = String(dependentCourseId);
+        return {
+          ...row,
+          overrideRequests: {
+            ...(row.overrideRequests || {}),
+            [key]: {
+              enabled: false,
+              reason: '',
+              ...((row.overrideRequests || {})[key] || {}),
+              ...updates,
+            },
+          },
+        };
+      }),
     );
   };
 
@@ -191,7 +267,47 @@ const GradeEntry = () => {
     setAlert({ variant: '', message: '' });
 
     try {
-      const response = await api.post(`/sars/${sarId}/study-plan/regenerate`);
+      const retakePlacements = [];
+      const prerequisiteOverrideRequests = [];
+
+      rows.forEach((row) => {
+        const status = deriveStatusFromGrade(row.specialChoice || row.numericGrade);
+        if (!isRetakeStatus(status)) {
+          return;
+        }
+
+        const yearLevel = Number(row.retakeYearLevel);
+        const semester = Number(row.retakeSemester);
+        retakePlacements.push({
+          studyPlanCourseId: row.id,
+          yearLevel,
+          semester,
+        });
+
+        Object.entries(row.overrideRequests || {}).forEach(([dependentCourseId, request]) => {
+          if (!request?.enabled) {
+            return;
+          }
+
+          const reason = String(request.reason || '').trim();
+          if (!reason) {
+            throw new Error(`Enter a reason for the ${row.code} prerequisite override request.`);
+          }
+
+          prerequisiteOverrideRequests.push({
+            prerequisiteCourseId: row.courseId,
+            dependentCourseId: Number(dependentCourseId),
+            yearLevel,
+            semester,
+            reason,
+          });
+        });
+      });
+
+      const response = await api.post(`/sars/${sarId}/study-plan/regenerate`, {
+        retakePlacements,
+        prerequisiteOverrideRequests,
+      });
       const newVersion = response.data?.data;
 
       if (!newVersion?.id) {
@@ -289,22 +405,25 @@ const GradeEntry = () => {
               <Table responsive hover className="table-fixed-cols">
                 <thead>
                   <tr>
-                    <th scope="col" style={{ width: '28%' }}>
+                    <th scope="col" style={{ width: '24%' }}>
                       Course
                     </th>
-                    <th scope="col" style={{ width: '8%' }}>
+                    <th scope="col" style={{ width: '6%' }}>
                       Units
                     </th>
-                    <th scope="col" style={{ width: '12%' }}>
+                    <th scope="col" style={{ width: '10%' }}>
                       Slot
                     </th>
-                    <th scope="col" style={{ width: '20%' }}>
+                    <th scope="col" style={{ width: '16%' }}>
                       Numeric Grade
                     </th>
-                    <th scope="col" style={{ width: '18%' }}>
+                    <th scope="col" style={{ width: '14%' }}>
                       Special
                     </th>
-                    <th scope="col" style={{ width: '14%' }}>
+                    <th scope="col" style={{ width: '22%' }}>
+                      Retake Term
+                    </th>
+                    <th scope="col" style={{ width: '8%' }}>
                       Status
                     </th>
                   </tr>
@@ -314,6 +433,8 @@ const GradeEntry = () => {
                     const derivedStatus = deriveStatusFromGrade(
                       row.specialChoice || row.numericGrade,
                     );
+                    const dependentCourses =
+                      dependentCoursesByPrereqId.get(String(row.courseId)) || [];
 
                     return (
                       <tr key={row.id}>
@@ -357,6 +478,80 @@ const GradeEntry = () => {
                           </Form.Select>
                         </td>
                         <td>
+                          {isRetakeStatus(derivedStatus) ? (
+                            <div className="d-flex flex-column gap-2">
+                              <div className="d-flex gap-2">
+                                <Form.Select
+                                  size="sm"
+                                  aria-label={`${row.code} retake year`}
+                                  value={row.retakeYearLevel}
+                                  onChange={(event) =>
+                                    updateRow(row.id, { retakeYearLevel: event.target.value })
+                                  }
+                                >
+                                  {yearLevelOptions.map((yearLevel) => (
+                                    <option key={yearLevel} value={yearLevel}>
+                                      Y{yearLevel}
+                                    </option>
+                                  ))}
+                                </Form.Select>
+                                <Form.Select
+                                  size="sm"
+                                  aria-label={`${row.code} retake semester`}
+                                  value={row.retakeSemester}
+                                  onChange={(event) =>
+                                    updateRow(row.id, { retakeSemester: event.target.value })
+                                  }
+                                >
+                                  <option value={1}>S1</option>
+                                  <option value={2}>S2</option>
+                                  <option value={3}>Summer</option>
+                                </Form.Select>
+                              </div>
+
+                              {dependentCourses.map((dependentCourse) => {
+                                const key = String(dependentCourse.courseId);
+                                const request = (row.overrideRequests || {})[key] || {};
+
+                                return (
+                                  <div key={key} className="border-start border-warning ps-2 small">
+                                    <Form.Check
+                                      type="checkbox"
+                                      className="small"
+                                      aria-label={`Request same-term override with ${dependentCourse.code}`}
+                                      label={`Request same-term override with ${dependentCourse.code}`}
+                                      checked={Boolean(request.enabled)}
+                                      onChange={(event) =>
+                                        updateOverrideRequest(row.id, key, {
+                                          enabled: event.target.checked,
+                                        })
+                                      }
+                                    />
+                                    {request.enabled && (
+                                      <Form.Control
+                                        as="textarea"
+                                        rows={2}
+                                        size="sm"
+                                        className="mt-2"
+                                        aria-label={`Reason for ${row.code} and ${dependentCourse.code} override`}
+                                        value={request.reason || ''}
+                                        onChange={(event) =>
+                                          updateOverrideRequest(row.id, key, {
+                                            reason: event.target.value,
+                                          })
+                                        }
+                                        placeholder="Reason for concurrent enrollment"
+                                      />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <span className="text-muted small">Not required</span>
+                          )}
+                        </td>
+                        <td>
                           <Badge
                             bg={statusVariant[derivedStatus] || 'secondary'}
                             className="text-uppercase"
@@ -370,7 +565,7 @@ const GradeEntry = () => {
 
                   {rows.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="text-center text-muted py-4">
+                      <td colSpan={7} className="text-center text-muted py-4">
                         No courses available in the active version.
                       </td>
                     </tr>

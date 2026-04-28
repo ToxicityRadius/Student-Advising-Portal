@@ -38,6 +38,7 @@ const CurriculumDetail = lazy(() => import('./pages/admin/CurriculumDetail'));
 const ForecastDashboard = lazy(() => import('./pages/admin/ForecastDashboard'));
 const TermManagement = lazy(() => import('./pages/admin/TermManagement'));
 const TransferOwnership = lazy(() => import('./pages/admin/TransferOwnership'));
+const PrerequisiteOverrides = lazy(() => import('./pages/admin/PrerequisiteOverrides'));
 
 // Adviser pages
 const StudentList = lazy(() => import('./pages/adviser/StudentList'));
@@ -189,6 +190,14 @@ function AppContent() {
               element={
                 <PrivateRoute roles={['admin']}>
                   <TransferOwnership />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin/prerequisite-overrides"
+              element={
+                <PrivateRoute roles={['admin']}>
+                  <PrerequisiteOverrides />
                 </PrivateRoute>
               }
             />

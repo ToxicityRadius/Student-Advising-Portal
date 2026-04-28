@@ -8,6 +8,8 @@ const {
   ElectiveTrack,
   ElectiveTrackCourse,
   Course,
+  User,
+  PrerequisiteOverrideRequest,
 } = require('../models');
 const {
   buildElectiveTrackPlan,
@@ -30,6 +32,19 @@ const getActiveVersion = GradeService.getActiveVersion;
 const collectConnectedComponents = GradeService.collectConnectedComponents;
 
 const includeRelationsForVersion = GradeService.buildVersionIncludes();
+
+const buildRetakePlacementMap = GradeService.buildRetakePlacementMap;
+const buildPrerequisiteOverrideMap = GradeService.buildPrerequisiteOverrideMap;
+const isPrerequisitePlacementAllowed = GradeService.isPrerequisitePlacementAllowed;
+
+const makeRegenerationErrorResponse = async (res, transaction, error) => {
+  await transaction.rollback();
+  return res.status(error.statusCode || 400).json({
+    success: false,
+    code: error.code,
+    message: error.message,
+  });
+};
 
 // @desc   Enter grades for active study plan version courses
 // @route  PUT /api/sars/:id/study-plan/active-version/grades
@@ -339,6 +354,16 @@ exports.triggerRegeneration = async (req, res, next) => {
         .json({ success: false, message: 'Cannot regenerate from an archived or locked version' });
     }
 
+    let retakePlacementByCourseId;
+    try {
+      retakePlacementByCourseId = buildRetakePlacementMap({
+        activeEntries: activeVersion.StudyPlanCourses || [],
+        retakePlacements: req.body?.retakePlacements || [],
+      });
+    } catch (error) {
+      return makeRegenerationErrorResponse(res, transaction, error);
+    }
+
     const [
       curriculumCourses,
       prerequisites,
@@ -442,6 +467,56 @@ exports.triggerRegeneration = async (req, res, next) => {
       prerequisiteMap.get(currentCourseId).add(previousCourseId);
     });
 
+    const rawOverrideRequests = Array.isArray(req.body?.prerequisiteOverrideRequests)
+      ? req.body.prerequisiteOverrideRequests
+      : [];
+    const pendingOverrideRequests = [];
+
+    for (const item of rawOverrideRequests) {
+      const prerequisiteCourseId = Number(item?.prerequisiteCourseId);
+      const dependentCourseId = Number(item?.dependentCourseId);
+      const yearLevel = Number(item?.yearLevel);
+      const semester = Number(item?.semester);
+      const reason = String(item?.reason || '').trim();
+
+      if (
+        !Number.isInteger(prerequisiteCourseId) ||
+        !Number.isInteger(dependentCourseId) ||
+        !Number.isInteger(yearLevel) ||
+        ![1, 2, 3].includes(semester) ||
+        !reason
+      ) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          code: 'INVALID_PREREQUISITE_OVERRIDE_REQUEST',
+          message:
+            'Override requests require prerequisiteCourseId, dependentCourseId, yearLevel, semester, and reason',
+        });
+      }
+
+      const prereqIds = prerequisiteMap.get(String(dependentCourseId)) || new Set();
+      if (!prereqIds.has(String(prerequisiteCourseId))) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          code: 'INVALID_PREREQUISITE_OVERRIDE_PAIR',
+          message: 'Override requests must match an existing prerequisite rule',
+        });
+      }
+
+      pendingOverrideRequests.push({
+        prerequisiteCourseId,
+        dependentCourseId,
+        yearLevel,
+        semester,
+        reason,
+        status: 'pending',
+      });
+    }
+
+    const prerequisiteOverrideMap = buildPrerequisiteOverrideMap(pendingOverrideRequests);
+
     const resolvedCourses = [];
     const requeueCourses = [];
     const versionCourseIds = new Set(
@@ -479,11 +554,13 @@ exports.triggerRegeneration = async (req, res, next) => {
         return;
       }
 
+      const forcedPlacement = retakePlacementByCourseId.get(courseId) || null;
       requeueCourses.push({
         courseId,
         course: entry.Course,
-        originalSortKey: courseMeta.sortKey,
+        originalSortKey: forcedPlacement?.slotIndex ?? courseMeta.sortKey,
         units: courseMeta.units,
+        forcedPlacement,
       });
     });
 
@@ -550,27 +627,52 @@ exports.triggerRegeneration = async (req, res, next) => {
     const requeueMetaById = new Map(requeueCourses.map((item) => [item.courseId, item]));
 
     const sortedComponents = components
-      .map((component) => ({
-        courseIds: component,
-        originalSortKey: Math.min(
-          ...component.map(
-            (id) => requeueMetaById.get(id)?.originalSortKey || Number.MAX_SAFE_INTEGER,
+      .map((component) => {
+        const forcedSlots = [
+          ...new Set(
+            component
+              .map((id) => requeueMetaById.get(id)?.forcedPlacement?.slotIndex)
+              .filter((slot) => Number.isInteger(slot)),
           ),
-        ),
-        totalUnits: component.reduce(
-          (sum, id) => sum + Number(requeueMetaById.get(id)?.units || 0),
-          0,
-        ),
-      }))
+        ];
+        return {
+          courseIds: component,
+          originalSortKey:
+            forcedSlots[0] ??
+            Math.min(
+              ...component.map(
+                (id) => requeueMetaById.get(id)?.originalSortKey || Number.MAX_SAFE_INTEGER,
+              ),
+            ),
+          forcedSlotIndex: forcedSlots.length === 1 ? forcedSlots[0] : null,
+          hasConflictingForcedSlots: forcedSlots.length > 1,
+          totalUnits: component.reduce(
+            (sum, id) => sum + Number(requeueMetaById.get(id)?.units || 0),
+            0,
+          ),
+        };
+      })
       .sort((left, right) => left.originalSortKey - right.originalSortKey);
 
     for (const component of sortedComponents) {
+      if (component.hasConflictingForcedSlots) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          code: 'CONFLICTING_RETAKE_PLACEMENTS',
+          message: 'Co-requisite retake courses must be placed in the same term',
+        });
+      }
+
       let slotIndex = Math.max(0, component.originalSortKey);
       let placed = false;
 
       while (!placed && slotIndex < 120) {
         const usedUnits = usedUnitsBySlot.get(slotIndex) || 0;
         if (usedUnits + component.totalUnits > 25) {
+          if (component.forcedSlotIndex !== null) {
+            break;
+          }
           slotIndex += 1;
           continue;
         }
@@ -580,7 +682,15 @@ exports.triggerRegeneration = async (req, res, next) => {
           const prereqIds = prerequisiteMap.get(courseId) || new Set();
           for (const prereqId of prereqIds) {
             const prereqPlacement = placementByCourseId.get(prereqId);
-            if (prereqPlacement === undefined || prereqPlacement >= slotIndex) {
+            const placementCheck = isPrerequisitePlacementAllowed({
+              prerequisiteCourseId: prereqId,
+              dependentCourseId: courseId,
+              prerequisiteSlotIndex: prereqPlacement,
+              dependentSlotIndex: slotIndex,
+              overrideMap: prerequisiteOverrideMap,
+              allowPending: true,
+            });
+            if (!placementCheck.allowed) {
               prerequisitesOk = false;
               break;
             }
@@ -592,6 +702,9 @@ exports.triggerRegeneration = async (req, res, next) => {
         }
 
         if (!prerequisitesOk) {
+          if (component.forcedSlotIndex !== null) {
+            break;
+          }
           slotIndex += 1;
           continue;
         }
@@ -619,6 +732,9 @@ exports.triggerRegeneration = async (req, res, next) => {
         }
 
         if (!coReqOk) {
+          if (component.forcedSlotIndex !== null) {
+            break;
+          }
           slotIndex += 1;
           continue;
         }
@@ -647,8 +763,35 @@ exports.triggerRegeneration = async (req, res, next) => {
         await transaction.rollback();
         return res.status(400).json({
           success: false,
+          code: 'UNABLE_TO_PLACE_RETAKE',
           message:
             'Unable to place all unresolved courses while satisfying prerequisite/co-requisite and unit constraints',
+        });
+      }
+    }
+
+    for (const override of pendingOverrideRequests) {
+      const prerequisiteRow = scheduledRows.find(
+        (row) => String(row.courseId) === String(override.prerequisiteCourseId),
+      );
+      const dependentRow = scheduledRows.find(
+        (row) => String(row.courseId) === String(override.dependentCourseId),
+      );
+
+      if (
+        !prerequisiteRow ||
+        !dependentRow ||
+        Number(prerequisiteRow.yearLevel) !== Number(override.yearLevel) ||
+        Number(dependentRow.yearLevel) !== Number(override.yearLevel) ||
+        Number(prerequisiteRow.semester) !== Number(override.semester) ||
+        Number(dependentRow.semester) !== Number(override.semester)
+      ) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          code: 'PREREQUISITE_OVERRIDE_NOT_APPLIED',
+          message:
+            'Requested prerequisite overrides must place both courses in the requested same term',
         });
       }
     }
@@ -687,6 +830,25 @@ exports.triggerRegeneration = async (req, res, next) => {
       { transaction },
     );
 
+    if (pendingOverrideRequests.length > 0) {
+      await PrerequisiteOverrideRequest.bulkCreate(
+        pendingOverrideRequests.map((override) => ({
+          studentAcademicRecordId: sar.id,
+          studyPlanVersionId: newVersion.id,
+          prerequisiteCourseId: override.prerequisiteCourseId,
+          dependentCourseId: override.dependentCourseId,
+          yearLevel: override.yearLevel,
+          semester: override.semester,
+          status: 'pending',
+          reason: override.reason,
+          requestedByAdviserId: req.user.id,
+          createdAt: now,
+          updatedAt: now,
+        })),
+        { transaction },
+      );
+    }
+
     await transaction.commit();
 
     // Notify the student that a new draft was generated
@@ -698,6 +860,33 @@ exports.triggerRegeneration = async (req, res, next) => {
         resourceType: 'study_plan_version',
         resourceId: newVersion.id,
         meta: { versionNumber: newVersion.versionNumber },
+      });
+    }
+
+    if (pendingOverrideRequests.length > 0) {
+      const admins = await User.findAll({ where: { role: 'admin' }, attributes: ['id'] });
+      admins.forEach((admin) => {
+        NotificationService.notify({
+          recipientId: admin.id,
+          actorId: req.user.id,
+          category: 'prerequisite_override_requested',
+          resourceType: 'study_plan_version',
+          resourceId: newVersion.id,
+          meta: {
+            adviserName: [req.user.firstName, req.user.lastName].filter(Boolean).join(' '),
+            prerequisiteCode:
+              activeVersion.StudyPlanCourses.find(
+                (entry) =>
+                  String(entry.courseId) ===
+                  String(pendingOverrideRequests[0].prerequisiteCourseId),
+              )?.Course?.code || '',
+            dependentCode:
+              activeVersion.StudyPlanCourses.find(
+                (entry) =>
+                  String(entry.courseId) === String(pendingOverrideRequests[0].dependentCourseId),
+              )?.Course?.code || '',
+          },
+        });
       });
     }
 

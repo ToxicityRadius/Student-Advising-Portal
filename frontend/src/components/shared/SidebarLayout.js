@@ -544,6 +544,12 @@ const SidebarLayout = ({
                           text: '#2e7d32',
                           sub: '#81c784',
                         },
+                        warning: {
+                          bg: '#fffbf0',
+                          border: '#f9a825',
+                          text: '#e65100',
+                          sub: '#ffb74d',
+                        },
                       };
                       const c = colors[n.type] || colors.info;
                       const isRead = n.isRead || allRead;

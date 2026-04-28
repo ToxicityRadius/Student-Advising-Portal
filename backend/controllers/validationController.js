@@ -6,13 +6,20 @@ const {
   StudyPlanVersion,
   StudyPlanCourse,
   CurriculumCourse,
+  Prerequisite,
+  PrerequisiteOverrideRequest,
   ElectiveTrack,
   ElectiveTrackCourse,
   Course,
   User,
 } = require('../models');
-const { buildElectiveTrackPlan, isElectiveTrackSelectionRequired } = require('../utils/studyPlan');
+const {
+  buildElectiveTrackPlan,
+  isElectiveTrackSelectionRequired,
+  slotIndexFromYearSemester,
+} = require('../utils/studyPlan');
 const { standingLabel } = require('../utils/standingValidation');
+const GradeService = require('../services/GradeService');
 const NotificationService = require('../services/NotificationService');
 
 const personAttributes = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId'];
@@ -46,6 +53,66 @@ const serializeVersion = (version) => {
     ...plain,
     StudyPlanCourses: courses,
   };
+};
+
+const buildPrerequisiteOverrideMap = GradeService.buildPrerequisiteOverrideMap;
+const isPrerequisitePlacementAllowed = GradeService.isPrerequisitePlacementAllowed;
+
+const findPrerequisitePlacementViolation = ({
+  courses,
+  prerequisites,
+  overrides,
+  allowPending,
+}) => {
+  const courseById = new Map((courses || []).map((course) => [String(course.courseId), course]));
+  const placementByCourseId = new Map();
+
+  (courses || []).forEach((course) => {
+    placementByCourseId.set(
+      String(course.courseId),
+      slotIndexFromYearSemester(course.yearLevel, course.semester),
+    );
+  });
+
+  const overrideMap = buildPrerequisiteOverrideMap(overrides || []);
+
+  for (const rule of prerequisites || []) {
+    const dependentId = String(rule.courseId);
+    const prerequisiteId = String(rule.prerequisiteCourseId);
+    if (!courseById.has(dependentId) || !courseById.has(prerequisiteId)) {
+      continue;
+    }
+
+    const check = isPrerequisitePlacementAllowed({
+      prerequisiteCourseId: prerequisiteId,
+      dependentCourseId: dependentId,
+      prerequisiteSlotIndex: placementByCourseId.get(prerequisiteId),
+      dependentSlotIndex: placementByCourseId.get(dependentId),
+      overrideMap,
+      allowPending,
+    });
+
+    if (!check.allowed) {
+      const prerequisiteCourse = courseById.get(prerequisiteId)?.Course || {};
+      const dependentCourse = courseById.get(dependentId)?.Course || {};
+      return {
+        code:
+          check.matchedOverrideStatus === 'pending'
+            ? 'PREREQUISITE_OVERRIDE_PENDING'
+            : check.matchedOverrideStatus === 'rejected'
+              ? 'PREREQUISITE_OVERRIDE_REJECTED'
+              : 'PREREQUISITE_ORDER_VIOLATION',
+        message:
+          check.matchedOverrideStatus === 'pending'
+            ? `${dependentCourse.code || 'Dependent course'} cannot be validated until the prerequisite override is approved.`
+            : `${dependentCourse.code || 'Dependent course'} must be scheduled after ${prerequisiteCourse.code || 'its prerequisite'} unless an approved prerequisite override exists.`,
+        prerequisiteCourseId: Number(prerequisiteId),
+        dependentCourseId: Number(dependentId),
+      };
+    }
+  }
+
+  return null;
 };
 
 const fetchTrackContext = async ({
@@ -437,6 +504,30 @@ exports.validateVersion = async (req, res, next) => {
       });
     }
 
+    const [prerequisites, prerequisiteOverrides] = await Promise.all([
+      Prerequisite.findAll({ where: { curriculumId: sar.curriculumId }, transaction }),
+      PrerequisiteOverrideRequest.findAll({
+        where: { studyPlanVersionId: studyPlanVersion.id },
+        transaction,
+      }),
+    ]);
+
+    const prerequisiteViolation = findPrerequisitePlacementViolation({
+      courses: studyPlanVersion.StudyPlanCourses || [],
+      prerequisites,
+      overrides: prerequisiteOverrides,
+      allowPending: false,
+    });
+
+    if (prerequisiteViolation) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        code: prerequisiteViolation.code,
+        message: prerequisiteViolation.message,
+      });
+    }
+
     const now = Date.now();
 
     await StudyPlanVersion.update(
@@ -601,23 +692,29 @@ exports.updateDraftVersionCourses = async (req, res, next) => {
         .json({ success: false, message: 'Study plan not found for this student' });
     }
 
-    const [draftVersion, curriculumCourseList] = await Promise.all([
-      StudyPlanVersion.findByPk(req.params.versionId, {
-        include: [
-          {
-            model: StudyPlanCourse,
-            include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
-          },
-        ],
-        transaction,
-      }),
-      CurriculumCourse.findAll({
-        where: { curriculumId: sar.curriculumId },
-        attributes: ['courseId', 'minYearStandingRequired'],
-        include: [{ model: Course, attributes: ['id', 'code', 'name'] }],
-        transaction,
-      }),
-    ]);
+    const [draftVersion, curriculumCourseList, prerequisites, prerequisiteOverrides] =
+      await Promise.all([
+        StudyPlanVersion.findByPk(req.params.versionId, {
+          include: [
+            {
+              model: StudyPlanCourse,
+              include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+            },
+          ],
+          transaction,
+        }),
+        CurriculumCourse.findAll({
+          where: { curriculumId: sar.curriculumId },
+          attributes: ['courseId', 'minYearStandingRequired'],
+          include: [{ model: Course, attributes: ['id', 'code', 'name'] }],
+          transaction,
+        }),
+        Prerequisite.findAll({ where: { curriculumId: sar.curriculumId }, transaction }),
+        PrerequisiteOverrideRequest.findAll({
+          where: { studyPlanVersionId: req.params.versionId },
+          transaction,
+        }),
+      ]);
 
     if (!draftVersion || String(draftVersion.studyPlanId) !== String(sar.StudyPlan.id)) {
       await transaction.rollback();
@@ -650,10 +747,16 @@ exports.updateDraftVersionCourses = async (req, res, next) => {
     );
 
     const overrideStanding = req.body?.overrideStanding === true;
+    const proposedCourses = (draftVersion.StudyPlanCourses || []).map((row) => ({
+      ...row.get({ plain: true }),
+    }));
+    const proposedById = new Map(proposedCourses.map((row) => [String(row.id), row]));
+    const updatesToApply = [];
 
     for (const item of courses) {
       const studyPlanCourseId = String(item?.studyPlanCourseId || '');
       const row = rowsById.get(studyPlanCourseId);
+      const proposedRow = proposedById.get(studyPlanCourseId);
       const yearLevel = Number(item?.yearLevel);
       const semester = Number(item?.semester);
 
@@ -686,14 +789,29 @@ exports.updateDraftVersionCourses = async (req, res, next) => {
         }
       }
 
-      await row.update(
-        {
-          yearLevel,
-          semester,
-          updatedAt: Date.now(),
-        },
-        { transaction },
-      );
+      proposedRow.yearLevel = yearLevel;
+      proposedRow.semester = semester;
+      updatesToApply.push({ row, yearLevel, semester });
+    }
+
+    const prerequisiteViolation = findPrerequisitePlacementViolation({
+      courses: proposedCourses,
+      prerequisites,
+      overrides: prerequisiteOverrides,
+      allowPending: true,
+    });
+
+    if (prerequisiteViolation) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        code: prerequisiteViolation.code,
+        message: prerequisiteViolation.message,
+      });
+    }
+
+    for (const { row, yearLevel, semester } of updatesToApply) {
+      await row.update({ yearLevel, semester, updatedAt: Date.now() }, { transaction });
     }
 
     await draftVersion.update({ updatedAt: Date.now() }, { transaction });

@@ -44,6 +44,15 @@ const toTermIndex = (yearLevel, semester) => {
   return (normalizedYearLevel - 1) * cycleLength + semesterOffset;
 };
 
+const placementSlotIndex = (yearLevel, semester) => {
+  const normalizedYearLevel = toNumber(yearLevel);
+  const normalizedSemester = toNumber(semester);
+  if (normalizedYearLevel <= 0 || normalizedSemester <= 0) {
+    return null;
+  }
+  return (normalizedYearLevel - 1) * 3 + (normalizedSemester - 1);
+};
+
 const parseSchoolYear = (schoolYear) => {
   const match = String(schoolYear || '').match(/^(\d{4})-(\d{4})$/);
   if (!match) return null;
@@ -229,6 +238,7 @@ const computeSarAnalytics = ({
   activeStudyPlanVersion,
   curriculumCourses,
   prerequisites,
+  prerequisiteOverrides,
   currentTerm,
   electiveTrackCourses,
   allCurriculumTrackCourses,
@@ -256,6 +266,9 @@ const computeSarAnalytics = ({
     : [];
   const normalizedPrerequisites = Array.isArray(prerequisites)
     ? prerequisites.map((entry) => toPlain(entry))
+    : [];
+  const normalizedPrerequisiteOverrides = Array.isArray(prerequisiteOverrides)
+    ? prerequisiteOverrides.map((entry) => toPlain(entry))
     : [];
 
   const currentYearLevel = toNumber(sarPlain.yearLevel);
@@ -413,6 +426,15 @@ const computeSarAnalytics = ({
       .map((entry) => toSubjectKey(entry.courseId)),
   );
 
+  const approvedOverrideKeys = new Set(
+    normalizedPrerequisiteOverrides
+      .filter((override) => String(override.status || '').toLowerCase() === 'approved')
+      .map((override) => {
+        const slot = placementSlotIndex(override.yearLevel, override.semester);
+        return `${toSubjectKey(override.prerequisiteCourseId)}|${toSubjectKey(override.dependentCourseId)}|${slot}`;
+      }),
+  );
+
   const statusCounters = statusCounterTemplate();
 
   const subjectIndicators = checklistBase
@@ -432,9 +454,19 @@ const computeSarAnalytics = ({
       statusCounters[status] = (statusCounters[status] || 0) + 1;
 
       const requiredPrereqs = prerequisiteMap.get(toSubjectKey(subject.courseId)) || [];
-      const unmetPrerequisites = requiredPrereqs.filter(
-        (rule) => !completedCourseIds.has(toSubjectKey(rule.courseId)),
-      );
+      const subjectSlot = placementSlotIndex(subject.yearLevel, subject.semester);
+      const unmetPrerequisites = requiredPrereqs.filter((rule) => {
+        if (completedCourseIds.has(toSubjectKey(rule.courseId))) {
+          return false;
+        }
+
+        const prerequisiteLatest = latestStatusByCourseId.get(toSubjectKey(rule.courseId));
+        const prerequisiteSlot = prerequisiteLatest
+          ? placementSlotIndex(prerequisiteLatest.yearLevel, prerequisiteLatest.semester)
+          : null;
+        const overrideKey = `${toSubjectKey(rule.courseId)}|${toSubjectKey(subject.courseId)}|${subjectSlot}`;
+        return !(prerequisiteSlot === subjectSlot && approvedOverrideKeys.has(overrideKey));
+      });
 
       return {
         studyPlanCourseId: latest?.id || null,

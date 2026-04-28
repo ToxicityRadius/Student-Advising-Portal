@@ -15,6 +15,12 @@ const NAV_ITEMS = [
   { key: 'students', label: 'Students', to: '/adviser/students', icon: icon(goldUserImg) },
   { key: 'curriculum', label: 'Curriculum', to: '/admin/curriculum', icon: icon(goldBookImg) },
   { key: 'forecast', label: 'Forecast', to: '/admin/forecast', icon: icon(goldChecklistImg) },
+  {
+    key: 'overrides',
+    label: 'Overrides',
+    to: '/admin/prerequisite-overrides',
+    icon: icon(goldChecklistImg),
+  },
   { key: 'terms', label: 'Terms', to: '/admin/terms', icon: icon(yellowCalendarImg) },
   {
     key: 'transfer',

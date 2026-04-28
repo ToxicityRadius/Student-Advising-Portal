@@ -60,3 +60,78 @@ describe('NotificationService.getNotifications', () => {
     );
   });
 });
+
+describe('NotificationService prerequisite override notifications', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    Notification.create.mockResolvedValue({ id: 1 });
+  });
+
+  test('creates a warning notification for prerequisite override requests', async () => {
+    await NotificationService.notify({
+      recipientId: 10,
+      actorId: 20,
+      category: 'prerequisite_override_requested',
+      resourceType: 'study_plan_version',
+      resourceId: 30,
+      meta: {
+        adviserName: 'Grace Adviser',
+        prerequisiteCode: 'CALC101',
+        dependentCode: 'CALC102',
+      },
+    });
+
+    expect(Notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: 10,
+        actorId: 20,
+        type: 'warning',
+        category: 'prerequisite_override_requested',
+        title: 'Prerequisite override request',
+        body: expect.stringContaining('CALC101 and CALC102'),
+        resourceType: 'study_plan_version',
+        resourceId: 30,
+        isRead: false,
+      }),
+    );
+  });
+
+  test('creates adviser decision notifications for approved and rejected overrides', async () => {
+    await NotificationService.notify({
+      recipientId: 20,
+      actorId: 10,
+      category: 'prerequisite_override_approved',
+      resourceType: 'prerequisite_override_request',
+      resourceId: 40,
+      meta: { prerequisiteCode: 'CALC101', dependentCode: 'CALC102' },
+    });
+
+    await NotificationService.notify({
+      recipientId: 20,
+      actorId: 10,
+      category: 'prerequisite_override_rejected',
+      resourceType: 'prerequisite_override_request',
+      resourceId: 41,
+      meta: { prerequisiteCode: 'CALC101', dependentCode: 'CALC102' },
+    });
+
+    expect(Notification.create).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        type: 'success',
+        category: 'prerequisite_override_approved',
+        title: 'Prerequisite override approved',
+        body: expect.stringContaining('CALC101 and CALC102'),
+      }),
+    );
+    expect(Notification.create).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        type: 'warning',
+        category: 'prerequisite_override_rejected',
+        title: 'Prerequisite override rejected',
+        body: expect.stringContaining('CALC101 and CALC102'),
+      }),
+    );
+  });
+});

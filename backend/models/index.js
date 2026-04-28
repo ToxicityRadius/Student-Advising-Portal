@@ -15,6 +15,7 @@ const StudyPlanVersion = require('./StudyPlanVersion');
 const StudyPlanCourse = require('./StudyPlanCourse');
 const ForecastSnapshot = require('./ForecastSnapshot');
 const Notification = require('./Notification');
+const PrerequisiteOverrideRequest = require('./PrerequisiteOverrideRequest');
 
 // Self-referential adviser relationship (still used by profile fields)
 User.hasMany(User, { as: 'Advisees', foreignKey: 'adviserId', onDelete: 'SET NULL' });
@@ -123,6 +124,44 @@ StudyPlanCourse.belongsTo(StudyPlanVersion, {
 });
 StudyPlanCourse.belongsTo(Course, { foreignKey: 'courseId', onDelete: 'RESTRICT' });
 
+// Student-specific prerequisite override approvals
+StudentAcademicRecord.hasMany(PrerequisiteOverrideRequest, {
+  foreignKey: 'studentAcademicRecordId',
+  onDelete: 'CASCADE',
+});
+PrerequisiteOverrideRequest.belongsTo(StudentAcademicRecord, {
+  foreignKey: 'studentAcademicRecordId',
+  onDelete: 'CASCADE',
+});
+StudyPlanVersion.hasMany(PrerequisiteOverrideRequest, {
+  foreignKey: 'studyPlanVersionId',
+  onDelete: 'CASCADE',
+});
+PrerequisiteOverrideRequest.belongsTo(StudyPlanVersion, {
+  foreignKey: 'studyPlanVersionId',
+  onDelete: 'CASCADE',
+});
+PrerequisiteOverrideRequest.belongsTo(Course, {
+  as: 'PrerequisiteCourse',
+  foreignKey: 'prerequisiteCourseId',
+  onDelete: 'RESTRICT',
+});
+PrerequisiteOverrideRequest.belongsTo(Course, {
+  as: 'DependentCourse',
+  foreignKey: 'dependentCourseId',
+  onDelete: 'RESTRICT',
+});
+PrerequisiteOverrideRequest.belongsTo(User, {
+  as: 'RequestedByAdviser',
+  foreignKey: 'requestedByAdviserId',
+  onDelete: 'RESTRICT',
+});
+PrerequisiteOverrideRequest.belongsTo(User, {
+  as: 'DecidedByAdmin',
+  foreignKey: 'decidedByAdminId',
+  onDelete: 'SET NULL',
+});
+
 // ForecastSnapshot associations
 ForecastSnapshot.belongsTo(AcademicTerm, { foreignKey: 'academicTermId', onDelete: 'CASCADE' });
 ForecastSnapshot.belongsTo(User, {
@@ -161,4 +200,5 @@ module.exports = {
   StudyPlanCourse,
   ForecastSnapshot,
   Notification,
+  PrerequisiteOverrideRequest,
 };

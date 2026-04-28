@@ -13,7 +13,8 @@ const {
   Course,
   User,
 } = require('../models');
-const { sortStudyPlanCourses } = require('../utils/studyPlan');
+const { parseGradeInput } = require('../utils/gradeValidation');
+const { slotIndexFromYearSemester, sortStudyPlanCourses } = require('../utils/studyPlan');
 
 const PERSON_ATTRIBUTES = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId'];
 
@@ -109,10 +110,154 @@ const collectConnectedComponents = (courseIds, adjacencyMap) => {
   return components;
 };
 
+const makeCodedError = (message, statusCode, code) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  error.code = code;
+  return error;
+};
+
+const normalizeSlot = ({ yearLevel, semester }) => {
+  const normalizedYearLevel = Number(yearLevel);
+  const normalizedSemester = Number(semester);
+
+  if (!Number.isInteger(normalizedYearLevel) || normalizedYearLevel < 1) {
+    throw makeCodedError('yearLevel must be a positive integer', 400, 'INVALID_RETAKE_PLACEMENT');
+  }
+
+  if (![1, 2, 3].includes(normalizedSemester)) {
+    throw makeCodedError('semester must be 1, 2, or 3', 400, 'INVALID_RETAKE_PLACEMENT');
+  }
+
+  return {
+    yearLevel: normalizedYearLevel,
+    semester: normalizedSemester,
+    slotIndex: slotIndexFromYearSemester(normalizedYearLevel, normalizedSemester),
+  };
+};
+
+const buildRetakePlacementMap = ({ activeEntries = [], retakePlacements = [] } = {}) => {
+  const placementByStudyPlanCourseId = new Map(
+    (Array.isArray(retakePlacements) ? retakePlacements : [])
+      .filter((item) => item?.studyPlanCourseId !== undefined && item?.studyPlanCourseId !== null)
+      .map((item) => [String(item.studyPlanCourseId), item]),
+  );
+  const retakePlacementByCourseId = new Map();
+
+  activeEntries.forEach((entry) => {
+    const parsedStatus = parseGradeInput(entry.grade).status;
+    const classification =
+      parsedStatus === 'failed' || parsedStatus === 'dropped'
+        ? parsedStatus
+        : String(entry.status || '').toLowerCase();
+    if (classification !== 'failed' && classification !== 'dropped') {
+      return;
+    }
+
+    const placement = placementByStudyPlanCourseId.get(String(entry.id));
+    if (!placement) {
+      throw makeCodedError(
+        'Retake placement is required for failed or dropped courses',
+        400,
+        'MISSING_RETAKE_PLACEMENT',
+      );
+    }
+
+    const normalized = normalizeSlot(placement);
+    const originalSlotIndex = slotIndexFromYearSemester(entry.yearLevel, entry.semester);
+    if (normalized.slotIndex <= originalSlotIndex) {
+      throw makeCodedError(
+        'Retake placement must be after the failed or dropped course slot',
+        400,
+        'INVALID_RETAKE_PLACEMENT',
+      );
+    }
+
+    retakePlacementByCourseId.set(String(entry.courseId), normalized);
+  });
+
+  return retakePlacementByCourseId;
+};
+
+const buildPrerequisiteOverrideKey = ({
+  prerequisiteCourseId,
+  dependentCourseId,
+  yearLevel,
+  semester,
+  slotIndex,
+}) => {
+  const resolvedSlotIndex =
+    slotIndex !== undefined && slotIndex !== null
+      ? Number(slotIndex)
+      : slotIndexFromYearSemester(yearLevel, semester);
+  return `${String(prerequisiteCourseId)}|${String(dependentCourseId)}|${resolvedSlotIndex}`;
+};
+
+const buildPrerequisiteOverrideMap = (overrides = []) => {
+  const statusRank = { rejected: 1, pending: 2, approved: 3 };
+  const map = new Map();
+
+  (Array.isArray(overrides) ? overrides : []).forEach((override) => {
+    if (
+      override?.prerequisiteCourseId === undefined ||
+      override?.dependentCourseId === undefined ||
+      override?.yearLevel === undefined ||
+      override?.semester === undefined
+    ) {
+      return;
+    }
+
+    const key = buildPrerequisiteOverrideKey(override);
+    const status = String(override.status || 'pending').toLowerCase();
+    const current = map.get(key);
+    if (!current || (statusRank[status] || 0) > (statusRank[current.status] || 0)) {
+      map.set(key, { ...override, status });
+    }
+  });
+
+  return map;
+};
+
+const isPrerequisitePlacementAllowed = ({
+  prerequisiteCourseId,
+  dependentCourseId,
+  prerequisiteSlotIndex,
+  dependentSlotIndex,
+  overrideMap,
+  allowPending = false,
+}) => {
+  if (prerequisiteSlotIndex === undefined || prerequisiteSlotIndex === null) {
+    return { allowed: false, matchedOverrideStatus: null };
+  }
+
+  if (Number(prerequisiteSlotIndex) < Number(dependentSlotIndex)) {
+    return { allowed: true, matchedOverrideStatus: null };
+  }
+
+  if (Number(prerequisiteSlotIndex) > Number(dependentSlotIndex)) {
+    return { allowed: false, matchedOverrideStatus: null };
+  }
+
+  const key = buildPrerequisiteOverrideKey({
+    prerequisiteCourseId,
+    dependentCourseId,
+    slotIndex: dependentSlotIndex,
+  });
+  const matchedOverride = overrideMap?.get(key) || null;
+  const status = matchedOverride?.status || null;
+  const allowed = status === 'approved' || (allowPending && status === 'pending');
+
+  return { allowed, matchedOverrideStatus: status };
+};
+
 module.exports = {
   getSarWithStudyPlan,
   getActiveVersion,
   buildVersionIncludes,
   serializeVersion,
   collectConnectedComponents,
+  buildRetakePlacementMap,
+  buildPrerequisiteOverrideKey,
+  buildPrerequisiteOverrideMap,
+  isPrerequisitePlacementAllowed,
 };

@@ -14,6 +14,7 @@ const {
   Curriculum,
   CurriculumCourse,
   Prerequisite,
+  PrerequisiteOverrideRequest,
   AcademicTerm,
   Course,
   ElectiveTrack,
@@ -345,6 +346,7 @@ const getSARDetail = async (sarId, requestUser) => {
     currentTerm,
     electiveTrackCourses,
     allCurriculumTrackCourses,
+    prerequisiteOverrides,
   ] = await Promise.all([
     CurriculumCourse.findAll({
       where: { curriculumId: sarData.curriculumId },
@@ -379,6 +381,11 @@ const getSARDetail = async (sarId, requestUser) => {
         { model: Course, attributes: ['id', 'code', 'name', 'units'] },
       ],
     }),
+    activeStudyPlanVersion?.id
+      ? PrerequisiteOverrideRequest.findAll({
+          where: { studyPlanVersionId: activeStudyPlanVersion.id, status: 'approved' },
+        })
+      : [],
   ]);
 
   const analytics = computeSarAnalytics({
@@ -387,6 +394,7 @@ const getSARDetail = async (sarId, requestUser) => {
     activeStudyPlanVersion,
     curriculumCourses,
     prerequisites,
+    prerequisiteOverrides,
     currentTerm,
     electiveTrackCourses,
     allCurriculumTrackCourses,

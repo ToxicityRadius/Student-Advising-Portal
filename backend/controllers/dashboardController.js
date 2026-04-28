@@ -9,6 +9,7 @@ const {
   ElectiveTrackCourse,
   ForecastSnapshot,
   Prerequisite,
+  PrerequisiteOverrideRequest,
   StudentAcademicRecord,
   StudyPlan,
   StudyPlanVersion,
@@ -91,15 +92,21 @@ const getSarAnalyticsPayload = async (sar) => {
     return null;
   }
 
+  const versions = await fetchStudyPlanVersions(sar.StudyPlan?.id);
+  const plainVersions = versions.map((version) =>
+    version.get ? version.get({ plain: true }) : version,
+  );
+  const activeStudyPlanVersion =
+    plainVersions.find((version) => version.status === 'active') || null;
+
   const [
-    versions,
     curriculumCourses,
     prerequisites,
     currentTerm,
     electiveTrackCourses,
     allCurriculumTrackCourses,
+    prerequisiteOverrides,
   ] = await Promise.all([
-    fetchStudyPlanVersions(sar.StudyPlan?.id),
     CurriculumCourse.findAll({
       where: { curriculumId: sar.curriculumId },
       include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
@@ -136,13 +143,12 @@ const getSarAnalyticsPayload = async (sar) => {
         },
       ],
     }),
+    activeStudyPlanVersion?.id
+      ? PrerequisiteOverrideRequest.findAll({
+          where: { studyPlanVersionId: activeStudyPlanVersion.id, status: 'approved' },
+        })
+      : [],
   ]);
-
-  const plainVersions = versions.map((version) =>
-    version.get ? version.get({ plain: true }) : version,
-  );
-  const activeStudyPlanVersion =
-    plainVersions.find((version) => version.status === 'active') || null;
 
   return computeSarAnalytics({
     sar,
@@ -150,6 +156,7 @@ const getSarAnalyticsPayload = async (sar) => {
     activeStudyPlanVersion,
     curriculumCourses,
     prerequisites,
+    prerequisiteOverrides,
     currentTerm,
     electiveTrackCourses,
     allCurriculumTrackCourses,
@@ -550,6 +557,9 @@ exports.getStudentDashboard = async (req, res, next) => {
         units: subject.units,
         status: subject.status,
         grade: subject.grade,
+        isEligible: subject.isEligible,
+        isPrerequisiteMet: subject.isPrerequisiteMet,
+        unmetPrerequisites: subject.unmetPrerequisites || [],
       });
     });
 
