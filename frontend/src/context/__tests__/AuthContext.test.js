@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from '../AuthContext';
 // Mock api module
 jest.mock('../../utils/api', () => ({
   __esModule: true,
+  clearStoredTokens: jest.fn(),
   default: {
     post: jest.fn(),
     get: jest.fn(),
@@ -254,11 +255,32 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('isAuthenticated')).toHaveTextContent('false');
   });
 
-  test('isAdmin is true only for admin role', async () => {
+  test('isAdmin is true for Program Chair role', async () => {
     localStorage.setItem('user', JSON.stringify({ id: 3, role: 'admin', firstName: 'Admin' }));
 
     api.get.mockResolvedValueOnce({
       data: { user: { id: 3, role: 'admin', firstName: 'Admin' } },
+    });
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('isAdmin')).toHaveTextContent('true');
+    });
+  });
+
+  test('isAdmin is true for superadmin role', async () => {
+    localStorage.setItem(
+      'user',
+      JSON.stringify({ id: 4, role: 'superadmin', firstName: 'Developer' }),
+    );
+
+    api.get.mockResolvedValueOnce({
+      data: { user: { id: 4, role: 'superadmin', firstName: 'Developer' } },
     });
 
     render(

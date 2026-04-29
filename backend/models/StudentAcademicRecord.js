@@ -19,6 +19,11 @@ const StudentAcademicRecord = sequelize.define(
       allowNull: false,
       references: { model: 'curriculums', key: 'id' },
     },
+    programId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: { model: 'programs', key: 'id' },
+    },
     electiveTrackId: {
       type: DataTypes.INTEGER,
       allowNull: true,
@@ -74,7 +79,12 @@ const StudentAcademicRecord = sequelize.define(
       withDeleted: { where: {} },
       onlyDeleted: { where: { deletedAt: { [Op.not]: null } } },
     },
-    indexes: [{ fields: ['userId'] }, { fields: ['email'] }, { fields: ['deletedAt'] }],
+    indexes: [
+      { fields: ['userId'] },
+      { fields: ['email'] },
+      { fields: ['programId'] },
+      { fields: ['deletedAt'] },
+    ],
   },
 );
 

@@ -22,8 +22,10 @@ const StudentDetail = () => {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const { sar, versions, loading, error: sarFetchError, reload } = useSarData(sarId);
 
-  const canExportPdf = user?.role === 'adviser' || user?.role === 'admin';
-  const canEditSar = user?.role === 'adviser' || user?.role === 'admin';
+  const canExportPdf =
+    user?.role === 'adviser' || user?.role === 'admin' || user?.role === 'superadmin';
+  const canEditSar =
+    user?.role === 'adviser' || user?.role === 'admin' || user?.role === 'superadmin';
 
   const loadSarData = useCallback(async () => {
     setAlert({ variant: '', message: '' });
@@ -32,7 +34,10 @@ const StudentDetail = () => {
 
   useEffect(() => {
     if (sarFetchError) {
-      setAlert({ variant: 'danger', message: getErrorMessage(sarFetchError, 'Failed to load the student academic record.') });
+      setAlert({
+        variant: 'danger',
+        message: getErrorMessage(sarFetchError, 'Failed to load the student academic record.'),
+      });
     }
   }, [sarFetchError]);
 
@@ -65,7 +70,7 @@ const StudentDetail = () => {
       }
 
       await api.put(`/sars/${sar.id}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
       await loadSarData();
       setAlert({ variant: 'success', message: 'Student academic record updated successfully.' });
@@ -92,7 +97,10 @@ const StudentDetail = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      setAlert({ variant: 'danger', message: getErrorMessage(error, 'Failed to export the SAR PDF.') });
+      setAlert({
+        variant: 'danger',
+        message: getErrorMessage(error, 'Failed to export the SAR PDF.'),
+      });
     } finally {
       setActionLoading(false);
     }
@@ -111,7 +119,10 @@ const StudentDetail = () => {
         navigate(`/adviser/students/${sar.id}/plan/${newVersionId}`);
       }
     } catch (error) {
-      setAlert({ variant: 'danger', message: getErrorMessage(error, 'Failed to generate the initial study plan.') });
+      setAlert({
+        variant: 'danger',
+        message: getErrorMessage(error, 'Failed to generate the initial study plan.'),
+      });
     } finally {
       setActionLoading(false);
     }
@@ -122,16 +133,27 @@ const StudentDetail = () => {
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
           <h2 className="mb-1">Student Academic Record</h2>
-          <p className="text-muted mb-0">Review student profile data and available study plan versions.</p>
+          <p className="text-muted mb-0">
+            Review student profile data and available study plan versions.
+          </p>
         </div>
         <div className="d-flex gap-2 flex-wrap">
           {canEditSar && sar && (
-            <Button onClick={() => setShowEditModal(true)} variant="light" className="border border-dark" disabled={actionLoading}>
+            <Button
+              onClick={() => setShowEditModal(true)}
+              variant="light"
+              className="border border-dark"
+              disabled={actionLoading}
+            >
               Edit Record
             </Button>
           )}
           {canExportPdf && (
-            <Button onClick={handleExportPDF} disabled={!sar?.id || actionLoading} variant="primary">
+            <Button
+              onClick={handleExportPDF}
+              disabled={!sar?.id || actionLoading}
+              variant="primary"
+            >
               {actionLoading ? 'Working...' : 'Export PDF'}
             </Button>
           )}

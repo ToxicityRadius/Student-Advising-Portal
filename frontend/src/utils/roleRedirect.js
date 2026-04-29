@@ -3,10 +3,12 @@
  */
 export function getHomePathForRole(role) {
   switch (role) {
+    case 'superadmin':
+      return '/admin/dashboard';
     case 'admin':
-      return '/admin/curriculum';
+      return '/admin/dashboard';
     case 'adviser':
-      return '/adviser/students';
+      return '/adviser/dashboard';
     default:
       return '/dashboard';
   }

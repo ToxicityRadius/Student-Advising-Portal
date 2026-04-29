@@ -5,16 +5,22 @@ const {
   StudyPlanVersion,
   Course,
   User,
+  Program,
 } = require('../models');
 const NotificationService = require('../services/NotificationService');
+const ActivityLogService = require('../services/ActivityLogService');
+const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
+const { buildProgramWhere, isSuperadmin, normalizeProgramId } = require('../utils/programAccess');
 
 const VALID_DECISIONS = new Set(['approved', 'rejected']);
 
 const includeOverrideRelations = [
   {
     model: StudentAcademicRecord,
-    attributes: ['id', 'studentName', 'studentNumber', 'email'],
+    attributes: ['id', 'studentName', 'studentNumber', 'email', 'programId'],
+    include: [{ model: Program, attributes: ['id', 'code', 'name'] }],
   },
+  { model: Program, attributes: ['id', 'code', 'name'], required: false },
   { model: StudyPlanVersion, attributes: ['id', 'versionNumber', 'status'] },
   { model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] },
   { model: Course, as: 'DependentCourse', attributes: ['id', 'code', 'name'] },
@@ -27,6 +33,7 @@ const serializeOverride = (override) => {
   return {
     ...plain,
     sar: plain.StudentAcademicRecord || null,
+    program: plain.Program || plain.StudentAcademicRecord?.Program || null,
     prerequisiteCourse: plain.PrerequisiteCourse || null,
     dependentCourse: plain.DependentCourse || null,
     requestedByAdviser: plain.RequestedByAdviser || null,
@@ -36,6 +43,13 @@ const serializeOverride = (override) => {
 
 exports.listPrerequisiteOverrides = async (req, res, next) => {
   try {
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
+      req.query,
+      {
+        defaultSortBy: 'createdAt',
+        allowedSortBy: ['createdAt', 'updatedAt', 'status', 'yearLevel', 'semester'],
+      },
+    );
     const where = {};
     const status = String(req.query.status || '')
       .trim()
@@ -57,15 +71,33 @@ exports.listPrerequisiteOverrides = async (req, res, next) => {
       where.studentAcademicRecordId = req.query.studentAcademicRecordId;
     }
 
-    const search = String(req.query.search || '').trim();
+    const requestedProgramId = normalizeProgramId(req.query.programId);
+    if (req.user.role === 'admin' || req.user.role === 'superadmin' || requestedProgramId) {
+      const programScope = await buildProgramWhere(req.user, requestedProgramId);
+      if (!programScope.allowed) {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
+      }
+      if (!(isSuperadmin(req.user) && !requestedProgramId)) {
+        where.programId =
+          programScope.programIds && programScope.programIds.length > 0
+            ? programScope.programIds.length === 1
+              ? programScope.programIds[0]
+              : { [Op.in]: programScope.programIds }
+            : { [Op.in]: [] };
+      }
+    }
+
     const include = includeOverrideRelations;
     const query = {
       where,
       include,
       order: [
-        ['status', 'ASC'],
-        ['createdAt', 'DESC'],
+        [sortBy, sortOrder],
+        ['id', 'DESC'],
       ],
+      offset,
+      limit,
+      distinct: true,
     };
 
     if (search) {
@@ -84,8 +116,10 @@ exports.listPrerequisiteOverrides = async (req, res, next) => {
       };
     }
 
-    const rows = await PrerequisiteOverrideRequest.findAll(query);
-    return res.status(200).json({ success: true, data: rows.map(serializeOverride) });
+    const { rows, count } = await PrerequisiteOverrideRequest.findAndCountAll(query);
+    const items = rows.map(serializeOverride);
+    const payload = buildPaginatedPayload({ items, page, pageSize, totalItems: count });
+    return res.status(200).json({ success: true, ...payload });
   } catch (error) {
     next(error);
   }
@@ -142,6 +176,18 @@ exports.decidePrerequisiteOverride = async (req, res, next) => {
         },
       });
     }
+
+    ActivityLogService.logSafe({
+      programId: updated.programId || updated.StudentAcademicRecord?.programId,
+      actorId: req.user?.id,
+      action:
+        status === 'approved' ? 'prerequisite_override.approved' : 'prerequisite_override.rejected',
+      resourceType: 'prerequisite_override_request',
+      resourceId: updated.id,
+      resourceLabel: `${updated.PrerequisiteCourse?.code || 'Prerequisite'} -> ${updated.DependentCourse?.code || 'Dependent'}`,
+      targetUserId: updated.requestedByAdviserId,
+      metadata: { status, decisionNotes: updated.decisionNotes || null },
+    });
 
     return res.status(200).json({ success: true, data: serializeOverride(updated) });
   } catch (error) {

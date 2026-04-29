@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext, useRef, useCallback } from 'react';
 import api, { clearStoredTokens } from '../utils/api';
+import { ROLE_SUPERADMIN } from '../utils/roles';
 
 const AuthContext = createContext();
 
@@ -197,7 +198,8 @@ export const AuthProvider = ({ children }) => {
     logout,
     refreshUser,
     isAuthenticated: !!user,
-    isAdmin: user?.role === 'admin',
+    isAdmin: user?.role === 'admin' || user?.role === ROLE_SUPERADMIN,
+    isSuperadmin: user?.role === ROLE_SUPERADMIN,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

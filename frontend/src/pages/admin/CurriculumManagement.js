@@ -23,7 +23,7 @@ const initialEquivalencyForm = { courseId: '', equivalentCourseId: '', notes: ''
 
 const CurriculumManagement = () => {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
 
   const [tabKey, setTabKey] = useState('curricula');
   const [loading, setLoading] = useState(true);
@@ -35,6 +35,8 @@ const CurriculumManagement = () => {
   const [courses, setCourses] = useState([]);
   const [courseOptions, setCourseOptions] = useState([]);
   const [equivalencies, setEquivalencies] = useState([]);
+  const [programs, setPrograms] = useState([]);
+  const [selectedProgramId, setSelectedProgramId] = useState('');
 
   const [curriculaQuery, setCurriculaQuery] = useState({
     page: 1,
@@ -117,14 +119,38 @@ const CurriculumManagement = () => {
   const showFeedback = (variant, message) => setAlert({ variant, message });
   const clearFeedback = () => setAlert({ variant: '', message: '' });
 
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get('/programs')
+      .then((response) => {
+        if (cancelled) return;
+        const items = response.data?.data || [];
+        setPrograms(items);
+        if (!selectedProgramId && items.length > 0) {
+          setSelectedProgramId(String(items[0].id));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPrograms([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProgramId]);
+
   const loadAll = useCallback(async () => {
     if (!hasLoadedOnceRef.current) {
       setLoading(true);
     }
     setAlert({ variant: '', message: '' });
     try {
+      const programParams = selectedProgramId ? { programId: selectedProgramId } : {};
       const curriculumListRequest = api.get('/curriculums', {
         params: {
+          ...programParams,
           page: curriculaQuery.page,
           pageSize: curriculaQuery.pageSize,
           sortBy: curriculaQuery.sortBy,
@@ -143,6 +169,7 @@ const CurriculumManagement = () => {
         curriculumListRequest,
         api.get('/courses', {
           params: {
+            ...programParams,
             page: coursesQuery.page,
             pageSize: coursesQuery.pageSize,
             sortBy: coursesQuery.sortBy,
@@ -152,6 +179,7 @@ const CurriculumManagement = () => {
         }),
         api.get('/equivalencies', {
           params: {
+            ...programParams,
             page: equivsQuery.page,
             pageSize: equivsQuery.pageSize,
             sortBy: equivsQuery.sortBy,
@@ -160,7 +188,7 @@ const CurriculumManagement = () => {
           },
         }),
         api.get('/courses', {
-          params: { page: 1, pageSize: 500, sortBy: 'code', sortOrder: 'asc' },
+          params: { ...programParams, page: 1, pageSize: 500, sortBy: 'code', sortOrder: 'asc' },
         }),
       ]);
 
@@ -200,6 +228,7 @@ const CurriculumManagement = () => {
     equivsQuery.sortBy,
     equivsQuery.sortOrder,
     debouncedEquivsSearch,
+    selectedProgramId,
   ]);
 
   useEffect(() => {
@@ -212,7 +241,10 @@ const CurriculumManagement = () => {
     clearFeedback();
 
     try {
-      await api.post('/curriculums', curriculumForm);
+      await api.post('/curriculums', {
+        ...curriculumForm,
+        ...(selectedProgramId && { programId: Number(selectedProgramId) }),
+      });
       setCurriculumForm(initialCurriculumForm);
       await loadAll();
       showFeedback('success', 'Curriculum created successfully.');
@@ -248,6 +280,7 @@ const CurriculumManagement = () => {
     try {
       await api.post('/courses', {
         ...courseForm,
+        ...(selectedProgramId && { programId: Number(selectedProgramId) }),
         units: Number(courseForm.units),
         lectureHours: courseForm.lectureHours !== '' ? Number(courseForm.lectureHours) : null,
         laboratoryHours:
@@ -342,6 +375,7 @@ const CurriculumManagement = () => {
       await api.post('/equivalencies', {
         courseId: Number(equivalencyForm.courseId),
         equivalentCourseId: Number(equivalencyForm.equivalentCourseId),
+        ...(selectedProgramId && { ownerProgramId: Number(selectedProgramId) }),
         notes: equivalencyForm.notes || null,
       });
 
@@ -494,8 +528,32 @@ const CurriculumManagement = () => {
 
   return (
     <AdviserLayout activePage="curriculum" pageTitle="Curriculum Management">
-      <div className="d-flex justify-content-between align-items-center mb-3">
+      <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
         <h2 className="mb-0">Curriculum Management</h2>
+        {programs.length > 0 && (
+          <Form.Group
+            controlId="curriculum-program-filter"
+            className="mb-0"
+            style={{ minWidth: 260 }}
+          >
+            <Form.Label className="small text-muted mb-1">Program</Form.Label>
+            <Form.Select
+              value={selectedProgramId}
+              onChange={(event) => {
+                setSelectedProgramId(event.target.value);
+                setCurriculaQuery((current) => ({ ...current, page: 1 }));
+                setCoursesQuery((current) => ({ ...current, page: 1 }));
+                setEquivsQuery((current) => ({ ...current, page: 1 }));
+              }}
+            >
+              {programs.map((program) => (
+                <option key={program.id} value={program.id}>
+                  {program.code} - {program.name}
+                </option>
+              ))}
+            </Form.Select>
+          </Form.Group>
+        )}
       </div>
 
       {alert.message && <Alert variant={alert.variant}>{alert.message}</Alert>}

@@ -20,6 +20,7 @@ const {
 const { parseGradeInput, parseGradePayload } = require('../utils/gradeValidation');
 const GradeService = require('../services/GradeService');
 const NotificationService = require('../services/NotificationService');
+const ActivityLogService = require('../services/ActivityLogService');
 
 const toNumber = (value) => Number(value);
 
@@ -33,9 +34,32 @@ const collectConnectedComponents = GradeService.collectConnectedComponents;
 
 const includeRelationsForVersion = GradeService.buildVersionIncludes();
 
+const buildStandardUnitsBySlot = GradeService.buildStandardUnitsBySlot;
 const buildRetakePlacementMap = GradeService.buildRetakePlacementMap;
+const getAllowedUnitsForSlot = GradeService.getAllowedUnitsForSlot;
+const buildMutualPrerequisitePairSet = GradeService.buildMutualPrerequisitePairSet;
 const buildPrerequisiteOverrideMap = GradeService.buildPrerequisiteOverrideMap;
 const isPrerequisitePlacementAllowed = GradeService.isPrerequisitePlacementAllowed;
+
+const buildOverridePairSummary = (studyPlanCourses = [], overrideRequests = []) => {
+  const courseCodeById = new Map(
+    studyPlanCourses
+      .map((entry) => [String(entry.courseId), entry.Course?.code])
+      .filter(([, code]) => code),
+  );
+
+  const pairs = overrideRequests
+    .map((override) => {
+      const prerequisiteCode =
+        courseCodeById.get(String(override.prerequisiteCourseId)) || 'a prerequisite';
+      const dependentCode =
+        courseCodeById.get(String(override.dependentCourseId)) || 'a dependent course';
+      return `${prerequisiteCode} and ${dependentCode}`;
+    })
+    .filter(Boolean);
+
+  return pairs.join('; ');
+};
 
 const makeRegenerationErrorResponse = async (res, transaction, error) => {
   await transaction.rollback();
@@ -413,6 +437,13 @@ exports.triggerRegeneration = async (req, res, next) => {
     const curriculumTrackCourseIds = new Set(
       (curriculumTrackCourses || []).map((item) => String(item.courseId)),
     );
+    const standardUnitsBySlot = buildStandardUnitsBySlot({
+      curriculumCourses,
+      selectedTrackPlan,
+      selectedTrackCourseIds,
+      curriculumTrackCourseIds,
+      hasSelectedTrack: Boolean(sar.electiveTrackId),
+    });
 
     selectedTrackPlan.forEach((item) => {
       const courseId = String(item.courseId);
@@ -437,6 +468,7 @@ exports.triggerRegeneration = async (req, res, next) => {
       }
       prerequisiteMap.get(key).add(String(rule.prerequisiteCourseId));
     });
+    const mutualPrerequisitePairs = buildMutualPrerequisitePairSet(prerequisites);
 
     const coReqMap = new Map();
     coRequisites.forEach((rule) => {
@@ -618,6 +650,13 @@ exports.triggerRegeneration = async (req, res, next) => {
         }
       });
     });
+    mutualPrerequisitePairs.forEach((pairKey) => {
+      const [leftId, rightId] = String(pairKey).split('|');
+      if (adjacency.has(leftId) && adjacency.has(rightId)) {
+        adjacency.get(leftId).add(rightId);
+        adjacency.get(rightId).add(leftId);
+      }
+    });
 
     const components = collectConnectedComponents(
       requeueIds,
@@ -669,7 +708,8 @@ exports.triggerRegeneration = async (req, res, next) => {
 
       while (!placed && slotIndex < 120) {
         const usedUnits = usedUnitsBySlot.get(slotIndex) || 0;
-        if (usedUnits + component.totalUnits > 25) {
+        const allowedUnits = getAllowedUnitsForSlot({ slotIndex, standardUnitsBySlot });
+        if (usedUnits + component.totalUnits > allowedUnits) {
           if (component.forcedSlotIndex !== null) {
             break;
           }
@@ -681,13 +721,16 @@ exports.triggerRegeneration = async (req, res, next) => {
         for (const courseId of component.courseIds) {
           const prereqIds = prerequisiteMap.get(courseId) || new Set();
           for (const prereqId of prereqIds) {
-            const prereqPlacement = placementByCourseId.get(prereqId);
+            const prereqPlacement = component.courseIds.includes(prereqId)
+              ? slotIndex
+              : placementByCourseId.get(prereqId);
             const placementCheck = isPrerequisitePlacementAllowed({
               prerequisiteCourseId: prereqId,
               dependentCourseId: courseId,
               prerequisiteSlotIndex: prereqPlacement,
               dependentSlotIndex: slotIndex,
               overrideMap: prerequisiteOverrideMap,
+              mutualPrerequisitePairs,
               allowPending: true,
             });
             if (!placementCheck.allowed) {
@@ -834,6 +877,7 @@ exports.triggerRegeneration = async (req, res, next) => {
       await PrerequisiteOverrideRequest.bulkCreate(
         pendingOverrideRequests.map((override) => ({
           studentAcademicRecordId: sar.id,
+          programId: sar.programId,
           studyPlanVersionId: newVersion.id,
           prerequisiteCourseId: override.prerequisiteCourseId,
           dependentCourseId: override.dependentCourseId,
@@ -864,6 +908,22 @@ exports.triggerRegeneration = async (req, res, next) => {
     }
 
     if (pendingOverrideRequests.length > 0) {
+      ActivityLogService.logSafe({
+        programId: sar.programId,
+        actorId: req.user.id,
+        action: 'prerequisite_override.requested',
+        resourceType: 'study_plan_version',
+        resourceId: newVersion.id,
+        resourceLabel: `Study plan v${newVersion.versionNumber}`,
+        targetUserId: sar.userId || null,
+        metadata: { requestCount: pendingOverrideRequests.length, sarId: sar.id },
+      });
+
+      const overridePairSummary = buildOverridePairSummary(
+        activeVersion.StudyPlanCourses,
+        pendingOverrideRequests,
+      );
+
       const admins = await User.findAll({ where: { role: 'admin' }, attributes: ['id'] });
       admins.forEach((admin) => {
         NotificationService.notify({
@@ -874,17 +934,7 @@ exports.triggerRegeneration = async (req, res, next) => {
           resourceId: newVersion.id,
           meta: {
             adviserName: [req.user.firstName, req.user.lastName].filter(Boolean).join(' '),
-            prerequisiteCode:
-              activeVersion.StudyPlanCourses.find(
-                (entry) =>
-                  String(entry.courseId) ===
-                  String(pendingOverrideRequests[0].prerequisiteCourseId),
-              )?.Course?.code || '',
-            dependentCode:
-              activeVersion.StudyPlanCourses.find(
-                (entry) =>
-                  String(entry.courseId) === String(pendingOverrideRequests[0].dependentCourseId),
-              )?.Course?.code || '',
+            overridePairSummary,
           },
         });
       });

@@ -394,7 +394,7 @@ const NotificationsContent = () => {
 const Notifications = () => {
   const { user } = useAuth();
 
-  if (user?.role === 'admin') {
+  if (user?.role === 'admin' || user?.role === 'superadmin') {
     return (
       <AdminLayout activePage="" pageTitle="Notifications">
         <NotificationsContent />

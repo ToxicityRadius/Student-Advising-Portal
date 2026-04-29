@@ -166,12 +166,10 @@ const GradeEntry = () => {
     return Array.from({ length: maxYearLevel + 2 }, (_, index) => index + 1);
   }, [rows]);
 
-  const unresolvedCount = useMemo(
+  const completedGradeCount = useMemo(
     () =>
-      rows.filter((row) =>
-        ['failed', 'dropped', 'incomplete'].includes(
-          deriveStatusFromGrade(row.specialChoice || row.numericGrade),
-        ),
+      rows.filter(
+        (row) => deriveStatusFromGrade(row.specialChoice || row.numericGrade) !== 'pending',
       ).length,
     [rows],
   );
@@ -192,6 +190,8 @@ const GradeEntry = () => {
       ),
     [rows],
   );
+
+  const canRegenerate = rows.length > 0 && completedGradeCount > 0 && !allPassed;
 
   const updateRow = (rowId, updates) => {
     setRows((currentRows) =>
@@ -586,7 +586,7 @@ const GradeEntry = () => {
             >
               Import CSV
             </Button>
-            {unresolvedCount > 0 ? (
+            {canRegenerate ? (
               <Button
                 variant="warning"
                 onClick={handleRegenerate}

@@ -1,4 +1,4 @@
-const { User, AcademicTerm } = require('../models');
+const { User, AcademicTerm, Curriculum, Program } = require('../models');
 const { generateToken } = require('../utils/jwt');
 const { linkStudentAccountToSar, syncProfileToSar } = require('../utils/sarLinking');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
@@ -7,6 +7,8 @@ const { uploadProfilePicture, deleteProfilePictureAsset } = require('../utils/pr
 const { validateUploadedImageFile } = require('../utils/imageValidation');
 const { sanitizeUserWithProfile } = require('../utils/sanitize');
 const UserService = require('../services/UserService');
+const { canManageProgram, isSuperadmin } = require('../utils/programAccess');
+const ActivityLogService = require('../services/ActivityLogService');
 
 // Allowed enum values for validated fields
 const ALLOWED_SEX = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
@@ -19,6 +21,57 @@ const NO_ACTIVE_TERM_KEY = UserService.NO_ACTIVE_TERM_KEY;
 const getTermKey = UserService.getTermKey;
 
 const getStudentProfileLockMeta = UserService.getStudentProfileLockMeta;
+
+const getUserDisplayName = (user) =>
+  [user?.firstName || user?.first_name, user?.lastName || user?.last_name]
+    .filter(Boolean)
+    .join(' ')
+    .trim() ||
+  user?.email ||
+  `User ${user?.id || ''}`.trim();
+
+const loadUserForProgramManagement = (id) =>
+  User.findByPk(id, {
+    include: [
+      { model: Curriculum, as: 'CurriculumRef', attributes: ['id', 'name', 'programId'] },
+      {
+        model: Program,
+        as: 'AssignedPrograms',
+        attributes: ['id', 'code', 'name'],
+        through: { attributes: [] },
+      },
+    ],
+  });
+
+const canManageTargetUser = async (requestUser, targetUser) => {
+  if (isSuperadmin(requestUser)) return true;
+  if (requestUser?.role !== 'admin') return false;
+
+  if (targetUser?.role === 'student') {
+    return canManageProgram(requestUser, targetUser.CurriculumRef?.programId);
+  }
+
+  if (targetUser?.role === 'adviser') {
+    const programIds = Array.isArray(targetUser.AssignedPrograms)
+      ? targetUser.AssignedPrograms.map((program) => program.id)
+      : [];
+    if (programIds.length === 0) return false;
+    for (const programId of programIds) {
+      if (await canManageProgram(requestUser, programId)) return true;
+    }
+  }
+
+  return false;
+};
+
+const firstTargetProgramId = (targetUser) => {
+  if (targetUser?.role === 'student') {
+    return targetUser.CurriculumRef?.programId || null;
+  }
+  return Array.isArray(targetUser?.AssignedPrograms) && targetUser.AssignedPrograms.length > 0
+    ? targetUser.AssignedPrograms[0].id
+    : null;
+};
 
 const getCanonicalFirstName = (userLike) => {
   const camel = String(userLike?.firstName || '').trim();
@@ -178,6 +231,10 @@ exports.getAllUsers = async (req, res, next) => {
     const { items, count, page, pageSize } = await UserService.listUsers({
       paginationParams,
       roleFilter,
+      status: req.query.status,
+      adviserId: req.query.adviserId,
+      programId: req.query.programId,
+      requestUser: req.user,
     });
     const payload = buildPaginatedPayload({ items, page, pageSize, totalItems: count });
     res.status(200).json({ success: true, count: items.length, users: items, ...payload });
@@ -192,19 +249,33 @@ exports.getAllUsers = async (req, res, next) => {
 exports.getUserById = async (req, res, next) => {
   try {
     const requestingOwnProfile = req.user && req.user.id.toString() === req.params.id.toString();
-    if (!requestingOwnProfile && req.user.role !== 'admin') {
+    if (!requestingOwnProfile && req.user.role !== 'admin' && !isSuperadmin(req.user)) {
       return res.status(403).json({
         success: false,
         message: 'You are not authorized to view this profile',
       });
     }
 
-    const user = await User.findByPk(req.params.id);
+    const user = await loadUserForProgramManagement(req.params.id);
 
     if (!user) {
       return res.status(404).json({
         success: false,
         message: 'User not found',
+      });
+    }
+
+    if (!requestingOwnProfile && !(await canManageTargetUser(req.user, user))) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to view this profile',
+      });
+    }
+
+    if (!isSuperadmin(req.user) && user.role === 'superadmin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only Super Admin can manage Super Admin accounts',
       });
     }
 
@@ -243,13 +314,23 @@ exports.updateUser = async (req, res, next) => {
   try {
     const { firstName, lastName, email, role, isActive } = req.body;
 
-    const user = await User.findByPk(req.params.id);
+    const user = await loadUserForProgramManagement(req.params.id);
 
     if (!user) {
       return res.status(404).json({
         success: false,
         message: 'User not found',
       });
+    }
+
+    if (!(await canManageTargetUser(req.user, user))) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    if (!isSuperadmin(req.user) && role !== undefined && role !== user.role) {
+      return res
+        .status(403)
+        .json({ success: false, message: 'Only Super Admin can change user roles' });
     }
 
     const updatePayload = {
@@ -274,6 +355,16 @@ exports.updateUser = async (req, res, next) => {
     await User.update(updatePayload, { where: { id: req.params.id } });
 
     const updatedUser = await User.findByPk(req.params.id);
+    ActivityLogService.logSafe({
+      programId: firstTargetProgramId(user),
+      actorId: req.user?.id,
+      action: 'user.updated',
+      resourceType: 'user',
+      resourceId: updatedUser.id,
+      resourceLabel: getUserDisplayName(updatedUser),
+      targetUserId: updatedUser.id,
+      metadata: { role: updatedUser.role, isActive: updatedUser.isActive },
+    });
 
     res.status(200).json({
       success: true,
@@ -290,13 +381,17 @@ exports.updateUser = async (req, res, next) => {
 // @access  Private/Admin
 exports.deleteUser = async (req, res, next) => {
   try {
-    const user = await User.findByPk(req.params.id);
+    const user = await loadUserForProgramManagement(req.params.id);
 
     if (!user) {
       return res.status(404).json({
         success: false,
         message: 'User not found',
       });
+    }
+
+    if (!(await canManageTargetUser(req.user, user))) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
     // Prevent admin from deleting themselves
@@ -323,13 +418,17 @@ exports.deleteUser = async (req, res, next) => {
 // @access  Private/Admin
 exports.toggleUserStatus = async (req, res, next) => {
   try {
-    const user = await User.findByPk(req.params.id);
+    const user = await loadUserForProgramManagement(req.params.id);
 
     if (!user) {
       return res.status(404).json({
         success: false,
         message: 'User not found',
       });
+    }
+
+    if (!(await canManageTargetUser(req.user, user))) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
     await User.update(
@@ -341,6 +440,16 @@ exports.toggleUserStatus = async (req, res, next) => {
     );
 
     const updatedUser = await User.findByPk(req.params.id);
+    ActivityLogService.logSafe({
+      programId: firstTargetProgramId(user),
+      actorId: req.user?.id,
+      action: 'user.status_toggled',
+      resourceType: 'user',
+      resourceId: updatedUser.id,
+      resourceLabel: getUserDisplayName(updatedUser),
+      targetUserId: updatedUser.id,
+      metadata: { isActive: updatedUser.isActive },
+    });
 
     res.status(200).json({
       success: true,
@@ -858,7 +967,7 @@ exports.assignAdviser = async (req, res, next) => {
     const { id } = req.params;
     const { adviserId } = req.body;
 
-    const student = await User.findByPk(id);
+    const student = await loadUserForProgramManagement(id);
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student not found' });
     }
@@ -867,6 +976,10 @@ exports.assignAdviser = async (req, res, next) => {
       return res
         .status(400)
         .json({ success: false, message: 'Adviser can only be assigned to student users' });
+    }
+
+    if (!(await canManageTargetUser(req.user, student))) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
     let normalizedAdviserId = null;
@@ -878,17 +991,33 @@ exports.assignAdviser = async (req, res, next) => {
           .json({ success: false, message: 'adviserId must be a valid number' });
       }
 
-      const adviser = await User.findByPk(normalizedAdviserId);
+      const adviser = await loadUserForProgramManagement(normalizedAdviserId);
       if (!adviser || adviser.role !== 'adviser') {
         return res.status(400).json({
           success: false,
           message: 'Selected adviser does not exist or is not an adviser',
         });
       }
+      if (!(await canManageTargetUser(req.user, adviser))) {
+        return res.status(403).json({
+          success: false,
+          message: 'Selected adviser is outside your assigned program scope',
+        });
+      }
     }
 
     await User.update({ adviserId: normalizedAdviserId, updatedAt: Date.now() }, { where: { id } });
     const updated = await User.findByPk(id);
+    ActivityLogService.logSafe({
+      programId: firstTargetProgramId(student),
+      actorId: req.user?.id,
+      action: 'user.adviser_assigned',
+      resourceType: 'user',
+      resourceId: updated.id,
+      resourceLabel: getUserDisplayName(updated),
+      targetUserId: updated.id,
+      metadata: { adviserId: normalizedAdviserId },
+    });
 
     res.status(200).json({
       success: true,

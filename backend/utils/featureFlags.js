@@ -1,13 +1,18 @@
-const isEnvTrue = (value) => String(value || '').trim().toLowerCase() === 'true';
+const isEnvTrue = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase() === 'true';
 
 const isAdminFirstLoginEnforcementDisabled = () => {
   return isEnvTrue(process.env.DISABLE_ADMIN_FIRST_LOGIN_ENFORCEMENT);
 };
 
 const shouldBypassAdminFirstLoginEnforcement = (user) => {
-  return Boolean(user)
-    && user.role === 'admin'
-    && isAdminFirstLoginEnforcementDisabled();
+  return (
+    Boolean(user) &&
+    (user.role === 'admin' || user.role === 'superadmin') &&
+    isAdminFirstLoginEnforcementDisabled()
+  );
 };
 
 const maskUserFirstLoginFlags = (user) => {
@@ -26,5 +31,5 @@ const maskUserFirstLoginFlags = (user) => {
 module.exports = {
   isAdminFirstLoginEnforcementDisabled,
   shouldBypassAdminFirstLoginEnforcement,
-  maskUserFirstLoginFlags
+  maskUserFirstLoginFlags,
 };

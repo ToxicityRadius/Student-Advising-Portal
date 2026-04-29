@@ -1,7 +1,10 @@
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://user:pass@localhost:5432/test';
 
 const {
+  buildStandardUnitsBySlot,
   buildRetakePlacementMap,
+  getAllowedUnitsForSlot,
+  buildMutualPrerequisitePairSet,
   buildPrerequisiteOverrideMap,
   isPrerequisitePlacementAllowed,
 } = require('../services/GradeService');
@@ -47,6 +50,56 @@ describe('GradeService prerequisite override helpers', () => {
           ],
         }),
       ).toThrow('Retake placement must be after the failed or dropped course slot');
+    });
+  });
+
+  describe('standard curriculum unit caps', () => {
+    test('keeps the default cap when the standard slot load is below the limit', () => {
+      const standardUnitsBySlot = buildStandardUnitsBySlot({
+        curriculumCourses: [
+          { courseId: 1, yearLevel: 1, semester: 1, Course: { units: 3 } },
+          { courseId: 2, yearLevel: 1, semester: 1, Course: { units: 4 } },
+        ],
+      });
+
+      expect(standardUnitsBySlot.get(0)).toBe(7);
+      expect(getAllowedUnitsForSlot({ slotIndex: 0, standardUnitsBySlot })).toBe(25);
+      expect(getAllowedUnitsForSlot({ slotIndex: 1, standardUnitsBySlot })).toBe(25);
+    });
+
+    test('allows a slot to match an overloaded standard curriculum term', () => {
+      const standardUnitsBySlot = buildStandardUnitsBySlot({
+        curriculumCourses: [
+          { courseId: 101, yearLevel: 4, semester: 1, Course: { units: 23 } },
+          { courseId: 102, yearLevel: 4, semester: 1, Course: { units: 3 } },
+        ],
+      });
+
+      expect(standardUnitsBySlot.get(9)).toBe(26);
+      expect(getAllowedUnitsForSlot({ slotIndex: 9, standardUnitsBySlot })).toBe(26);
+    });
+
+    test('counts the selected elective track and excludes unselected alternatives', () => {
+      const standardUnitsBySlot = buildStandardUnitsBySlot({
+        hasSelectedTrack: true,
+        curriculumTrackCourseIds: new Set(['201', '202']),
+        selectedTrackCourseIds: new Set(['201']),
+        selectedTrackPlan: [
+          {
+            courseId: 201,
+            yearLevel: 3,
+            semester: 1,
+            source: { Course: { units: 3 } },
+          },
+        ],
+        curriculumCourses: [
+          { courseId: 101, yearLevel: 3, semester: 1, Course: { units: 22 } },
+          { courseId: 201, yearLevel: 3, semester: 1, Course: { units: 3 } },
+          { courseId: 202, yearLevel: 3, semester: 1, Course: { units: 3 } },
+        ],
+      });
+
+      expect(standardUnitsBySlot.get(6)).toBe(25);
     });
   });
 
@@ -106,6 +159,25 @@ describe('GradeService prerequisite override helpers', () => {
           allowPending: true,
         }),
       ).toEqual({ allowed: false, matchedOverrideStatus: null });
+    });
+
+    test('allows same-term placement for reciprocal prerequisite pairs', () => {
+      const mutualPrerequisitePairs = buildMutualPrerequisitePairSet([
+        { courseId: 201, prerequisiteCourseId: 202 },
+        { courseId: 202, prerequisiteCourseId: 201 },
+      ]);
+
+      expect(
+        isPrerequisitePlacementAllowed({
+          prerequisiteCourseId: 201,
+          dependentCourseId: 202,
+          prerequisiteSlotIndex: 8,
+          dependentSlotIndex: 8,
+          overrideMap: new Map(),
+          mutualPrerequisitePairs,
+          allowPending: false,
+        }),
+      ).toEqual({ allowed: true, matchedOverrideStatus: null });
     });
   });
 });

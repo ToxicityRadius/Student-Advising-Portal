@@ -2,6 +2,12 @@ const { Op } = require('sequelize');
 const { sequelize, AcademicTerm, StudyPlanVersion } = require('../models');
 const { storeForecastSnapshot } = require('./forecastController');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
+const {
+  buildProgramWhere,
+  canManageProgram,
+  resolveManageProgramId,
+} = require('../utils/programAccess');
+const ActivityLogService = require('../services/ActivityLogService');
 
 const isValidSchoolYear = (value) => {
   if (!/^\d{4}-\d{4}$/.test(value || '')) {
@@ -21,24 +27,41 @@ exports.createTerm = async (req, res, next) => {
   try {
     const { schoolYear, semester } = req.body;
     const parsedSemester = parseSemester(semester);
+    const programId = await resolveManageProgramId(
+      req.user,
+      req.body.programId || req.query.programId,
+    );
+    if (!programId) {
+      return res.status(403).json({ success: false, message: 'Program access denied' });
+    }
 
     if (!isValidSchoolYear(schoolYear)) {
-      return res.status(400).json({ success: false, message: 'schoolYear must be in YYYY-YYYY format with consecutive years' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: 'schoolYear must be in YYYY-YYYY format with consecutive years',
+        });
     }
 
     if (![1, 2, 3].includes(parsedSemester)) {
       return res.status(400).json({ success: false, message: 'semester must be 1, 2, or 3' });
     }
 
-    const existing = await AcademicTerm.findOne({ where: { schoolYear, semester: parsedSemester } });
+    const existing = await AcademicTerm.findOne({
+      where: { programId, schoolYear, semester: parsedSemester },
+    });
     if (existing) {
-      return res.status(409).json({ success: false, message: 'Term already exists for this school year and semester' });
+      return res
+        .status(409)
+        .json({ success: false, message: 'Term already exists for this school year and semester' });
     }
 
     const term = await AcademicTerm.create({
+      programId,
       schoolYear,
       semester: parsedSemester,
-      isCurrent: false
+      isCurrent: false,
     });
 
     return res.status(201).json({ success: true, data: term });
@@ -52,7 +75,12 @@ exports.createTerm = async (req, res, next) => {
 // @access admin, adviser, student
 exports.getCurrentTerm = async (req, res, next) => {
   try {
-    const currentTerm = await AcademicTerm.findOne({ where: { isCurrent: true } });
+    const programScope =
+      req.user?.role === 'student' && !req.query.programId
+        ? { where: {} }
+        : await buildProgramWhere(req.user, req.query.programId, { allowStudent: true });
+    const where = { isCurrent: true, ...programScope.where };
+    const currentTerm = await AcademicTerm.findOne({ where });
     return res.status(200).json({ success: true, data: currentTerm || null });
   } catch (error) {
     next(error);
@@ -64,10 +92,13 @@ exports.getCurrentTerm = async (req, res, next) => {
 // @access admin, adviser
 exports.getAllTerms = async (req, res, next) => {
   try {
-    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(req.query, {
-      defaultSortBy: 'schoolYear',
-      allowedSortBy: ['schoolYear', 'semester', 'id']
-    });
+    const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
+      req.query,
+      {
+        defaultSortBy: 'schoolYear',
+        allowedSortBy: ['schoolYear', 'semester', 'id'],
+      },
+    );
 
     const semesterSearch = Number.parseInt(search, 10);
     const searchFilters = [{ schoolYear: { [Op.iLike]: `%${search}%` } }];
@@ -75,22 +106,33 @@ exports.getAllTerms = async (req, res, next) => {
       searchFilters.push({ semester: semesterSearch });
     }
 
-    const where = search
-      ? { [Op.or]: searchFilters }
-      : {};
+    const programScope = await buildProgramWhere(req.user, req.query.programId);
+    if (!programScope.allowed) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    const searchWhere = search ? { [Op.or]: searchFilters } : {};
+    const where =
+      Object.keys(searchWhere).length > 0
+        ? { [Op.and]: [programScope.where, searchWhere] }
+        : programScope.where;
 
     const { rows, count } = await AcademicTerm.findAndCountAll({
       where,
-      order: [[sortBy, sortOrder], ['semester', 'DESC'], ['id', 'DESC']],
+      order: [
+        [sortBy, sortOrder],
+        ['semester', 'DESC'],
+        ['id', 'DESC'],
+      ],
       offset,
-      limit
+      limit,
     });
 
     const payload = buildPaginatedPayload({
       items: rows,
       page,
       pageSize,
-      totalItems: count
+      totalItems: count,
     });
 
     return res.status(200).json({ success: true, ...payload });
@@ -106,15 +148,22 @@ exports.activateTerm = async (req, res, next) => {
   const transaction = await sequelize.transaction();
 
   try {
-    const [term, existingCurrentTerm] = await Promise.all([
-      AcademicTerm.findByPk(req.params.id, { transaction }),
-      AcademicTerm.findOne({ where: { isCurrent: true }, transaction })
-    ]);
+    const term = await AcademicTerm.findByPk(req.params.id, { transaction });
 
     if (!term) {
       await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Term not found' });
     }
+
+    if (!(await canManageProgram(req.user, term.programId))) {
+      await transaction.rollback();
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    const existingCurrentTerm = await AcademicTerm.findOne({
+      where: { programId: term.programId, isCurrent: true },
+      transaction,
+    });
 
     if (
       existingCurrentTerm &&
@@ -123,31 +172,40 @@ exports.activateTerm = async (req, res, next) => {
     ) {
       await storeForecastSnapshot(existingCurrentTerm.id, req.user.id, {
         transaction,
-        term: existingCurrentTerm
+        term: existingCurrentTerm,
       });
     }
 
     await AcademicTerm.update(
       { isCurrent: false },
-      { where: { isCurrent: true }, transaction }
+      { where: { programId: term.programId, isCurrent: true }, transaction },
     );
 
     await term.update(
       {
         isCurrent: true,
-        startedAt: Date.now()
+        startedAt: Date.now(),
       },
-      { transaction }
+      { transaction },
     );
 
     await StudyPlanVersion.update(
       { needsRevalidation: true },
-      { where: { status: 'active' }, transaction }
+      { where: { status: 'active' }, transaction },
     );
 
     await transaction.commit();
 
     const refreshedTerm = await AcademicTerm.findByPk(term.id);
+    ActivityLogService.logSafe({
+      programId: refreshedTerm.programId,
+      actorId: req.user.id,
+      action: 'term.activated',
+      resourceType: 'academic_term',
+      resourceId: refreshedTerm.id,
+      resourceLabel: `${refreshedTerm.schoolYear} S${refreshedTerm.semester}`,
+      metadata: { schoolYear: refreshedTerm.schoolYear, semester: refreshedTerm.semester },
+    });
     return res.status(200).json({ success: true, data: refreshedTerm });
   } catch (error) {
     await transaction.rollback();
@@ -162,9 +220,18 @@ exports.endCurrentTerm = async (req, res, next) => {
   const transaction = await sequelize.transaction();
 
   try {
+    const programId = await resolveManageProgramId(
+      req.user,
+      req.body.programId || req.query.programId,
+    );
+    if (!programId) {
+      await transaction.rollback();
+      return res.status(403).json({ success: false, message: 'Program access denied' });
+    }
+
     const currentTerm = await AcademicTerm.findOne({
-      where: { isCurrent: true },
-      transaction
+      where: { programId, isCurrent: true },
+      transaction,
     });
 
     if (!currentTerm) {
@@ -174,7 +241,9 @@ exports.endCurrentTerm = async (req, res, next) => {
 
     if (currentTerm.endedAt) {
       await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'Current term has already been ended' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Current term has already been ended' });
     }
 
     const endedAt = Date.now();
@@ -183,18 +252,28 @@ exports.endCurrentTerm = async (req, res, next) => {
       {
         endedAt,
         closedById: req.user.id,
-        isCurrent: false
+        isCurrent: false,
       },
-      { transaction }
+      { transaction },
     );
 
     await storeForecastSnapshot(currentTerm.id, req.user.id, {
       transaction,
       term: currentTerm,
-      createdAt: endedAt
+      createdAt: endedAt,
     });
 
     await transaction.commit();
+
+    ActivityLogService.logSafe({
+      programId: currentTerm.programId,
+      actorId: req.user.id,
+      action: 'term.ended',
+      resourceType: 'academic_term',
+      resourceId: currentTerm.id,
+      resourceLabel: `${currentTerm.schoolYear} S${currentTerm.semester}`,
+      metadata: { schoolYear: currentTerm.schoolYear, semester: currentTerm.semester, endedAt },
+    });
 
     return res.status(200).json({
       success: true,
@@ -202,8 +281,8 @@ exports.endCurrentTerm = async (req, res, next) => {
         id: currentTerm.id,
         schoolYear: currentTerm.schoolYear,
         semester: currentTerm.semester,
-        endedAt
-      }
+        endedAt,
+      },
     });
   } catch (error) {
     await transaction.rollback();

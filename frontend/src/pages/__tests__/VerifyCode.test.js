@@ -91,10 +91,16 @@ describe('VerifyCode Page', () => {
     await user.click(screen.getByRole('button', { name: /verify code/i }));
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/auth/verify-code', {
-        userId: 42,
-        code: '123456',
-      });
+      expect(api.post).toHaveBeenCalledWith(
+        '/auth/verify-code',
+        {
+          userId: 42,
+          code: '123456',
+        },
+        {
+          headers: {},
+        },
+      );
     });
 
     await waitFor(() => {
@@ -147,7 +153,13 @@ describe('VerifyCode Page', () => {
     await user.click(screen.getByText('Resend Code'));
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/auth/resend-code', { userId: 42 });
+      expect(api.post).toHaveBeenCalledWith(
+        '/auth/resend-code',
+        { userId: 42 },
+        {
+          headers: {},
+        },
+      );
     });
   });
 });

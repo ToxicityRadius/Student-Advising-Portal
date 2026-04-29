@@ -17,6 +17,7 @@ import {
   Table,
 } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+import ActivityTimeline from '../faculty/ActivityTimeline';
 import ElectiveTrackSelector from '../adviser/ElectiveTrackSelector';
 import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
 import { formatGwa } from '../../utils/gradeHelpers';
@@ -122,7 +123,8 @@ const SARLayout = ({
   const [showFullIdentity, setShowFullIdentity] = useState(false);
 
   const isStudentView = role === 'student';
-  const canManagePlan = role === 'adviser' || role === 'admin';
+  const canManagePlan = role === 'adviser' || role === 'admin' || role === 'superadmin';
+  const canManageTerms = role === 'admin' || role === 'superadmin';
 
   const analytics = sar?.analytics || null;
   const profileImageUrl = buildProfileImageUrl(sar?.Student?.profile_picture);
@@ -131,13 +133,24 @@ const SARLayout = ({
   const [terms, setTerms] = useState([]);
   const [termsLoading, setTermsLoading] = useState(false);
   const [termChanging, setTermChanging] = useState(false);
+  const [activityItems, setActivityItems] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   const fetchTerms = useCallback(async () => {
     if (!canManagePlan) return;
     setTermsLoading(true);
     try {
+      const params = {
+        pageSize: 100,
+        sortBy: 'schoolYear',
+        sortOrder: 'DESC',
+      };
+      if (sar?.programId) {
+        params.programId = sar.programId;
+      }
+
       const res = await api.get('/terms', {
-        params: { pageSize: 100, sortBy: 'schoolYear', sortOrder: 'DESC' },
+        params,
       });
       setTerms(res.data?.items || res.data?.data || []);
     } catch {
@@ -145,15 +158,49 @@ const SARLayout = ({
     } finally {
       setTermsLoading(false);
     }
-  }, [canManagePlan]);
+  }, [canManagePlan, sar?.programId]);
 
   useEffect(() => {
     fetchTerms();
   }, [fetchTerms]);
 
-  const currentTermId = useMemo(() => terms.find((t) => t.isCurrent)?.id || null, [terms]);
+  const fetchActivity = useCallback(async () => {
+    if (!canManagePlan || !sar?.id) return;
+    setActivityLoading(true);
+    try {
+      const res = await api.get('/activity', {
+        params: { resourceType: 'sar', resourceId: String(sar.id), pageSize: 50 },
+      });
+      setActivityItems(res.data?.items || res.data?.data || []);
+    } catch {
+      setActivityItems([]);
+    } finally {
+      setActivityLoading(false);
+    }
+  }, [canManagePlan, sar?.id]);
+
+  useEffect(() => {
+    fetchActivity();
+  }, [fetchActivity]);
+
+  const currentTerm = useMemo(() => terms.find((t) => t.isCurrent) || null, [terms]);
+  const currentTermId = currentTerm?.id || null;
+  const currentTermLabel = useMemo(() => {
+    if (currentTerm) {
+      return `${currentTerm.schoolYear} ${
+        semesterLabels[currentTerm.semester] || `Sem ${currentTerm.semester}`
+      }`;
+    }
+
+    if (analytics?.tags?.schoolYear) {
+      return `${analytics.tags.schoolYear} ${analytics.tags.semesterLabel || ''}`.trim();
+    }
+
+    return 'Not set';
+  }, [analytics?.tags?.schoolYear, analytics?.tags?.semesterLabel, currentTerm]);
 
   const handleTermChange = async (e) => {
+    if (!canManageTerms) return;
     const selectedId = e.target.value;
     if (!selectedId || String(selectedId) === String(currentTermId)) return;
     setTermChanging(true);
@@ -237,6 +284,11 @@ const SARLayout = ({
               <Nav.Link eventKey={tab.key}>{tab.label}</Nav.Link>
             </Nav.Item>
           ))}
+          {canManagePlan && (
+            <Nav.Item>
+              <Nav.Link eventKey="activity">Activity</Nav.Link>
+            </Nav.Item>
+          )}
         </Nav>
 
         <Tab.Content>
@@ -481,7 +533,7 @@ const SARLayout = ({
                     <span className="small fw-semibold text-nowrap">Current Academic Term:</span>
                     {termsLoading ? (
                       <Spinner animation="border" size="sm" />
-                    ) : canManagePlan ? (
+                    ) : canManageTerms ? (
                       <Form.Select
                         size="sm"
                         style={{ maxWidth: 280 }}
@@ -505,11 +557,7 @@ const SARLayout = ({
                           ))}
                       </Form.Select>
                     ) : (
-                      <span className="fw-semibold">
-                        {analytics?.tags?.schoolYear
-                          ? `${analytics.tags.schoolYear} ${analytics.tags.semesterLabel || ''}`
-                          : 'Not set'}
-                      </span>
+                      <span className="fw-semibold">{currentTermLabel}</span>
                     )}
                     {termChanging && <Spinner animation="border" size="sm" className="ms-2" />}
                   </Card.Body>
@@ -1203,6 +1251,17 @@ const SARLayout = ({
               </Card.Body>
             </Card>
           </Tab.Pane>
+
+          {canManagePlan && (
+            <Tab.Pane eventKey="activity">
+              <ActivityTimeline
+                title="SAR Activity Timeline"
+                items={activityItems}
+                loading={activityLoading}
+                emptyMessage="No activity recorded for this student academic record."
+              />
+            </Tab.Pane>
+          )}
         </Tab.Content>
       </Tab.Container>
     </>

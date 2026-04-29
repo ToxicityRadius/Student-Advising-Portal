@@ -8,6 +8,7 @@ const {
   ElectiveTrack,
   ElectiveTrackCourse,
   ForecastSnapshot,
+  Program,
   Prerequisite,
   PrerequisiteOverrideRequest,
   StudentAcademicRecord,
@@ -15,8 +16,10 @@ const {
   StudyPlanVersion,
   StudyPlanCourse,
   User,
+  ActivityLog,
 } = require('../models');
 const { computeSarAnalytics } = require('../utils/sarAnalytics');
+const { buildProgramWhere, isSuperadmin, normalizeProgramId } = require('../utils/programAccess');
 
 const semesterLabel = {
   1: '1st Semester',
@@ -24,8 +27,11 @@ const semesterLabel = {
   3: 'Summer',
 };
 
-const getTermSummary = async () => {
-  const currentTerm = await AcademicTerm.findOne({ where: { isCurrent: true } });
+const getTermSummary = async (programWhere = {}) => {
+  const currentTerm = await AcademicTerm.findOne({
+    where: { isCurrent: true, ...programWhere },
+    include: [{ model: Program, attributes: ['id', 'code', 'name'] }],
+  });
   if (!currentTerm) {
     return null;
   }
@@ -35,6 +41,8 @@ const getTermSummary = async () => {
     schoolYear: currentTerm.schoolYear,
     semester: currentTerm.semester,
     semesterLabel: semesterLabel[currentTerm.semester] || `Semester ${currentTerm.semester}`,
+    programId: currentTerm.programId,
+    program: currentTerm.Program || null,
     startedAt: currentTerm.startedAt,
     endedAt: currentTerm.endedAt,
   };
@@ -216,9 +224,9 @@ const buildStudentSummary = async (user) => {
   };
 };
 
-const buildAdviserSummary = async (user) => {
+const buildAdviserSummary = async (user, programWhere = {}) => {
   const assignedSars = await StudentAcademicRecord.findAll({
-    where: buildAdviserSarWhere(user),
+    where: { ...buildAdviserSarWhere(user), ...programWhere },
     include: [
       { model: User, as: 'Student', attributes: ['id', 'adviserId'] },
       { model: Curriculum, attributes: ['id', 'name'] },
@@ -299,9 +307,18 @@ const buildAdviserSummary = async (user) => {
 
   let studentsNeedingReview = 0;
   let prerequisiteRiskCount = 0;
+  let myAssignedStudents = 0;
+  let myCreatedSARs = 0;
 
   assignedSars.forEach((sar) => {
     const plainSar = sar.get({ plain: true });
+    if (String(plainSar.Student?.adviserId || '') === String(user.id)) {
+      myAssignedStudents += 1;
+    }
+    if (String(plainSar.createdByAdviserId || '') === String(user.id)) {
+      myCreatedSARs += 1;
+    }
+
     const planId = String(plainSar.StudyPlan?.id || '');
     const sarVersions = versionsByPlanId[planId] || [];
 
@@ -333,10 +350,35 @@ const buildAdviserSummary = async (user) => {
     }
   });
 
+  const [pendingOverrideCount, recentActivity] = await Promise.all([
+    PrerequisiteOverrideRequest.count({
+      where: { ...programWhere, requestedByAdviserId: user.id, status: 'pending' },
+    }),
+    ActivityLog.findAll({
+      where: {
+        ...programWhere,
+        [Op.or]: [{ actorId: user.id }, { targetUserId: user.id }],
+      },
+      include: [
+        { model: User, as: 'Actor', attributes: ['id', 'firstName', 'lastName', 'email', 'role'] },
+        { model: Program, attributes: ['id', 'code', 'name'] },
+      ],
+      order: [
+        ['createdAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
+      limit: 8,
+    }),
+  ]);
+
   return {
-    assignedStudents: assignedSars.length,
+    totalSARs: assignedSars.length,
+    assignedStudents: myAssignedStudents,
+    myAssignedStudents,
+    myCreatedSARs,
     studentsNeedingReview,
     prerequisiteRiskCount,
+    pendingOverrideCount,
     recentStudents: assignedSars.slice(0, 5).map((sar) => ({
       id: sar.id,
       studentName: sar.studentName,
@@ -344,54 +386,133 @@ const buildAdviserSummary = async (user) => {
       curriculumName: sar.Curriculum?.name || null,
       yearLevel: sar.yearLevel,
     })),
+    recentActivity,
+    quickActions: [
+      { key: 'assigned', label: 'Assigned to Me', path: '/adviser/students?scope=assigned' },
+      { key: 'created', label: 'Created by Me', path: '/adviser/students?scope=created' },
+      { key: 'review', label: 'Needs Review', path: '/adviser/students?needsRevalidation=true' },
+      { key: 'forecast', label: 'Open Forecast', path: '/admin/forecast' },
+    ],
   };
 };
 
-const buildAdminSummary = async () => {
+const buildAdminSummary = async (user, programScope, requestedProgramId = null) => {
+  const programWhere = programScope.where || {};
+  const overrideWhere =
+    isSuperadmin(user) && !requestedProgramId
+      ? {}
+      : { programId: programWhere.programId || { [Op.in]: programScope.programIds || [] } };
+  const equivalencyWhere =
+    isSuperadmin(user) && !requestedProgramId
+      ? {}
+      : { ownerProgramId: programWhere.programId || { [Op.in]: programScope.programIds || [] } };
   const [
     latestSnapshot,
     curriculums,
     courseCount,
     equivalencyCount,
     electiveTrackCount,
+    sarCount,
+    pendingOverrideCount,
+    revalidationCount,
     adviserUsers,
     workloadRows,
     currentTerm,
     recentTerms,
+    recentActivity,
   ] = await Promise.all([
     ForecastSnapshot.findOne({
+      where: programWhere,
       order: [
         ['createdAt', 'DESC'],
         ['id', 'DESC'],
       ],
+      include: [{ model: Program, attributes: ['id', 'code', 'name'] }],
     }),
-    Curriculum.findAll({ attributes: ['id', 'name', 'isActive'] }),
-    Course.count(),
-    CourseEquivalency.count(),
-    ElectiveTrack.count(),
+    Curriculum.findAll({
+      where: programWhere,
+      attributes: ['id', 'name', 'isActive', 'programId'],
+      include: [{ model: Program, attributes: ['id', 'code', 'name'] }],
+    }),
+    Course.count({ where: programWhere }),
+    CourseEquivalency.count({ where: equivalencyWhere }),
+    ElectiveTrack.count({
+      include: [{ model: Curriculum, attributes: [], where: programWhere, required: true }],
+    }),
+    StudentAcademicRecord.count({ where: programWhere }),
+    PrerequisiteOverrideRequest.count({ where: { ...overrideWhere, status: 'pending' } }),
+    StudyPlanVersion.count({
+      where: { needsRevalidation: true },
+      include: [
+        {
+          model: StudyPlan,
+          attributes: [],
+          required: true,
+          include: [
+            {
+              model: StudentAcademicRecord,
+              attributes: [],
+              where: programWhere,
+              required: true,
+            },
+          ],
+        },
+      ],
+    }),
     User.findAll({
       where: { role: 'adviser' },
       attributes: ['id', 'firstName', 'lastName', 'email'],
+      include:
+        programScope.programIds && programScope.programIds.length > 0
+          ? [
+              {
+                model: Program,
+                as: 'AssignedPrograms',
+                attributes: ['id'],
+                where: { id: { [Op.in]: programScope.programIds } },
+                through: { attributes: [] },
+                required: true,
+              },
+            ]
+          : [],
     }),
     StudentAcademicRecord.findAll({
       attributes: [
         'createdByAdviserId',
         [fn('COUNT', col('StudentAcademicRecord.id')), 'assignedCount'],
       ],
-      where: { createdByAdviserId: { [Op.ne]: null } },
+      where: { ...programWhere, createdByAdviserId: { [Op.ne]: null } },
       group: ['createdByAdviserId'],
     }),
     AcademicTerm.findOne({
-      where: { isCurrent: true },
-      attributes: ['id', 'schoolYear', 'semester', 'startedAt'],
+      where: { ...programWhere, isCurrent: true },
+      attributes: ['id', 'programId', 'schoolYear', 'semester', 'startedAt'],
+      include: [{ model: Program, attributes: ['id', 'code', 'name'] }],
     }),
     AcademicTerm.findAll({
-      attributes: ['id', 'schoolYear', 'semester', 'isCurrent'],
+      where: programWhere,
+      attributes: ['id', 'programId', 'schoolYear', 'semester', 'isCurrent'],
+      include: [{ model: Program, attributes: ['id', 'code', 'name'] }],
       order: [
         ['schoolYear', 'DESC'],
         ['semester', 'DESC'],
       ],
       limit: 3,
+    }),
+    ActivityLog.findAll({
+      where:
+        isSuperadmin(user) && !requestedProgramId
+          ? {}
+          : { programId: programWhere.programId || { [Op.in]: programScope.programIds || [] } },
+      include: [
+        { model: User, as: 'Actor', attributes: ['id', 'firstName', 'lastName', 'email', 'role'] },
+        { model: Program, attributes: ['id', 'code', 'name'] },
+      ],
+      order: [
+        ['createdAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
+      limit: 8,
     }),
   ]);
 
@@ -418,6 +539,8 @@ const buildAdminSummary = async () => {
           semesterLabel:
             semesterLabel[latestSnapshot.semester] || `Semester ${latestSnapshot.semester}`,
           createdAt: latestSnapshot.createdAt,
+          programId: latestSnapshot.programId,
+          program: latestSnapshot.Program || null,
           currentDemandCount: Array.isArray(latestSnapshot.snapshotData?.currentDemand)
             ? latestSnapshot.snapshotData.currentDemand.length
             : 0,
@@ -434,6 +557,9 @@ const buildAdminSummary = async () => {
       totalCourses: courseCount,
       totalEquivalencies: equivalencyCount,
       totalElectiveTracks: electiveTrackCount,
+      totalSARs: sarCount,
+      pendingOverrideCount,
+      revalidationCount,
     },
     termManagement: {
       currentTerm: currentTerm
@@ -443,6 +569,8 @@ const buildAdminSummary = async () => {
             semester: currentTerm.semester,
             semesterLabel:
               semesterLabel[currentTerm.semester] || `Semester ${currentTerm.semester}`,
+            programId: currentTerm.programId,
+            program: currentTerm.Program || null,
             startedAt: currentTerm.startedAt,
           }
         : null,
@@ -451,10 +579,19 @@ const buildAdminSummary = async () => {
         schoolYear: term.schoolYear,
         semester: term.semester,
         semesterLabel: semesterLabel[term.semester] || `Semester ${term.semester}`,
+        programId: term.programId,
+        program: term.Program || null,
         isCurrent: term.isCurrent,
       })),
     },
     adviserWorkload,
+    recentActivity,
+    quickActions: [
+      { key: 'users', label: 'Manage Users', path: '/admin/users' },
+      { key: 'sars', label: 'Review SARs', path: '/adviser/students' },
+      { key: 'overrides', label: 'Review Overrides', path: '/admin/prerequisite-overrides' },
+      { key: 'forecast', label: 'Open Forecast', path: '/admin/forecast' },
+    ],
   };
 };
 
@@ -463,26 +600,36 @@ const buildAdminSummary = async () => {
 // @access admin, adviser, student
 exports.getDashboardSummary = async (req, res, next) => {
   try {
-    const currentTerm = await getTermSummary();
-
     if (req.user.role === 'student') {
+      const currentTerm = await getTermSummary();
       const studentSummary = await buildStudentSummary(req.user);
       return res
         .status(200)
         .json({ success: true, data: { role: 'student', currentTerm, ...studentSummary } });
     }
 
+    const requestedProgramId = normalizeProgramId(req.query.programId);
+    const programScope =
+      req.user.role === 'adviser' && !requestedProgramId
+        ? { allowed: true, where: {}, programIds: null }
+        : await buildProgramWhere(req.user, requestedProgramId, { allowStudent: true });
+    if (!programScope.allowed) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    const currentTerm = await getTermSummary(programScope.where || {});
+
     if (req.user.role === 'adviser') {
-      const adviserSummary = await buildAdviserSummary(req.user);
+      const adviserSummary = await buildAdviserSummary(req.user, programScope.where || {});
       return res
         .status(200)
         .json({ success: true, data: { role: 'adviser', currentTerm, ...adviserSummary } });
     }
 
-    const adminSummary = await buildAdminSummary();
+    const adminSummary = await buildAdminSummary(req.user, programScope, requestedProgramId);
     return res
       .status(200)
-      .json({ success: true, data: { role: 'admin', currentTerm, ...adminSummary } });
+      .json({ success: true, data: { role: req.user.role, currentTerm, ...adminSummary } });
   } catch (error) {
     next(error);
   }

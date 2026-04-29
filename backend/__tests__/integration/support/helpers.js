@@ -18,6 +18,14 @@ process.env.JWT_REFRESH_EXPIRE = '30d';
 process.env.ENABLE_2FA = 'false';
 process.env.DISABLE_ADMIN_FIRST_LOGIN_ENFORCEMENT = 'true';
 
+if (!process.env.TEST_DATABASE_URL) {
+  throw new Error(
+    'Integration tests require TEST_DATABASE_URL because they reset the database with sequelize.sync({ force: true }).',
+  );
+}
+
+process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+
 // ── Mock email to prevent real SMTP calls ───────────────────────────────────
 jest.mock('../../../utils/email', () => ({
   sendActivationEmail: jest.fn().mockResolvedValue(true),

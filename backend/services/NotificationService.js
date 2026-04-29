@@ -39,7 +39,7 @@ const NOTIFICATION_TEMPLATES = {
     type: 'warning',
     title: 'Prerequisite override request',
     body: (meta) =>
-      `${meta.adviserName || 'An adviser'} requested concurrent enrollment approval for ${meta.prerequisiteCode || 'a prerequisite'} and ${meta.dependentCode || 'a dependent course'}.`,
+      `${meta.adviserName || 'An adviser'} requested concurrent enrollment approval for ${meta.overridePairSummary || `${meta.prerequisiteCode || 'a prerequisite'} and ${meta.dependentCode || 'a dependent course'}`}.`,
   },
   prerequisite_override_approved: {
     type: 'success',

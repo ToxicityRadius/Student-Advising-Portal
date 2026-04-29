@@ -19,6 +19,10 @@ jest.mock('../services/UserService', () => ({
   getCurriculumOptions: jest.fn(),
 }));
 
+jest.mock('../services/ActivityLogService', () => ({
+  logSafe: jest.fn(),
+}));
+
 jest.mock('../utils/jwt', () => ({
   generateToken: jest.fn(() => 'test-token'),
 }));
@@ -63,7 +67,7 @@ describe('userController.updateUser', () => {
     jest.clearAllMocks();
   });
 
-  test('keeps camelCase and snake_case name aliases synchronized on admin updates', async () => {
+  test('keeps camelCase and snake_case name aliases synchronized on Super Admin updates', async () => {
     User.findByPk.mockResolvedValueOnce({ id: 3 }).mockResolvedValueOnce({
       id: 3,
       firstName: 'Ada',
@@ -76,6 +80,7 @@ describe('userController.updateUser', () => {
     });
 
     const req = {
+      user: { id: 1, role: 'superadmin' },
       params: { id: '3' },
       body: {
         firstName: 'Ada',

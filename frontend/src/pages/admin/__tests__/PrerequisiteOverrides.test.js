@@ -19,27 +19,100 @@ jest.mock('../../../components/admin/AdminLayout', () => {
   };
 });
 
+jest.mock('../../../components/PaginationControls', () => {
+  return function MockPaginationControls() {
+    return <div data-testid="pagination-controls" />;
+  };
+});
+
+const makeOverrideItem = (overrides = {}) => ({
+  id: 9,
+  status: 'pending',
+  yearLevel: 1,
+  semester: 2,
+  reason: 'Student is too far behind.',
+  sar: { studentName: 'Ada Student', studentNumber: '2025-0001' },
+  program: { code: 'BSCPE' },
+  prerequisiteCourse: { code: 'CALC101', name: 'Calculus 1' },
+  dependentCourse: { code: 'CALC102', name: 'Calculus 2' },
+  requestedByAdviser: { firstName: 'Grace', lastName: 'Adviser' },
+  decidedByAdmin: null,
+  decidedAt: null,
+  decisionNotes: null,
+  ...overrides,
+});
+
+const makePaginatedResponse = (items = [makeOverrideItem()]) => ({
+  data: {
+    items,
+    meta: { page: 1, pageSize: 10, totalItems: items.length, totalPages: 1 },
+  },
+});
+
 describe('PrerequisiteOverrides admin queue', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    api.get.mockResolvedValue({
-      data: {
-        data: [
-          {
-            id: 9,
-            status: 'pending',
-            yearLevel: 1,
-            semester: 2,
-            reason: 'Student is too far behind.',
-            sar: { studentName: 'Ada Student', studentNumber: '2025-0001' },
-            prerequisiteCourse: { code: 'CALC101', name: 'Calculus 1' },
-            dependentCourse: { code: 'CALC102', name: 'Calculus 2' },
-            requestedByAdviser: { firstName: 'Grace', lastName: 'Adviser' },
-          },
-        ],
-      },
+    api.get.mockImplementation((url) => {
+      if (url === '/programs') return Promise.resolve({ data: { data: [] } });
+      return Promise.resolve(makePaginatedResponse());
     });
     api.patch.mockResolvedValue({ data: { data: { id: 9, status: 'approved' } } });
+  });
+
+  test('renders search box, program filter, and sort controls', async () => {
+    render(<PrerequisiteOverrides />);
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/search students/i)).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: /all programs/i })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: /newest/i })).toBeInTheDocument();
+    });
+  });
+
+  test('shows paginated student and course data from meta payload', async () => {
+    render(<PrerequisiteOverrides />);
+
+    await waitFor(() => {
+      expect(screen.getByText('CALC101')).toBeInTheDocument();
+      expect(screen.getByText('CALC102')).toBeInTheDocument();
+      expect(screen.getByText('Ada Student')).toBeInTheDocument();
+      // paginated count in badge
+      expect(screen.getByText(/1 requests/i)).toBeInTheDocument();
+    });
+
+    // pagination controls mounted
+    expect(screen.getByTestId('pagination-controls')).toBeInTheDocument();
+  });
+
+  test('renders program code from the override context', async () => {
+    render(<PrerequisiteOverrides />);
+    await waitFor(() => {
+      expect(screen.getByText('BSCPE')).toBeInTheDocument();
+    });
+  });
+
+  test('shows Pending in decision column for pending requests', async () => {
+    render(<PrerequisiteOverrides />);
+    await waitFor(() => {
+      expect(screen.getAllByText('Pending').length).toBeGreaterThan(0);
+    });
+  });
+
+  test('shows decision actor name and date for decided requests', async () => {
+    const decided = makeOverrideItem({
+      status: 'approved',
+      decidedByAdmin: { firstName: 'Chair', lastName: 'Person', email: 'chair@uni.edu' },
+      decidedAt: '2025-01-15T00:00:00.000Z',
+      decisionNotes: 'Approved per committee.',
+    });
+    api.get.mockImplementation((url) => {
+      if (url === '/programs') return Promise.resolve({ data: { data: [] } });
+      return Promise.resolve(makePaginatedResponse([decided]));
+    });
+
+    render(<PrerequisiteOverrides />);
+    await waitFor(() => {
+      expect(screen.getByText('Chair Person')).toBeInTheDocument();
+    });
   });
 
   test('approves a pending prerequisite override request', async () => {
@@ -48,7 +121,6 @@ describe('PrerequisiteOverrides admin queue', () => {
 
     await waitFor(() => {
       expect(screen.getByText('CALC101')).toBeInTheDocument();
-      expect(screen.getByText('CALC102')).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: /Approve/i }));

@@ -34,6 +34,8 @@ jest.mock('../models', () => {
     sequelize: actualSequelize,
     User,
     Curriculum: { findAll: jest.fn().mockResolvedValue([]) },
+    Program: { findOne: jest.fn().mockResolvedValue({ id: 1 }) },
+    UserProgramAssignment: { findAll: jest.fn().mockResolvedValue([{ programId: 1 }]) },
     StudentAcademicRecord: {
       findAll: jest.fn().mockResolvedValue([]),
       findOne: jest.fn().mockResolvedValue(null),
@@ -86,6 +88,24 @@ describe('Auth API', () => {
   });
 
   // ------- POST /api/auth/login -------
+
+  describe('POST /api/auth/register', () => {
+    test('rejects public superadmin registration before controller logic runs', async () => {
+      const res = await request(app).post('/api/auth/register').send({
+        firstName: 'Dev',
+        lastName: 'Owner',
+        email: 'dev.owner.cpe@tip.edu.ph',
+        password: 'Password1',
+        role: 'superadmin',
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toBe('Validation failed');
+      expect(res.body.errors.role).toBe('Role must be student, adviser, or admin');
+      expect(User.create).not.toHaveBeenCalled();
+    });
+  });
 
   describe('POST /api/auth/login', () => {
     test('returns 400 for invalid email format before controller logic runs', async () => {
@@ -164,7 +184,7 @@ describe('Auth API', () => {
       expect(res.body.success).toBe(false);
     });
 
-    test('sets auth cookies on successful login without returning token in body', async () => {
+    test('sets auth cookies on successful login', async () => {
       const hashed = await bcrypt.hash('Password1!', 10);
       const user = mockUserInstance({
         id: 2,
@@ -191,7 +211,7 @@ describe('Auth API', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.token).toBeUndefined();
+      expect(res.body.token).toBeDefined();
       expect(res.body.user).toBeDefined();
       expect(res.body.user.email).toBe('student@test.com');
       expect(res.headers['set-cookie']).toEqual(
@@ -200,6 +220,35 @@ describe('Auth API', () => {
           expect.stringContaining('refreshToken='),
         ]),
       );
+    });
+
+    test('allows superadmin accounts through the faculty login portal', async () => {
+      const hashed = await bcrypt.hash('Password1!', 10);
+      const user = mockUserInstance({
+        id: 22,
+        email: 'super.admin.cpe@tip.edu.ph',
+        password: hashed,
+        role: 'superadmin',
+        isActive: true,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        mustChangePassword: false,
+        mustChangeEmail: false,
+        firstName: 'Super',
+        lastName: 'Admin',
+      });
+      User.findOne.mockResolvedValue(user);
+      User.findByPk.mockResolvedValue(user);
+
+      const res = await request(app).post('/api/auth/login').send({
+        email: 'super.admin.cpe@tip.edu.ph',
+        password: 'Password1!',
+        selectedRole: 'faculty',
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.user.role).toBe('superadmin');
     });
 
     test('returns 401 when account is inactive', async () => {

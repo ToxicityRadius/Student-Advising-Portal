@@ -116,7 +116,7 @@ const Login = () => {
       !emailLower.endsWith('.cpe@tip.edu.ph') &&
       !FACULTY_EMAIL_WHITELIST.includes(emailLower)
     ) {
-      setError('Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).');
+      setError('Faculty, Program Chair, or Super Admin login requires a department email.');
       return;
     }
     if (selectedRole === 'student' && emailLower.endsWith('.cpe@tip.edu.ph')) {
@@ -175,13 +175,13 @@ const Login = () => {
         return;
       }
 
-      // Faculty must use a .cpe@tip.edu.ph address
+      // Faculty, Program Chair, and Super Admin use department email addresses.
       if (
         selectedRole === 'faculty' &&
         !emailLower.endsWith('.cpe@tip.edu.ph') &&
         !FACULTY_EMAIL_WHITELIST.includes(emailLower)
       ) {
-        setError('Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).');
+        setError('Faculty, Program Chair, or Super Admin login requires a department email.');
         setLoading(false);
         return;
       }
@@ -530,7 +530,7 @@ const Login = () => {
                   </button>
                 </div>
                 <h2 className="mb-3 text-start" style={{ fontSize: '1.3rem' }}>
-                  Sign in{selectedRole === 'faculty' ? ' as Instructor' : ' as Student'}
+                  Sign in{selectedRole === 'faculty' ? ' as Faculty / Chair' : ' as Student'}
                 </h2>
 
                 {error && (

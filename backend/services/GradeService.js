@@ -17,6 +17,7 @@ const { parseGradeInput } = require('../utils/gradeValidation');
 const { slotIndexFromYearSemester, sortStudyPlanCourses } = require('../utils/studyPlan');
 
 const PERSON_ATTRIBUTES = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId'];
+const DEFAULT_MAX_UNITS_PER_SLOT = 25;
 
 // ---------------------------------------------------------------------------
 // Query helpers
@@ -179,6 +180,96 @@ const buildRetakePlacementMap = ({ activeEntries = [], retakePlacements = [] } =
   return retakePlacementByCourseId;
 };
 
+const getEntryUnits = (entry) =>
+  Number(entry?.Course?.units ?? entry?.source?.Course?.units ?? entry?.units ?? 0);
+
+const addStandardUnitsForCourse = ({
+  standardUnitsBySlot,
+  countedCourseIds,
+  courseId,
+  yearLevel,
+  semester,
+  units,
+}) => {
+  if (courseId === undefined || courseId === null) {
+    return;
+  }
+
+  const normalizedCourseId = String(courseId);
+  if (countedCourseIds.has(normalizedCourseId)) {
+    return;
+  }
+
+  const normalizedYearLevel = Number(yearLevel);
+  const normalizedSemester = Number(semester);
+  const normalizedUnits = Number(units || 0);
+
+  if (
+    !Number.isInteger(normalizedYearLevel) ||
+    ![1, 2, 3].includes(normalizedSemester) ||
+    !Number.isFinite(normalizedUnits) ||
+    normalizedUnits <= 0
+  ) {
+    return;
+  }
+
+  const slotIndex = slotIndexFromYearSemester(normalizedYearLevel, normalizedSemester);
+  standardUnitsBySlot.set(slotIndex, (standardUnitsBySlot.get(slotIndex) || 0) + normalizedUnits);
+  countedCourseIds.add(normalizedCourseId);
+};
+
+const buildStandardUnitsBySlot = ({
+  curriculumCourses = [],
+  selectedTrackPlan = [],
+  selectedTrackCourseIds = new Set(),
+  curriculumTrackCourseIds = new Set(),
+  hasSelectedTrack = false,
+} = {}) => {
+  const standardUnitsBySlot = new Map();
+  const countedCourseIds = new Set();
+
+  (Array.isArray(selectedTrackPlan) ? selectedTrackPlan : []).forEach((item) => {
+    addStandardUnitsForCourse({
+      standardUnitsBySlot,
+      countedCourseIds,
+      courseId: item?.courseId,
+      yearLevel: item?.yearLevel,
+      semester: item?.semester,
+      units: getEntryUnits(item),
+    });
+  });
+
+  (Array.isArray(curriculumCourses) ? curriculumCourses : []).forEach((item) => {
+    const courseId = String(item?.courseId);
+    const isUnselectedTrackCourse =
+      hasSelectedTrack &&
+      curriculumTrackCourseIds.has(courseId) &&
+      !selectedTrackCourseIds.has(courseId);
+
+    if (isUnselectedTrackCourse) {
+      return;
+    }
+
+    addStandardUnitsForCourse({
+      standardUnitsBySlot,
+      countedCourseIds,
+      courseId: item?.courseId,
+      yearLevel: item?.yearLevel,
+      semester: item?.semester,
+      units: getEntryUnits(item),
+    });
+  });
+
+  return standardUnitsBySlot;
+};
+
+const getAllowedUnitsForSlot = ({
+  slotIndex,
+  standardUnitsBySlot,
+  defaultMaxUnits = DEFAULT_MAX_UNITS_PER_SLOT,
+} = {}) =>
+  Math.max(Number(defaultMaxUnits || 0), Number(standardUnitsBySlot?.get(Number(slotIndex)) || 0));
+
 const buildPrerequisiteOverrideKey = ({
   prerequisiteCourseId,
   dependentCourseId,
@@ -191,6 +282,33 @@ const buildPrerequisiteOverrideKey = ({
       ? Number(slotIndex)
       : slotIndexFromYearSemester(yearLevel, semester);
   return `${String(prerequisiteCourseId)}|${String(dependentCourseId)}|${resolvedSlotIndex}`;
+};
+
+const buildMutualPrerequisitePairKey = (leftCourseId, rightCourseId) =>
+  [String(leftCourseId), String(rightCourseId)].sort().join('|');
+
+const buildMutualPrerequisitePairSet = (prerequisites = []) => {
+  const directedPairs = new Set();
+  const mutualPairs = new Set();
+
+  (Array.isArray(prerequisites) ? prerequisites : []).forEach((rule) => {
+    if (rule?.courseId === undefined || rule?.prerequisiteCourseId === undefined) {
+      return;
+    }
+
+    const dependentId = String(rule.courseId);
+    const prerequisiteId = String(rule.prerequisiteCourseId);
+    const forwardKey = `${prerequisiteId}->${dependentId}`;
+    const reverseKey = `${dependentId}->${prerequisiteId}`;
+
+    if (directedPairs.has(reverseKey)) {
+      mutualPairs.add(buildMutualPrerequisitePairKey(prerequisiteId, dependentId));
+    }
+
+    directedPairs.add(forwardKey);
+  });
+
+  return mutualPairs;
 };
 
 const buildPrerequisiteOverrideMap = (overrides = []) => {
@@ -224,6 +342,7 @@ const isPrerequisitePlacementAllowed = ({
   prerequisiteSlotIndex,
   dependentSlotIndex,
   overrideMap,
+  mutualPrerequisitePairs,
   allowPending = false,
 }) => {
   if (prerequisiteSlotIndex === undefined || prerequisiteSlotIndex === null) {
@@ -236,6 +355,14 @@ const isPrerequisitePlacementAllowed = ({
 
   if (Number(prerequisiteSlotIndex) > Number(dependentSlotIndex)) {
     return { allowed: false, matchedOverrideStatus: null };
+  }
+
+  if (
+    mutualPrerequisitePairs?.has(
+      buildMutualPrerequisitePairKey(prerequisiteCourseId, dependentCourseId),
+    )
+  ) {
+    return { allowed: true, matchedOverrideStatus: null };
   }
 
   const key = buildPrerequisiteOverrideKey({
@@ -256,7 +383,10 @@ module.exports = {
   buildVersionIncludes,
   serializeVersion,
   collectConnectedComponents,
+  buildStandardUnitsBySlot,
   buildRetakePlacementMap,
+  getAllowedUnitsForSlot,
+  buildMutualPrerequisitePairSet,
   buildPrerequisiteOverrideKey,
   buildPrerequisiteOverrideMap,
   isPrerequisitePlacementAllowed,
