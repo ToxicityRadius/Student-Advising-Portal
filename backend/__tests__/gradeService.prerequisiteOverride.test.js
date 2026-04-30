@@ -12,6 +12,8 @@ describe('GradeService prerequisite override helpers', () => {
       { id: 1, courseId: 101, yearLevel: 1, semester: 1, grade: '5.00' },
       { id: 2, courseId: 102, yearLevel: 1, semester: 2, grade: '4.00' },
       { id: 3, courseId: 103, yearLevel: 1, semester: 2, grade: 'INC' },
+      { id: 4, courseId: 104, yearLevel: 2, semester: 1, grade: '6.00' },
+      { id: 5, courseId: 105, yearLevel: 2, semester: 2, grade: '7.00' },
     ];
 
     test('requires placements for failed and dropped courses only', () => {
@@ -29,12 +31,31 @@ describe('GradeService prerequisite override helpers', () => {
         retakePlacements: [
           { studyPlanCourseId: 1, yearLevel: 1, semester: 2 },
           { studyPlanCourseId: 2, yearLevel: 2, semester: 1 },
+          { studyPlanCourseId: 4, yearLevel: 2, semester: 2 },
+          { studyPlanCourseId: 5, yearLevel: 3, semester: 1 },
         ],
       });
 
       expect(placementMap.get('101')).toEqual({ yearLevel: 1, semester: 2, slotIndex: 1 });
-      expect(placementMap.get('102')).toEqual({ yearLevel: 2, semester: 1, slotIndex: 3 });
+      expect(placementMap.get('104')).toEqual({ yearLevel: 2, semester: 2, slotIndex: 4 });
+      expect(placementMap.get('105')).toEqual({ yearLevel: 3, semester: 1, slotIndex: 6 });
+      expect(placementMap.has('102')).toBe(false);
       expect(placementMap.has('103')).toBe(false);
+    });
+
+    test('accepts courseId placements from regeneration review semester overrides', () => {
+      const placementMap = buildRetakePlacementMap({
+        activeEntries,
+        retakePlacements: [
+          { courseId: 101, yearLevel: 1, semester: 2 },
+          { courseId: 104, yearLevel: 2, semester: 2 },
+          { courseId: 105, yearLevel: 3, semester: 1 },
+        ],
+      });
+
+      expect(placementMap.get('101')).toEqual({ yearLevel: 1, semester: 2, slotIndex: 1 });
+      expect(placementMap.get('104')).toEqual({ yearLevel: 2, semester: 2, slotIndex: 4 });
+      expect(placementMap.get('105')).toEqual({ yearLevel: 3, semester: 1, slotIndex: 6 });
     });
 
     test('rejects placements in the same or an earlier slot than the failed attempt', () => {
@@ -43,7 +64,8 @@ describe('GradeService prerequisite override helpers', () => {
           activeEntries,
           retakePlacements: [
             { studyPlanCourseId: 1, yearLevel: 1, semester: 1 },
-            { studyPlanCourseId: 2, yearLevel: 2, semester: 1 },
+            { studyPlanCourseId: 4, yearLevel: 2, semester: 2 },
+            { studyPlanCourseId: 5, yearLevel: 3, semester: 1 },
           ],
         }),
       ).toThrow('Retake placement must be after the failed or dropped course slot');

@@ -41,8 +41,19 @@ const router = express.Router();
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const isTestEnvironment = process.env.NODE_ENV === 'test';
-const AUTH_LIMIT_MAX = isTestEnvironment ? 200 : 15;
-const STRICT_AUTH_LIMIT_MAX = isTestEnvironment ? 200 : 5;
+const disableAuthRateLimiting = /^(true|1|yes)$/i.test(
+  process.env.DISABLE_AUTH_RATE_LIMITING || '',
+);
+const AUTH_LIMIT_MAX = disableAuthRateLimiting
+  ? Number.MAX_SAFE_INTEGER
+  : isTestEnvironment
+    ? 200
+    : 15;
+const STRICT_AUTH_LIMIT_MAX = disableAuthRateLimiting
+  ? Number.MAX_SAFE_INTEGER
+  : isTestEnvironment
+    ? 200
+    : 5;
 
 const getRequestIpKey = (req) => {
   const requestIp = req.ip || req.socket?.remoteAddress || 'unknown';

@@ -13,6 +13,18 @@ const statusVariant = {
   failed: 'danger',
   dropped: 'warning',
   incomplete: 'dark',
+  officially_dropped: 'danger',
+  unofficially_dropped: 'danger',
+};
+
+const statusLabel = {
+  pending: 'Pending',
+  passed: 'Passed',
+  failed: 'Failed',
+  dropped: 'Dropped',
+  incomplete: 'Incomplete',
+  officially_dropped: 'Officially Dropped',
+  unofficially_dropped: 'Unofficially Dropped',
 };
 
 const normalizeSpecialOption = (value) => {
@@ -22,15 +34,16 @@ const normalizeSpecialOption = (value) => {
 
   const normalized = String(value).trim().toUpperCase();
   if (normalized === 'INC') {
-    return 'INC';
+    return '4.00';
   }
 
   if (normalized === 'PENDING') {
     return 'Pending';
   }
 
-  if (Number(value) === 4) {
-    return '4.00';
+  const num = Number(value);
+  if ([4, 5, 6, 7].includes(num)) {
+    return `${num}.00`;
   }
 
   return '';
@@ -55,15 +68,27 @@ const deriveStatusFromGrade = (gradeInput) => {
     return 'pending';
   }
 
-  if (numeric <= 3) {
+  if (numeric >= 1 && numeric <= 3) {
     return 'passed';
   }
 
   if (numeric === 4) {
-    return 'dropped';
+    return 'incomplete';
   }
 
-  return 'failed';
+  if (numeric === 5) {
+    return 'failed';
+  }
+
+  if (numeric === 6) {
+    return 'officially_dropped';
+  }
+
+  if (numeric === 7) {
+    return 'unofficially_dropped';
+  }
+
+  return 'pending';
 };
 
 const slotIndexFromYearSemester = (yearLevel, semester) =>
@@ -77,7 +102,10 @@ const yearSemesterFromSlotIndex = (slotIndex) => ({
 const nextTermAfter = (yearLevel, semester) =>
   yearSemesterFromSlotIndex(slotIndexFromYearSemester(yearLevel, semester) + 1);
 
-const isRetakeStatus = (status) => status === 'failed' || status === 'dropped';
+const isRetakeStatus = (status) =>
+  ['failed', 'dropped', 'officially_dropped', 'unofficially_dropped'].includes(status);
+
+const isAwaitingGradeStatus = (status) => status === 'pending' || status === 'incomplete';
 
 const GradeEntry = () => {
   const navigate = useNavigate();
@@ -169,17 +197,15 @@ const GradeEntry = () => {
   const unresolvedCount = useMemo(
     () =>
       rows.filter((row) =>
-        ['failed', 'dropped', 'incomplete'].includes(
-          deriveStatusFromGrade(row.specialChoice || row.numericGrade),
-        ),
+        isRetakeStatus(deriveStatusFromGrade(row.specialChoice || row.numericGrade)),
       ).length,
     [rows],
   );
 
   const pendingCount = useMemo(
     () =>
-      rows.filter(
-        (row) => deriveStatusFromGrade(row.specialChoice || row.numericGrade) === 'pending',
+      rows.filter((row) =>
+        isAwaitingGradeStatus(deriveStatusFromGrade(row.specialChoice || row.numericGrade)),
       ).length,
     [rows],
   );
@@ -318,6 +344,7 @@ const GradeEntry = () => {
         state: {
           previousVersion: activeVersion,
           regeneratedVersion: newVersion,
+          failedCourseAnalysis: response.data?.failedCourseAnalysis || null,
         },
       });
     } catch (error) {
@@ -402,7 +429,7 @@ const GradeEntry = () => {
 
           <Card className="shadow-sm mb-4">
             <Card.Body>
-              <Table responsive hover className="table-fixed-cols">
+              <Table responsive hover className="table-fixed-cols grade-entry-table">
                 <thead>
                   <tr>
                     <th scope="col" style={{ width: '24%' }}>
@@ -450,14 +477,14 @@ const GradeEntry = () => {
                           <Form.Control
                             type="number"
                             min="1"
-                            max="5"
+                            max="3"
                             step="0.25"
                             value={row.numericGrade}
                             disabled={Boolean(row.specialChoice)}
                             onChange={(event) =>
                               updateRow(row.id, { numericGrade: event.target.value })
                             }
-                            placeholder="e.g. 2.00"
+                            placeholder="1.00 – 3.00"
                           />
                         </td>
                         <td>
@@ -472,8 +499,10 @@ const GradeEntry = () => {
                             }}
                           >
                             <option value="">None</option>
-                            <option value="INC">INC</option>
-                            <option value="4.00">4.00</option>
+                            <option value="4.00">4.00 — Incomplete</option>
+                            <option value="5.00">5.00 — Failed</option>
+                            <option value="6.00">6.00 — Officially Dropped</option>
+                            <option value="7.00">7.00 — Unofficially Dropped</option>
                             <option value="Pending">Pending</option>
                           </Form.Select>
                         </td>
@@ -556,7 +585,7 @@ const GradeEntry = () => {
                             bg={statusVariant[derivedStatus] || 'secondary'}
                             className="text-uppercase"
                           >
-                            {derivedStatus}
+                            {statusLabel[derivedStatus] || derivedStatus}
                           </Badge>
                         </td>
                       </tr>
@@ -565,7 +594,11 @@ const GradeEntry = () => {
 
                   {rows.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="text-center text-muted py-4">
+                      <td
+                        colSpan={7}
+                        className="text-muted py-4"
+                        style={{ textAlign: 'left', whiteSpace: 'normal' }}
+                      >
                         No courses available in the active version.
                       </td>
                     </tr>

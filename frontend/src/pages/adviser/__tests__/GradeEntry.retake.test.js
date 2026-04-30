@@ -49,6 +49,28 @@ const activeVersion = {
   ],
 };
 
+const makeSarData = (version = activeVersion) => ({
+  sar: {
+    id: 42,
+    studentName: 'Ada Student',
+    analytics: {
+      prerequisiteChecking: {
+        subjects: [
+          {
+            courseId: 2,
+            code: 'CALC102',
+            prerequisites: [{ courseId: 1, code: 'CALC101', name: 'Calculus 1' }],
+          },
+        ],
+      },
+    },
+  },
+  versions: [version],
+  loading: false,
+  error: '',
+  reload: jest.fn(),
+});
+
 const renderGradeEntry = () =>
   render(
     <MemoryRouter initialEntries={['/adviser/students/42/grades']}>
@@ -61,27 +83,7 @@ const renderGradeEntry = () =>
 describe('GradeEntry retake placement and override request', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useSarData.mockReturnValue({
-      sar: {
-        id: 42,
-        studentName: 'Ada Student',
-        analytics: {
-          prerequisiteChecking: {
-            subjects: [
-              {
-                courseId: 2,
-                code: 'CALC102',
-                prerequisites: [{ courseId: 1, code: 'CALC101', name: 'Calculus 1' }],
-              },
-            ],
-          },
-        },
-      },
-      versions: [activeVersion],
-      loading: false,
-      error: '',
-      reload: jest.fn(),
-    });
+    useSarData.mockReturnValue(makeSarData());
     api.post.mockResolvedValue({ data: { data: { id: 8 } } });
   });
 
@@ -112,6 +114,72 @@ describe('GradeEntry retake placement and override request', () => {
             reason: 'Student is too far behind and needs concurrent enrollment.',
           },
         ],
+      });
+    });
+  });
+
+  test('does not offer regeneration when the only unresolved grade is incomplete', () => {
+    useSarData.mockReturnValue(
+      makeSarData({
+        id: 7,
+        versionNumber: 1,
+        status: 'active',
+        StudyPlanCourses: [
+          {
+            id: 201,
+            courseId: 3,
+            yearLevel: 1,
+            semester: 1,
+            grade: '4.00',
+            status: 'incomplete',
+            Course: { id: 3, code: 'ENG101', name: 'English 1', units: 3 },
+          },
+        ],
+      }),
+    );
+
+    renderGradeEntry();
+
+    expect(screen.getByText('Incomplete')).toBeInTheDocument();
+    expect(screen.getByText('Not required')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Regenerate Study Plan/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Awaiting grade completion/i })).toBeDisabled();
+  });
+
+  test('sends retake placement for officially dropped grades during regeneration', async () => {
+    const user = userEvent.setup();
+    useSarData.mockReturnValue(
+      makeSarData({
+        id: 7,
+        versionNumber: 1,
+        status: 'active',
+        StudyPlanCourses: [
+          {
+            id: 301,
+            courseId: 4,
+            yearLevel: 2,
+            semester: 1,
+            grade: '6.00',
+            status: 'officially_dropped',
+            Course: { id: 4, code: 'HIST201', name: 'History 2', units: 3 },
+          },
+        ],
+      }),
+    );
+
+    renderGradeEntry();
+
+    expect(screen.getByLabelText('HIST201 retake year')).toHaveValue('2');
+    expect(screen.getByLabelText('HIST201 retake semester')).toHaveValue('2');
+
+    await user.click(screen.getByRole('button', { name: /Regenerate Study Plan/i }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/sars/42/study-plan/regenerate', {
+        retakePlacements: [{ studyPlanCourseId: 301, yearLevel: 2, semester: 2 }],
+        prerequisiteOverrideRequests: [],
       });
     });
   });

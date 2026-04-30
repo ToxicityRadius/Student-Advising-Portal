@@ -36,6 +36,10 @@ const statusVariant = (status) => {
       return 'warning';
     case 'incomplete':
       return 'warning';
+    case 'officially_dropped':
+      return 'danger';
+    case 'unofficially_dropped':
+      return 'danger';
     case 'ongoing':
       return 'primary';
     case 'pending':

@@ -94,7 +94,8 @@ const BulkGradeImportModal = ({ show, onHide, onImport, importing = false }) => 
       <Modal.Body>
         <p className="text-muted mb-3">
           Upload a CSV file with columns: <code>courseCode</code>, <code>grade</code>. Grades can be
-          numeric (1.00–5.00), INC, or Pending.
+          numeric <code>1.00-3.00</code>, <code>4.00</code>, <code>5.00</code>, <code>6.00</code>,{' '}
+          <code>7.00</code>, INC, or Pending.
         </p>
 
         <Form.Group className="mb-3">

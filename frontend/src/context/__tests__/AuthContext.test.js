@@ -11,9 +11,10 @@ jest.mock('../../utils/api', () => ({
     post: jest.fn(),
     get: jest.fn(),
   },
+  clearStoredTokens: jest.fn(),
 }));
 
-import api from '../../utils/api';
+import api, { clearStoredTokens } from '../../utils/api';
 
 // Test consumer component that exposes auth state
 const AuthConsumer = ({ onRender }) => {
@@ -224,6 +225,7 @@ describe('AuthContext', () => {
     });
 
     expect(localStorage.getItem('user')).toBeNull();
+    expect(clearStoredTokens).toHaveBeenCalled();
     expect(screen.getByTestId('user')).toHaveTextContent('null');
   });
 

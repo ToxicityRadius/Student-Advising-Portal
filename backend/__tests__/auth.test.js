@@ -164,7 +164,7 @@ describe('Auth API', () => {
       expect(res.body.success).toBe(false);
     });
 
-    test('sets auth cookies on successful login without returning token in body', async () => {
+    test('sets auth cookies and returns fallback tokens on successful login', async () => {
       const hashed = await bcrypt.hash('Password1!', 10);
       const user = mockUserInstance({
         id: 2,
@@ -191,7 +191,8 @@ describe('Auth API', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.token).toBeUndefined();
+      expect(res.body.token).toEqual(expect.any(String));
+      expect(res.body.refreshToken).toEqual(expect.any(String));
       expect(res.body.user).toBeDefined();
       expect(res.body.user.email).toBe('student@test.com');
       expect(res.headers['set-cookie']).toEqual(

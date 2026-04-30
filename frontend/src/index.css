@@ -884,6 +884,10 @@ body {
   word-break: break-word;
 }
 
+.grade-entry-table {
+  min-width: 980px;
+}
+
 @media (max-width: 360px) {
   .login-card {
     padding: 15px 12px;

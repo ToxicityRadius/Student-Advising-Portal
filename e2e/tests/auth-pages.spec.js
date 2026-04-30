@@ -1,8 +1,14 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { BASE } = require('./helpers');
+const { BASE, USE_MOCK_API, setupMockApi } = require('./helpers');
 
 test.describe('Additional Auth Pages', () => {
+  test.beforeEach(async ({ page }) => {
+    if (USE_MOCK_API) {
+      await setupMockApi(page);
+    }
+  });
+
   test('forgot-password page renders key controls', async ({ page }) => {
     await page.goto(`${BASE}/forgot-password`);
 

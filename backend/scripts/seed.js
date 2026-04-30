@@ -200,6 +200,11 @@ const readImportCsv = (fileName) => {
         role: 'student',
         isActive: true,
         isVerified: true,
+        current_year_level: 3,
+        program: 'BSCpE',
+        curriculum_id: null,
+        student_type: 'regular',
+        sex: 'Male',
         createdAt: now,
         updatedAt: now,
       },
@@ -388,6 +393,21 @@ const readImportCsv = (fileName) => {
     } catch (err) {
       await transaction.rollback();
       throw err;
+    }
+
+    const activeCurriculum = await Curriculum.findOne({
+      where: { isActive: true },
+      order: [['id', 'ASC']],
+    });
+
+    if (activeCurriculum) {
+      await User.update(
+        {
+          curriculum_id: activeCurriculum.id,
+          updatedAt: now,
+        },
+        { where: { email: 'student@tip.edu.ph' } },
+      );
     }
 
     // ── 4. Summary ───────────────────────────────────────────────────────────

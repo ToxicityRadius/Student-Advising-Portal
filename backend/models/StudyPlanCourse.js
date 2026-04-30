@@ -32,10 +32,20 @@ const StudyPlanCourse = sequelize.define(
       allowNull: true,
     },
     status: {
-      type: DataTypes.STRING(20),
+      type: DataTypes.STRING(25),
       defaultValue: 'pending',
       validate: {
-        isIn: [['pending', 'passed', 'failed', 'dropped', 'incomplete']],
+        isIn: [
+          [
+            'pending',
+            'passed',
+            'failed',
+            'dropped',
+            'incomplete',
+            'officially_dropped',
+            'unofficially_dropped',
+          ],
+        ],
       },
     },
     createdAt: {

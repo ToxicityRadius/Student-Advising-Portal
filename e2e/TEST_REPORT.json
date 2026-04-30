@@ -1,0 +1,636 @@
+{
+  "title": "Student Advising Portal - Comprehensive Feature Test Report",
+  "executedAt": "2026-04-29T23:41:57.534Z",
+  "environment": {
+    "baseUrl": "http://localhost:3000",
+    "apiUrl": "http://localhost:5000/api"
+  },
+  "summary": {
+    "total": 103,
+    "passed": 69,
+    "failed": 0,
+    "warned": 34,
+    "skipped": 0
+  },
+  "results": [
+    {
+      "feature": "Frontend Route: Login",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.141Z"
+    },
+    {
+      "feature": "Frontend Route: Signup",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.149Z"
+    },
+    {
+      "feature": "Frontend Route: Forgot Password",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.155Z"
+    },
+    {
+      "feature": "Frontend Route: Reset Password",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.161Z"
+    },
+    {
+      "feature": "Frontend Route: Account Activation",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.167Z"
+    },
+    {
+      "feature": "Frontend Route: Verify Code",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.173Z"
+    },
+    {
+      "feature": "Frontend Route: Change Password",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.181Z"
+    },
+    {
+      "feature": "Frontend Route: Change Email",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.190Z"
+    },
+    {
+      "feature": "Frontend Route: Dashboard",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.198Z"
+    },
+    {
+      "feature": "Frontend Route: Grades",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.204Z"
+    },
+    {
+      "feature": "Frontend Route: Notifications",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.209Z"
+    },
+    {
+      "feature": "Frontend Route: Settings",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.214Z"
+    },
+    {
+      "feature": "Frontend Route: Profile",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.218Z"
+    },
+    {
+      "feature": "Frontend Route: Study Plan",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.222Z"
+    },
+    {
+      "feature": "Frontend Route: Curriculum",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.227Z"
+    },
+    {
+      "feature": "Frontend Route: SAR Management",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.232Z"
+    },
+    {
+      "feature": "Frontend Route: Course Catalog",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.237Z"
+    },
+    {
+      "feature": "Frontend Route: Prerequisites",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.242Z"
+    },
+    {
+      "feature": "Frontend Route: Forecast",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.247Z"
+    },
+    {
+      "feature": "Frontend Route: Adviser Dashboard",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.252Z"
+    },
+    {
+      "feature": "Frontend Route: Adviser Students List",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.257Z"
+    },
+    {
+      "feature": "Frontend Route: Adviser Student Detail",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.261Z"
+    },
+    {
+      "feature": "Frontend Route: Adviser Grades",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.267Z"
+    },
+    {
+      "feature": "Frontend Route: Adviser Course Management",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.272Z"
+    },
+    {
+      "feature": "Frontend Route: Adviser SAR Requests",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.279Z"
+    },
+    {
+      "feature": "Frontend Route: Admin Dashboard",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.284Z"
+    },
+    {
+      "feature": "Frontend Route: Admin Curriculum Management",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.289Z"
+    },
+    {
+      "feature": "Frontend Route: Admin Term Management",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.294Z"
+    },
+    {
+      "feature": "Frontend Route: Admin Forecast",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.298Z"
+    },
+    {
+      "feature": "Frontend Route: Admin User Management",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.303Z"
+    },
+    {
+      "feature": "Frontend Route: Admin Reports",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.307Z"
+    },
+    {
+      "feature": "Frontend Route: Admin Analytics",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.312Z"
+    },
+    {
+      "feature": "Frontend Route: Admin Audit Logs",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.317Z"
+    },
+    {
+      "feature": "Frontend Route: Admin Settings",
+      "status": "WARN",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.323Z"
+    },
+    {
+      "feature": "API: Health Check (GET /health)",
+      "status": "PASS",
+      "details": "Status: 200",
+      "timestamp": "2026-04-29T23:41:57.433Z"
+    },
+    {
+      "feature": "API: User Signup (POST /auth/signup)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.437Z"
+    },
+    {
+      "feature": "API: User Login (POST /auth/login)",
+      "status": "PASS",
+      "details": "Status: 400",
+      "timestamp": "2026-04-29T23:41:57.444Z"
+    },
+    {
+      "feature": "API: User Logout (POST /auth/logout)",
+      "status": "PASS",
+      "details": "Status: 200",
+      "timestamp": "2026-04-29T23:41:57.447Z"
+    },
+    {
+      "feature": "API: Refresh Token (POST /auth/refresh-token)",
+      "status": "PASS",
+      "details": "Status: 400",
+      "timestamp": "2026-04-29T23:41:57.449Z"
+    },
+    {
+      "feature": "API: Forgot Password (POST /auth/forgot-password)",
+      "status": "PASS",
+      "details": "Status: 400",
+      "timestamp": "2026-04-29T23:41:57.452Z"
+    },
+    {
+      "feature": "API: Reset Password (POST /auth/reset-password)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.454Z"
+    },
+    {
+      "feature": "API: Change Password (PUT /auth/change-password)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.455Z"
+    },
+    {
+      "feature": "API: Initiate Email Change (POST /auth/initiate-email-change)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.456Z"
+    },
+    {
+      "feature": "API: Verify Email Change (POST /auth/verify-email-change)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.458Z"
+    },
+    {
+      "feature": "API: Get Current User (GET /users/me)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.459Z"
+    },
+    {
+      "feature": "API: Update Current User (PUT /users/me)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.460Z"
+    },
+    {
+      "feature": "API: Upload Profile Picture (POST /users/me/profile-picture)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.461Z"
+    },
+    {
+      "feature": "API: List Users (GET /users)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.462Z"
+    },
+    {
+      "feature": "API: Get User by ID (GET /users/1)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.463Z"
+    },
+    {
+      "feature": "API: Update User (PUT /users/1)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.464Z"
+    },
+    {
+      "feature": "API: Delete User (DELETE /users/1)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.464Z"
+    },
+    {
+      "feature": "API: List Curricula (GET /curricula)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.466Z"
+    },
+    {
+      "feature": "API: Get Curriculum by ID (GET /curricula/1)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.467Z"
+    },
+    {
+      "feature": "API: Create Curriculum (POST /curricula)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.468Z"
+    },
+    {
+      "feature": "API: Update Curriculum (PUT /curricula/1)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.468Z"
+    },
+    {
+      "feature": "API: Get Active Curriculum (GET /curricula/active)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.469Z"
+    },
+    {
+      "feature": "API: Get Curriculum Courses (GET /curricula/1/courses)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.471Z"
+    },
+    {
+      "feature": "API: List Courses (GET /courses)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.473Z"
+    },
+    {
+      "feature": "API: Get Course by ID (GET /courses/1)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.474Z"
+    },
+    {
+      "feature": "API: Create Course (POST /courses)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.475Z"
+    },
+    {
+      "feature": "API: Update Course (PUT /courses/1)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.476Z"
+    },
+    {
+      "feature": "API: Get Course Prerequisites (GET /courses/1/prerequisites)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.477Z"
+    },
+    {
+      "feature": "API: List Terms (GET /terms)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.478Z"
+    },
+    {
+      "feature": "API: Get Term by ID (GET /terms/1)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.479Z"
+    },
+    {
+      "feature": "API: Create Term (POST /terms)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.480Z"
+    },
+    {
+      "feature": "API: Update Term (PUT /terms/1)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.482Z"
+    },
+    {
+      "feature": "API: Get Current Term (GET /terms/current)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.483Z"
+    },
+    {
+      "feature": "API: List Grades (GET /grades)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.485Z"
+    },
+    {
+      "feature": "API: Get Grade by ID (GET /grades/1)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.488Z"
+    },
+    {
+      "feature": "API: Create Grade (POST /grades)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.489Z"
+    },
+    {
+      "feature": "API: Update Grade (PUT /grades/1)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.491Z"
+    },
+    {
+      "feature": "API: Get Student Grades (GET /grades/student/1)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.493Z"
+    },
+    {
+      "feature": "API: Import Grades (POST /grades/import)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.498Z"
+    },
+    {
+      "feature": "API: Validate Grades (GET /validate/grades)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.500Z"
+    },
+    {
+      "feature": "API: List Notifications (GET /notifications)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.502Z"
+    },
+    {
+      "feature": "API: Get Notification by ID (GET /notifications/1)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.504Z"
+    },
+    {
+      "feature": "API: Mark Notification as Read (POST /notifications/mark-read)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.505Z"
+    },
+    {
+      "feature": "API: Mark All Notifications as Read (POST /notifications/mark-all-read)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.506Z"
+    },
+    {
+      "feature": "API: Delete Notification (DELETE /notifications/1)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.508Z"
+    },
+    {
+      "feature": "API: Get Dashboard Data (GET /dashboard)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.509Z"
+    },
+    {
+      "feature": "API: Get Student Dashboard (GET /dashboard/student)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.510Z"
+    },
+    {
+      "feature": "API: Get Adviser Dashboard (GET /dashboard/adviser)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.511Z"
+    },
+    {
+      "feature": "API: Get Admin Dashboard (GET /dashboard/admin)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.513Z"
+    },
+    {
+      "feature": "API: List Forecasts (GET /forecast)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.514Z"
+    },
+    {
+      "feature": "API: Create Forecast (POST /forecast)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.515Z"
+    },
+    {
+      "feature": "API: Get Study Plan (GET /forecast/study-plan)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.516Z"
+    },
+    {
+      "feature": "API: Generate Study Plan (POST /forecast/generate)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.517Z"
+    },
+    {
+      "feature": "API: Check Prerequisites (GET /forecast/prerequisites)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.518Z"
+    },
+    {
+      "feature": "API: List SARs (GET /sars)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.519Z"
+    },
+    {
+      "feature": "API: Get SAR by ID (GET /sars/1)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.520Z"
+    },
+    {
+      "feature": "API: Request SAR (POST /sars)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.521Z"
+    },
+    {
+      "feature": "API: Update SAR (PUT /sars/1)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.522Z"
+    },
+    {
+      "feature": "API: Get SAR Analytics (GET /sars/1/analytics)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.523Z"
+    },
+    {
+      "feature": "API: List Prerequisite Overrides (GET /prerequisite-overrides)",
+      "status": "PASS",
+      "details": "Status: 401",
+      "timestamp": "2026-04-29T23:41:57.524Z"
+    },
+    {
+      "feature": "API: Create Override Request (POST /prerequisite-overrides)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.525Z"
+    },
+    {
+      "feature": "API: Update Override Request (PUT /prerequisite-overrides/1)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.526Z"
+    },
+    {
+      "feature": "API: Get Override Approval Status (GET /prerequisite-overrides/1/approval)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.528Z"
+    },
+    {
+      "feature": "API: Validate Prerequisites (POST /validate/prerequisites)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.529Z"
+    },
+    {
+      "feature": "API: Validate Course Feasibility (POST /validate/course-feasibility)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.530Z"
+    },
+    {
+      "feature": "API: Validate Study Plan (POST /validate/study-plan)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.531Z"
+    },
+    {
+      "feature": "API: Export Grades to PDF (GET /export/grades/pdf)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.532Z"
+    },
+    {
+      "feature": "API: Export Transcript to PDF (GET /export/transcript/pdf)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.533Z"
+    },
+    {
+      "feature": "API: Export Curriculum to CSV (GET /export/curriculum/csv)",
+      "status": "PASS",
+      "details": "Status: 404",
+      "timestamp": "2026-04-29T23:41:57.534Z"
+    }
+  ],
+  "successRate": "66.99%"
+}

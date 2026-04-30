@@ -17,7 +17,15 @@ const {
   yearSemesterFromSlotIndex,
 } = require('../utils/studyPlan');
 
-const { parseGradeInput, parseGradePayload } = require('../utils/gradeValidation');
+const {
+  parseGradeInput,
+  parseGradePayload,
+  isBlockingStatus,
+} = require('../utils/gradeValidation');
+const {
+  getCrossCurriculumAvailability,
+  buildPrerequisiteCascade,
+} = require('../utils/courseAvailability');
 const GradeService = require('../services/GradeService');
 const NotificationService = require('../services/NotificationService');
 
@@ -150,7 +158,15 @@ exports.enterGrades = async (req, res, next) => {
         acc[entry.status] = (acc[entry.status] || 0) + 1;
         return acc;
       },
-      { pending: 0, passed: 0, failed: 0, dropped: 0, incomplete: 0 },
+      {
+        pending: 0,
+        passed: 0,
+        failed: 0,
+        dropped: 0,
+        incomplete: 0,
+        officially_dropped: 0,
+        unofficially_dropped: 0,
+      },
     );
 
     return res.status(200).json({
@@ -301,7 +317,15 @@ exports.bulkImportGrades = async (req, res, next) => {
         acc[entry.status] = (acc[entry.status] || 0) + 1;
         return acc;
       },
-      { pending: 0, passed: 0, failed: 0, dropped: 0, incomplete: 0 },
+      {
+        pending: 0,
+        passed: 0,
+        failed: 0,
+        dropped: 0,
+        incomplete: 0,
+        officially_dropped: 0,
+        unofficially_dropped: 0,
+      },
     );
 
     return res.status(200).json({
@@ -354,11 +378,23 @@ exports.triggerRegeneration = async (req, res, next) => {
         .json({ success: false, message: 'Cannot regenerate from an archived or locked version' });
     }
 
+    const retakePlacements = Array.isArray(req.body?.retakePlacements)
+      ? req.body.retakePlacements
+      : [];
+    const semesterOverrides = Array.isArray(req.body?.semesterOverrides)
+      ? req.body.semesterOverrides
+      : [];
+    const semesterOverridePlacements = semesterOverrides.map((override) => ({
+      courseId: override?.courseId,
+      yearLevel: override?.yearLevel,
+      semester: override?.semester,
+    }));
+
     let retakePlacementByCourseId;
     try {
       retakePlacementByCourseId = buildRetakePlacementMap({
         activeEntries: activeVersion.StudyPlanCourses || [],
-        retakePlacements: req.body?.retakePlacements || [],
+        retakePlacements: [...retakePlacements, ...semesterOverridePlacements],
       });
     } catch (error) {
       return makeRegenerationErrorResponse(res, transaction, error);
@@ -550,6 +586,21 @@ exports.triggerRegeneration = async (req, res, next) => {
         return;
       }
 
+      // INC (incomplete / 4.00) — keep in slot, treat as "conditionally met"
+      // for prerequisite checking. Dependents are NOT blocked.
+      if (classification === 'incomplete') {
+        resolvedCourses.push({
+          courseId,
+          course: entry.Course,
+          yearLevel: entry.yearLevel,
+          semester: entry.semester,
+          grade: parsed.grade,
+          status: 'incomplete',
+          units: courseMeta.units,
+        });
+        return;
+      }
+
       if (isElectiveExcluded) {
         return;
       }
@@ -561,6 +612,8 @@ exports.triggerRegeneration = async (req, res, next) => {
         originalSortKey: forcedPlacement?.slotIndex ?? courseMeta.sortKey,
         units: courseMeta.units,
         forcedPlacement,
+        failedGrade: parsed.grade,
+        failedStatus: classification,
       });
     });
 
@@ -665,6 +718,19 @@ exports.triggerRegeneration = async (req, res, next) => {
       }
 
       let slotIndex = Math.max(0, component.originalSortKey);
+
+      // Apply semester overrides if provided
+      for (const courseId of component.courseIds) {
+        const override = semesterOverrides.find((o) => String(o.courseId) === courseId);
+        if (override) {
+          slotIndex = slotIndexFromYearSemester(
+            Number(override.yearLevel),
+            Number(override.semester),
+          );
+          break;
+        }
+      }
+
       let placed = false;
 
       while (!placed && slotIndex < 120) {
@@ -894,7 +960,68 @@ exports.triggerRegeneration = async (req, res, next) => {
       include: includeRelationsForVersion,
     });
 
-    return res.status(201).json({ success: true, data: serializeVersion(createdVersion) });
+    // ── Build failedCourseAnalysis for the review UI ──
+    const failedOrDroppedRequeue = requeueCourses.filter((item) =>
+      isBlockingStatus(item.failedStatus),
+    );
+
+    let failedCourseAnalysis = null;
+    if (failedOrDroppedRequeue.length > 0) {
+      const failedCourseIds = failedOrDroppedRequeue.map((item) => item.courseId);
+
+      // Cross-curriculum availability
+      const availability = await getCrossCurriculumAvailability(failedCourseIds.map(Number));
+
+      // Build course info map for cascade display
+      const courseInfoMap = new Map();
+      curriculumCourses.forEach((cc) => {
+        courseInfoMap.set(String(cc.courseId), {
+          code: cc.Course?.code || 'Unknown',
+          name: cc.Course?.name || 'Unknown',
+        });
+      });
+      selectedTrackPlan.forEach((item) => {
+        const cid = String(item.courseId);
+        if (!courseInfoMap.has(cid) && item.source?.Course) {
+          courseInfoMap.set(cid, {
+            code: item.source.Course.code || 'Unknown',
+            name: item.source.Course.name || 'Unknown',
+          });
+        }
+      });
+
+      // Prerequisite cascade
+      const cascadeMap = buildPrerequisiteCascade(failedCourseIds, prerequisiteMap, courseInfoMap);
+
+      failedCourseAnalysis = {
+        failedCourses: failedOrDroppedRequeue.map((item) => {
+          const placement = placementByCourseId.get(item.courseId);
+          const placedAt = placement !== undefined ? yearSemesterFromSlotIndex(placement) : null;
+          const info = courseInfoMap.get(item.courseId) || {};
+
+          return {
+            courseId: Number(item.courseId),
+            code: info.code || item.course?.code || 'Unknown',
+            name: info.name || item.course?.name || 'Unknown',
+            grade: item.failedGrade,
+            status: item.failedStatus,
+            placedAt,
+            blockedCourses: cascadeMap.get(item.courseId) || [],
+            availability: (availability.get(item.courseId) || []).map((a) => ({
+              curriculumName: a.curriculumName,
+              yearLevel: a.yearLevel,
+              semester: a.semester,
+            })),
+          };
+        }),
+      };
+    }
+
+    return res.status(201).json({
+      success: true,
+      data: serializeVersion(createdVersion),
+      failedCourseAnalysis,
+    });
   } catch (error) {
     await transaction.rollback();
     next(error);

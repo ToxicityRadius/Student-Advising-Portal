@@ -18,7 +18,7 @@ const slotLabels = {
   '3-3': 'Year 3 • Summer',
   '4-1': 'Year 4 • 1st Semester',
   '4-2': 'Year 4 • 2nd Semester',
-  '4-3': 'Year 4 • Summer'
+  '4-3': 'Year 4 • Summer',
 };
 
 const statusVariant = {
@@ -26,14 +26,27 @@ const statusVariant = {
   passed: 'success',
   failed: 'danger',
   dropped: 'warning',
-  incomplete: 'dark'
+  incomplete: 'dark',
+  officially_dropped: 'danger',
+  unofficially_dropped: 'danger',
 };
 
-const buildEditableRows = (planVersion) => (planVersion?.StudyPlanCourses || []).map((courseEntry) => ({
-  ...courseEntry,
-  yearLevel: Number(courseEntry.yearLevel || 1),
-  semester: Number(courseEntry.semester || 1)
-}));
+const statusLabel = {
+  pending: 'Pending',
+  passed: 'Passed',
+  failed: 'Failed',
+  dropped: 'Dropped',
+  incomplete: 'Incomplete',
+  officially_dropped: 'Off. Dropped',
+  unofficially_dropped: 'Unoff. Dropped',
+};
+
+const buildEditableRows = (planVersion) =>
+  (planVersion?.StudyPlanCourses || []).map((courseEntry) => ({
+    ...courseEntry,
+    yearLevel: Number(courseEntry.yearLevel || 1),
+    semester: Number(courseEntry.semester || 1),
+  }));
 
 const StudyPlanView = () => {
   const { sarId, versionId } = useParams();
@@ -67,7 +80,7 @@ const StudyPlanView = () => {
 
   const groupedCourses = useMemo(() => {
     const groups = new Map();
-    const sourceCourses = editable ? draftCourses : (version?.StudyPlanCourses || []);
+    const sourceCourses = editable ? draftCourses : version?.StudyPlanCourses || [];
 
     if (!sourceCourses.length) {
       return [];
@@ -95,21 +108,24 @@ const StudyPlanView = () => {
       .map(([key, entries]) => ({
         key,
         label: slotLabels[key] || `Year ${key.replace('-', ' • Semester ')}`,
-        courses: entries
+        courses: entries,
       }));
   }, [draftCourses, editable, version]);
 
   const availableYearLevels = useMemo(() => {
-    const highestAssignedYear = Math.max(4, ...draftCourses.map((courseEntry) => Number(courseEntry.yearLevel || 1)));
+    const highestAssignedYear = Math.max(
+      4,
+      ...draftCourses.map((courseEntry) => Number(courseEntry.yearLevel || 1)),
+    );
     return Array.from({ length: highestAssignedYear + 2 }, (_, index) => index + 1);
   }, [draftCourses]);
 
   const updateDraftCourse = (courseId, field, value) => {
-    setDraftCourses((currentCourses) => currentCourses.map((courseEntry) => (
-      courseEntry.id === courseId
-        ? { ...courseEntry, [field]: Number(value) }
-        : courseEntry
-    )));
+    setDraftCourses((currentCourses) =>
+      currentCourses.map((courseEntry) =>
+        courseEntry.id === courseId ? { ...courseEntry, [field]: Number(value) } : courseEntry,
+      ),
+    );
   };
 
   const handleSaveDraft = async () => {
@@ -125,8 +141,8 @@ const StudyPlanView = () => {
         courses: draftCourses.map((courseEntry) => ({
           studyPlanCourseId: courseEntry.id,
           yearLevel: Number(courseEntry.yearLevel),
-          semester: Number(courseEntry.semester)
-        }))
+          semester: Number(courseEntry.semester),
+        })),
       });
 
       const updatedVersion = response.data?.data || null;
@@ -134,7 +150,10 @@ const StudyPlanView = () => {
       setDraftCourses(buildEditableRows(updatedVersion));
       setAlert({ variant: 'success', message: 'Draft study plan updated successfully.' });
     } catch (saveError) {
-      setAlert({ variant: 'danger', message: getErrorMessage(saveError, 'Failed to update the draft study plan.') });
+      setAlert({
+        variant: 'danger',
+        message: getErrorMessage(saveError, 'Failed to update the draft study plan.'),
+      });
     } finally {
       setSaving(false);
     }
@@ -153,7 +172,11 @@ const StudyPlanView = () => {
         </div>
         <div className="d-flex gap-2 flex-wrap">
           {editable && (
-            <Button as={Link} to={`/adviser/students/${sarId}/plan/${versionId}/validate`} variant="primary">
+            <Button
+              as={Link}
+              to={`/adviser/students/${sarId}/plan/${versionId}/validate`}
+              variant="primary"
+            >
               Go to Validation
             </Button>
           )}
@@ -178,12 +201,25 @@ const StudyPlanView = () => {
               <div className="d-flex flex-column flex-lg-row justify-content-between gap-3">
                 <div>
                   <h4 className="mb-1">{sar?.studentName || 'Student'}</h4>
-                  <div className="text-muted">{sar?.studentNumber || 'No student number available'}</div>
-                  <div className="text-muted">{sar?.Curriculum?.name || 'No curriculum assigned'}</div>
+                  <div className="text-muted">
+                    {sar?.studentNumber || 'No student number available'}
+                  </div>
+                  <div className="text-muted">
+                    {sar?.Curriculum?.name || 'No curriculum assigned'}
+                  </div>
                 </div>
                 <div className="text-lg-end">
                   <div className="fw-semibold">Version {version.versionNumber}</div>
-                  <Badge bg={version.status === 'active' ? 'success' : version.status === 'draft' ? 'secondary' : 'dark'} className="text-uppercase mt-2">
+                  <Badge
+                    bg={
+                      version.status === 'active'
+                        ? 'success'
+                        : version.status === 'draft'
+                          ? 'secondary'
+                          : 'dark'
+                    }
+                    className="text-uppercase mt-2"
+                  >
                     {version.status}
                   </Badge>
                 </div>
@@ -211,26 +247,44 @@ const StudyPlanView = () => {
                               <Card.Body className="py-3">
                                 <div className="d-flex flex-column flex-lg-row justify-content-between gap-3">
                                   <div>
-                                    <div className="fw-semibold">{courseEntry.Course?.code || 'No code'}</div>
+                                    <div className="fw-semibold">
+                                      {courseEntry.Course?.code || 'No code'}
+                                    </div>
                                     <div>{courseEntry.Course?.name || 'Unnamed course'}</div>
-                                    <div className="text-muted small">{courseEntry.Course?.units || 0} units</div>
+                                    <div className="text-muted small">
+                                      {courseEntry.Course?.units || 0} units
+                                    </div>
                                     {editable && (
                                       <div className="d-flex flex-wrap gap-2 mt-3">
                                         <Form.Select
                                           size="sm"
                                           style={{ maxWidth: 140 }}
                                           value={courseEntry.yearLevel}
-                                          onChange={(event) => updateDraftCourse(courseEntry.id, 'yearLevel', event.target.value)}
+                                          onChange={(event) =>
+                                            updateDraftCourse(
+                                              courseEntry.id,
+                                              'yearLevel',
+                                              event.target.value,
+                                            )
+                                          }
                                         >
                                           {availableYearLevels.map((yearLevel) => (
-                                            <option key={yearLevel} value={yearLevel}>Year {yearLevel}</option>
+                                            <option key={yearLevel} value={yearLevel}>
+                                              Year {yearLevel}
+                                            </option>
                                           ))}
                                         </Form.Select>
                                         <Form.Select
                                           size="sm"
                                           style={{ maxWidth: 170 }}
                                           value={courseEntry.semester}
-                                          onChange={(event) => updateDraftCourse(courseEntry.id, 'semester', event.target.value)}
+                                          onChange={(event) =>
+                                            updateDraftCourse(
+                                              courseEntry.id,
+                                              'semester',
+                                              event.target.value,
+                                            )
+                                          }
                                         >
                                           <option value={1}>1st Semester</option>
                                           <option value={2}>2nd Semester</option>
@@ -241,9 +295,14 @@ const StudyPlanView = () => {
                                   </div>
                                   <div className="text-lg-end">
                                     <div className="small text-muted">Grade</div>
-                                    <div className="fw-semibold">{courseEntry.grade || 'Pending'}</div>
-                                    <Badge bg={statusVariant[courseEntry.status] || 'secondary'} className="text-uppercase mt-2">
-                                      {courseEntry.status}
+                                    <div className="fw-semibold">
+                                      {courseEntry.grade || 'Pending'}
+                                    </div>
+                                    <Badge
+                                      bg={statusVariant[courseEntry.status] || 'secondary'}
+                                      className="text-uppercase mt-2"
+                                    >
+                                      {statusLabel[courseEntry.status] || courseEntry.status}
                                     </Badge>
                                   </div>
                                 </div>

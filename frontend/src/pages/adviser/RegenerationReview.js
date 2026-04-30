@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Card, Spinner, Table } from 'react-bootstrap';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Badge, Button, Card, Form, Spinner, Table } from 'react-bootstrap';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import useSarData from '../../hooks/useSarData';
+import api from '../../utils/api';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
 import { getErrorMessage } from '../../utils/errorHelpers';
 
@@ -17,7 +18,31 @@ const slotLabels = {
   '3-3': 'Year 3 • Summer',
   '4-1': 'Year 4 • 1st Semester',
   '4-2': 'Year 4 • 2nd Semester',
-  '4-3': 'Year 4 • Summer'
+  '4-3': 'Year 4 • Summer',
+  '5-1': 'Year 5 • 1st Semester',
+  '5-2': 'Year 5 • 2nd Semester',
+};
+
+const semesterLabels = { 1: '1st Semester', 2: '2nd Semester', 3: 'Summer' };
+
+const statusVariant = {
+  pending: 'secondary',
+  passed: 'success',
+  failed: 'danger',
+  dropped: 'warning',
+  incomplete: 'dark',
+  officially_dropped: 'danger',
+  unofficially_dropped: 'danger',
+};
+
+const statusLabel = {
+  pending: 'Pending',
+  passed: 'Passed',
+  failed: 'Failed',
+  dropped: 'Dropped',
+  incomplete: 'Incomplete',
+  officially_dropped: 'Off. Dropped',
+  unofficially_dropped: 'Unoff. Dropped',
 };
 
 const RegenerationReview = () => {
@@ -26,8 +51,16 @@ const RegenerationReview = () => {
   const { sarId, versionId } = useParams();
 
   const [error, setError] = useState('');
-  const [regeneratedVersion, setRegeneratedVersion] = useState(location.state?.regeneratedVersion || null);
+  const [regeneratedVersion, setRegeneratedVersion] = useState(
+    location.state?.regeneratedVersion || null,
+  );
   const [previousVersion, setPreviousVersion] = useState(location.state?.previousVersion || null);
+  const [failedCourseAnalysis, setFailedCourseAnalysis] = useState(
+    location.state?.failedCourseAnalysis || null,
+  );
+  const [semesterOverrides, setSemesterOverrides] = useState({});
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenAlert, setRegenAlert] = useState({ variant: '', message: '' });
   const { sar, versions, loading, error: sarFetchError } = useSarData(sarId);
 
   useEffect(() => {
@@ -45,9 +78,10 @@ const RegenerationReview = () => {
       setPreviousVersion(null);
       return;
     }
-    const fallbackPrevious = versions
-      .filter((item) => Number(item.versionNumber) < Number(current.versionNumber))
-      .sort((left, right) => Number(right.versionNumber) - Number(left.versionNumber))[0] || null;
+    const fallbackPrevious =
+      versions
+        .filter((item) => Number(item.versionNumber) < Number(current.versionNumber))
+        .sort((left, right) => Number(right.versionNumber) - Number(left.versionNumber))[0] || null;
     setError('');
     setRegeneratedVersion(current);
     setPreviousVersion(location.state?.previousVersion || fallbackPrevious);
@@ -74,7 +108,7 @@ const RegenerationReview = () => {
       groups.get(key).push({
         ...courseEntry,
         moved: Boolean(previousSlot && previousSlot !== key),
-        previousSlot
+        previousSlot,
       });
     });
 
@@ -92,21 +126,104 @@ const RegenerationReview = () => {
       .map(([key, courses]) => ({
         key,
         label: slotLabels[key] || `Year ${key.replace('-', ' • Semester ')}`,
-        courses
+        courses,
       }));
   }, [regeneratedVersion, previousSlotsByCourseId]);
+
+  const hasOverrides = useMemo(
+    () => Object.keys(semesterOverrides).length > 0,
+    [semesterOverrides],
+  );
+
+  const handleOverrideChange = useCallback((courseId, yearLevel, semester) => {
+    setSemesterOverrides((prev) => {
+      const next = { ...prev };
+      if (yearLevel && semester) {
+        next[courseId] = {
+          courseId: Number(courseId),
+          yearLevel: Number(yearLevel),
+          semester: Number(semester),
+        };
+      } else {
+        delete next[courseId];
+      }
+      return next;
+    });
+  }, []);
+
+  const handleRegenerateWithOverrides = async () => {
+    setRegenerating(true);
+    setRegenAlert({ variant: '', message: '' });
+
+    try {
+      const response = await api.post(`/sars/${sarId}/study-plan/regenerate`, {
+        semesterOverrides: Object.values(semesterOverrides),
+      });
+
+      const newVersion = response.data?.data;
+      const newAnalysis = response.data?.failedCourseAnalysis || null;
+
+      if (!newVersion?.id) {
+        throw new Error('Regeneration did not return a new version');
+      }
+
+      // Refresh in-place
+      setRegeneratedVersion(newVersion);
+      setFailedCourseAnalysis(newAnalysis);
+      setSemesterOverrides({});
+      setRegenAlert({
+        variant: 'success',
+        message: 'Study plan regenerated with your semester overrides.',
+      });
+
+      // Update URL to new version
+      navigate(`/adviser/students/${sarId}/plan/${newVersion.id}/review`, {
+        replace: true,
+        state: {
+          previousVersion,
+          regeneratedVersion: newVersion,
+          failedCourseAnalysis: newAnalysis,
+        },
+      });
+    } catch (err) {
+      setRegenAlert({
+        variant: 'danger',
+        message: getErrorMessage(err, 'Failed to regenerate with overrides.'),
+      });
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  // Derive unique semesters from availability for the picker
+  const getUniqueSemesters = (availability) => {
+    const seen = new Set();
+    const result = [];
+    for (const a of availability || []) {
+      const key = `${a.semester}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(a);
+      }
+    }
+    return result.sort((a, b) => a.semester - b.semester);
+  };
 
   return (
     <AdviserLayout activePage="students" pageTitle="Regeneration Review">
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
           <h2 className="mb-1">Regeneration Review</h2>
-          <p className="text-muted mb-0">Review the regenerated draft study plan before validation.</p>
+          <p className="text-muted mb-0">
+            Review the regenerated draft study plan before validation.
+          </p>
         </div>
         <Button as={Link} to={`/adviser/students/${sarId}/grades`} variant="outline-secondary">
           Back to Grade Entry
         </Button>
       </div>
+
+      {regenAlert.message && <Alert variant={regenAlert.variant}>{regenAlert.message}</Alert>}
 
       {loading ? (
         <div className="text-center py-5">
@@ -120,16 +237,191 @@ const RegenerationReview = () => {
             <Card.Body className="d-flex flex-column flex-lg-row justify-content-between gap-3">
               <div>
                 <h5 className="mb-1">{sar?.studentName || 'Student'}</h5>
-                <div className="text-muted">{sar?.studentNumber || 'No student number available'}</div>
-                <div className="text-muted">{sar?.Curriculum?.name || 'No curriculum assigned'}</div>
+                <div className="text-muted">
+                  {sar?.studentNumber || 'No student number available'}
+                </div>
+                <div className="text-muted">
+                  {sar?.Curriculum?.name || 'No curriculum assigned'}
+                </div>
               </div>
               <div className="text-lg-end">
                 <div className="fw-semibold">Version {regeneratedVersion.versionNumber}</div>
-                <Badge bg="secondary" className="text-uppercase mt-2">{regeneratedVersion.status}</Badge>
+                <Badge bg="secondary" className="text-uppercase mt-2">
+                  {regeneratedVersion.status}
+                </Badge>
               </div>
             </Card.Body>
           </Card>
 
+          {/* ══════ Failed Course Analysis Panel ══════ */}
+          {failedCourseAnalysis?.failedCourses?.length > 0 && (
+            <Card className="shadow-sm mb-4 border-danger border-2">
+              <Card.Body>
+                <h5 className="text-danger mb-3">
+                  <span className="me-2">⚠</span>
+                  Failed / Dropped Course Analysis
+                </h5>
+                <p className="text-muted small mb-3">
+                  The following courses have blocking statuses. You can override the semester
+                  placement for retakes using the cross-curriculum availability data below, then
+                  regenerate.
+                </p>
+
+                {failedCourseAnalysis.failedCourses.map((fc) => (
+                  <Card key={fc.courseId} className="mb-3 bg-light border-0">
+                    <Card.Body>
+                      <div className="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-3">
+                        <div>
+                          <div className="fw-bold fs-6">{fc.code}</div>
+                          <div>{fc.name}</div>
+                          <div className="mt-1">
+                            <Badge bg={statusVariant[fc.status] || 'danger'} className="me-2">
+                              {statusLabel[fc.status] || fc.status}
+                            </Badge>
+                            <span className="text-muted small">Grade: {fc.grade}</span>
+                          </div>
+                          {fc.placedAt && (
+                            <div className="small text-muted mt-1">
+                              Currently placed at: Year {fc.placedAt.yearLevel} •{' '}
+                              {semesterLabels[fc.placedAt.semester] ||
+                                `Sem ${fc.placedAt.semester}`}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-lg-end">
+                          <div className="small fw-semibold mb-1">Override Semester</div>
+                          <div className="d-flex gap-2 align-items-center justify-content-lg-end">
+                            <Form.Select
+                              size="sm"
+                              style={{ maxWidth: 140 }}
+                              value={semesterOverrides[fc.courseId]?.yearLevel || ''}
+                              onChange={(e) => {
+                                const yr = e.target.value;
+                                const existing = semesterOverrides[fc.courseId];
+                                if (yr) {
+                                  handleOverrideChange(fc.courseId, yr, existing?.semester || 1);
+                                } else {
+                                  handleOverrideChange(fc.courseId, null, null);
+                                }
+                              }}
+                            >
+                              <option value="">Default</option>
+                              {[1, 2, 3, 4, 5].map((yr) => (
+                                <option key={yr} value={yr}>
+                                  Year {yr}
+                                </option>
+                              ))}
+                            </Form.Select>
+                            <Form.Select
+                              size="sm"
+                              style={{ maxWidth: 160 }}
+                              value={semesterOverrides[fc.courseId]?.semester || ''}
+                              disabled={!semesterOverrides[fc.courseId]?.yearLevel}
+                              onChange={(e) => {
+                                const sem = e.target.value;
+                                const yr = semesterOverrides[fc.courseId]?.yearLevel || 1;
+                                if (sem) {
+                                  handleOverrideChange(fc.courseId, yr, sem);
+                                }
+                              }}
+                            >
+                              <option value={1}>1st Semester</option>
+                              <option value={2}>2nd Semester</option>
+                              <option value={3}>Summer</option>
+                            </Form.Select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Prerequisite Cascade */}
+                      {fc.blockedCourses?.length > 0 && (
+                        <div className="mb-3">
+                          <div className="small fw-semibold text-danger mb-1">
+                            Blocked Courses ({fc.blockedCourses.length})
+                          </div>
+                          <div className="ps-3 border-start border-danger border-2">
+                            {fc.blockedCourses.map((bc) => (
+                              <div
+                                key={bc.courseId}
+                                className="small py-1"
+                                style={{ paddingLeft: (bc.depth - 1) * 16 }}
+                              >
+                                <span className="text-danger me-1">{'→'.repeat(bc.depth)}</span>
+                                <span className="fw-semibold">{bc.code}</span>
+                                <span className="text-muted ms-1">— {bc.name}</span>
+                                <Badge
+                                  bg="light"
+                                  text="dark"
+                                  className="ms-2"
+                                  style={{ fontSize: '0.65rem' }}
+                                >
+                                  depth {bc.depth}
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Cross-Curriculum Availability */}
+                      {fc.availability?.length > 0 && (
+                        <div>
+                          <div className="small fw-semibold text-primary mb-1">
+                            Cross-Curriculum Availability
+                          </div>
+                          <Table size="sm" bordered className="mb-0" style={{ fontSize: '0.8rem' }}>
+                            <thead>
+                              <tr className="table-light">
+                                <th>Curriculum</th>
+                                <th>Year Level</th>
+                                <th>Semester</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {fc.availability.map((a, idx) => (
+                                <tr key={idx}>
+                                  <td>{a.curriculumName}</td>
+                                  <td>Year {a.yearLevel}</td>
+                                  <td>{semesterLabels[a.semester] || `Sem ${a.semester}`}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </Table>
+                          <div className="text-muted mt-1" style={{ fontSize: '0.72rem' }}>
+                            Available in semester(s):{' '}
+                            {getUniqueSemesters(fc.availability)
+                              .map((s) => semesterLabels[s.semester])
+                              .join(', ')}
+                          </div>
+                        </div>
+                      )}
+                    </Card.Body>
+                  </Card>
+                ))}
+
+                {hasOverrides && (
+                  <div className="d-flex gap-2 mt-3">
+                    <Button
+                      variant="warning"
+                      onClick={handleRegenerateWithOverrides}
+                      disabled={regenerating}
+                    >
+                      {regenerating ? 'Regenerating…' : 'Regenerate with Changes'}
+                    </Button>
+                    <Button
+                      variant="outline-secondary"
+                      onClick={() => setSemesterOverrides({})}
+                      disabled={regenerating}
+                    >
+                      Reset Overrides
+                    </Button>
+                  </div>
+                )}
+              </Card.Body>
+            </Card>
+          )}
+
+          {/* ══════ Regenerated Plan Table ══════ */}
           <Card className="shadow-sm mb-4">
             <Card.Body>
               <Table responsive className="table-fixed-cols">
@@ -146,19 +438,44 @@ const RegenerationReview = () => {
                       <td>
                         <div className="d-flex flex-column gap-3">
                           {group.courses.map((courseEntry) => (
-                            <Card key={courseEntry.id} className={courseEntry.moved ? 'border-warning bg-warning bg-opacity-10' : 'border-0 bg-light'}>
+                            <Card
+                              key={courseEntry.id}
+                              className={
+                                courseEntry.moved
+                                  ? 'border-warning bg-warning bg-opacity-10'
+                                  : 'border-0 bg-light'
+                              }
+                            >
                               <Card.Body className="py-3">
                                 <div className="d-flex flex-column flex-lg-row justify-content-between gap-3">
                                   <div>
-                                    <div className="fw-semibold">{courseEntry.Course?.code || 'No code'}</div>
+                                    <div className="fw-semibold">
+                                      {courseEntry.Course?.code || 'No code'}
+                                    </div>
                                     <div>{courseEntry.Course?.name || 'Unnamed course'}</div>
-                                    <div className="text-muted small">{courseEntry.Course?.units || 0} units</div>
+                                    <div className="text-muted small">
+                                      {courseEntry.Course?.units || 0} units
+                                    </div>
                                   </div>
                                   <div className="text-lg-end">
+                                    {courseEntry.status && courseEntry.status !== 'pending' && (
+                                      <Badge
+                                        bg={statusVariant[courseEntry.status] || 'secondary'}
+                                        className="text-uppercase me-2"
+                                      >
+                                        {statusLabel[courseEntry.status] || courseEntry.status}
+                                      </Badge>
+                                    )}
                                     {courseEntry.moved ? (
                                       <>
-                                        <Badge bg="warning" text="dark">Rescheduled</Badge>
-                                        <div className="small text-muted mt-1">Was in {slotLabels[courseEntry.previousSlot] || `Y${courseEntry.previousSlot}`}</div>
+                                        <Badge bg="warning" text="dark">
+                                          Rescheduled
+                                        </Badge>
+                                        <div className="small text-muted mt-1">
+                                          Was in{' '}
+                                          {slotLabels[courseEntry.previousSlot] ||
+                                            `Y${courseEntry.previousSlot}`}
+                                        </div>
                                       </>
                                     ) : (
                                       <Badge bg="secondary">Unchanged Slot</Badge>
@@ -178,10 +495,17 @@ const RegenerationReview = () => {
           </Card>
 
           <div className="d-flex flex-wrap gap-2">
-            <Button onClick={() => navigate(`/adviser/students/${sarId}/plan/${regeneratedVersion.id}/validate`)}>
+            <Button
+              onClick={() =>
+                navigate(`/adviser/students/${sarId}/plan/${regeneratedVersion.id}/validate`)
+              }
+            >
               Proceed to Validation
             </Button>
-            <Button variant="outline-secondary" onClick={() => navigate(`/adviser/students/${sarId}`)}>
+            <Button
+              variant="outline-secondary"
+              onClick={() => navigate(`/adviser/students/${sarId}`)}
+            >
               Return to Student Record
             </Button>
           </div>

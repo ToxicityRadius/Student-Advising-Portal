@@ -11,6 +11,7 @@ jest.mock('../../context/AuthContext', () => ({
 jest.mock('../../utils/api', () => ({
   __esModule: true,
   default: { post: jest.fn() },
+  storeAuthTokens: jest.fn(),
 }));
 
 jest.mock('../../utils/roleRedirect', () => ({
@@ -22,7 +23,7 @@ jest.mock('../../assets/images/STUDENT ADVISING LOGO 1.png', () => 'logo.png');
 
 import VerifyCode from '../VerifyCode';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../utils/api';
+import api, { storeAuthTokens } from '../../utils/api';
 
 const renderVerifyCode = (state = { userId: 42, email: 'test@tip.edu.ph' }) =>
   render(
@@ -91,10 +92,14 @@ describe('VerifyCode Page', () => {
     await user.click(screen.getByRole('button', { name: /verify code/i }));
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/auth/verify-code', {
-        userId: 42,
-        code: '123456',
-      });
+      expect(api.post).toHaveBeenCalledWith(
+        '/auth/verify-code',
+        {
+          userId: 42,
+          code: '123456',
+        },
+        { headers: {} },
+      );
     });
 
     await waitFor(() => {
@@ -147,7 +152,27 @@ describe('VerifyCode Page', () => {
     await user.click(screen.getByText('Resend Code'));
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/auth/resend-code', { userId: 42 });
+      expect(api.post).toHaveBeenCalledWith('/auth/resend-code', { userId: 42 }, { headers: {} });
+    });
+  });
+
+  test('stores returned fallback tokens after verification', async () => {
+    api.post.mockResolvedValue({
+      data: { success: true, token: 'access-token', refreshToken: 'refresh-token' },
+    });
+    mockRefreshUser.mockResolvedValue(undefined);
+
+    const user = userEvent.setup();
+    renderVerifyCode();
+
+    for (let i = 0; i < 6; i++) {
+      await user.type(document.getElementById(`code-input-${i}`), String(i + 1));
+    }
+
+    await user.click(screen.getByRole('button', { name: /verify code/i }));
+
+    await waitFor(() => {
+      expect(storeAuthTokens).toHaveBeenCalledWith('access-token', 'refresh-token');
     });
   });
 });

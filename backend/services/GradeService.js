@@ -13,7 +13,7 @@ const {
   Course,
   User,
 } = require('../models');
-const { parseGradeInput } = require('../utils/gradeValidation');
+const { parseGradeInput, isBlockingStatus } = require('../utils/gradeValidation');
 const { slotIndexFromYearSemester, sortStudyPlanCourses } = require('../utils/studyPlan');
 
 const PERSON_ATTRIBUTES = ['id', 'firstName', 'lastName', 'email', 'role', 'studentId'];
@@ -137,24 +137,33 @@ const normalizeSlot = ({ yearLevel, semester }) => {
 };
 
 const buildRetakePlacementMap = ({ activeEntries = [], retakePlacements = [] } = {}) => {
+  const placementItems = Array.isArray(retakePlacements) ? retakePlacements : [];
   const placementByStudyPlanCourseId = new Map(
-    (Array.isArray(retakePlacements) ? retakePlacements : [])
+    placementItems
       .filter((item) => item?.studyPlanCourseId !== undefined && item?.studyPlanCourseId !== null)
       .map((item) => [String(item.studyPlanCourseId), item]),
+  );
+  const placementByCourseId = new Map(
+    placementItems
+      .filter((item) => item?.courseId !== undefined && item?.courseId !== null)
+      .map((item) => [String(item.courseId), item]),
   );
   const retakePlacementByCourseId = new Map();
 
   activeEntries.forEach((entry) => {
     const parsedStatus = parseGradeInput(entry.grade).status;
-    const classification =
-      parsedStatus === 'failed' || parsedStatus === 'dropped'
-        ? parsedStatus
-        : String(entry.status || '').toLowerCase();
-    if (classification !== 'failed' && classification !== 'dropped') {
+    const storedStatus = String(entry.status || '').toLowerCase();
+    const classification = parsedStatus !== 'pending' ? parsedStatus : storedStatus;
+    const requiresRetakePlacement =
+      isBlockingStatus(classification) || classification === 'dropped';
+
+    if (!requiresRetakePlacement) {
       return;
     }
 
-    const placement = placementByStudyPlanCourseId.get(String(entry.id));
+    const placement =
+      placementByStudyPlanCourseId.get(String(entry.id)) ||
+      placementByCourseId.get(String(entry.courseId));
     if (!placement) {
       throw makeCodedError(
         'Retake placement is required for failed or dropped courses',
