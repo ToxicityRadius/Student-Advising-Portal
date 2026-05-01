@@ -52,7 +52,7 @@ jest.mock('../utils/sanitize', () => ({
 }));
 
 const { User } = require('../models');
-const { updateUser } = require('../controllers/userController');
+const { updateUser, toggleUserStatus } = require('../controllers/userController');
 
 describe('userController.updateUser', () => {
   const buildRes = () => {
@@ -144,6 +144,52 @@ describe('userController.updateUser', () => {
     expect(res.json).toHaveBeenCalledWith({
       success: false,
       message: 'Only one active Super Admin account is allowed',
+    });
+  });
+
+  test('blocks Program Chair users from editing user details', async () => {
+    User.findByPk.mockResolvedValueOnce({ id: 3, role: 'student', isActive: true });
+
+    const req = {
+      user: { id: 1, role: 'admin' },
+      params: { id: '3' },
+      body: {
+        firstName: 'Ada',
+        lastName: 'Student',
+        email: 'ada@example.com',
+        role: 'student',
+        isActive: true,
+      },
+    };
+    const res = buildRes();
+
+    await updateUser(req, res, next);
+
+    expect(User.update).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Only Super Admin can edit user details',
+    });
+  });
+
+  test('blocks Program Chair users from activating or deactivating users', async () => {
+    User.findByPk.mockResolvedValueOnce({ id: 3, role: 'student', isActive: true });
+
+    const req = {
+      user: { id: 1, role: 'admin' },
+      params: { id: '3' },
+      body: {},
+    };
+    const res = buildRes();
+
+    await toggleUserStatus(req, res, next);
+
+    expect(User.update).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Only Super Admin can activate or deactivate users',
     });
   });
 });

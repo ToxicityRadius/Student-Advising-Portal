@@ -104,14 +104,14 @@ router.get('/curriculum-options', protect, getCurriculumOptions);
 // Profile update route (protected, user can update self; admin can update any)
 router.put('/:id/profile', mutationLimiter, protect, uploadProfilePicture, updateProfile);
 
-// Admin-only: update a user's core fields (role, active status, etc.)
-router.put('/:id', protect, requireRole('admin'), validate(updateUserValidation), updateUser);
+// Super Admin-only: update a user's core fields (role, active status, etc.)
+router.put('/:id', protect, requireRole('superadmin'), validate(updateUserValidation), updateUser);
 
-// Admin-only: toggle user active/inactive status
+// Super Admin-only: toggle user active/inactive status
 router.patch(
   '/:id/toggle-status',
   protect,
-  requireRole('admin'),
+  requireRole('superadmin'),
   validate(userIdParamValidation),
   toggleUserStatus,
 );

@@ -13,7 +13,6 @@ const { shouldBypassAdminFirstLoginEnforcement } = require('../utils/featureFlag
 const { sanitizeUser } = require('../utils/sanitize');
 const logger = require('../utils/logger');
 const { FACULTY_EMAIL_WHITELIST, FACULTY_ROLES } = require('../constants');
-const { canManageProgram } = require('../utils/programAccess');
 
 // In-memory attempt tracker for verification code brute-force protection.
 // Keys are String(userId); values are { count, resetAt }.
@@ -1534,7 +1533,7 @@ exports.resendEmailChangeCode = async (req, res, next) => {
 
 // @desc    Transfer program chair ownership to an adviser
 // @route   PATCH /api/auth/transfer-ownership
-// @access  Private/Admin
+// @access  Private/Super Admin
 exports.transferOwnership = async (req, res, next) => {
   try {
     const { targetUserId } = req.body;
@@ -1547,10 +1546,10 @@ exports.transferOwnership = async (req, res, next) => {
     }
 
     const requester = await User.findByPk(req.user.id);
-    if (!requester || requester.role !== 'admin') {
+    if (!requester || requester.role !== 'superadmin') {
       return res.status(403).json({
         success: false,
-        message: 'Only current Program Chair can transfer ownership',
+        message: 'Only Super Admin can transfer Program Chair ownership',
       });
     }
 
@@ -1569,40 +1568,19 @@ exports.transferOwnership = async (req, res, next) => {
       });
     }
 
-    const requesterAssignments = await UserProgramAssignment.findAll({
-      where: { userId: requester.id },
-      attributes: ['programId'],
-    });
-    const requesterProgramIds = requesterAssignments.map((assignment) => assignment.programId);
     const targetAssignments = await UserProgramAssignment.findAll({
       where: { userId: targetUser.id },
       attributes: ['programId'],
     });
-    const targetProgramIds = new Set(targetAssignments.map((assignment) => assignment.programId));
-    const overlappingProgramId = requesterProgramIds.find((programId) =>
-      targetProgramIds.has(programId),
-    );
 
-    if (!overlappingProgramId || !(await canManageProgram(requester, overlappingProgramId))) {
-      return res.status(403).json({
+    if (targetAssignments.length === 0) {
+      return res.status(400).json({
         success: false,
-        message: 'Target adviser is outside your assigned program scope',
+        message: 'Target adviser must be assigned to a program before transfer',
       });
     }
 
     await User.update({ role: 'admin', updatedAt: Date.now() }, { where: { id: targetUser.id } });
-    await User.update({ role: 'adviser', updatedAt: Date.now() }, { where: { id: requester.id } });
-    if (requesterAssignments.length > 0) {
-      await UserProgramAssignment.bulkCreate(
-        requesterAssignments.map((assignment) => ({
-          userId: targetUser.id,
-          programId: assignment.programId,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        })),
-        { ignoreDuplicates: true },
-      );
-    }
 
     return res.status(200).json({
       success: true,

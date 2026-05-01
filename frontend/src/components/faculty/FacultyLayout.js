@@ -83,7 +83,7 @@ const NAV_ITEMS = [
     label: 'Transfer',
     to: '/admin/transfer-ownership',
     icon: icon(goldSettingsImg),
-    roles: ['superadmin', 'admin'],
+    roles: ['superadmin'],
   },
 ];
 

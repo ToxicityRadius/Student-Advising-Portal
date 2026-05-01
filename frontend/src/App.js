@@ -208,7 +208,7 @@ function AppContent() {
             <Route
               path="/admin/transfer-ownership"
               element={
-                <PrivateRoute roles={['admin']}>
+                <PrivateRoute roles={['superadmin']}>
                   <TransferOwnership />
                 </PrivateRoute>
               }

@@ -151,4 +151,23 @@ describe('UserManagement', () => {
       });
     });
   });
+
+  test('hides edit and activation controls from Program Chair users', async () => {
+    useAuth.mockReturnValue({ user: { id: 2, role: 'admin' } });
+
+    render(<UserManagement />);
+    await waitFor(() => {
+      expect(screen.getAllByText('Super Admin only')).toHaveLength(2);
+    });
+
+    const adaRow = screen.getByText('Ada Student').closest('tr');
+    expect(within(adaRow).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(within(adaRow).queryByRole('button', { name: 'Deactivate' })).not.toBeInTheDocument();
+    expect(within(adaRow).queryByRole('button', { name: 'Activate' })).not.toBeInTheDocument();
+    expect(within(adaRow).getByLabelText('Assign adviser for Ada Student')).toBeInTheDocument();
+
+    const chairRow = screen.getByText('Chair Person').closest('tr');
+    expect(within(chairRow).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(within(chairRow).queryByRole('button', { name: 'Deactivate' })).not.toBeInTheDocument();
+  });
 });

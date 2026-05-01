@@ -157,7 +157,7 @@ router.put('/change-password', protect, validate(changePasswordValidation), chan
 router.patch(
   '/transfer-ownership',
   protect,
-  requireRole('admin'),
+  requireRole('superadmin'),
   validate(transferOwnershipValidation),
   transferOwnership,
 );

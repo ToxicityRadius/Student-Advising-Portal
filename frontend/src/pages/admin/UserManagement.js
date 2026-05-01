@@ -236,7 +236,9 @@ const UserManagement = () => {
         <div>
           <h2 className="mb-1">User Management</h2>
           <p className="text-muted mb-0">
-            Search users, assign advisers, manage status, and maintain staff program scope.
+            {superadmin
+              ? 'Search users, assign advisers, manage status, and maintain staff program scope.'
+              : 'Search users and assign advisers within your program scope.'}
           </p>
         </div>
         <Badge bg="secondary" className="align-self-start align-self-lg-center">
@@ -407,26 +409,30 @@ const UserManagement = () => {
                           )}
                         </td>
                         <td className="text-end">
-                          <div className="d-flex justify-content-end gap-2 flex-wrap">
-                            <Button
-                              size="sm"
-                              variant="outline-primary"
-                              onClick={() => openEditModal(targetUser)}
-                              disabled={submittingId === targetUser.id}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant={
-                                targetUser.isActive ? 'outline-secondary' : 'outline-success'
-                              }
-                              onClick={() => toggleStatus(targetUser)}
-                              disabled={submittingId === targetUser.id}
-                            >
-                              {targetUser.isActive ? 'Deactivate' : 'Activate'}
-                            </Button>
-                          </div>
+                          {superadmin ? (
+                            <div className="d-flex justify-content-end gap-2 flex-wrap">
+                              <Button
+                                size="sm"
+                                variant="outline-primary"
+                                onClick={() => openEditModal(targetUser)}
+                                disabled={submittingId === targetUser.id}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={
+                                  targetUser.isActive ? 'outline-secondary' : 'outline-success'
+                                }
+                                onClick={() => toggleStatus(targetUser)}
+                                disabled={submittingId === targetUser.id}
+                              >
+                                {targetUser.isActive ? 'Deactivate' : 'Activate'}
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-muted small">Super Admin only</span>
+                          )}
                         </td>
                       </tr>
                     );

@@ -324,6 +324,13 @@ exports.updateUser = async (req, res, next) => {
       });
     }
 
+    if (!isSuperadmin(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only Super Admin can edit user details',
+      });
+    }
+
     if (!(await canManageTargetUser(req.user, user))) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
@@ -438,6 +445,13 @@ exports.toggleUserStatus = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: 'User not found',
+      });
+    }
+
+    if (!isSuperadmin(req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only Super Admin can activate or deactivate users',
       });
     }
 

@@ -38,18 +38,15 @@ describe('authController.transferOwnership', () => {
   const next = jest.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     User.update.mockResolvedValue([1]);
     UserProgramAssignment.bulkCreate.mockResolvedValue([]);
   });
 
-  test('blocks transfer to an adviser outside the Program Chair assigned scope', async () => {
+  test('blocks Program Chair users from transferring ownership', async () => {
     User.findByPk
       .mockResolvedValueOnce({ id: 1, role: 'admin' })
       .mockResolvedValueOnce({ id: 2, role: 'adviser' });
-    UserProgramAssignment.findAll
-      .mockResolvedValueOnce([{ programId: 10 }])
-      .mockResolvedValueOnce([{ programId: 20 }]);
 
     const req = { user: { id: 1, role: 'admin' }, body: { targetUserId: 2 } };
     const res = buildRes();
@@ -59,21 +56,19 @@ describe('authController.transferOwnership', () => {
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({
       success: false,
-      message: 'Target adviser is outside your assigned program scope',
+      message: 'Only Super Admin can transfer Program Chair ownership',
     });
     expect(User.update).not.toHaveBeenCalled();
+    expect(UserProgramAssignment.findAll).not.toHaveBeenCalled();
   });
 
-  test('allows transfer to an adviser with an overlapping assigned program', async () => {
+  test('allows Super Admin to promote an assigned adviser to Program Chair', async () => {
     User.findByPk
-      .mockResolvedValueOnce({ id: 1, role: 'admin' })
+      .mockResolvedValueOnce({ id: 1, role: 'superadmin' })
       .mockResolvedValueOnce({ id: 2, role: 'adviser' });
-    UserProgramAssignment.findAll
-      .mockResolvedValueOnce([{ programId: 10 }])
-      .mockResolvedValueOnce([{ programId: 10 }])
-      .mockResolvedValueOnce([{ programId: 10 }]);
+    UserProgramAssignment.findAll.mockResolvedValueOnce([{ programId: 10 }]);
 
-    const req = { user: { id: 1, role: 'admin' }, body: { targetUserId: 2 } };
+    const req = { user: { id: 1, role: 'superadmin' }, body: { targetUserId: 2 } };
     const res = buildRes();
 
     await transferOwnership(req, res, next);
@@ -82,21 +77,27 @@ describe('authController.transferOwnership', () => {
       { role: 'admin', updatedAt: expect.any(Number) },
       { where: { id: 2 } },
     );
-    expect(User.update).toHaveBeenCalledWith(
-      { role: 'adviser', updatedAt: expect.any(Number) },
-      { where: { id: 1 } },
-    );
-    expect(UserProgramAssignment.bulkCreate).toHaveBeenCalledWith(
-      [
-        {
-          userId: 2,
-          programId: 10,
-          createdAt: expect.any(Number),
-          updatedAt: expect.any(Number),
-        },
-      ],
-      { ignoreDuplicates: true },
-    );
+    expect(User.update).toHaveBeenCalledTimes(1);
+    expect(UserProgramAssignment.bulkCreate).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test('requires the promoted adviser to already have an assigned program', async () => {
+    User.findByPk
+      .mockResolvedValueOnce({ id: 1, role: 'superadmin' })
+      .mockResolvedValueOnce({ id: 2, role: 'adviser' });
+    UserProgramAssignment.findAll.mockResolvedValueOnce([]);
+
+    const req = { user: { id: 1, role: 'superadmin' }, body: { targetUserId: 2 } };
+    const res = buildRes();
+
+    await transferOwnership(req, res, next);
+
+    expect(User.update).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Target adviser must be assigned to a program before transfer',
+    });
   });
 });

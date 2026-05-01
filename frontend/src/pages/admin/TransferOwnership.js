@@ -1,19 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Alert, Button, Card, Container, Form, ListGroup, Modal, Spinner } from 'react-bootstrap';
 import api from '../../utils/api';
-import { useAuth } from '../../context/AuthContext';
 import AdminLayout from '../../components/admin/AdminLayout';
 import PaginationControls from '../../components/PaginationControls';
 import useDebouncedValue from '../../utils/useDebouncedValue';
 
 const TransferOwnership = () => {
-  const navigate = useNavigate();
-  const { logout } = useAuth();
-
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [selectedAdviser, setSelectedAdviser] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [query, setQuery] = useState({
@@ -61,10 +57,13 @@ const TransferOwnership = () => {
     try {
       setSubmitting(true);
       setError('');
+      setSuccess('');
       await api.patch('/auth/transfer-ownership', { targetUserId: selectedAdviser.id });
+      setUsers((current) => current.filter((user) => user.id !== selectedAdviser.id));
+      setSuccess(
+        `${selectedAdviser.firstName} ${selectedAdviser.lastName} is now a Program Chair.`,
+      );
       setSelectedAdviser(null);
-      await logout();
-      navigate('/login');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to transfer ownership.');
     } finally {
@@ -78,12 +77,13 @@ const TransferOwnership = () => {
         <Card className="shadow-sm">
           <Card.Body>
             <h2 className="mb-3">Transfer Program Chair Ownership</h2>
-            <Alert variant="warning">
-              This will permanently transfer Program Chair access to the selected adviser. You will
-              become a Student Adviser.
+            <Alert variant="info">
+              Only Super Admin can promote an assigned adviser to Program Chair. The selected
+              adviser keeps their program scope, and your Super Admin access is unchanged.
             </Alert>
 
             {error && <Alert variant="danger">{error}</Alert>}
+            {success && <Alert variant="success">{success}</Alert>}
 
             {loading ? (
               <div className="d-flex align-items-center gap-2 text-muted">
@@ -178,7 +178,8 @@ const TransferOwnership = () => {
               ?
             </p>
             <p className="mb-0 text-muted">
-              You will immediately lose admin access and be logged out.
+              This promotes the selected adviser within their assigned program scope. Your Super
+              Admin account will remain unchanged.
             </p>
           </Modal.Body>
           <Modal.Footer>
