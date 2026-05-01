@@ -198,7 +198,12 @@ const parseCsvText = (text) => {
   return rows;
 };
 
-const validateAndNormalizeCsvRows = ({ csvRows, expectedCurriculumId }) => {
+const normalizeCsvKey = (value) =>
+  String(value || '')
+    .trim()
+    .toUpperCase();
+
+const validateAndNormalizeCsvRows = ({ csvRows, expectedCurriculumId, expectedCurriculumName }) => {
   if (!Array.isArray(csvRows) || csvRows.length === 0) {
     return {
       errors: [{ rowNumber: 1, message: 'CSV file is empty.' }],
@@ -258,6 +263,18 @@ const validateAndNormalizeCsvRows = ({ csvRows, expectedCurriculumId }) => {
     if (!normalized.rowType || !ALLOWED_ROW_TYPES.has(normalized.rowType)) {
       errors.push({ rowNumber, rowType: normalized.rowType || null, message: 'Invalid rowType.' });
       continue;
+    }
+
+    if (
+      expectedCurriculumName &&
+      normalized.curriculumName &&
+      normalized.curriculumName !== expectedCurriculumName
+    ) {
+      errors.push({
+        rowNumber,
+        rowType: normalized.rowType,
+        message: `curriculumName "${normalized.curriculumName}" does not match selected curriculum "${expectedCurriculumName}".`,
+      });
     }
 
     if (
@@ -380,7 +397,88 @@ const validateAndNormalizeCsvRows = ({ csvRows, expectedCurriculumId }) => {
     normalizedRows.push(normalized);
   }
 
+  const addCrossRowError = (row, message) => {
+    errors.push({ rowNumber: row.rowNumber, rowType: row.rowType, message });
+  };
+  const structureByCourse = new Map();
+  const trackCourseByKey = new Map();
+  const trackHeaderNames = new Set();
+  const availableCourseCodes = new Set();
+
+  for (const row of normalizedRows) {
+    if (row.rowType === 'structure' && row.courseCode) {
+      const courseKey = normalizeCsvKey(row.courseCode);
+      availableCourseCodes.add(courseKey);
+      if (structureByCourse.has(courseKey)) {
+        addCrossRowError(
+          row,
+          `Duplicate structure row for courseCode ${row.courseCode}; first seen on row ${structureByCourse.get(
+            courseKey,
+          )}.`,
+        );
+      } else {
+        structureByCourse.set(courseKey, row.rowNumber);
+      }
+    }
+
+    if (row.rowType === 'elective_track' && row.trackName) {
+      trackHeaderNames.add(normalizeCsvKey(row.trackName));
+    }
+
+    if (row.rowType === 'elective_track_course' && row.courseCode) {
+      availableCourseCodes.add(normalizeCsvKey(row.courseCode));
+    }
+  }
+
+  for (const row of normalizedRows) {
+    if (row.rowType === 'elective_track_course') {
+      const trackKey = normalizeCsvKey(row.trackName);
+      if (row.trackName && !trackHeaderNames.has(trackKey)) {
+        addCrossRowError(
+          row,
+          `elective_track_course row references trackName "${row.trackName}" without an elective_track header row.`,
+        );
+      }
+
+      if (row.trackName && row.courseCode) {
+        const rowKey = `${trackKey}|${normalizeCsvKey(row.courseCode)}`;
+        if (trackCourseByKey.has(rowKey)) {
+          addCrossRowError(
+            row,
+            `Duplicate elective track course row for ${row.trackName} / ${row.courseCode}; first seen on row ${trackCourseByKey.get(
+              rowKey,
+            )}.`,
+          );
+        } else {
+          trackCourseByKey.set(rowKey, row.rowNumber);
+        }
+      }
+    }
+
+    if (
+      row.rowType === 'prerequisite' ||
+      row.rowType === 'corequisite' ||
+      row.rowType === 'equivalency'
+    ) {
+      for (const [column, code] of [
+        ['courseCode', row.courseCode],
+        ['relatedCourseCode', row.relatedCourseCode],
+      ]) {
+        if (code && !availableCourseCodes.has(normalizeCsvKey(code))) {
+          addCrossRowError(
+            row,
+            `${column} ${code} is not available in this import as a structure or elective track course row.`,
+          );
+        }
+      }
+    }
+  }
+
   return { errors, normalizedRows };
+};
+
+exports.__testables = {
+  validateAndNormalizeCsvRows,
 };
 
 const summarizeRows = (rows) =>
@@ -2042,7 +2140,7 @@ exports.exportCurriculumCsv = async (req, res, next) => {
   }
 };
 
-const parseImportRowsFromRequest = (req, curriculumId) => {
+const parseImportRowsFromRequest = (req, curriculumId, curriculumName) => {
   if (!req.file || !req.file.buffer) {
     return {
       errors: [
@@ -2054,7 +2152,11 @@ const parseImportRowsFromRequest = (req, curriculumId) => {
 
   const text = req.file.buffer.toString('utf8');
   const csvRows = parseCsvText(text);
-  return validateAndNormalizeCsvRows({ csvRows, expectedCurriculumId: curriculumId });
+  return validateAndNormalizeCsvRows({
+    csvRows,
+    expectedCurriculumId: curriculumId,
+    expectedCurriculumName: curriculumName,
+  });
 };
 
 // @desc   Preview curriculum CSV import (dry run)
@@ -2068,7 +2170,11 @@ exports.previewCurriculumImportCsv = async (req, res, next) => {
       return respondScopedNotFound(res, status, 'Curriculum');
     }
 
-    const { errors, normalizedRows } = parseImportRowsFromRequest(req, curriculumId);
+    const { errors, normalizedRows } = parseImportRowsFromRequest(
+      req,
+      curriculumId,
+      curriculum.name,
+    );
     const summary = summarizeRows(normalizedRows);
 
     return res.status(200).json({
@@ -2103,7 +2209,11 @@ exports.applyCurriculumImportCsv = async (req, res, next) => {
       return respondScopedNotFound(res, status, 'Curriculum');
     }
 
-    const { errors, normalizedRows } = parseImportRowsFromRequest(req, curriculumId);
+    const { errors, normalizedRows } = parseImportRowsFromRequest(
+      req,
+      curriculumId,
+      curriculum.name,
+    );
     if (errors.length > 0) {
       await tx.rollback();
       return res.status(400).json({
