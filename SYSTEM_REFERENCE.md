@@ -1,407 +1,216 @@
 # System Reference
 
-This document is the detailed technical reference for the Student Advising System.
+This document is the technical reference for the Student Advising System.
 
-## Project Structure
+## Architecture
 
-```text
-Student-Advising-Portal/
-├── IMPLEMENTATION_PLAN.md
-├── SYSTEM_REFERENCE.md
-├── SYSTEM_WORKFLOW.puml
-├── README.md
-├── USER_MANUAL.md
-├── GOOGLE_OAUTH_SETUP.md
-├── REQUIRED_EXTENSIONS.md
-├── bs_cpe_curriculum_2018_full.csv
-├── bs_cpe_curriculum_2023_full.csv
-├── bs_cpe_curriculum_2025_full.csv
-├── data/
-│   ├── curriculum_normalized/
-│   │   ├── courses.csv
-│   │   ├── curriculum_courses.csv
-│   │   ├── curriculums.csv
-│   │   ├── elective_track_courses.csv
-│   │   ├── elective_tracks.csv
-│   │   └── prerequisites.csv
-│   └── curriculum_import_ready/
-│       ├── bs_cpe_curriculum_2018_import.csv
-│       ├── bs_cpe_curriculum_2023_import.csv
-│       └── bs_cpe_curriculum_2025_import.csv
-├── backend/
-│   ├── server.js
-│   ├── package.json
-│   ├── make-admin.js
-│   ├── database/
-│   │   └── db.js
-│   ├── middleware/
-│   │   └── auth.js
-│   ├── models/
-│   │   ├── index.js
-│   │   ├── AcademicTerm.js
-│   │   ├── CoRequisite.js
-│   │   ├── Course.js
-│   │   ├── CourseEquivalency.js
-│   │   ├── Curriculum.js
-│   │   ├── CurriculumCourse.js
-│   │   ├── ElectiveTrack.js
-│   │   ├── ElectiveTrackCourse.js
-│   │   ├── ForecastSnapshot.js
-│   │   ├── Prerequisite.js
-│   │   ├── StudentAcademicRecord.js
-│   │   ├── StudyPlan.js
-│   │   ├── StudyPlanCourse.js
-│   │   ├── StudyPlanVersion.js
-│   │   └── User.js
-│   ├── controllers/
-│   │   ├── authController.js
-│   │   ├── curriculumController.js
-│   │   ├── dashboardController.js
-│   │   ├── exportController.js
-│   │   ├── forecastController.js
-│   │   ├── gradeController.js
-│   │   ├── sarController.js
-│   │   ├── termController.js
-│   │   ├── userController.js
-│   │   └── validationController.js
-│   ├── routes/
-│   │   ├── authRoutes.js
-│   │   ├── curriculumRoutes.js
-│   │   ├── dashboardRoutes.js
-│   │   ├── exportRoutes.js
-│   │   ├── forecastRoutes.js
-│   │   ├── googleAuthRoutes.js
-│   │   ├── gradeRoutes.js
-│   │   ├── sarRoutes.js
-│   │   ├── termRoutes.js
-│   │   ├── userRoutes.js
-│   │   └── validationRoutes.js
-│   ├── scripts/
-│   │   ├── seed.js
-│   │   ├── seed_users_only.js
-│   │   ├── phase7_populate.js
-│   │   ├── generate_import_csvs.js
-│   │   └── normalize_curricula_csv.js
-│   ├── utils/
-│   │   ├── email.js
-│   │   ├── featureFlags.js
-│   │   ├── jwt.js
-│   │   ├── pagination.js
-│   │   ├── sarAnalytics.js
-│   │   ├── sarLinking.js
-│   │   └── studyPlan.js
-│   └── uploads/
-│       ├── profiles/
-│       └── proofs/
-└── frontend/
-    ├── package.json
-    ├── public/
-    │   └── index.html
-    └── src/
-        ├── App.js
-        ├── index.js
-        ├── index.css
-        ├── assets/
-        │   └── images/
-        ├── context/
-        │   └── AuthContext.js
-        ├── components/
-        │   ├── ErrorBoundary.js
-        │   ├── PaginationControls.js
-        │   ├── PrivateRoute.js
-        │   ├── StudentIdModal.js
-        │   ├── admin/
-        │   │   └── CoursePickerModal.js
-        │   ├── adviser/
-        │   │   ├── CreateSARModal.js
-        │   │   ├── EditSARModal.js
-        │   │   └── ElectiveTrackSelector.js
-        │   └── sar/
-        │       └── SARLayout.js
-        ├── pages/
-        │   ├── ActivateAccount.js
-        │   ├── ChangeEmail.js
-        │   ├── ChangePassword.js
-        │   ├── Dashboard.js
-        │   ├── ForgotPassword.js
-        │   ├── Login.js
-        │   ├── Profile.js
-        │   ├── Register.js
-        │   ├── ResetPassword.js
-        │   ├── VerifyCode.js
-        │   ├── admin/
-        │   │   ├── CurriculumDetail.js
-        │   │   ├── CurriculumManagement.js
-        │   │   ├── ForecastDashboard.js
-        │   │   ├── TermManagement.js
-        │   │   └── TransferOwnership.js
-        │   ├── adviser/
-        │   │   ├── GradeEntry.js
-        │   │   ├── RegenerationReview.js
-        │   │   ├── StudentDetail.js
-        │   │   ├── StudentList.js
-        │   │   ├── StudyPlanView.js
-        │   │   └── ValidationFlow.js
-        │   └── student/
-        │       └── MyRecord.js
-        └── utils/
-            ├── api.js
-            ├── curriculumsCache.js
-            ├── profileImage.js
-            └── useDebouncedValue.js
-```
-
-## Database Models
-
-| Model | Purpose |
+| Area | Technology |
 |---|---|
-| User | Accounts for program chair, adviser, and student users |
-| Curriculum | Curriculum definitions |
-| Course | Course catalog entries |
-| CurriculumCourse | Curriculum-to-course placement (year/semester/elective flag) |
-| Prerequisite | Prerequisite rules |
-| CoRequisite | Co-requisite rules |
-| CourseEquivalency | Cross-curriculum equivalency mappings |
-| ElectiveTrack | Elective track definitions |
-| ElectiveTrackCourse | Elective-track-to-course mappings |
-| AcademicTerm | Academic year/semester with current-term tracking |
-| StudentAcademicRecord | Student Academic Record (SAR) root record |
-| StudyPlan | One-per-SAR study plan container |
-| StudyPlanVersion | Versioned study plans (draft/active/archived) |
-| StudyPlanCourse | Course rows inside study plan versions |
-| ForecastSnapshot | Stored forecasting snapshots at term checkpoints |
+| Backend | Node.js, Express, Sequelize |
+| Database | PostgreSQL |
+| Frontend | React, React Router, React Bootstrap |
+| Authentication | JWT access/refresh tokens, Google OAuth, email verification |
+| Uploads | Local uploads by default, S3-compatible profile-photo storage optional |
+| Reports | PDFKit SAR export |
 
-## API Endpoints
+## Runtime Entry Points
 
-### Authentication (`/api/auth`)
-- `POST /register` — public registration (student/adviser domain check enforced)
-- `POST /login` — includes first-login `mustChangePassword` / `mustChangeEmail` flags
-- `POST /logout`
-- `POST /verify-code` — email verification after registration
-- `POST /resend-code`
-- `POST /forgot-password`
-- `PUT /reset-password/:token`
-- `GET /activate/:token`
-- `GET /me`
-- `PUT /change-password` — changes password (supports forced first-login rotation)
-- `PATCH /transfer-ownership` (admin only) — transfers Program Chair role to an adviser
-- `POST /refresh-token`
-- `POST /google` — Google OAuth sign-in
-- `POST /initiate-email-change` — begins email change, sends OTP to new address
-- `POST /verify-email-change` — confirms OTP and commits new email
-- `POST /resend-email-change-code` — resends OTP for pending email change
-
-### Users (`/api/users`)
-- `GET /` (admin) — paginated, searchable list of users; supports `role` filter
-- `GET /:id` — get user profile by ID
-- `PUT /:id/profile` (multipart) — update user profile with optional profile picture
-- `PATCH /update-student-id` (protected) — student updates their own student ID
-- `PATCH /:userId/update-student-id` (public) — used by Google OAuth flow to set student ID
-- `GET /curriculum-options` — returns curricula available for the student's profile page
-
-### Curriculum Management (`/api`)
-- `POST /curriculums` (admin)
-- `GET /curriculums` (admin, adviser) — paginated + searchable
-- `GET /curriculums-map` (admin, adviser) — lightweight id→name map for dropdowns
-- `GET /curriculums/:id` (admin, adviser) — supports `?compact=true`
-- `PUT /curriculums/:id` (admin)
-- `PATCH /curriculums/:id/activate` (admin)
-- `GET /curriculums/:id/export/csv` (admin) — download curriculum as CSV
-- `POST /curriculums/:id/import/csv/preview` (admin) — dry-run CSV import, returns row-level validation
-- `POST /curriculums/:id/import/csv/apply` (admin) — transactional CSV import after preview
-- `POST /courses` (admin)
-- `GET /courses` (admin, adviser) — paginated + searchable
-- `PUT /courses/:id` (admin)
-- `DELETE /courses/:id` (admin) — blocked if referenced in any curriculum, plan, or track
-- `POST /curriculums/:id/courses` (admin)
-- `DELETE /curriculums/:id/courses/:ccId` (admin)
-- `GET /curriculums/:id/courses` (admin, adviser)
-- `POST /curriculums/:id/prerequisites` (admin)
-- `DELETE /curriculums/:id/prerequisites/:prereqId` (admin)
-- `GET /curriculums/:id/prerequisites` (admin, adviser)
-- `POST /curriculums/:id/corequisites` (admin)
-- `DELETE /curriculums/:id/corequisites/:coreqId` (admin)
-- `GET /curriculums/:id/corequisites` (admin, adviser)
-- `POST /equivalencies` (admin)
-- `DELETE /equivalencies/:id` (admin)
-- `GET /equivalencies` (admin, adviser)
-- `POST /curriculums/:id/elective-tracks` (admin)
-- `GET /curriculums/:id/elective-tracks` (admin, adviser)
-- `PUT /elective-tracks/:id` (admin)
-- `DELETE /elective-tracks/:id` (admin)
-- `POST /elective-tracks/:id/courses` (admin)
-- `PUT /elective-tracks/:id/courses/:etcId` (admin) — update slot placement of an existing track course
-- `DELETE /elective-tracks/:id/courses/:etcId` (admin)
-
-### Academic Terms (`/api/terms`)
-- `POST /` (admin)
-- `GET /` (admin, adviser) — paginated + searchable
-- `GET /current` (admin, adviser, student)
-- `PATCH /:id/activate` (admin) — marks all active study plan versions for revalidation
-- `PATCH /current/end` (admin) — saves forecast snapshot, closes current term
-
-### Forecasting (`/api/forecast`)
-- `GET /current` (admin, adviser)
-- `GET /next` (admin, adviser)
-- `GET /comparison` (admin, adviser)
-- `GET /history` (admin, adviser)
-
-### Dashboard (`/api/dashboard`)
-- `GET /summary` (admin, adviser, student) — role-specific dashboard summary with KPIs and current term
-
-### Student Academic Records (`/api/sars`)
-- `POST /` (adviser, admin)
-- `GET /` (adviser, admin, student — student sees own only)
-- `GET /autofill` (adviser, admin) — returns profile data by email for SAR creation prefill
-- `GET /:id` (adviser, admin, student — student sees own only)
-- `PUT /:id` (adviser, admin) — multipart; supports profile picture upload/remove
-- `POST /:id/study-plan/generate` (adviser, admin)
-- `GET /:id/study-plan/versions` (adviser, admin, student — student sees own only)
-
-### Grades, Validation, and Study Plan Flow (`/api`)
-- `PUT /sars/:id/study-plan/active-version/grades` (adviser, admin)
-- `POST /sars/:id/study-plan/regenerate` (adviser, admin)
-- `PATCH /sars/:id/study-plan/versions/:versionId/validate` (adviser, admin)
-- `PUT /sars/:id/study-plan/versions/:versionId/courses` (adviser, admin) — edit courses in a draft version
-- `PATCH /sars/:id/elective-track` (adviser, admin)
-
-### Export (`/api`)
-- `GET /sars/:id/export/pdf` (admin, adviser, student)
-
-### Utility
-- `GET /api/health`
+| Path | Purpose |
+|---|---|
+| `backend/server.js` | Express app, security middleware, health endpoint, startup migration/sync behavior |
+| `backend/database/db.js` | Sequelize connection |
+| `backend/migrations` | Ordered schema migrations |
+| `backend/scripts/seed.js` | Full seed, including curriculum imports and default accounts |
+| `backend/scripts/seed_users_only.js` | User-only seed/reset |
+| `frontend/src/App.js` | React route tree |
+| `frontend/src/context/AuthContext.js` | Auth state, current user, login/logout |
+| `frontend/src/utils/api.js` | Axios instance and API base URL |
 
 ## Role Model
 
 | Role Value | Role Name | Scope |
 |---|---|---|
-| `admin` | Program Chair | curriculum governance, term management, forecasting, ownership transfer |
-| `adviser` | Student Adviser | SAR management, grade entry, study plan actions, forecast read |
-| `student` | Student | own-record visibility and PDF export |
+| `superadmin` | Super Admin | Only global account. Can manage all programs, program assignments, global user account controls, and transfer ownership. |
+| `admin` | Program Chair | Program-bound. Can manage assigned-program curriculum, terms, forecasting, adviser assignment, SAR/study-plan workflows, and academic operations. |
+| `adviser` | Student Adviser | Program/student-bound. Can manage assigned SAR, grade, study-plan, prerequisite override, and elective override workflows. |
+| `student` | Student | Own-record visibility and own profile update flow. |
 
-## Frontend Pages & Components
+Program Chair remains stored as `admin` internally. Backend access must be enforced by role plus program assignment through `UserProgramAssignment`; frontend filters should match that backend truth.
 
-### Public/Auth Pages (no auth required)
-| Page | Route | Description |
-|---|---|---|
-| `Login.js` | `/login` | Unified login with role selection (default public entry) |
-| `Register.js` | `/register` | Student self-registration |
-| `ForgotPassword.js` | `/forgot-password` | Password reset request |
-| `ResetPassword.js` | `/reset-password/:token` | Password reset form |
-| `ActivateAccount.js` | `/activate/:token` | Email activation via link |
-| `VerifyCode.js` | `/verify-code` | OTP verification after registration |
-| `ChangePassword.js` | `/change-password` | Forced or voluntary password change |
-| `ChangeEmail.js` | `/change-email` | Verify and commit email change via OTP |
+## Permission Matrix
 
-### Authenticated Pages (all roles)
-| Page | Route | Description |
-|---|---|---|
-| `Dashboard.js` | `/dashboard` | Role-specific summary dashboard with KPIs and quicklinks |
-| `Profile.js` | `/profile` | Extended profile editor with photo, contact, academic fields |
+| Capability | Super Admin | Program Chair | Adviser | Student |
+|---|---|---|---|---|
+| Global program management | Yes | No | No | No |
+| Program assignment management | Yes | No | No | No |
+| Transfer Ownership | Yes | No | No | No |
+| Edit user account details | Yes | No | No | No |
+| Activate/deactivate users | Yes | No | No | No |
+| Manage adviser assignments | All programs | Assigned programs | No | No |
+| Manage curriculum and courses | All programs | Assigned programs | No | No |
+| Manage terms and forecasting | All programs | Assigned programs | Read/use where assigned | No |
+| SAR and study-plan workflows | All programs | Assigned programs | Assigned students/programs | Own record read |
+| Prerequisite/elective override workflows | All programs | Assigned programs | Assigned students/programs | Own record read |
+| View/manage Super Admin accounts | Yes | No | No | No |
 
-### Admin Pages
-| Page | Route | Description |
-|---|---|---|
-| `CurriculumManagement.js` | `/admin/curriculum` | Curricula, global course library, equivalencies |
-| `CurriculumDetail.js` | `/admin/curriculum/:id` | Structure, prerequisites, co-reqs, elective tracks, CSV import/export |
-| `TermManagement.js` | `/admin/terms` | Academic term lifecycle (create, activate, end) |
-| `ForecastDashboard.js` | `/admin/forecast` | Current demand, next forecast, comparison, history tabs + charts |
-| `TransferOwnership.js` | `/admin/transfer-ownership` | Search advisers and transfer Program Chair role |
+Cross-program access by Program Chair, Adviser, or Student should return `403`.
 
-### Adviser Pages (also accessible to admin)
-| Page | Route | Description |
-|---|---|---|
-| `StudentList.js` | `/adviser/students` | Paginated, searchable list of all SARs; create new SAR |
-| `StudentDetail.js` | `/adviser/students/:sarId` | Full SAR view via shared SARLayout; study plan versions list |
-| `StudyPlanView.js` | `/adviser/students/:sarId/plan/:versionId` | Read-only view of a specific study plan version |
-| `GradeEntry.js` | `/adviser/students/:sarId/grades` | Enter/update grades for active plan version |
-| `RegenerationReview.js` | `/adviser/students/:sarId/plan/:versionId/review` | Review and edit regenerated draft plan before validation |
-| `ValidationFlow.js` | `/adviser/students/:sarId/plan/:versionId/validate` | Validate selected draft version as the new active plan |
+## Core Models
 
-### Student Pages
-| Page | Route | Description |
-|---|---|---|
-| `MyRecord.js` | `/my-record` | Read-only view of student's own SAR via shared SARLayout; PDF export |
-
-### Shared Components
-| Component | Description |
+| Model | Purpose |
 |---|---|
-| `PrivateRoute.js` | Route guard supporting `roles` prop for role-based access control |
-| `PaginationControls.js` | Reusable pagination with page size selector |
-| `ErrorBoundary.js` | React error boundary to catch unhandled render errors |
-| `StudentIdModal.js` | Modal prompt for Google OAuth users to supply their student ID |
-| `admin/CoursePickerModal.js` | Searchable course picker modal for curriculum structure, prereqs, co-reqs, and tracks |
-| `adviser/CreateSARModal.js` | Email-first SAR creation modal with autofill support |
-| `adviser/EditSARModal.js` | SAR edit modal with profile sync (name, academic fields, profile photo) |
-| `adviser/ElectiveTrackSelector.js` | Inline elective track selection component used in SAR and ValidationFlow |
-| `sar/SARLayout.js` | Shared tabbed SAR detail layout (profile, progress, checklist, prerequisites, grades, study plan) used by both StudentDetail and MyRecord |
+| `User` | Users, roles, profile fields, status, first-login flags |
+| `Program` | Academic program definitions |
+| `UserProgramAssignment` | Program access assignments for Program Chair and Adviser scope |
+| `Course` | Course catalog entries |
+| `Curriculum` | Curriculum definition and active state |
+| `CurriculumCourse` | Curriculum-to-course placement |
+| `Prerequisite` | Prerequisite rules |
+| `CoRequisite` | Co-requisite rules |
+| `CourseEquivalency` | Cross-curriculum equivalency mappings |
+| `ElectiveTrack` | Elective track definitions |
+| `ElectiveTrackCourse` | Elective-track course placement defaults |
+| `AcademicTerm` | Academic year/semester and current-term state |
+| `StudentAcademicRecord` | SAR root record |
+| `StudyPlan` | Study-plan container per SAR |
+| `StudyPlanVersion` | Draft/active/archived plan versions |
+| `StudyPlanCourse` | Course rows inside a plan version |
+| `ForecastSnapshot` | Saved forecast snapshots |
+| `ActivityLog` | Auditable high-risk and workflow events |
 
-### Frontend Utilities
-| Utility | Description |
+## API Endpoint Summary
+
+### Authentication (`/api/auth`)
+
+- `POST /register`: public registration with domain and role checks.
+- `POST /login`: returns user/session data and first-login flags.
+- `POST /logout`
+- `POST /verify-code`, `POST /resend-code`
+- `POST /forgot-password`, `PUT /reset-password/:token`
+- `GET /activate/:token`
+- `GET /me`
+- `PUT /change-password`
+- `PATCH /transfer-ownership`: Super Admin-only transfer flow.
+- `POST /refresh-token`
+- `POST /google`
+- `POST /initiate-email-change`
+- `POST /verify-email-change`
+- `POST /resend-email-change-code`
+
+### Users (`/api/users`)
+
+- `GET /`: role-aware list. Super Admin can see global users; Program Chair/Adviser are scoped.
+- `GET /:id`: role-aware user profile lookup.
+- `PUT /:id`: Super Admin-only account-detail edit.
+- `PATCH /:id/toggle-status`: Super Admin-only activation/deactivation.
+- `PUT /:id/profile`: own/scoped profile update with optional profile picture.
+- `PATCH /update-student-id`: protected student self-update.
+- `PATCH /:userId/update-student-id`: public Google OAuth completion path.
+- `GET /curriculum-options`: profile curriculum options.
+
+### Programs (`/api/programs`)
+
+Program management and global program assignment controls are Super Admin-only.
+
+### Curriculum (`/api`)
+
+- Curriculum, course, prerequisite, co-requisite, equivalency, and elective-track mutation routes require Super Admin or assigned Program Chair scope.
+- Curriculum read routes are available to scoped Program Chair/Adviser workflows.
+- CSV import preview/apply must validate row shape, referenced courses, duplicate rows, curriculum name, prerequisite/corequisite availability, and elective track structure before apply.
+- Elective track course year/semester values are defaults. Authorized Program Chair/Adviser workflows may override placements per student without changing the curriculum default.
+
+### Terms (`/api/terms`)
+
+- Term create/activate/end routes require Super Admin or assigned Program Chair scope.
+- Current-term read supports role-aware access.
+- Term activation can flag active study plans for revalidation.
+- Ending a term can create forecast snapshots.
+
+### Forecast (`/api/forecast`)
+
+Forecast read routes are role-aware. Super Admin can view all programs; Program Chair and Adviser are scoped to assigned programs.
+
+### SAR, Grades, Validation, and Study Plans
+
+- SAR create/update/read routes enforce role and program/student scope.
+- Grade entry, regeneration, validation, draft editing, prerequisite overrides, and elective-track overrides enforce the same scope.
+- Student access is own-record only.
+
+### Export
+
+- `GET /sars/:id/export/pdf`: role-aware SAR PDF export.
+
+### Health
+
+- `GET /api/health`: dependency-aware service health endpoint for deployment probes.
+
+## Frontend Route Ownership
+
+| Route Area | Expected Access |
 |---|---|
-| `utils/api.js` | Pre-configured Axios instance with auth token injection |
-| `utils/curriculumsCache.js` | In-memory cache for curriculum list to avoid redundant fetches |
-| `utils/profileImage.js` | Helpers for building profile image URLs and generating initials fallbacks |
-| `utils/useDebouncedValue.js` | React hook: debounced value for search input fields |
-| `context/AuthContext.js` | Provides `user`, `login`, `logout`, and role info across the app |
+| `/login`, `/register`, password/email verification routes | Public/auth flow |
+| `/dashboard`, `/profile` | Authenticated, role-aware |
+| `/admin/programs` | Super Admin-only |
+| `/admin/user-management` | Super Admin for account lifecycle; scoped operational views only where implemented |
+| `/admin/transfer-ownership` | Super Admin-only |
+| `/admin/curriculum`, `/admin/terms`, `/admin/forecast` | Super Admin all programs; Program Chair assigned programs |
+| `/adviser/students` and SAR/study-plan routes | Super Admin all programs; Program Chair assigned programs; Adviser assigned students/programs |
+| `/my-record` | Student own record |
 
-## Backend Utilities
+Non-superadmin views should not show "All Programs" or unassigned program options. When an action is hidden or blocked due to role/scope, the UI copy should say `Insufficient Permission`.
 
-| Utility | Description |
+## Seed And Bootstrap
+
+Seed scripts should use one consistent Super Admin bootstrap path.
+
+Required production environment variables:
+
+- `SUPERADMIN_EMAIL`
+- `SUPERADMIN_PASSWORD`
+
+Local development may fall back to the default Super Admin account only with `mustChangePassword` and `mustChangeEmail` enabled. Production must fail clearly if Super Admin credentials are missing.
+
+Only one active `superadmin` account should exist.
+
+## Startup And Migrations
+
+- Migrations own production schema changes.
+- Production and CI startup must fail if pending migrations fail.
+- Development may keep additive `sequelize.sync()` convenience behavior for missing baseline tables only.
+- Production must not rely on `sequelize.sync()` for schema changes.
+
+## Verification Commands
+
+Use these commands from the repository root unless noted:
+
+```bash
+npm run lint:backend
+npm run test:backend:ci
+npm run test:frontend:ci
+npm run test:backend:integration
+npm run verify:ci
+```
+
+On Windows, run the same scripts through `npm.cmd` when invoking commands directly from PowerShell.
+
+## Environment Variables
+
+| Variable | Purpose |
 |---|---|
-| `utils/email.js` | Nodemailer-based email helpers (verification, OTP, reset links) |
-| `utils/featureFlags.js` | Environment-driven feature flags (e.g., `DISABLE_ADMIN_FIRST_LOGIN_ENFORCEMENT`) |
-| `utils/jwt.js` | JWT signing, verification, and refresh token helpers |
-| `utils/pagination.js` | Reusable Sequelize pagination/sorting helper |
-| `utils/sarAnalytics.js` | Computes SAR analytics (GWA, completion %, prerequisite risks, unit counts) |
-| `utils/sarLinking.js` | Helpers for linking a SAR to a registered User account |
-| `utils/studyPlan.js` | Study plan generation and regeneration logic |
+| `DATABASE_URL` | Main PostgreSQL connection |
+| `TEST_DATABASE_URL` | Integration-test PostgreSQL connection |
+| `JWT_SECRET` | Access token signing |
+| `JWT_REFRESH_SECRET` | Refresh token signing |
+| `SUPERADMIN_EMAIL` | Production Super Admin bootstrap email |
+| `SUPERADMIN_PASSWORD` | Production Super Admin bootstrap password |
+| `DISABLE_ADMIN_FIRST_LOGIN_ENFORCEMENT` | Local-only bypass for seeded Program Chair first-login rotation |
+| `E2E_BASE_URL` | Playwright frontend target |
+| `E2E_API_URL` | Playwright backend API target |
+| `REACT_APP_API_URL` | Frontend API base URL |
 
-## Setup and Run
+## Security And Operational Notes
 
-### Backend
-```bash
-cd backend
-npm install
-npm run dev
-```
-
-### Frontend
-```bash
-cd frontend
-npm install
-npm start
-```
-
-### Seed Data
-```bash
-node backend/scripts/seed.js
-```
-
-### Users-Only Reset
-```bash
-node backend/scripts/seed_users_only.js
-```
-
-### Development Feature Flag
-To temporarily bypass the seeded Program Chair first-login password/email rotation in local development:
-
-```env
-DISABLE_ADMIN_FIRST_LOGIN_ENFORCEMENT=true
-```
-
-## Security and Operational Notes
-
-- JWT-based protected routes with role guards.
-- Password hashing via bcryptjs.
-- Email-driven verification and recovery workflows.
-- Google OAuth supported with domain policy controls.
-- Forecast and SAR routes enforce role-safe access.
-- In development, Sequelize sync uses additive-safe behavior (`alter: { drop: false }`).
-
-## Development Notes
-
-- Backend default port: `5000`
-- Frontend default port: `3000`
-- Root-level run scripts are not guaranteed; run commands from `backend` or `frontend`.
-- Seed script resets and repopulates baseline curriculum and default users.
+- Backend authorization is the source of truth; frontend route guards are convenience and UX only.
+- High-risk actions should write activity logs: role changes, status changes, transfer ownership, program assignment changes, curriculum import/apply, and term activation/end-term.
+- Proof documents are not currently a public static feature. If restored later, they must be served through an authorized metadata-backed route, not broad static middleware.
+- Use `/api/health` for deployment health checks.

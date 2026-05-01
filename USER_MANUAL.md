@@ -1,197 +1,225 @@
-# Student Advising System — User Manual 📘
+# Student Advising System User Manual
 
-This guide explains how to use the system in plain language for each type of user:
-- 👔 Program Chair (`admin`)
-- 🧑‍🏫 Student Adviser (`adviser`)
-- 🎓 Student (`student`)
+This guide explains how to use the system by role:
 
----
+- Super Admin (`superadmin`)
+- Program Chair (`admin`)
+- Student Adviser (`adviser`)
+- Student (`student`)
 
-## 1) Before You Start 🚦
+## 1. Before You Start
 
-### Log in the right way 🔐
-- Use the correct login path based on your role:
-  - **Program Chair / Adviser:** Faculty login
-  - **Student:** Student login
+### Log in the right way
 
-### First login for Program Chair 👔
-- If you are using the initial Program Chair account, the system will require:
-  1. Password change
-  2. Email change + OTP verification (sent to your new email)
-- You must complete both steps once before full admin access is enabled.
-- To bypass this in a local development environment, set `DISABLE_ADMIN_FIRST_LOGIN_ENFORCEMENT=true` in `backend/.env`.
+- Super Admin, Program Chair, and Adviser use the Faculty login.
+- Students use the Student login.
 
-### Google OAuth sign-in
-- Google sign-in is available for both Faculty and Student portals.
-- Signing in with Google the first time may prompt you to supply your Student ID (for student accounts) or choose a role.
-- Only emails matching the configured domain policy will be accepted.
+### First login and seeded accounts
 
----
+- Production Super Admin bootstrap requires `SUPERADMIN_EMAIL` and `SUPERADMIN_PASSWORD`.
+- Local fallback Super Admin accounts must change both email and password before normal use.
+- Seeded Program Chair accounts also require first-login password and email setup unless local development sets `DISABLE_ADMIN_FIRST_LOGIN_ENFORCEMENT=true`.
+- Google sign-in is available for Faculty and Student portals. The first login may ask for role or student ID details depending on the account.
 
-## 2) Program Chair Walkthrough (`admin`) 👔
+## 2. Super Admin Walkthrough (`superadmin`)
 
-### A. Set up curriculum data 🗂️
+### A. Manage global system access
+
+1. Open **User Management**.
+2. Search users across programs.
+3. Edit account details only when a system-level correction is needed.
+4. Activate or deactivate users.
+5. Assign or remove program access.
+
+Program Chair, Adviser, and Student users cannot manage Super Admin accounts.
+
+### B. Manage programs
+
+1. Open **Program Management**.
+2. Create, update, activate, deactivate, or review programs.
+3. Assign Program Chairs and advisers to the correct programs.
+
+### C. Transfer ownership
+
+1. Open **Transfer Ownership**.
+2. Select the target account according to the transfer flow.
+3. Confirm the transfer.
+
+Transfer Ownership is Super Admin-only. Program Chair users should see an insufficient-permission response if they try to access it.
+
+### D. Review all-program operations
+
+Super Admin can access all programs for audit, support, correction, and release verification work. Use this access only for system-level administration.
+
+## 3. Program Chair Walkthrough (`admin`)
+
+Program Chair remains stored internally as `admin`, but access is limited to assigned programs.
+
+### A. Set up curriculum data
+
 1. Open **Curriculum Management**.
-2. Create or update curricula.
+2. Create or update curricula within assigned programs.
 3. Manage courses and map them to year/semester.
 4. Add prerequisites and co-requisites.
 5. Maintain equivalencies and elective tracks.
-6. Set one curriculum as **Active**.
+6. Set the correct curriculum as active.
 
-Tips 💡:
-- Use **CSV Import Preview** first (dry-run) before applying changes; review any row-level errors shown before committing.
-- Use **Export CSV** when you need a backup or want to batch-edit curriculum data externally.
-- Elective track course placements (year/semester) can be updated after being added.
+Tips:
 
-### B. Manage academic terms 🗓️
+- Use **CSV Import Preview** before applying changes.
+- Review row-level errors before committing a curriculum import.
+- Elective track default placements come from the curriculum import/seed data and can still be overridden per student by authorized adviser/program-chair workflows.
+
+### B. Manage academic terms
+
 1. Open **Term Management**.
-2. Create a new term (school year + semester).
-3. Activate the correct current term — all currently active study plans will be flagged for revalidation.
-4. A confirmation modal is required before activating or ending a term.
+2. Create a new term for an assigned program.
+3. Activate the correct current term.
+4. End a term when the term is complete.
 
-### C. Monitor forecast and planning 📈
+Activating or ending terms can trigger study-plan revalidation and forecast snapshots.
+
+### C. Monitor forecast and planning
+
 1. Open **Forecast Dashboard**.
-2. Review four tabs:
-   - **Current Demand** — how many students are taking each course this term
-   - **Next Forecast** — projected demand one semester ahead
-   - **Comparison** — actual vs. forecasted difference from the previous snapshot
-   - **History** — all past forecast snapshots with full data tables
-3. Both bar charts and data tables are available for each view.
-4. Use this for section/capacity planning decisions.
+2. Review current demand, next forecast, comparison, and history views.
+3. Use the charts and tables for section and capacity planning.
 
-### D. End-of-term routine 🔄
-1. End the current term in **Term Management** — this saves a forecast snapshot automatically.
-2. Activate the next term.
-3. Ensure advisers pick up the revalidation work (study plans flagged after term activation).
+### D. Manage scoped academic operations
 
-### E. Transfer Program Chair access 🔁
-1. Open **Transfer Ownership** (from the navbar or profile area).
-2. Search and select an adviser.
-3. Confirm the transfer — you will be demoted to adviser and automatically signed out.
-4. The selected adviser's role is upgraded to Program Chair immediately.
+Program Chair can work with assigned-program SAR, study-plan, adviser assignment, curriculum, term, forecasting, prerequisite override, and elective override workflows where backend scope allows it.
 
----
+Program Chair cannot:
 
-## 3) Student Adviser Walkthrough (`adviser`) 🧑‍🏫
+- Transfer ownership.
+- Edit user account details.
+- Activate or deactivate users.
+- Manage Super Admin accounts.
+- Manage global program assignment controls.
 
-### A. Find or create a Student Academic Record (SAR) 📄
+## 4. Student Adviser Walkthrough (`adviser`)
+
+### A. Find or create a Student Academic Record
+
 1. Open **Student Records**.
-2. Search the student first.
-3. If no SAR exists, click **Create New Record**:
-   - Enter the student's `@tip.edu.ph` email first.
-   - The system will autofill known profile details if the student already has an account.
-   - Fill in any missing fields and save.
+2. Search for the student first.
+3. If no SAR exists, click **Create New Record**.
+4. Enter the student's `@tip.edu.ph` email first.
+5. Fill in any missing profile fields and save.
 
-### B. Generate and manage study plans 🧩
+### B. Generate and manage study plans
+
 1. Open a student SAR.
 2. If no study plan exists, click **Generate Initial Study Plan**.
 3. Review the draft version in the Study Plan tab.
-4. Use **Review/Edit Draft** to adjust course placements before validating.
-5. Validate the selected draft version to make it the new active plan.
+4. Use **Review/Edit Draft** to adjust course placements before validation.
+5. Validate the selected draft version to make it active.
 
-### C. Enter grades and regenerate when needed 📝
+### C. Enter grades and regenerate when needed
+
 1. Open **Grade Entry** for the student.
-2. Enter or update grades (numeric grades, `INC`, `Pending`, `4.00` accepted).
-3. If any courses are unresolved (failed / INC / dropped), click **Regenerate** to create a new draft.
-   - Regeneration keeps passed courses as completed, reschedules unresolved ones, and respects prerequisites, co-requisites, and load constraints.
+2. Enter or update grades.
+3. If courses are unresolved, click **Regenerate** to create a new draft.
 4. Review the regenerated draft, make any manual adjustments, then validate it.
 
-### D. Elective track checkpoint 🎯
-- For students reaching Year 2, Semester 2 or beyond:
-  1. The system will flag if the elective track is not yet selected.
-  2. Select the elective track from the SAR or during validation — it becomes immutable once set.
-  3. Confirm all elective course slots match the selected track.
+Regeneration keeps passed courses as completed, reschedules unresolved courses, and respects prerequisites, co-requisites, and load constraints.
 
-### E. Edit SAR profile and student details ✏️
-- Use **Edit Record** (pencil icon on the SAR) to update:
-  - Student name, student number, year level, curriculum assignment
-  - Full student profile (contact, demographics, emergency contact)
-  - Profile picture (upload, replace, or remove)
+### D. Elective track checkpoint
 
-### F. Export and share outputs 🧾
-- Use **Export PDF** from the SAR detail page to download a professional SAR summary document.
+For students reaching Year 2, Semester 2 or beyond:
 
----
+1. Check whether the elective track is selected.
+2. Select the elective track from the SAR or validation workflow.
+3. Confirm elective course placements.
+4. Use the per-student override workflow when the default placement needs adjustment for that student.
 
-## 4) Student Walkthrough (`student`) 🎓
+### E. Edit SAR profile and student details
 
-### A. Open your dashboard 🏠
-- After login, the dashboard shows your current academic status.
-- If no SAR has been created for you yet, you'll see a clear message with guidance to contact your adviser.
+Use **Edit Record** on the SAR to update student record details, contact information, emergency contact, and profile picture according to your assigned access.
 
-### B. Review your academic record 📘
+### F. Export outputs
+
+Use **Export PDF** from the SAR detail page to download a professional SAR summary document.
+
+## 5. Student Walkthrough (`student`)
+
+### A. Open your dashboard
+
+After login, the dashboard shows current academic status. If no SAR has been created yet, contact your adviser.
+
+### B. Review your academic record
+
 1. Open **My Record**.
-2. Review all tabs:
-   - **Profile & Identity** — your personal and contact details
-   - **Progress Summary** — GWA, completion %, remaining units, and prerequisite risk flags
-   - **Checklist** — all courses with current status
-   - **Prerequisites** — pending prerequisite risk items
-   - **Grades & Performance** — grade breakdown by year/semester
-   - **Study Plan** — your active study plan grouped by year level and semester
+2. Review profile, progress summary, checklist, prerequisites, grades, performance, and study plan tabs.
 
-### C. Keep your profile updated 👤
-- Open **Profile** to update contact details, demographic data, emergency contact, and profile photo.
-- Profile updates are accepted anytime.
-- **Note:** Students can update their profile once per active term. If you have already submitted a profile update during the current term, the form will be in view-only mode until the next term begins.
+### C. Keep your profile updated
 
-### D. Export your record 📤
-- Use **Export PDF** in **My Record** to download your own SAR document.
+Open **Profile** to update contact details, demographic data, emergency contact, and profile photo.
 
----
+Students can update their profile once per active term. After submitting a profile update, the form becomes view-only until the next term begins.
 
-## 5) Common Tasks & Quick Answers ❓
+### D. Export your record
 
-### "I can't see an admin/adviser page."
-- Confirm you logged in with the correct role account.
-- Confirm you used the correct role login path (Faculty vs. Student).
+Use **Export PDF** in **My Record** to download your own SAR document.
 
-### "No current term appears in forecasting."
-- Program Chair must activate a term in **Term Management** first.
+## 6. Common Questions
 
-### "Student has no record yet."
-- Adviser should create a SAR from **Student Records** using the student's email.
+### I cannot see an admin or adviser page.
 
-### "Why is Program Chair blocked after first login?"
-- Initial security policy requires one-time credential rotation (password + verified email change).
+Confirm you logged in with the correct role account and selected the right login portal.
 
-### "Why is my profile form locked?"
-- Students can submit a profile update once per active academic term. The form unlocks at the start of the next term.
+### Why does Program Chair see Insufficient Permission?
 
-### "CSV import failed — what do I do?"
-- Use the **Preview** step first; the system lists row-level errors.
-- Fix errors in the CSV file and re-upload the corrected version.
+The action is outside the Program Chair scope. Transfer Ownership, account-detail editing, activation/deactivation, global program assignment controls, and Super Admin account management are Super Admin-only.
 
-### "How do I change my email?"
-- Go to **Profile** and initiate email change.
-- Check your new email's inbox for the OTP code.
-- Enter the code to verify and complete the change.
+### No current term appears in forecasting.
 
----
+Program Chair or Super Admin must activate a term first.
 
-## 6) Suggested Monthly Routine 📅
+### Student has no record yet.
 
-### Program Chair 👔
-- Review curriculum updates
-- Confirm active term status
-- Check forecast trends
-- Review any revalidation flags after term activation
+Adviser should create a SAR from **Student Records** using the student's email.
 
-### Adviser 🧑‍🏫
-- Review assigned students
-- Update grades regularly
-- Validate updated draft plans before advising meetings
-- Select elective tracks for qualifying students
+### CSV import failed.
 
-### Student 🎓
-- Check dashboard weekly
-- Track prerequisite and plan status
-- Keep profile and contact details current
+Use the preview step first, fix the listed row-level errors, then upload the corrected CSV.
 
----
+### How do I change my email?
 
-## 7) Where to Find More Details 🔎
+Go to **Profile**, start email change, check the new email inbox for the OTP code, and enter the OTP to complete verification.
 
-- [README.md](README.md) — Project overview and setup
-- [SYSTEM_REFERENCE.md](SYSTEM_REFERENCE.md) — Detailed technical reference (project structure, API endpoints, models, utilities)
-- [SYSTEM_WORKFLOW.puml](SYSTEM_WORKFLOW.puml) — Visual workflow map (PlantUML)
-- [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md) — Google OAuth configuration guide
+## 7. Suggested Monthly Routine
+
+### Super Admin
+
+- Review user access and program assignments.
+- Check global account lifecycle changes.
+- Confirm no non-superadmin account has global permissions.
+
+### Program Chair
+
+- Review assigned-program curriculum updates.
+- Confirm active term status.
+- Check forecast trends.
+- Review revalidation flags after term activation.
+
+### Adviser
+
+- Review assigned students.
+- Update grades regularly.
+- Validate updated draft plans before advising meetings.
+- Select or override elective track placements for qualifying students.
+
+### Student
+
+- Check dashboard weekly.
+- Track prerequisite and plan status.
+- Keep profile and contact details current.
+
+## 8. More Details
+
+- [README.md](README.md): project overview and setup.
+- [SYSTEM_REFERENCE.md](SYSTEM_REFERENCE.md): technical reference.
+- [SOFTWARE_DESIGN.md](SOFTWARE_DESIGN.md): system design.
+- [SYSTEM_WORKFLOW.puml](SYSTEM_WORKFLOW.puml): visual workflow map.
+- [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md): Google OAuth setup.

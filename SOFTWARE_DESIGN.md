@@ -40,7 +40,8 @@
    - 1.5 [Expected Users / Stakeholders and their Requirements](#15-expected-users--stakeholders-and-their-requirements)
      - 1.5.1 [Student](#151-student)
      - 1.5.2 [Student Adviser](#152-student-adviser)
-     - 1.5.3 [Program Chair](#153-program-chair)
+     - 1.5.3 [Super Admin](#153-super-admin)
+     - 1.5.4 [Program Chair](#154-program-chair)
 2. [REVIEW OF RELATED LITERATURE / SYSTEMS](#2-review-of-related-literature--systems)
    - 2.1 [Related Literature](#21-related-literature)
    - 2.2 [Related Systems](#22-related-systems)
@@ -77,7 +78,13 @@
 
 This document presents the updated software design of the Student Advising and Course Demand Forecasting System based on the current implemented platform. The system is a role-based web application that supports academic advising operations for the Computer Engineering Department through curriculum governance, Student Academic Record (SAR) management, study plan generation and validation, and term-based forecasting.
 
-The system currently serves three user roles: Program Chair (admin), Student Adviser (adviser), and Student (student). The implemented design focuses on replacing fragmented manual workflows with a centralized digital process that enforces prerequisite logic, tracks versioned study plans, and provides aggregate course demand analytics for planning.
+The system currently serves four user roles: Super Admin (superadmin), Program Chair (admin), Student Adviser (adviser), and Student (student). The implemented design focuses on replacing fragmented manual workflows with a centralized digital process that enforces prerequisite logic, tracks versioned study plans, provides aggregate course demand analytics for planning, and separates global account control from program-scoped academic operations.
+
+### Current Role Boundary
+
+The Super Admin is the only global-permission account. Program Chair remains stored as the `admin` role internally, but all Program Chair access is limited to assigned programs through `UserProgramAssignment`.
+
+Super Admin-only actions include program management, program assignment management, transfer ownership, editing user account details, activating/deactivating users, and viewing or managing Super Admin accounts. Program Chair users can still manage assigned-program workflows such as curriculum, terms, forecasting, adviser assignment, SAR/study-plan work, prerequisite overrides, and elective-track overrides where backend scope allows it.
 
 ---
 
@@ -123,7 +130,7 @@ To provide a centralized, role-based advising platform that operationalizes curr
 
 The project specifically aims to:
 
-- Implement secure, role-based authentication and protected access for Program Chair, Student Adviser, and Student users.
+- Implement secure, role-based authentication and protected access for Super Admin, Program Chair, Student Adviser, and Student users.
 - Provide complete curriculum administration for courses, prerequisites, co-requisites, equivalencies, and elective tracks.
 - Enable adviser-led SAR creation, profile synchronization, and academic record maintenance.
 - Generate and manage versioned study plans (draft/active) with formal validation and revalidation controls.
@@ -140,12 +147,12 @@ The project specifically aims to:
 The implemented system includes the following production features:
 
 - **Authentication and Account Security:** Email/password login, account verification, password reset, optional Google sign-in, and role-based route protection.
-- **User Management:** Program Chair can manage users, assign advisers to students, and update account status.
-- **Curriculum Governance:** Program Chair can create and activate curricula; manage curriculum-course placements; configure prerequisites, co-requisites, equivalencies, and elective tracks; and process curriculum CSV preview/apply workflows.
+- **User Management:** Super Admin manages global account lifecycle controls, user detail edits, activation/deactivation, program assignments, and transfer ownership. Program Chair manages assigned-program academic operations and adviser assignment where scoped access allows it.
+- **Curriculum Governance:** Super Admin can manage all curricula. Program Chair can create and activate curricula; manage curriculum-course placements; configure prerequisites, co-requisites, equivalencies, and elective tracks; and process curriculum CSV preview/apply workflows only within assigned program scope.
 - **SAR Management:** Advisers and Program Chair can create and update Student Academic Records, including curriculum and elective track assignment.
 - **Study Plan Lifecycle:** Advisers and Program Chair can generate initial draft plans, enter grades, trigger draft regeneration, and validate drafts into active plans.
 - **Advising Analytics:** System computes academic KPIs (units, status summaries, graduation estimate indicators) for SAR views and reports.
-- **Forecasting and Terms:** Program Chair and advisers can view current/next/comparison/history demand views; Program Chair can create/activate/end terms.
+- **Forecasting and Terms:** Super Admin can view all programs. Program Chair and advisers can view current/next/comparison/history demand views within assigned scope; Program Chair can create/activate/end terms within assigned program scope.
 - **PDF Export:** Student, adviser, and admin can export SAR-focused PDF reports.
 
 #### 1.4.2 Limitations of the Project
@@ -172,10 +179,16 @@ The implemented system includes the following production features:
 - Needs prerequisite and compliance checks before finalizing a plan.
 - Needs fast access to advisee analytics and plan-version context.
 
-#### 1.5.3 Program Chair
+#### 1.5.3 Super Admin
+
+- Needs global program and program-assignment administration.
+- Needs account lifecycle controls, including editing user account details and activating/deactivating users.
+- Needs ownership-transfer controls and visibility across all programs for release support and audit work.
+
+#### 1.5.4 Program Chair
 
 - Needs full curriculum governance controls and auditable academic rule configuration.
-- Needs user and role administration across advisers and students.
+- Needs assigned-program adviser assignment and academic workflow control.
 - Needs aggregate, term-aware demand views to support section and staffing decisions.
 
 ---
@@ -245,7 +258,7 @@ This chapter describes the implemented operational model and defines system requ
 
 ### 3.1 Current System Description
 
-The system runs as a three-role web platform with protected APIs and UI routes. Advising operations are centered around Student Academic Records (SAR), where each SAR can own a versioned study plan container. Draft plans are generated/regenerated by adviser/admin actions and become operational only after validation.
+The system runs as a four-role web platform with protected APIs and UI routes. Advising operations are centered around Student Academic Records (SAR), where each SAR can own a versioned study plan container. Draft plans are generated/regenerated by adviser/admin actions and become operational only after validation. Super Admin access is global; Program Chair and Adviser access is program-scoped.
 
 #### 3.1.1 Student Advising
 
@@ -258,7 +271,7 @@ The system runs as a three-role web platform with protected APIs and UI routes. 
 
 - Forecasting aggregates active study-plan versions by academic term context.
 - The system provides current-semester demand, next-semester demand, comparative demand, and historical snapshots.
-- Program Chair uses these aggregate views for sectioning and staffing decisions.
+- Program Chair uses assigned-program aggregate views for sectioning and staffing decisions.
 
 ---
 
@@ -296,9 +309,10 @@ Provides SAR PDF export with academic profile, analytics, and plan information.
 - The system shall optionally support Google OAuth sign-in.
 
 **For curriculum administration:**
-- The system shall allow Program Chair to create, update, and activate curricula.
-- The system shall allow Program Chair to manage curriculum-course placements by year and semester.
-- The system shall allow Program Chair to manage prerequisites, co-requisites, course equivalencies, and elective tracks.
+- The system shall allow Super Admin to manage curricula across all programs.
+- The system shall allow Program Chair to create, update, and activate curricula within assigned programs.
+- The system shall allow Program Chair to manage curriculum-course placements by year and semester within assigned programs.
+- The system shall allow Program Chair to manage prerequisites, co-requisites, course equivalencies, and elective tracks within assigned programs.
 - The system shall support curriculum CSV preview/apply import and curriculum CSV export.
 
 **For SAR and planning workflows:**
@@ -469,17 +483,17 @@ The system follows a three-tier architecture with the following layers:
 |---|---|
 | **Use Case Name** | Enforce First-Login Credential Rotation |
 | **ID** | UC-03 |
-| **Actor** | Program Chair |
+| **Actor** | Super Admin, Program Chair |
 | **Priority** | Medium |
-| **Description** | Requires seeded or flagged admin accounts to change password and email before full access. |
-| **Trigger** | Program Chair logs in with must-change flags enabled. |
+| **Description** | Requires seeded or flagged Super Admin and Program Chair accounts to change password and email before full access. |
+| **Trigger** | Super Admin or Program Chair logs in with must-change flags enabled. |
 | **Type** | Internal |
 
 **Inputs / Outputs:**
 
 | Inputs | Source | Outputs | Destination |
 |---|---|---|---|
-| New password, new email, verification code | Program Chair | Updated account credentials and access unlock | Browser |
+| New password, new email, verification code | Super Admin or Program Chair | Updated account credentials and access unlock | Browser |
 
 **Preconditions:**
 1. Account has `mustChangePassword` and/or `mustChangeEmail` enabled.
@@ -508,34 +522,35 @@ The system follows a three-tier architecture with the following layers:
 |---|---|
 | **Use Case Name** | Manage User Accounts and Adviser Assignments |
 | **ID** | UC-04 |
-| **Actor** | Program Chair |
+| **Actor** | Super Admin, Program Chair |
 | **Priority** | High |
-| **Description** | Manages user records, statuses, and adviser-to-student assignment mapping. |
-| **Trigger** | Program Chair opens user management operations. |
+| **Description** | Separates Super Admin account lifecycle controls from Program Chair scoped adviser/student assignment operations. |
+| **Trigger** | Super Admin or Program Chair opens user management operations. |
 | **Type** | Internal |
 
 **Inputs / Outputs:**
 
 | Inputs | Source | Outputs | Destination |
 |---|---|---|---|
-| User profile fields, status toggles, adviser assignment | Program Chair | Updated user records and assignment mapping | Browser |
+| User profile fields, status toggles, adviser assignment | Super Admin or Program Chair | Updated user records and assignment mapping | Browser |
 
 **Preconditions:**
-1. Program Chair is authenticated.
+1. Super Admin or Program Chair is authenticated.
 
 **Normal Course:**
-1. Program Chair opens user management page.
-2. Program Chair searches/filters users.
-3. Program Chair edits account details or status.
-4. Program Chair assigns adviser to a student.
-5. System validates role compatibility.
-6. System saves updates and returns refreshed list.
+1. User opens user management page.
+2. System applies role and program scope.
+3. Super Admin may edit account details, status, and program assignments.
+4. Program Chair may assign advisers only within assigned program scope where backend rules allow it.
+5. System validates role compatibility and program scope.
+6. System saves allowed updates and returns refreshed list.
 
 **Alternative Courses:**
 - **5a. Invalid role assignment:** System rejects assignment where target role is incompatible.
+- **5b. Insufficient permission:** System rejects Super Admin-only account lifecycle actions attempted by Program Chair.
 
 **Postconditions:**
-1. User state and adviser mapping are updated.
+1. Allowed user state, program assignment, or adviser mapping changes are updated.
 2. Adviser-scoped student lists reflect changes.
 
 ---
@@ -1160,18 +1175,18 @@ The system follows a three-tier architecture with the following layers:
 
 **Figure: System Foundation Diagram (4.2.1)**
 
-Actors involved: Student, Student Adviser, Program Chair
+Actors involved: Student, Student Adviser, Program Chair, Super Admin
 
-- UC-01: Authenticate User Session — Student, Student Adviser, Program Chair
+- UC-01: Authenticate User Session - Student, Student Adviser, Program Chair, Super Admin
 - UC-02: Register and Verify Account — Student, Student Adviser
-- UC-03: Enforce First-Login Credential Rotation — Program Chair
-- UC-04: Manage User Accounts and Adviser Assignments — Program Chair
+- UC-03: Enforce First-Login Credential Rotation - Program Chair, Super Admin
+- UC-04: Manage User Accounts and Adviser Assignments - Super Admin, Program Chair
 
 ---
 
 **Figure: System Configuration Diagram (4.2.2)**
 
-Actor involved: Program Chair
+Actors involved: Program Chair, Super Admin
 
 - UC-05: Manage Curriculum and Course Placements
 - UC-06: Manage Prerequisites, Co-requisites, and Equivalencies
@@ -1182,17 +1197,17 @@ Actor involved: Program Chair
 
 **Figure: Student Data Management Diagram (4.2.3)**
 
-Actors involved: Student, Student Adviser, Program Chair
+Actors involved: Student, Student Adviser, Program Chair, Super Admin
 
-- UC-09: Create Student Academic Record (SAR) — Student Adviser, Program Chair
-- UC-10: Update SAR and Student Profile Linkages — Student, Student Adviser, Program Chair
-- UC-11: Enter Grades and Course Outcomes — Student Adviser, Program Chair
+- UC-09: Create Student Academic Record (SAR) - Student Adviser, Program Chair, Super Admin
+- UC-10: Update SAR and Student Profile Linkages - Student, Student Adviser, Program Chair, Super Admin
+- UC-11: Enter Grades and Course Outcomes - Student Adviser, Program Chair, Super Admin
 
 ---
 
 **Figure: Intelligent Advising Diagram (4.2.4)**
 
-Actors involved: Student Adviser, Program Chair
+Actors involved: Student Adviser, Program Chair, Super Admin
 
 - UC-12: Generate Initial Draft Study Plan
 - UC-13: Regenerate Draft Study Plan After Grade Changes
@@ -1204,12 +1219,12 @@ Actors involved: Student Adviser, Program Chair
 
 **Figure: Forecasting Diagram (4.2.5)**
 
-Actors involved: Student, Student Adviser, Program Chair
+Actors involved: Student, Student Adviser, Program Chair, Super Admin
 
-- UC-17: Manage Academic Terms — Program Chair
-- UC-18: Generate Demand Forecast Views — Program Chair, Student Adviser
-- UC-19: Export SAR PDF Report — Student, Student Adviser, Program Chair
-- UC-20: View Dashboard Summary Metrics — Student, Student Adviser, Program Chair
+- UC-17: Manage Academic Terms - Program Chair, Super Admin
+- UC-18: Generate Demand Forecast Views - Program Chair, Student Adviser, Super Admin
+- UC-19: Export SAR PDF Report - Student, Student Adviser, Program Chair, Super Admin
+- UC-20: View Dashboard Summary Metrics - Student, Student Adviser, Program Chair, Super Admin
 
 ---
 
@@ -1227,7 +1242,7 @@ The data model is centered on normalized curriculum entities, SAR ownership, and
 
 **users**
 - `id` : INT «PK»
-- `role` : ENUM (admin/adviser/student)
+- `role` : ENUM (superadmin/admin/adviser/student)
 - `firstName` : VARCHAR
 - `lastName` : VARCHAR
 - `email` : VARCHAR
@@ -1351,14 +1366,16 @@ The data model is centered on normalized curriculum entities, SAR ownership, and
 
 **Figure: Level 0 – Context Diagram**
 
-The Level 0 Context Diagram treats the platform as a single process and shows data exchange with three external entities.
+The Level 0 Context Diagram treats the platform as a single process and shows data exchange with four external role entities.
 
 - **Student → System:** Login requests, profile updates, SAR view/export requests
 - **System → Student:** Auth state, own SAR and active plan views, dashboard metrics, PDF export
 - **Student Adviser → System:** SAR creation/updates, grade entries, plan generation/regeneration/validation requests
 - **System → Student Adviser:** Advisee lists, validation checks, draft/active plan states, forecast views
-- **Program Chair → System:** User management actions, curriculum rules, term operations, forecast queries
-- **System → Program Chair:** Governance confirmations, term status, aggregate forecast outputs, dashboards
+- **Super Admin -> System:** Global account lifecycle actions, program management, program assignment changes, transfer ownership, all-program audit queries
+- **System -> Super Admin:** Global governance confirmations, account status, assignment changes, audit outputs, dashboards
+- **Program Chair -> System:** Assigned-program adviser assignment, curriculum rules, term operations, forecast queries
+- **System -> Program Chair:** Scoped governance confirmations, term status, aggregate forecast outputs, dashboards
 
 ---
 
