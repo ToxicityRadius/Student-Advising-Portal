@@ -10,12 +10,27 @@ const API_ROOT = API.endsWith('/api') ? API.slice(0, -4) : API;
 const USE_MOCK_API = process.env.E2E_USE_MOCK_API === 'true';
 
 const CREDENTIALS = {
-  student:  { email: 'student@tip.edu.ph',       password: 'Password123!' },
-  adviser:  { email: 'adviser.cpe@tip.edu.ph',   password: 'Password123!' },
-  admin:    { email: 'admin.cpe@tip.edu.ph',     password: 'Password123!' },
+  superadmin: {
+    email: process.env.E2E_SUPERADMIN_EMAIL || process.env.SUPERADMIN_EMAIL || 'superadmin.cpe@tip.edu.ph',
+    password: process.env.E2E_SUPERADMIN_PASSWORD || process.env.SUPERADMIN_PASSWORD || 'Password123!',
+  },
+  student: { email: 'student@tip.edu.ph', password: 'Password123!' },
+  adviser: { email: 'adviser.cpe@tip.edu.ph', password: 'Password123!' },
+  admin: { email: 'admin.cpe@tip.edu.ph', password: 'Password123!' },
 };
 
 const MOCK_USERS = {
+  superadmin: {
+    id: 1,
+    email: CREDENTIALS.superadmin.email,
+    role: 'superadmin',
+    firstName: 'Sam',
+    lastName: 'Superadmin',
+    first_name: 'Sam',
+    last_name: 'Superadmin',
+    department: 'CPE',
+    notifInapp: true,
+  },
   student: {
     id: 101,
     email: CREDENTIALS.student.email,
@@ -89,6 +104,10 @@ const MOCK_COURSES = [
 const MOCK_TERMS = [
   { id: 1, schoolYear: '2025-2026', semester: 1, isCurrent: true },
   { id: 2, schoolYear: '2024-2025', semester: 2, isCurrent: false },
+];
+
+const MOCK_PROGRAMS = [
+  { id: 1, code: 'BSCPE', name: 'Bachelor of Science in Computer Engineering', isActive: true },
 ];
 
 const MOCK_SARS = [
@@ -284,6 +303,10 @@ async function setupMockApi(page) {
 
     if (apiPath === '/terms/current') {
       return fulfillJson({ success: true, data: MOCK_TERMS[0] });
+    }
+
+    if (apiPath.startsWith('/programs')) {
+      return fulfillJson({ success: true, data: MOCK_PROGRAMS });
     }
 
     if (apiPath.startsWith('/terms')) {

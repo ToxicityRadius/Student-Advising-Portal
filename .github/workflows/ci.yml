@@ -15,8 +15,10 @@ env:
   NODE_VERSION: "22"
   JWT_SECRET: ci-jwt-secret
   JWT_REFRESH_SECRET: ci-refresh-secret
-  SUPERADMIN_EMAIL: superadmin.ci@example.edu
+  SUPERADMIN_EMAIL: superadmin.ci.cpe@tip.edu.ph
   SUPERADMIN_PASSWORD: StrongCiPassword123!
+  E2E_SUPERADMIN_EMAIL: superadmin.ci.cpe@tip.edu.ph
+  E2E_SUPERADMIN_PASSWORD: StrongCiPassword123!
   DISABLE_ADMIN_FIRST_LOGIN_ENFORCEMENT: "true"
 
 jobs:
