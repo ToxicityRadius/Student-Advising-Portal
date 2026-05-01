@@ -36,20 +36,10 @@ const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSe
   }, [curriculumId]);
 
   useEffect(() => {
-    if (selectedTrackId) {
-      setChosenTrackId(String(selectedTrackId));
-    }
+    setChosenTrackId(selectedTrackId ? String(selectedTrackId) : '');
   }, [selectedTrackId]);
 
   const handleSelectTrack = async () => {
-    if (selectedTrackId) {
-      setAlert({
-        variant: 'warning',
-        message: 'Elective track is already selected and cannot be changed.',
-      });
-      return;
-    }
-
     if (!chosenTrackId) {
       setAlert({ variant: 'danger', message: 'Please select an elective track first.' });
       return;
@@ -67,8 +57,12 @@ const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSe
       setAlert({
         variant: 'success',
         message: payload?.draftVersion
-          ? 'Elective track selected and draft study plan updated successfully.'
-          : 'Elective track selected successfully.',
+          ? selectedTrackId
+            ? 'Elective track override saved and draft study plan updated successfully.'
+            : 'Elective track selected and draft study plan updated successfully.'
+          : selectedTrackId
+            ? 'Elective track override saved successfully.'
+            : 'Elective track selected successfully.',
       });
       onTrackSelected(payload);
     } catch (error) {
@@ -112,7 +106,7 @@ const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSe
               value={chosenTrackId}
               onChange={(event) => setChosenTrackId(event.target.value)}
               aria-label="Select elective track"
-              disabled={Boolean(selectedTrackId)}
+              disabled={submitting}
             >
               <option value="">Select elective track</option>
               {tracks.map((track) => (
@@ -123,9 +117,9 @@ const ElectiveTrackSelector = ({ sarId, curriculumId, selectedTrackId, onTrackSe
             </Form.Select>
             <Button
               onClick={handleSelectTrack}
-              disabled={Boolean(selectedTrackId) || submitting || !chosenTrackId || !isChanged}
+              disabled={submitting || !chosenTrackId || !isChanged}
             >
-              {submitting ? 'Saving...' : selectedTrackId ? 'Track Locked' : 'Confirm Track'}
+              {submitting ? 'Saving...' : selectedTrackId ? 'Update Track' : 'Confirm Track'}
             </Button>
           </div>
         )}

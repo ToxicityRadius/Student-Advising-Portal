@@ -583,7 +583,7 @@ exports.validateVersion = async (req, res, next) => {
   }
 };
 
-// @desc   Select elective track for a student academic record
+// @desc   Select or override elective track for a student academic record
 // @route  PATCH /api/sars/:id/elective-track
 // @access adviser, admin
 exports.selectElectiveTrack = async (req, res, next) => {
@@ -608,14 +608,6 @@ exports.selectElectiveTrack = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Student academic record not found' });
     }
 
-    if (sar.electiveTrackId) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Elective track is already selected and cannot be changed',
-      });
-    }
-
     const selectedTrack = await ElectiveTrack.findByPk(electiveTrackId, { transaction });
     if (!selectedTrack || String(selectedTrack.curriculumId) !== String(sar.curriculumId)) {
       await transaction.rollback();
@@ -624,6 +616,8 @@ exports.selectElectiveTrack = async (req, res, next) => {
         message: 'Selected elective track must belong to the student curriculum',
       });
     }
+
+    const previousElectiveTrackId = sar.electiveTrackId || null;
 
     await sar.update(
       {
@@ -660,6 +654,7 @@ exports.selectElectiveTrack = async (req, res, next) => {
         ...sarPayload,
         sar: sarPayload,
         draftVersion: serializedDraftVersion,
+        previousElectiveTrackId,
       },
       draftVersion: serializedDraftVersion,
     });

@@ -243,7 +243,7 @@ const ValidationFlow = () => {
             </Alert>
           )}
 
-          {electiveTrackRequired && !sar?.electiveTrackId && (
+          {electiveTrackRequired && sar?.curriculumId && (
             <ElectiveTrackSelector
               sarId={sarId}
               curriculumId={sar?.curriculumId}
