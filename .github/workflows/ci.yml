@@ -1,0 +1,226 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - superadmin
+      - harden-superadmin-program-scope
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  JWT_SECRET: ci-jwt-secret
+  JWT_REFRESH_SECRET: ci-refresh-secret
+  SUPERADMIN_EMAIL: superadmin.ci@example.edu
+  SUPERADMIN_PASSWORD: StrongCiPassword123!
+  DISABLE_ADMIN_FIRST_LOGIN_ENFORCEMENT: "true"
+
+jobs:
+  backend:
+    name: Backend Lint And Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        run: npm --prefix backend ci
+
+      - name: Lint backend
+        run: npm run lint:backend
+
+      - name: Run backend unit tests
+        run: npm run test:backend:ci
+        env:
+          NODE_ENV: test
+          CI: "true"
+
+  frontend:
+    name: Frontend Tests And Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+
+      - name: Run frontend tests
+        run: npm run test:frontend:ci
+        env:
+          CI: "true"
+
+      - name: Build frontend
+        run: npm --prefix frontend run build
+        env:
+          CI: "true"
+          REACT_APP_API_URL: http://localhost:5000/api
+
+  backend-integration:
+    name: Backend Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: student_advising_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d student_advising_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      CI: "true"
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/student_advising_test
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/student_advising_test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm --prefix backend ci
+
+      - name: Run backend integration tests
+        run: npm run test:backend:integration
+
+  e2e-smoke:
+    name: Playwright Role Smoke
+    runs-on: ubuntu-latest
+    needs:
+      - backend
+      - frontend
+      - backend-integration
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: student_advising_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d student_advising_e2e"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      CI: "true"
+      PORT: "5000"
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/student_advising_e2e
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/student_advising_e2e
+      E2E_BASE_URL: http://localhost:3000
+      E2E_API_URL: http://localhost:5000/api
+      REACT_APP_API_URL: http://localhost:5000/api
+      BROWSER: none
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+            e2e/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm --prefix backend ci
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+
+      - name: Install e2e dependencies
+        run: npm --prefix e2e ci
+
+      - name: Install Playwright browsers
+        run: npm --prefix e2e exec playwright install --with-deps chromium
+
+      - name: Seed deterministic data
+        run: npm --prefix backend run seed
+
+      - name: Start backend
+        run: npm --prefix backend start > backend.log 2>&1 &
+
+      - name: Wait for backend
+        run: |
+          for i in {1..60}; do
+            curl -fsS http://localhost:5000/api/health && exit 0
+            sleep 2
+          done
+          cat backend.log
+          exit 1
+
+      - name: Start frontend
+        run: npm --prefix frontend start > frontend.log 2>&1 &
+
+      - name: Wait for frontend
+        run: |
+          for i in {1..60}; do
+            curl -fsS http://localhost:3000 && exit 0
+            sleep 2
+          done
+          cat frontend.log
+          exit 1
+
+      - name: Run Playwright smoke tests
+        run: npm run test:e2e:smoke
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-artifacts
+          path: |
+            backend.log
+            frontend.log
+            e2e/test-results
+            e2e/playwright-report
+          if-no-files-found: ignore

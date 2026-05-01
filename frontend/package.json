@@ -19,6 +19,7 @@
     "start": "node scripts/start-safe.js",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "test:ci": "react-scripts test --watchAll=false --runInBand",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

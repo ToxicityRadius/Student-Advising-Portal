@@ -11,6 +11,7 @@
     "normalize": "node scripts/normalize_curricula_csv.js",
     "generate:import-csvs": "node scripts/generate_import_csvs.js",
     "test": "jest --forceExit --detectOpenHandles --testPathIgnorePatterns=integration",
+    "test:ci": "jest --forceExit --detectOpenHandles --runInBand --testPathIgnorePatterns=integration",
     "test:integration": "jest --forceExit --detectOpenHandles --runInBand --testPathPatterns=integration --testPathIgnorePatterns=support",
     "db:migrate": "npx sequelize-cli db:migrate",
     "db:migrate:undo": "npx sequelize-cli db:migrate:undo"
