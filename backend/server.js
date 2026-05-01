@@ -360,6 +360,27 @@ function getSyncOptions(_nodeEnv = process.env.NODE_ENV) {
 
 const syncOptions = getSyncOptions(process.env.NODE_ENV);
 
+function isTruthyEnvValue(value) {
+  return ['1', 'true', 'yes'].includes(
+    String(value || '')
+      .trim()
+      .toLowerCase(),
+  );
+}
+
+function shouldFailStartupOnMigrationError(env = process.env) {
+  return env.NODE_ENV === 'production' || isTruthyEnvValue(env.CI);
+}
+
+function handleMigrationStartupError(err, env = process.env) {
+  if (shouldFailStartupOnMigrationError(env)) {
+    logger.fatal({ err }, 'Migration failed; refusing to start server in production/CI');
+    throw err;
+  }
+
+  logger.error({ err }, 'Migration failed; server starting without migration in non-production');
+}
+
 function isPolicyDependentAlterTypeError(err) {
   const dbErr = err && (err.original || err.parent || err);
   const message = String(dbErr?.message || err?.message || '').toLowerCase();
@@ -443,7 +464,7 @@ if (process.env.NODE_ENV !== 'test') {
       try {
         await runPendingMigrations();
       } catch (migErr) {
-        logger.error({ err: migErr }, 'Migration failed — server starting without migration');
+        handleMigrationStartupError(migErr);
       }
 
       server = app.listen(PORT, () => {
@@ -507,3 +528,5 @@ process.on('uncaughtException', (err) => {
 
 module.exports = app;
 module.exports.getSyncOptions = getSyncOptions;
+module.exports.shouldFailStartupOnMigrationError = shouldFailStartupOnMigrationError;
+module.exports.handleMigrationStartupError = handleMigrationStartupError;
