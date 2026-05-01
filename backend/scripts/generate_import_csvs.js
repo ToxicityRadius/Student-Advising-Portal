@@ -59,38 +59,83 @@ const COREQUISITE_PAIRS = new Map([
   ['CPE 331B', new Set(['CPE 203'])],
 ]);
 
-const CPE_2018_ELECTIVE_TRACK_DEFAULT_PLACEMENTS = new Map(
+const buildElectiveTrackDefaultPlacementMap = (placements) =>
+  new Map(
+    placements.map(([trackName, courseCode, yearLevel, semester]) => [
+      `${trackName}|${courseCode}`,
+      { yearLevel: String(yearLevel), semester: String(semester) },
+    ]),
+  );
+
+const ELECTIVE_TRACK_DEFAULT_PLACEMENTS_BY_CURRICULUM = new Map([
   [
-    ['Cybersecurity', 'CPE 209', 2, 2],
-    ['Cybersecurity', 'CPE 320', 3, 1],
-    ['Cybersecurity', 'CPE 315', 3, 2],
-    ['Data Science', 'COE 003', 2, 2],
-    ['Data Science', 'COE 004', 3, 1],
-    ['Data Science', 'COE 005', 3, 2],
-    ['Railway Engineering', 'RWE 001', 2, 2],
-    ['Railway Engineering', 'RWE 002A', 3, 1],
-    ['Railway Engineering', 'RWE 003A', 3, 2],
-    ['Robotics', 'CPE 331A', 2, 2],
-    ['Robotics', 'CPE 332', 3, 1],
-    ['Robotics', 'CPE 343', 3, 2],
-    ['Systems Administration', 'CPE 207', 2, 2],
-    ['Systems Administration', 'CPE 307', 3, 1],
-    ['Systems Administration', 'CPE 312', 3, 2],
-    ['Technopreneurship', 'TECH 102', 2, 2],
-    ['Technopreneurship', 'TECH 103', 3, 1],
-    ['Technopreneurship', 'TECH 104', 3, 2],
-  ].map(([trackName, courseCode, yearLevel, semester]) => [
-    `${trackName}|${courseCode}`,
-    { yearLevel: String(yearLevel), semester: String(semester) },
-  ]),
-);
+    'BS CPE Curriculum 2018',
+    buildElectiveTrackDefaultPlacementMap([
+      ['Cybersecurity', 'CPE 209', 2, 2],
+      ['Cybersecurity', 'CPE 320', 3, 1],
+      ['Cybersecurity', 'CPE 315', 3, 2],
+      ['Data Science', 'COE 003', 2, 2],
+      ['Data Science', 'COE 004', 3, 1],
+      ['Data Science', 'COE 005', 3, 2],
+      ['Railway Engineering', 'RWE 001', 2, 2],
+      ['Railway Engineering', 'RWE 002A', 3, 1],
+      ['Railway Engineering', 'RWE 003A', 3, 2],
+      ['Robotics', 'CPE 331A', 2, 2],
+      ['Robotics', 'CPE 332', 3, 1],
+      ['Robotics', 'CPE 343', 3, 2],
+      ['Systems Administration', 'CPE 207', 2, 2],
+      ['Systems Administration', 'CPE 307', 3, 1],
+      ['Systems Administration', 'CPE 312', 3, 2],
+      ['Technopreneurship', 'TECH 102', 2, 2],
+      ['Technopreneurship', 'TECH 103', 3, 1],
+      ['Technopreneurship', 'TECH 104', 3, 2],
+    ]),
+  ],
+  [
+    'BS CPE Curriculum 2023',
+    buildElectiveTrackDefaultPlacementMap([
+      ['Cyber-Physical Systems', 'CPE 331B', 2, 2],
+      ['Cyber-Physical Systems', 'CPE 332B', 3, 1],
+      ['Cyber-Physical Systems', 'CPE 343C', 3, 2],
+      ['Cybersecurity', 'CPE 209', 2, 2],
+      ['Cybersecurity', 'CPE 320', 3, 1],
+      ['Cybersecurity', 'CPE 315', 3, 2],
+      ['Data Science', 'COE 003', 2, 2],
+      ['Data Science', 'COE 004A', 3, 1],
+      ['Data Science', 'COE 005A', 3, 2],
+      ['Railway Engineering', 'RWE 001', 2, 2],
+      ['Railway Engineering', 'RWE 002A', 3, 1],
+      ['Railway Engineering', 'RWE 003A', 3, 2],
+      ['Systems Administration', 'CPE 207A', 2, 2],
+      ['Systems Administration', 'CPE 307B', 3, 1],
+      ['Systems Administration', 'CPE 312B', 3, 2],
+    ]),
+  ],
+  [
+    'BS CPE Curriculum 2025',
+    buildElectiveTrackDefaultPlacementMap([
+      ['Cyber-Physical Systems', 'CPE 331B', 2, 2],
+      ['Cyber-Physical Systems', 'CPE 332B', 3, 1],
+      ['Cyber-Physical Systems', 'CPE 343C', 3, 2],
+      ['Cybersecurity', 'CPE 209', 2, 2],
+      ['Cybersecurity', 'CPE 320', 3, 1],
+      ['Cybersecurity', 'CPE 315', 3, 2],
+      ['Data Science', 'COE 003', 2, 2],
+      ['Data Science', 'COE 004A', 3, 1],
+      ['Data Science', 'COE 005A', 3, 2],
+      ['Railway Engineering', 'RWE 001', 2, 2],
+      ['Railway Engineering', 'RWE 002A', 3, 1],
+      ['Railway Engineering', 'RWE 003A', 3, 2],
+      ['Systems Administration', 'CPE 207A', 2, 2],
+      ['Systems Administration', 'CPE 307B', 3, 1],
+      ['Systems Administration', 'CPE 312B', 3, 2],
+    ]),
+  ],
+]);
 
 const getElectiveTrackDefaultPlacement = ({ curriculumName, trackName, courseCode }) => {
-  if (curriculumName !== 'BS CPE Curriculum 2018') {
-    return null;
-  }
-
-  return CPE_2018_ELECTIVE_TRACK_DEFAULT_PLACEMENTS.get(`${trackName}|${courseCode}`) || null;
+  const placements = ELECTIVE_TRACK_DEFAULT_PLACEMENTS_BY_CURRICULUM.get(curriculumName);
+  return placements?.get(`${trackName}|${courseCode}`) || null;
 };
 
 // ─── Import CSV columns (must match CURRICULUM_CSV_COLUMNS in curriculumController.js) ─

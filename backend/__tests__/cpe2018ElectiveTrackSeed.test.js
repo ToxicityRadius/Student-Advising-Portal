@@ -84,3 +84,73 @@ describe('CPE 2018 elective track seed placements', () => {
     expect(Object.fromEntries(placementByTrackAndCourse)).toEqual(expectedPlacements);
   });
 });
+
+describe('CPE 2023 elective track seed placements', () => {
+  test('sets default year and semester placement for every CPE 2023 track course', () => {
+    const rows = readImportRows('bs_cpe_curriculum_2023_import.csv').filter(
+      (row) => row.rowType === 'elective_track_course',
+    );
+
+    const placementByTrackAndCourse = new Map(
+      rows.map((row) => [
+        `${row.trackName}|${row.courseCode}`,
+        { yearLevel: row.yearLevel, semester: row.semester },
+      ]),
+    );
+
+    const expectedPlacements = {
+      'Cyber-Physical Systems|CPE 331B': { yearLevel: '2', semester: '2' },
+      'Cyber-Physical Systems|CPE 332B': { yearLevel: '3', semester: '1' },
+      'Cyber-Physical Systems|CPE 343C': { yearLevel: '3', semester: '2' },
+      'Cybersecurity|CPE 209': { yearLevel: '2', semester: '2' },
+      'Cybersecurity|CPE 320': { yearLevel: '3', semester: '1' },
+      'Cybersecurity|CPE 315': { yearLevel: '3', semester: '2' },
+      'Data Science|COE 003': { yearLevel: '2', semester: '2' },
+      'Data Science|COE 004A': { yearLevel: '3', semester: '1' },
+      'Data Science|COE 005A': { yearLevel: '3', semester: '2' },
+      'Railway Engineering|RWE 001': { yearLevel: '2', semester: '2' },
+      'Railway Engineering|RWE 002A': { yearLevel: '3', semester: '1' },
+      'Railway Engineering|RWE 003A': { yearLevel: '3', semester: '2' },
+      'Systems Administration|CPE 207A': { yearLevel: '2', semester: '2' },
+      'Systems Administration|CPE 307B': { yearLevel: '3', semester: '1' },
+      'Systems Administration|CPE 312B': { yearLevel: '3', semester: '2' },
+    };
+
+    expect(Object.fromEntries(placementByTrackAndCourse)).toEqual(expectedPlacements);
+  });
+});
+
+describe('CPE 2025 elective track seed placements', () => {
+  test('sets default year and semester placement for every CPE 2025 track course', () => {
+    const rows = readImportRows('bs_cpe_curriculum_2025_import.csv').filter(
+      (row) => row.rowType === 'elective_track_course',
+    );
+
+    const placementByTrackAndCourse = new Map(
+      rows.map((row) => [
+        `${row.trackName}|${row.courseCode}`,
+        { yearLevel: row.yearLevel, semester: row.semester },
+      ]),
+    );
+
+    const expectedPlacements = {
+      'Cyber-Physical Systems|CPE 331B': { yearLevel: '2', semester: '2' },
+      'Cyber-Physical Systems|CPE 332B': { yearLevel: '3', semester: '1' },
+      'Cyber-Physical Systems|CPE 343C': { yearLevel: '3', semester: '2' },
+      'Cybersecurity|CPE 209': { yearLevel: '2', semester: '2' },
+      'Cybersecurity|CPE 320': { yearLevel: '3', semester: '1' },
+      'Cybersecurity|CPE 315': { yearLevel: '3', semester: '2' },
+      'Data Science|COE 003': { yearLevel: '2', semester: '2' },
+      'Data Science|COE 004A': { yearLevel: '3', semester: '1' },
+      'Data Science|COE 005A': { yearLevel: '3', semester: '2' },
+      'Railway Engineering|RWE 001': { yearLevel: '2', semester: '2' },
+      'Railway Engineering|RWE 002A': { yearLevel: '3', semester: '1' },
+      'Railway Engineering|RWE 003A': { yearLevel: '3', semester: '2' },
+      'Systems Administration|CPE 207A': { yearLevel: '2', semester: '2' },
+      'Systems Administration|CPE 307B': { yearLevel: '3', semester: '1' },
+      'Systems Administration|CPE 312B': { yearLevel: '3', semester: '2' },
+    };
+
+    expect(Object.fromEntries(placementByTrackAndCourse)).toEqual(expectedPlacements);
+  });
+});
