@@ -17,4 +17,33 @@ describe('superadmin program foundation migration', () => {
     expect(conflictPosition).toBeGreaterThanOrEqual(0);
     expect(uniqueIndexPosition).toBeLessThan(conflictPosition);
   });
+
+  test('includes an idempotent repair migration for program-scoped schema drift', () => {
+    const source = fs.readFileSync(
+      path.join(
+        __dirname,
+        '..',
+        'migrations',
+        '20260501000014-repair-program-foundation-schema.js',
+      ),
+      'utf8',
+    );
+
+    expect(source).toContain('addColumnIfMissing');
+    expect(source).toContain("'curriculums', 'programId'");
+    expect(source).toContain("'courses', 'programId'");
+    expect(source).toContain("'student_academic_records', 'programId'");
+    expect(source).toContain("'prerequisite_override_requests', 'programId'");
+
+    const addCurriculumColumnPosition = source.indexOf(
+      "addColumnIfMissing(\n        queryInterface,\n        'curriculums'",
+    );
+    const addCurriculumIndexPosition = source.indexOf(
+      "addIndexIfMissing(queryInterface, 'curriculums'",
+    );
+
+    expect(addCurriculumColumnPosition).toBeGreaterThanOrEqual(0);
+    expect(addCurriculumIndexPosition).toBeGreaterThanOrEqual(0);
+    expect(addCurriculumColumnPosition).toBeLessThan(addCurriculumIndexPosition);
+  });
 });
