@@ -20,7 +20,8 @@ const {
   resendEmailChangeCode,
   resolveVerificationSessionFromRequest,
 } = require('../controllers/authController');
-const { protect, requireRole } = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
+const { PERMISSIONS, requirePermission } = require('../utils/permissions');
 const {
   registerValidation,
   loginValidation,
@@ -157,7 +158,7 @@ router.put('/change-password', protect, validate(changePasswordValidation), chan
 router.patch(
   '/transfer-ownership',
   protect,
-  requireRole('superadmin'),
+  requirePermission(PERMISSIONS.transferOwnership),
   validate(transferOwnershipValidation),
   transferOwnership,
 );

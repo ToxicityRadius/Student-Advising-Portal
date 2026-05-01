@@ -23,6 +23,7 @@ const {
   normalizeProgramId,
 } = require('../utils/programAccess');
 const logger = require('../utils/logger');
+const ActivityLogService = require('../services/ActivityLogService');
 
 const CURRICULUM_CSV_COLUMNS = [
   'exportVersion',
@@ -2283,6 +2284,16 @@ exports.applyCurriculumImportCsv = async (req, res, next) => {
       { action: 'apply', curriculumId, curriculumName: curriculum.name, importedBy: req.user?.id },
       '[curriculumImport] applied',
     );
+
+    ActivityLogService.logSafe({
+      programId: curriculum.programId,
+      actorId: req.user?.id,
+      action: 'curriculum.import_applied',
+      resourceType: 'curriculum',
+      resourceId: curriculum.id,
+      resourceLabel: curriculum.name,
+      metadata: { summary: summarizeRows(normalizedRows) },
+    });
 
     return res.status(200).json({
       success: true,

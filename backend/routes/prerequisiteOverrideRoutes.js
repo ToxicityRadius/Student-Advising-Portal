@@ -1,5 +1,6 @@
 const express = require('express');
 const { protect, requireRole } = require('../middleware/auth');
+const { PERMISSIONS, requirePermission } = require('../utils/permissions');
 const ctrl = require('../controllers/prerequisiteOverrideController');
 
 const router = express.Router();
@@ -14,7 +15,7 @@ router.get(
 router.patch(
   '/prerequisite-overrides/:id/decision',
   protect,
-  requireRole('admin'),
+  requirePermission(PERMISSIONS.manageOverrides),
   ctrl.decidePrerequisiteOverride,
 );
 

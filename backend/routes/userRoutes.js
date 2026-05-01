@@ -16,6 +16,7 @@ const {
   updateSettings,
 } = require('../controllers/userController');
 const { protect, requireRole } = require('../middleware/auth');
+const { PERMISSIONS, requirePermission } = require('../utils/permissions');
 const validate = require('../middleware/validate');
 const {
   completeOnboardingValidation,
@@ -105,13 +106,19 @@ router.get('/curriculum-options', protect, getCurriculumOptions);
 router.put('/:id/profile', mutationLimiter, protect, uploadProfilePicture, updateProfile);
 
 // Super Admin-only: update a user's core fields (role, active status, etc.)
-router.put('/:id', protect, requireRole('superadmin'), validate(updateUserValidation), updateUser);
+router.put(
+  '/:id',
+  protect,
+  requirePermission(PERMISSIONS.manageUserDetails),
+  validate(updateUserValidation),
+  updateUser,
+);
 
 // Super Admin-only: toggle user active/inactive status
 router.patch(
   '/:id/toggle-status',
   protect,
-  requireRole('superadmin'),
+  requirePermission(PERMISSIONS.toggleUserStatus),
   validate(userIdParamValidation),
   toggleUserStatus,
 );
@@ -120,13 +127,19 @@ router.patch(
 router.put(
   '/:id/assign-adviser',
   protect,
-  requireRole('admin'),
+  requirePermission(PERMISSIONS.assignAdviser),
   validate(assignAdviserValidation),
   assignAdviser,
 );
 
-// Admin-only: delete a user
-router.delete('/:id', protect, requireRole('admin'), validate(userIdParamValidation), deleteUser);
+// Super Admin-only: delete a user
+router.delete(
+  '/:id',
+  protect,
+  requirePermission(PERMISSIONS.manageUserDetails),
+  validate(userIdParamValidation),
+  deleteUser,
+);
 
 // Profile read route (protected, user can view self; admin can view any)
 router.get('/:id', protect, getUserById);

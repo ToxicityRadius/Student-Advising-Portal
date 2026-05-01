@@ -13,6 +13,7 @@ const { shouldBypassAdminFirstLoginEnforcement } = require('../utils/featureFlag
 const { sanitizeUser } = require('../utils/sanitize');
 const logger = require('../utils/logger');
 const { FACULTY_EMAIL_WHITELIST, FACULTY_ROLES } = require('../constants');
+const ActivityLogService = require('../services/ActivityLogService');
 
 // In-memory attempt tracker for verification code brute-force protection.
 // Keys are String(userId); values are { count, resetAt }.
@@ -1581,6 +1582,24 @@ exports.transferOwnership = async (req, res, next) => {
     }
 
     await User.update({ role: 'admin', updatedAt: Date.now() }, { where: { id: targetUser.id } });
+
+    ActivityLogService.logSafe({
+      programId: targetAssignments[0]?.programId || null,
+      actorId: req.user?.id,
+      action: 'ownership.transferred',
+      resourceType: 'user',
+      resourceId: targetUser.id,
+      resourceLabel:
+        [targetUser.firstName, targetUser.lastName].filter(Boolean).join(' ').trim() ||
+        targetUser.email,
+      targetUserId: targetUser.id,
+      metadata: {
+        targetUserId: targetUser.id,
+        previousRole: targetUser.role,
+        nextRole: 'admin',
+        programIds: targetAssignments.map((assignment) => assignment.programId),
+      },
+    });
 
     return res.status(200).json({
       success: true,

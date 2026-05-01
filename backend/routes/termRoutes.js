@@ -1,10 +1,11 @@
 const express = require('express');
 const { protect, requireRole } = require('../middleware/auth');
+const { PERMISSIONS, requirePermission } = require('../utils/permissions');
 const ctrl = require('../controllers/termController');
 
 const router = express.Router();
 
-const adminOnly = [protect, requireRole('admin')];
+const adminOnly = [protect, requirePermission(PERMISSIONS.manageTerms)];
 const adminOrAdviser = [protect, requireRole('admin', 'adviser')];
 const anyRole = [protect, requireRole('admin', 'adviser', 'student')];
 

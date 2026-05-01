@@ -1,15 +1,16 @@
 const express = require('express');
 const { protect, requireRole } = require('../middleware/auth');
+const { PERMISSIONS, requirePermission } = require('../utils/permissions');
 const ctrl = require('../controllers/programController');
 
 const router = express.Router();
 
 const staffOnly = [protect, requireRole('superadmin', 'admin', 'adviser')];
-const superadminOnly = [protect, requireRole('superadmin')];
+const managePrograms = [protect, requirePermission(PERMISSIONS.managePrograms)];
 
 router.get('/', staffOnly, ctrl.listPrograms);
-router.post('/', superadminOnly, ctrl.createProgram);
-router.put('/users/:userId/assignments', superadminOnly, ctrl.setUserProgramAssignments);
-router.put('/:id', superadminOnly, ctrl.updateProgram);
+router.post('/', managePrograms, ctrl.createProgram);
+router.put('/users/:userId/assignments', managePrograms, ctrl.setUserProgramAssignments);
+router.put('/:id', managePrograms, ctrl.updateProgram);
 
 module.exports = router;

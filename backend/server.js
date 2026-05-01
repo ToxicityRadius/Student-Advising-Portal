@@ -97,7 +97,6 @@ if (process.env.NODE_ENV === 'production') {
 
 // Import models (centralized associations)
 const { sequelize } = require('./models');
-const { protect, requireRole } = require('./middleware/auth');
 const csrf = require('./middleware/csrf');
 const requestContext = require('./middleware/requestContext');
 const responseEnvelope = require('./middleware/responseEnvelope');
@@ -255,13 +254,6 @@ app.use('/api', prerequisiteOverrideRoutes);
 // Serve uploaded files
 // Profile pictures are public so they can be displayed in the frontend without auth.
 app.use('/uploads/profiles', express.static(path.join(__dirname, 'uploads', 'profiles')));
-// Proof documents are restricted to staff accounts until object-level ownership checks are implemented.
-app.use(
-  '/uploads/proofs',
-  protect,
-  requireRole('adviser', 'admin', 'superadmin'),
-  express.static(path.join(__dirname, 'uploads', 'proofs')),
-);
 // Deny all other /uploads paths that don't match the above.
 app.use('/uploads', (req, res) => {
   res.status(403).json({ success: false, message: 'Access denied' });

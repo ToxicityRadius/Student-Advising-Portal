@@ -111,6 +111,16 @@ exports.createProgram = async (req, res, next) => {
       updatedAt: Date.now(),
     });
 
+    ActivityLogService.logSafe({
+      programId: program.id,
+      actorId: req.user?.id,
+      action: 'program.created',
+      resourceType: 'program',
+      resourceId: program.id,
+      resourceLabel: program.code,
+      metadata: { name: program.name, isActive: program.isActive },
+    });
+
     return res.status(201).json({ success: true, data: program });
   } catch (error) {
     next(error);
@@ -146,6 +156,15 @@ exports.updateProgram = async (req, res, next) => {
     }
 
     await program.update({ ...payload, updatedAt: Date.now() });
+    ActivityLogService.logSafe({
+      programId: program.id,
+      actorId: req.user?.id,
+      action: 'program.updated',
+      resourceType: 'program',
+      resourceId: program.id,
+      resourceLabel: program.code,
+      metadata: { name: program.name, isActive: program.isActive },
+    });
     return res.status(200).json({ success: true, data: program });
   } catch (error) {
     next(error);

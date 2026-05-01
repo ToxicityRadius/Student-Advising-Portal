@@ -423,7 +423,22 @@ exports.deleteUser = async (req, res, next) => {
       });
     }
 
+    const deletedUserLabel = getUserDisplayName(user);
+    const deletedUserProgramId = firstTargetProgramId(user);
+    const deletedUserRole = user.role;
+
     await User.destroy({ where: { id: req.params.id } });
+
+    ActivityLogService.logSafe({
+      programId: deletedUserProgramId,
+      actorId: req.user?.id,
+      action: 'user.deleted',
+      resourceType: 'user',
+      resourceId: user.id,
+      resourceLabel: deletedUserLabel,
+      targetUserId: user.id,
+      metadata: { role: deletedUserRole },
+    });
 
     res.status(200).json({
       success: true,

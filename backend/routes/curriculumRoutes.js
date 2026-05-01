@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const { protect, requireRole } = require('../middleware/auth');
+const { PERMISSIONS, requirePermission } = require('../utils/permissions');
 const ctrl = require('../controllers/curriculumController');
 const validate = require('../middleware/validate');
 const {
@@ -20,7 +21,7 @@ const {
 
 const router = express.Router();
 
-const adminOnly = [protect, requireRole('admin')];
+const adminOnly = [protect, requirePermission(PERMISSIONS.manageCurriculum)];
 const adminOrAdviser = [protect, requireRole('admin', 'adviser')];
 const anyRole = [protect, requireRole('admin', 'adviser', 'student')];
 const csvUpload = multer({
