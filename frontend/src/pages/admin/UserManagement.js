@@ -431,7 +431,7 @@ const UserManagement = () => {
                               </Button>
                             </div>
                           ) : (
-                            <span className="text-muted small">Super Admin only</span>
+                            <span className="text-muted small">Insufficient Permission</span>
                           )}
                         </td>
                       </tr>

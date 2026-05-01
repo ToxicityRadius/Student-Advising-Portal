@@ -157,7 +157,7 @@ describe('UserManagement', () => {
 
     render(<UserManagement />);
     await waitFor(() => {
-      expect(screen.getAllByText('Super Admin only')).toHaveLength(2);
+      expect(screen.getAllByText('Insufficient Permission')).toHaveLength(2);
     });
 
     const adaRow = screen.getByText('Ada Student').closest('tr');
