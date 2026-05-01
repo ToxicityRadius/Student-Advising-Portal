@@ -27,6 +27,7 @@ lerna-debug.log*
 
 # Local review artifacts
 /.review-diffs/
+/test-results/
 
 # E2E generated artifacts
 e2e/test-results/

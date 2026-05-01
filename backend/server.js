@@ -106,6 +106,8 @@ const responseEnvelope = require('./middleware/responseEnvelope');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const googleAuthRoutes = require('./routes/googleAuthRoutes');
+const programRoutes = require('./routes/programRoutes');
+const activityRoutes = require('./routes/activityRoutes');
 const curriculumRoutes = require('./routes/curriculumRoutes');
 const termRoutes = require('./routes/termRoutes');
 const sarRoutes = require('./routes/sarRoutes');
@@ -237,6 +239,8 @@ app.use(responseEnvelope);
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', googleAuthRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/programs', programRoutes);
+app.use('/api/activity', activityRoutes);
 app.use('/api', curriculumRoutes);
 app.use('/api/terms', termRoutes);
 app.use('/api/sars', sarRoutes);
@@ -255,7 +259,7 @@ app.use('/uploads/profiles', express.static(path.join(__dirname, 'uploads', 'pro
 app.use(
   '/uploads/proofs',
   protect,
-  requireRole('adviser', 'admin'),
+  requireRole('adviser', 'admin', 'superadmin'),
   express.static(path.join(__dirname, 'uploads', 'proofs')),
 );
 // Deny all other /uploads paths that don't match the above.
@@ -348,11 +352,13 @@ const PORT = process.env.PORT || 5000;
 let server;
 let isShuttingDown = false;
 
-// Sync database and start server
-const syncOptions =
-  process.env.NODE_ENV === 'production'
-    ? {} // production: authenticate only, use migrations
-    : { alter: { drop: false } }; // dev: auto-alter tables
+// Sync database and start server.
+// Migrations own schema changes; startup sync only creates missing baseline tables.
+function getSyncOptions(_nodeEnv = process.env.NODE_ENV) {
+  return {};
+}
+
+const syncOptions = getSyncOptions(process.env.NODE_ENV);
 
 function isPolicyDependentAlterTypeError(err) {
   const dbErr = err && (err.original || err.parent || err);
@@ -500,3 +506,4 @@ process.on('uncaughtException', (err) => {
 });
 
 module.exports = app;
+module.exports.getSyncOptions = getSyncOptions;

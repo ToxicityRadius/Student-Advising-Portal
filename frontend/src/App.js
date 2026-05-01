@@ -33,14 +33,18 @@ const Help = lazy(() => import('./pages/Help'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 
 // Admin pages
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const CurriculumManagement = lazy(() => import('./pages/admin/CurriculumManagement'));
 const CurriculumDetail = lazy(() => import('./pages/admin/CurriculumDetail'));
 const ForecastDashboard = lazy(() => import('./pages/admin/ForecastDashboard'));
 const TermManagement = lazy(() => import('./pages/admin/TermManagement'));
 const TransferOwnership = lazy(() => import('./pages/admin/TransferOwnership'));
 const PrerequisiteOverrides = lazy(() => import('./pages/admin/PrerequisiteOverrides'));
+const ProgramManagement = lazy(() => import('./pages/admin/ProgramManagement'));
+const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
 
 // Adviser pages
+const AdviserDashboard = lazy(() => import('./pages/adviser/AdviserDashboard'));
 const StudentList = lazy(() => import('./pages/adviser/StudentList'));
 const StudentDetail = lazy(() => import('./pages/adviser/StudentDetail'));
 const GradeEntry = lazy(() => import('./pages/adviser/GradeEntry'));
@@ -154,6 +158,22 @@ function AppContent() {
             />
             {/* Admin routes */}
             <Route
+              path="/admin/dashboard"
+              element={
+                <PrivateRoute roles={['superadmin', 'admin']}>
+                  <AdminDashboard />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <PrivateRoute roles={['superadmin', 'admin']}>
+                  <UserManagement />
+                </PrivateRoute>
+              }
+            />
+            <Route
               path="/admin/curriculum"
               element={
                 <PrivateRoute roles={['admin', 'adviser']}>
@@ -172,7 +192,7 @@ function AppContent() {
             <Route
               path="/admin/forecast"
               element={
-                <PrivateRoute roles={['admin']}>
+                <PrivateRoute roles={['admin', 'adviser']}>
                   <ForecastDashboard />
                 </PrivateRoute>
               }
@@ -194,6 +214,14 @@ function AppContent() {
               }
             />
             <Route
+              path="/admin/programs"
+              element={
+                <PrivateRoute roles={['superadmin']}>
+                  <ProgramManagement />
+                </PrivateRoute>
+              }
+            />
+            <Route
               path="/admin/prerequisite-overrides"
               element={
                 <PrivateRoute roles={['admin']}>
@@ -202,6 +230,14 @@ function AppContent() {
               }
             />
             {/* Adviser routes */}
+            <Route
+              path="/adviser/dashboard"
+              element={
+                <PrivateRoute roles={['adviser']}>
+                  <AdviserDashboard />
+                </PrivateRoute>
+              }
+            />
             <Route
               path="/adviser/students"
               element={

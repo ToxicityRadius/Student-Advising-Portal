@@ -3,7 +3,9 @@ const { body, param } = require('express-validator');
 const positiveIntParam = (paramName) =>
   param(paramName).isInt({ min: 1 }).withMessage(`${paramName} must be a positive integer`).toInt();
 
-const ALLOWED_ROLES = ['student', 'adviser', 'admin'];
+const { ALL_ROLES } = require('../constants');
+
+const ALLOWED_ROLES = ALL_ROLES;
 
 const ALLOWED_PROGRAMS = ['BSCpE', 'BSCS', 'BSIT', 'BSCE', 'BSEE', 'BSME'];
 const ALLOWED_STUDENT_TYPES = ['regular', 'irregular', 'transferee', 'ladderized'];

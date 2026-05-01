@@ -56,6 +56,7 @@ const serializeVersion = (version) => {
 };
 
 const buildPrerequisiteOverrideMap = GradeService.buildPrerequisiteOverrideMap;
+const buildMutualPrerequisitePairSet = GradeService.buildMutualPrerequisitePairSet;
 const isPrerequisitePlacementAllowed = GradeService.isPrerequisitePlacementAllowed;
 
 const findPrerequisitePlacementViolation = ({
@@ -75,6 +76,7 @@ const findPrerequisitePlacementViolation = ({
   });
 
   const overrideMap = buildPrerequisiteOverrideMap(overrides || []);
+  const mutualPrerequisitePairs = buildMutualPrerequisitePairSet(prerequisites || []);
 
   for (const rule of prerequisites || []) {
     const dependentId = String(rule.courseId);
@@ -89,6 +91,7 @@ const findPrerequisitePlacementViolation = ({
       prerequisiteSlotIndex: placementByCourseId.get(prerequisiteId),
       dependentSlotIndex: placementByCourseId.get(dependentId),
       overrideMap,
+      mutualPrerequisitePairs,
       allowPending,
     });
 

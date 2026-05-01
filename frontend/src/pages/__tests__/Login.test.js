@@ -77,7 +77,7 @@ describe('Login Page', () => {
 
     await user.click(screen.getByLabelText('Login as Faculty'));
 
-    expect(screen.getByText('Sign in as Instructor')).toBeInTheDocument();
+    expect(screen.getByText('Sign in as Faculty / Chair')).toBeInTheDocument();
   });
 
   // ── Login Form ────────────────────────────────────────────────────────
@@ -328,7 +328,9 @@ describe('Login Page', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Faculty\/Admin login requires a department email/),
+        screen.getByText(
+          /Faculty, Program Chair, or Super Admin login requires a department email/,
+        ),
       ).toBeInTheDocument();
     });
     expect(api.post).not.toHaveBeenCalled();

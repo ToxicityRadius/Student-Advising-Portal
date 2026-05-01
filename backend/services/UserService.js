@@ -6,8 +6,9 @@
  */
 
 const { Op } = require('sequelize');
-const { User, AcademicTerm, Curriculum } = require('../models');
+const { User, AcademicTerm, Curriculum, Program } = require('../models');
 const { sanitizeUserWithProfile } = require('../utils/sanitize');
+const { buildProgramWhere, isProgramChair } = require('../utils/programAccess');
 
 const NO_ACTIVE_TERM_KEY = 'NO_ACTIVE_TERM';
 
@@ -53,10 +54,47 @@ const getStudentProfileLockMeta = async (user) => {
 /**
  * Builds a paginated query for users with optional role filter and search.
  */
-const listUsers = async ({ paginationParams, roleFilter }) => {
+const normalizePositiveInt = (value) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const listUsers = async ({
+  paginationParams,
+  roleFilter,
+  status,
+  adviserId,
+  programId,
+  requestUser,
+}) => {
   const { page, pageSize, search, sortBy, sortOrder, offset, limit } = paginationParams;
 
-  const baseWhere = roleFilter ? { role: roleFilter } : {};
+  const normalizedRoleFilter = String(roleFilter || '').trim();
+  const baseWhere = {};
+  if (normalizedRoleFilter) {
+    baseWhere.role = normalizedRoleFilter;
+  }
+
+  if (requestUser && isProgramChair(requestUser)) {
+    if (normalizedRoleFilter && !['student', 'adviser'].includes(normalizedRoleFilter)) {
+      baseWhere.id = null;
+    } else if (!normalizedRoleFilter) {
+      baseWhere.role = { [Op.in]: ['student', 'adviser'] };
+    }
+  }
+  const normalizedStatus = String(status || '')
+    .trim()
+    .toLowerCase();
+  if (normalizedStatus === 'active') {
+    baseWhere.isActive = true;
+  } else if (normalizedStatus === 'inactive') {
+    baseWhere.isActive = false;
+  }
+
+  const normalizedAdviserId = normalizePositiveInt(adviserId);
+  if (normalizedAdviserId) {
+    baseWhere.adviserId = normalizedAdviserId;
+  }
   const searchWhere = search
     ? {
         [Op.or]: [
@@ -68,16 +106,57 @@ const listUsers = async ({ paginationParams, roleFilter }) => {
       }
     : null;
 
-  const where = searchWhere ? { [Op.and]: [baseWhere, searchWhere] } : baseWhere;
+  let where = searchWhere ? { [Op.and]: [baseWhere, searchWhere] } : baseWhere;
+  const include = [
+    {
+      model: Program,
+      as: 'AssignedPrograms',
+      through: { attributes: [] },
+      required: false,
+    },
+    {
+      model: User,
+      as: 'Adviser',
+      attributes: ['id', 'firstName', 'lastName', 'email'],
+      required: false,
+    },
+    {
+      model: Curriculum,
+      as: 'CurriculumRef',
+      attributes: ['id', 'name', 'programId'],
+      required: false,
+      include: [{ model: Program, attributes: ['id', 'code', 'name'], required: false }],
+    },
+  ];
+
+  if (requestUser && (isProgramChair(requestUser) || programId)) {
+    const programScope = await buildProgramWhere(requestUser, programId);
+    if (!programScope.allowed) {
+      where = { id: null };
+    } else if (programScope.programIds && programScope.programIds.length > 0) {
+      const scopedProgramWhere = {
+        [Op.or]: [
+          { '$AssignedPrograms.id$': { [Op.in]: programScope.programIds } },
+          { '$CurriculumRef.programId$': { [Op.in]: programScope.programIds } },
+        ],
+      };
+      where = where[Op.and]
+        ? { [Op.and]: [...where[Op.and], scopedProgramWhere] }
+        : { [Op.and]: [where, scopedProgramWhere] };
+    }
+  }
 
   const { rows, count } = await User.findAndCountAll({
     where,
+    include,
+    distinct: true,
     order: [
       [sortBy, sortOrder],
       ['id', 'DESC'],
     ],
     offset,
     limit,
+    subQuery: false,
   });
 
   return { items: rows.map(sanitizeUserWithProfile), count, page, pageSize };

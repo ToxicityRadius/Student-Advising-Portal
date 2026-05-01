@@ -14,6 +14,11 @@ const PrerequisiteOverrideRequest = sequelize.define(
       allowNull: false,
       references: { model: 'student_academic_records', key: 'id' },
     },
+    programId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: { model: 'programs', key: 'id' },
+    },
     studyPlanVersionId: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -81,6 +86,7 @@ const PrerequisiteOverrideRequest = sequelize.define(
     timestamps: false,
     indexes: [
       { fields: ['status'] },
+      { fields: ['programId'] },
       { fields: ['studentAcademicRecordId'] },
       { fields: ['studyPlanVersionId'] },
       {

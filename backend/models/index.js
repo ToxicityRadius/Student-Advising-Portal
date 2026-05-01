@@ -1,5 +1,7 @@
 const sequelize = require('../database/db');
+const Program = require('./Program');
 const User = require('./User');
+const UserProgramAssignment = require('./UserProgramAssignment');
 const Curriculum = require('./Curriculum');
 const Course = require('./Course');
 const CurriculumCourse = require('./CurriculumCourse');
@@ -16,10 +18,56 @@ const StudyPlanCourse = require('./StudyPlanCourse');
 const ForecastSnapshot = require('./ForecastSnapshot');
 const Notification = require('./Notification');
 const PrerequisiteOverrideRequest = require('./PrerequisiteOverrideRequest');
+const ActivityLog = require('./ActivityLog');
+
+// Program ownership / access
+Program.hasMany(Curriculum, { foreignKey: 'programId', onDelete: 'RESTRICT' });
+Curriculum.belongsTo(Program, { foreignKey: 'programId' });
+Program.hasMany(Course, { foreignKey: 'programId', onDelete: 'RESTRICT' });
+Course.belongsTo(Program, { foreignKey: 'programId' });
+Program.hasMany(AcademicTerm, { foreignKey: 'programId', onDelete: 'RESTRICT' });
+AcademicTerm.belongsTo(Program, { foreignKey: 'programId' });
+Program.hasMany(StudentAcademicRecord, { foreignKey: 'programId', onDelete: 'RESTRICT' });
+StudentAcademicRecord.belongsTo(Program, { foreignKey: 'programId' });
+Program.hasMany(ForecastSnapshot, { foreignKey: 'programId', onDelete: 'RESTRICT' });
+ForecastSnapshot.belongsTo(Program, { foreignKey: 'programId' });
+Program.hasMany(PrerequisiteOverrideRequest, { foreignKey: 'programId', onDelete: 'SET NULL' });
+PrerequisiteOverrideRequest.belongsTo(Program, { foreignKey: 'programId' });
+Program.hasMany(ActivityLog, { foreignKey: 'programId', onDelete: 'SET NULL' });
+ActivityLog.belongsTo(Program, { foreignKey: 'programId' });
+Program.hasMany(CourseEquivalency, {
+  as: 'OwnedEquivalencies',
+  foreignKey: 'ownerProgramId',
+  onDelete: 'SET NULL',
+});
+CourseEquivalency.belongsTo(Program, { as: 'OwnerProgram', foreignKey: 'ownerProgramId' });
+
+User.belongsToMany(Program, {
+  through: UserProgramAssignment,
+  as: 'AssignedPrograms',
+  foreignKey: 'userId',
+  otherKey: 'programId',
+});
+Program.belongsToMany(User, {
+  through: UserProgramAssignment,
+  as: 'AssignedUsers',
+  foreignKey: 'programId',
+  otherKey: 'userId',
+});
+User.hasMany(UserProgramAssignment, { foreignKey: 'userId', onDelete: 'CASCADE' });
+UserProgramAssignment.belongsTo(User, { foreignKey: 'userId', onDelete: 'CASCADE' });
+Program.hasMany(UserProgramAssignment, { foreignKey: 'programId', onDelete: 'CASCADE' });
+UserProgramAssignment.belongsTo(Program, { foreignKey: 'programId', onDelete: 'CASCADE' });
 
 // Self-referential adviser relationship (still used by profile fields)
 User.hasMany(User, { as: 'Advisees', foreignKey: 'adviserId', onDelete: 'SET NULL' });
 User.belongsTo(User, { as: 'Adviser', foreignKey: 'adviserId', onDelete: 'SET NULL' });
+ActivityLog.belongsTo(User, { as: 'Actor', foreignKey: 'actorId', onDelete: 'SET NULL' });
+ActivityLog.belongsTo(User, {
+  as: 'TargetUser',
+  foreignKey: 'targetUserId',
+  onDelete: 'SET NULL',
+});
 
 // User's selected curriculum (profile canonical reference)
 User.belongsTo(Curriculum, {
@@ -184,7 +232,9 @@ User.hasMany(Notification, { as: 'Notifications', foreignKey: 'recipientId', onD
 
 module.exports = {
   sequelize,
+  Program,
   User,
+  UserProgramAssignment,
   Curriculum,
   Course,
   CurriculumCourse,
@@ -201,4 +251,5 @@ module.exports = {
   ForecastSnapshot,
   Notification,
   PrerequisiteOverrideRequest,
+  ActivityLog,
 };

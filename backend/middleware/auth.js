@@ -17,7 +17,7 @@ exports.protect = async (req, res, next) => {
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'Not authorized to access this route'
+        message: 'Not authorized to access this route',
       });
     }
 
@@ -31,14 +31,14 @@ exports.protect = async (req, res, next) => {
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: 'User not found'
+          message: 'User not found',
         });
       }
 
       if (!user.isActive) {
         return res.status(401).json({
           success: false,
-          message: 'Account not activated. Please check your email.'
+          message: 'Account not activated. Please check your email.',
         });
       }
 
@@ -48,14 +48,19 @@ exports.protect = async (req, res, next) => {
       if (isPasswordChangeToken && !isChangePasswordRoute) {
         return res.status(403).json({
           success: false,
-          message: 'Password change required before accessing this route'
+          message: 'Password change required before accessing this route',
         });
       }
 
-      if (!isPasswordChangeToken && user.mustChangePassword && !isChangePasswordRoute && !shouldBypassAdminFirstLoginEnforcement(user)) {
+      if (
+        !isPasswordChangeToken &&
+        user.mustChangePassword &&
+        !isChangePasswordRoute &&
+        !shouldBypassAdminFirstLoginEnforcement(user)
+      ) {
         return res.status(403).json({
           success: false,
-          message: 'Password change required before accessing this route'
+          message: 'Password change required before accessing this route',
         });
       }
 
@@ -66,7 +71,7 @@ exports.protect = async (req, res, next) => {
           return res.status(403).json({
             success: false,
             message: 'Email change required before accessing this route',
-            code: 'EMAIL_CHANGE_REQUIRED'
+            code: 'EMAIL_CHANGE_REQUIRED',
           });
         }
       }
@@ -81,13 +86,13 @@ exports.protect = async (req, res, next) => {
         return res.status(401).json({
           success: false,
           message: 'Token expired. Please refresh your token.',
-          code: 'TOKEN_EXPIRED'
+          code: 'TOKEN_EXPIRED',
         });
       }
-      
+
       return res.status(401).json({
         success: false,
-        message: 'Not authorized to access this route'
+        message: 'Not authorized to access this route',
       });
     }
   } catch (error) {
@@ -96,9 +101,14 @@ exports.protect = async (req, res, next) => {
 };
 
 // Role-based access control middleware
-exports.requireRole = (...roles) => (req, res, next) => {
-  if (!req.user || !roles.includes(req.user.role)) {
-    return res.status(403).json({ success: false, message: 'Forbidden' });
-  }
-  next();
-};
+exports.requireRole =
+  (...roles) =>
+  (req, res, next) => {
+    const role = req.user?.role;
+    const superadminMatches = role === 'superadmin' && roles.some((item) => item !== 'student');
+
+    if (!req.user || (!roles.includes(role) && !superadminMatches)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    next();
+  };

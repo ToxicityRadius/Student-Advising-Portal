@@ -96,6 +96,27 @@ describe('NotificationService prerequisite override notifications', () => {
     );
   });
 
+  test('includes every requested prerequisite override pair when a summary is provided', async () => {
+    await NotificationService.notify({
+      recipientId: 10,
+      actorId: 20,
+      category: 'prerequisite_override_requested',
+      resourceType: 'study_plan_version',
+      resourceId: 30,
+      meta: {
+        adviserName: 'Grace Adviser',
+        overridePairSummary: 'CALC101 and CALC102; PHYS101 and PHYS102',
+      },
+    });
+
+    expect(Notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'prerequisite_override_requested',
+        body: expect.stringContaining('CALC101 and CALC102; PHYS101 and PHYS102'),
+      }),
+    );
+  });
+
   test('creates adviser decision notifications for approved and rejected overrides', async () => {
     await NotificationService.notify({
       recipientId: 20,

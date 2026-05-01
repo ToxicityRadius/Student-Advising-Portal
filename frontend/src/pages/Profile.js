@@ -291,10 +291,14 @@ const Profile = () => {
   };
 
   const Layout =
-    user?.role === 'admin' ? AdminLayout : user?.role === 'adviser' ? AdviserLayout : StudentLayout;
+    user?.role === 'admin' || user?.role === 'superadmin'
+      ? AdminLayout
+      : user?.role === 'adviser'
+        ? AdviserLayout
+        : StudentLayout;
 
   const layoutProps =
-    user?.role === 'admin' || user?.role === 'adviser'
+    user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'adviser'
       ? { activePage: 'profile', pageTitle: 'Profile' }
       : { activePage: 'profile', pageTitle: 'Profile', avatarOverride: preview || undefined };
 

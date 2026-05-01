@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { isStudentOnboardingIncomplete } from '../utils/studentProfileCompletion';
+import { ROLE_SUPERADMIN } from '../utils/roles';
 
 const PrivateRoute = ({ children, adminOnly = false, roles = [] }) => {
   const { user, loading } = useAuth();
@@ -22,11 +23,13 @@ const PrivateRoute = ({ children, adminOnly = false, roles = [] }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (adminOnly && user.role !== 'admin') {
+  if (adminOnly && user.role !== 'admin' && user.role !== ROLE_SUPERADMIN) {
     return <Navigate to="/dashboard" />;
   }
 
-  if (roles.length > 0 && !roles.includes(user.role)) {
+  const superadminMatches =
+    user.role === ROLE_SUPERADMIN && roles.some((role) => role !== 'student');
+  if (roles.length > 0 && !roles.includes(user.role) && !superadminMatches) {
     return <Navigate to="/dashboard" />;
   }
 

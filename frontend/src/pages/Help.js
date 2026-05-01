@@ -95,8 +95,9 @@ const Help = () => {
   };
 
   // ── Admin / Adviser: render inside their own sidebar layout ──
-  if (user?.role === 'admin' || user?.role === 'adviser') {
-    const Layout = user.role === 'admin' ? AdminLayout : AdviserLayout;
+  if (user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'adviser') {
+    const Layout =
+      user.role === 'admin' || user.role === 'superadmin' ? AdminLayout : AdviserLayout;
     return (
       <Layout activePage="" pageTitle="Help & Support">
         <section

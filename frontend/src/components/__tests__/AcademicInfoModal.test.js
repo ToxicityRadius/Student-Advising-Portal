@@ -49,6 +49,10 @@ describe('AcademicInfoModal', () => {
       expect(api.get).toHaveBeenCalledWith('/users/curriculum-options');
     });
 
+    await waitFor(() => {
+      expect(document.querySelector('select[name="curriculum_id"]')).toBeTruthy();
+    });
+
     const yearLevelSelect = document.querySelector('select[name="year_level"]');
     const programSelect = document.querySelector('select[name="program"]');
     const curriculumSelect = document.querySelector('select[name="curriculum_id"]');

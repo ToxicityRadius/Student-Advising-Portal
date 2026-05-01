@@ -12,11 +12,15 @@ const Course = sequelize.define(
     code: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
     },
     name: {
       type: DataTypes.STRING,
       allowNull: false,
+    },
+    programId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: { model: 'programs', key: 'id' },
     },
     units: {
       type: DataTypes.INTEGER,
@@ -53,6 +57,10 @@ const Course = sequelize.define(
   {
     tableName: 'courses',
     timestamps: false,
+    indexes: [
+      { fields: ['programId'] },
+      { fields: ['programId', 'code'], unique: true, name: 'courses_program_code_unique' },
+    ],
   },
 );
 

@@ -183,4 +183,50 @@ describe('GradeEntry retake placement and override request', () => {
       });
     });
   });
+
+  test('allows regeneration after completed passing grades when future courses are still pending', async () => {
+    const user = userEvent.setup();
+    useSarData.mockReturnValue({
+      sar: {
+        id: 42,
+        studentName: 'Ada Student',
+        analytics: {
+          prerequisiteChecking: {
+            subjects: [],
+          },
+        },
+      },
+      versions: [
+        {
+          ...activeVersion,
+          StudyPlanCourses: [
+            {
+              ...activeVersion.StudyPlanCourses[0],
+              grade: '2.00',
+              status: 'passed',
+            },
+            {
+              ...activeVersion.StudyPlanCourses[1],
+              grade: null,
+              status: 'pending',
+            },
+          ],
+        },
+      ],
+      loading: false,
+      error: '',
+      reload: jest.fn(),
+    });
+
+    renderGradeEntry();
+
+    await user.click(screen.getByRole('button', { name: /Regenerate Study Plan/i }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/sars/42/study-plan/regenerate', {
+        retakePlacements: [],
+        prerequisiteOverrideRequests: [],
+      });
+    });
+  });
 });

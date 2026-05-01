@@ -1,4 +1,4 @@
-const { User } = require('../models');
+const { User, UserProgramAssignment } = require('../models');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
@@ -12,7 +12,7 @@ const { linkStudentAccountToSar } = require('../utils/sarLinking');
 const { shouldBypassAdminFirstLoginEnforcement } = require('../utils/featureFlags');
 const { sanitizeUser } = require('../utils/sanitize');
 const logger = require('../utils/logger');
-const { FACULTY_EMAIL_WHITELIST } = require('../constants');
+const { FACULTY_EMAIL_WHITELIST, FACULTY_ROLES } = require('../constants');
 
 // In-memory attempt tracker for verification code brute-force protection.
 // Keys are String(userId); values are { count, resetAt }.
@@ -205,7 +205,7 @@ function clearVerificationSession(res, req) {
   }
 
   const tokenCookieOptions = getAuthCookieOptions().token;
-  const { expires, maxAge, ...baseCookieOptions } = tokenCookieOptions;
+  const { expires: _expires, maxAge: _maxAge, ...baseCookieOptions } = tokenCookieOptions;
 
   res.clearCookie(VERIFICATION_SESSION_COOKIE, {
     ...baseCookieOptions,
@@ -227,7 +227,7 @@ async function clearVerificationSessionFromDb(req) {
         { verificationSessionId: null },
         { where: { verificationSessionId: sessionId } },
       );
-    } catch (_) {
+    } catch {
       // non-critical cleanup — log silently
     }
   }
@@ -757,7 +757,7 @@ exports.login = async (req, res, next) => {
     }
 
     // Ensure the account role matches the selected login portal
-    const isFacultyRole = user.role === 'adviser' || user.role === 'admin';
+    const isFacultyRole = FACULTY_ROLES.includes(user.role);
     if (selectedRole === 'faculty' && !isFacultyRole) {
       return res.status(403).json({
         success: false,
@@ -1568,8 +1568,24 @@ exports.transferOwnership = async (req, res, next) => {
       });
     }
 
+    const requesterAssignments = await UserProgramAssignment.findAll({
+      where: { userId: requester.id },
+      attributes: ['programId'],
+    });
+
     await User.update({ role: 'admin', updatedAt: Date.now() }, { where: { id: targetUser.id } });
     await User.update({ role: 'adviser', updatedAt: Date.now() }, { where: { id: requester.id } });
+    if (requesterAssignments.length > 0) {
+      await UserProgramAssignment.bulkCreate(
+        requesterAssignments.map((assignment) => ({
+          userId: targetUser.id,
+          programId: assignment.programId,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        })),
+        { ignoreDuplicates: true },
+      );
+    }
 
     return res.status(200).json({
       success: true,

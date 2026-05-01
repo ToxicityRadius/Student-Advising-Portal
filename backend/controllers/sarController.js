@@ -15,6 +15,7 @@ const {
 const { syncSarToProfile } = require('../utils/sarLinking');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
 const { buildElectiveTrackPlan } = require('../utils/studyPlan');
+const { canManageProgram } = require('../utils/programAccess');
 
 const {
   uploadProfilePicture: uploadProfilePictureAsset,
@@ -23,6 +24,7 @@ const {
 const { validateUploadedImageFile } = require('../utils/imageValidation');
 const SARService = require('../services/SARService');
 const NotificationService = require('../services/NotificationService');
+const ActivityLogService = require('../services/ActivityLogService');
 
 const tipEmailPattern = /@tip\.edu\.ph$/i;
 
@@ -227,6 +229,9 @@ exports.createSAR = async (req, res, next) => {
         message: 'No curriculum was provided and there is no active curriculum to use as default',
       });
     }
+    if (!(await canManageProgram(req.user, curriculum.programId))) {
+      return res.status(403).json({ success: false, message: 'Program access denied' });
+    }
 
     const [existingStudentNumber, existingEmail, matchedStudent] = await Promise.all([
       StudentAcademicRecord.findOne({ where: { studentNumber } }),
@@ -263,6 +268,7 @@ exports.createSAR = async (req, res, next) => {
     const sar = await StudentAcademicRecord.create({
       userId: matchedStudent?.id || null,
       curriculumId: curriculum.id,
+      programId: curriculum.programId,
       studentName,
       studentNumber,
       email,
@@ -295,6 +301,17 @@ exports.createSAR = async (req, res, next) => {
         resourceId: createdSar.id,
       });
     }
+
+    ActivityLogService.logSafe({
+      programId: createdSar.programId,
+      actorId: req.user.id,
+      action: 'sar.created',
+      resourceType: 'sar',
+      resourceId: createdSar.id,
+      resourceLabel: createdSar.studentName,
+      targetUserId: createdSar.userId || null,
+      metadata: { studentNumber: createdSar.studentNumber },
+    });
 
     return res.status(201).json({ success: true, data: serializeSar(createdSar) });
   } catch (error) {
@@ -397,6 +414,14 @@ exports.bulkCreateSARs = async (req, res, next) => {
         });
         continue;
       }
+      if (!(await canManageProgram(req.user, curriculum.programId))) {
+        errors.push({
+          line: lineNum,
+          studentNumber,
+          message: 'Program access denied',
+        });
+        continue;
+      }
 
       let matchedStudent = null;
       try {
@@ -410,6 +435,7 @@ exports.bulkCreateSARs = async (req, res, next) => {
         {
           userId: matchedStudent?.id || null,
           curriculumId: curriculum.id,
+          programId: curriculum.programId,
           studentName,
           studentNumber,
           email,
@@ -458,6 +484,14 @@ exports.getSARs = async (req, res, next) => {
     const { items, count, page, pageSize } = await SARService.listSARs({
       user: req.user,
       paginationParams,
+      programId: req.query.programId,
+      scope: req.query.scope,
+      curriculumId: req.query.curriculumId,
+      yearLevel: req.query.yearLevel,
+      linkStatus: req.query.linkStatus,
+      needsRevalidation: req.query.needsRevalidation,
+      hasStudyPlan: req.query.hasStudyPlan,
+      electiveTrackStatus: req.query.electiveTrackStatus,
     });
     const payload = buildPaginatedPayload({ items, page, pageSize, totalItems: count });
     return res.status(200).json({ success: true, ...payload });
@@ -608,6 +642,17 @@ exports.updateSAR = async (req, res, next) => {
         console.error('[sarSync] updateSAR sync error:', syncError.message);
       }
     }
+
+    ActivityLogService.logSafe({
+      programId: updatedSar.programId,
+      actorId: req.user.id,
+      action: 'sar.updated',
+      resourceType: 'sar',
+      resourceId: updatedSar.id,
+      resourceLabel: updatedSar.studentName,
+      targetUserId: updatedSar.userId || null,
+      metadata: { changedFields: Object.keys({ ...updates, ...profileUpdates }) },
+    });
 
     return res.status(200).json({ success: true, data: serializeSar(updatedSar) });
   } catch (error) {
@@ -777,6 +822,17 @@ exports.generateInitialStudyPlan = async (req, res, next) => {
           include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
         },
       ],
+    });
+
+    ActivityLogService.logSafe({
+      programId: sar.programId,
+      actorId: req.user.id,
+      action: 'study_plan.generated',
+      resourceType: 'study_plan_version',
+      resourceId: createdVersion.id,
+      resourceLabel: `Study plan v${createdVersion.versionNumber}`,
+      targetUserId: sar.userId || null,
+      metadata: { sarId: sar.id, versionNumber: createdVersion.versionNumber },
     });
 
     return res.status(201).json({

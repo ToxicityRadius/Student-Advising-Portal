@@ -14,6 +14,11 @@ const {
   buildPaginatedPayload,
   paginateArray,
 } = require('../utils/pagination');
+const {
+  buildProgramWhere,
+  getAccessibleProgramIds,
+  isProgramChair,
+} = require('../utils/programAccess');
 
 const triggeredByAttributes = ['id', 'firstName', 'lastName', 'email'];
 
@@ -42,6 +47,7 @@ const getSemesterDisplay = (semester) => semesterLabel[Number(semester)] || `Sem
 
 const buildTermMeta = (term) => ({
   id: term.id,
+  programId: term.programId || null,
   schoolYear: term.schoolYear,
   semester: term.semester,
   semesterLabel: getSemesterDisplay(term.semester),
@@ -87,8 +93,8 @@ const sortRowsBy = ({ rows, sortBy, sortOrder }) => {
   });
 };
 
-const getDemandCacheKey = ({ termId, semesterOffset, sectionCap }) =>
-  `${termId}:${semesterOffset}:${sectionCap}`;
+const getDemandCacheKey = ({ programId, termId, semesterOffset, sectionCap }) =>
+  `${programId || 'global'}:${termId}:${semesterOffset}:${sectionCap}`;
 
 const getCachedDemandResponse = (key) => {
   const entry = demandResponseCache.get(key);
@@ -120,14 +126,33 @@ const normalizeSectionCap = (value) => {
   return Math.floor(parsed);
 };
 
-const getCurrentAcademicTerm = async (transaction) =>
+const getCurrentAcademicTerm = async (transaction, programId = null) =>
   AcademicTerm.findOne({
-    where: { isCurrent: true },
+    where: programId ? { programId, isCurrent: true } : { isCurrent: true },
     transaction,
   });
 
+const resolveForecastProgramId = async (user, requestedProgramId) => {
+  const parsedProgramId = Number(requestedProgramId);
+  if (Number.isInteger(parsedProgramId) && parsedProgramId > 0) {
+    const scope = await buildProgramWhere(user, parsedProgramId);
+    return { allowed: scope.allowed, programId: scope.allowed ? parsedProgramId : null };
+  }
+
+  if (isProgramChair(user)) {
+    const accessibleIds = await getAccessibleProgramIds(user);
+    return {
+      allowed: true,
+      programId: accessibleIds && accessibleIds.length > 0 ? accessibleIds[0] : null,
+    };
+  }
+
+  return { allowed: true, programId: null };
+};
+
 const getDemandDataForTerm = async ({
   term,
+  programId = null,
   semesterOffset = 0,
   sectionCap = DEFAULT_SECTION_CAP,
   transaction,
@@ -141,7 +166,8 @@ const getDemandDataForTerm = async ({
   }
 
   const records = await StudentAcademicRecord.findAll({
-    attributes: ['id', 'yearLevel'],
+    attributes: ['id', 'yearLevel', 'programId'],
+    where: programId ? { programId } : {},
     include: [
       {
         model: StudyPlan,
@@ -269,11 +295,12 @@ const normalizeSnapshotForecastRows = (snapshot) => {
 };
 
 const buildDemandResponse = async ({
+  programId = null,
   semesterOffset = 0,
   sectionCap = DEFAULT_SECTION_CAP,
   transaction,
 } = {}) => {
-  const currentTerm = await getCurrentAcademicTerm(transaction);
+  const currentTerm = await getCurrentAcademicTerm(transaction, programId);
   if (!currentTerm) {
     const error = new Error('No active current term found');
     error.statusCode = 404;
@@ -287,6 +314,7 @@ const buildDemandResponse = async ({
 
   const normalizedSectionCap = normalizeSectionCap(sectionCap);
   const cacheKey = getDemandCacheKey({
+    programId,
     termId: currentTerm.id,
     semesterOffset,
     sectionCap: normalizedSectionCap,
@@ -299,6 +327,7 @@ const buildDemandResponse = async ({
 
   const demandData = await getDemandDataForTerm({
     term: currentTerm,
+    programId: currentTerm.programId || programId,
     semesterOffset,
     sectionCap: normalizedSectionCap,
     transaction,
@@ -308,6 +337,7 @@ const buildDemandResponse = async ({
     data: demandData.rows,
     meta: {
       currentTerm: buildTermMeta(currentTerm),
+      programId: currentTerm.programId || programId || null,
       sectionCap: demandData.sectionCap,
       validatedSarCount: demandData.uniqueSarCount,
       offsetSemester:
@@ -341,13 +371,26 @@ const storeForecastSnapshot = async (termId, userId, options = {}) => {
 
   const snapshotTimestamp = Number(createdAt || Date.now());
   const [currentDemandData, nextSemesterForecastData] = await Promise.all([
-    getDemandDataForTerm({ term, semesterOffset: 0, sectionCap, transaction }),
-    getDemandDataForTerm({ term, semesterOffset: 1, sectionCap, transaction }),
+    getDemandDataForTerm({
+      term,
+      programId: term.programId,
+      semesterOffset: 0,
+      sectionCap,
+      transaction,
+    }),
+    getDemandDataForTerm({
+      term,
+      programId: term.programId,
+      semesterOffset: 1,
+      sectionCap,
+      transaction,
+    }),
   ]);
 
   return ForecastSnapshot.create(
     {
       academicTermId: term.id,
+      programId: term.programId,
       schoolYear: term.schoolYear,
       semester: term.semester,
       snapshotData: {
@@ -369,7 +412,12 @@ const storeForecastSnapshot = async (termId, userId, options = {}) => {
 // @access admin, adviser
 exports.getCurrentDemand = async (req, res, next) => {
   try {
+    const programScope = await resolveForecastProgramId(req.user, req.query.programId);
+    if (!programScope.allowed) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
     const response = await buildDemandResponse({
+      programId: programScope.programId,
       semesterOffset: 0,
       sectionCap: req.query.sectionCap,
     });
@@ -412,7 +460,12 @@ exports.getCurrentDemand = async (req, res, next) => {
 // @access admin, adviser
 exports.getNextSemesterForecast = async (req, res, next) => {
   try {
+    const programScope = await resolveForecastProgramId(req.user, req.query.programId);
+    if (!programScope.allowed) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
     const response = await buildDemandResponse({
+      programId: programScope.programId,
       semesterOffset: 1,
       sectionCap: req.query.sectionCap,
     });
@@ -455,7 +508,11 @@ exports.getNextSemesterForecast = async (req, res, next) => {
 // @access admin, adviser
 exports.getComparisonReport = async (req, res, next) => {
   try {
-    const currentTerm = await getCurrentAcademicTerm();
+    const programScope = await resolveForecastProgramId(req.user, req.query.programId);
+    if (!programScope.allowed) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    const currentTerm = await getCurrentAcademicTerm(null, programScope.programId);
     if (!currentTerm) {
       return res.status(404).json({ success: false, message: 'No active current term found' });
     }
@@ -463,11 +520,13 @@ exports.getComparisonReport = async (req, res, next) => {
     const [actualDemand, previousSnapshot] = await Promise.all([
       getDemandDataForTerm({
         term: currentTerm,
+        programId: currentTerm.programId || programScope.programId,
         semesterOffset: 0,
         sectionCap: req.query.sectionCap,
       }),
       ForecastSnapshot.findOne({
         where: {
+          ...(programScope.programId ? { programId: programScope.programId } : {}),
           academicTermId: { [Op.ne]: currentTerm.id },
         },
         include: [{ model: User, as: 'TriggeredBy', attributes: triggeredByAttributes }],
@@ -530,6 +589,7 @@ exports.getComparisonReport = async (req, res, next) => {
       totalItems: paged.totalItems,
       extraMeta: {
         currentTerm: buildTermMeta(currentTerm),
+        programId: currentTerm.programId || programScope.programId || null,
         previousSnapshot: previousSnapshot
           ? {
               id: previousSnapshot.id,
@@ -566,11 +626,22 @@ exports.getForecastHistory = async (req, res, next) => {
       },
     );
 
-    const where = search
+    const programScope = await resolveForecastProgramId(req.user, req.query.programId);
+    if (!programScope.allowed) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    const searchWhere = search
       ? {
           [Op.or]: [{ schoolYear: { [Op.iLike]: `%${search}%` } }],
         }
       : {};
+    const where =
+      programScope.programId && Object.keys(searchWhere).length > 0
+        ? { [Op.and]: [{ programId: programScope.programId }, searchWhere] }
+        : programScope.programId
+          ? { programId: programScope.programId }
+          : searchWhere;
 
     const { rows, count } = await ForecastSnapshot.findAndCountAll({
       where,
@@ -586,6 +657,7 @@ exports.getForecastHistory = async (req, res, next) => {
     const data = rows.map((snapshot) => ({
       id: snapshot.id,
       academicTermId: snapshot.academicTermId,
+      programId: snapshot.programId,
       schoolYear: snapshot.schoolYear,
       semester: snapshot.semester,
       semesterLabel: getSemesterDisplay(snapshot.semester),

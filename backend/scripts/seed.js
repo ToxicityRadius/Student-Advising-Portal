@@ -24,6 +24,8 @@ const bcrypt = require('bcryptjs');
 const {
   sequelize,
   User,
+  Program,
+  UserProgramAssignment,
   Curriculum,
   Course,
   CurriculumCourse,
@@ -32,6 +34,7 @@ const {
   ElectiveTrack,
   ElectiveTrackCourse,
 } = require('../models');
+const { DEFAULT_PROGRAM } = require('../constants');
 
 const importReadyDir = path.resolve(__dirname, '..', '..', 'data', 'curriculum_import_ready');
 
@@ -165,8 +168,28 @@ const readImportCsv = (fileName) => {
     // ── 2. Default users ─────────────────────────────────────────────────────
     const hash = await bcrypt.hash('Password123!', 10);
     const now = Date.now();
+    const bscpeProgram = await Program.create({
+      ...DEFAULT_PROGRAM,
+      createdAt: now,
+      updatedAt: now,
+    });
 
-    await User.bulkCreate([
+    const defaultUsers = [
+      ...(process.env.SUPERADMIN_EMAIL
+        ? [
+            {
+              firstName: 'Developer',
+              lastName: 'Superadmin',
+              email: process.env.SUPERADMIN_EMAIL.toLowerCase(),
+              password: await bcrypt.hash(process.env.SUPERADMIN_PASSWORD || 'Password123!', 10),
+              role: 'superadmin',
+              isActive: true,
+              isVerified: true,
+              createdAt: now,
+              updatedAt: now,
+            },
+          ]
+        : []),
       {
         firstName: 'Program',
         lastName: 'Chair',
@@ -208,9 +231,20 @@ const readImportCsv = (fileName) => {
         createdAt: now,
         updatedAt: now,
       },
-    ]);
+    ];
 
-    console.log('[seed] default users created (admin, adviser, student)');
+    await User.bulkCreate(defaultUsers);
+    const assignedStaff = await User.findAll({ where: { role: ['admin', 'adviser'] } });
+    await UserProgramAssignment.bulkCreate(
+      assignedStaff.map((user) => ({
+        userId: user.id,
+        programId: bscpeProgram.id,
+        createdAt: now,
+        updatedAt: now,
+      })),
+    );
+
+    console.log('[seed] default program and users created');
 
     // ── 3. Curriculum import from import-ready CSVs ─────────────────────────
     const importFiles = [
@@ -248,6 +282,7 @@ const readImportCsv = (fileName) => {
           {
             name: curriculumName,
             description: null,
+            programId: bscpeProgram.id,
             isActive,
             createdById,
             createdAt: now,
@@ -274,7 +309,7 @@ const readImportCsv = (fileName) => {
 
         if (needLookup.length > 0) {
           const existing = await Course.findAll({
-            where: { code: needLookup },
+            where: { code: needLookup, programId: bscpeProgram.id },
             transaction,
           });
           for (const c of existing) courseIdByCode.set(c.code.toUpperCase(), c.id);
@@ -293,6 +328,7 @@ const readImportCsv = (fileName) => {
             {
               code: row.courseCode,
               name: row.courseName,
+              programId: bscpeProgram.id,
               units: row.units || 0,
             },
             { transaction },

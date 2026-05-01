@@ -11,8 +11,17 @@ const {
   ElectiveTrackCourse,
   StudyPlanCourse,
   User,
+  Program,
 } = require('../models');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
+const {
+  buildProgramWhere,
+  canReadProgram,
+  canManageProgram,
+  resolveManageProgramId,
+  isSuperadmin,
+  normalizeProgramId,
+} = require('../utils/programAccess');
 const logger = require('../utils/logger');
 
 const CURRICULUM_CSV_COLUMNS = [
@@ -40,6 +49,57 @@ const OPTIONAL_CSV_COLUMNS = new Set([
   'laboratoryHours',
   'minYearStandingRequired',
 ]);
+
+const mergeWhere = (...parts) => {
+  const filtered = parts.filter((part) => part && Object.keys(part).length > 0);
+  if (filtered.length === 0) return {};
+  if (filtered.length === 1) return filtered[0];
+  return { [Op.and]: filtered };
+};
+
+const isStudentUser = (user) => user?.role === 'student';
+
+const buildStaffProgramScope = async (req, requestedProgramId = req.query?.programId) => {
+  if (isStudentUser(req.user)) {
+    const programId = normalizeProgramId(requestedProgramId);
+    return {
+      allowed: true,
+      where: programId ? { programId } : {},
+      programIds: programId ? [programId] : null,
+    };
+  }
+  return buildProgramWhere(req.user, requestedProgramId);
+};
+
+const ensureCanReadProgram = async (req, programId) => {
+  if (isStudentUser(req.user)) return true;
+  return canReadProgram(req.user, programId);
+};
+
+const findCurriculumForRead = async (req, curriculumId, options = {}) => {
+  const curriculum = await Curriculum.findByPk(curriculumId, options);
+  if (!curriculum) return { curriculum: null, status: 404 };
+  if (!(await ensureCanReadProgram(req, curriculum.programId))) {
+    return { curriculum: null, status: 403 };
+  }
+  return { curriculum, status: 200 };
+};
+
+const findCurriculumForManage = async (req, curriculumId, options = {}) => {
+  const curriculum = await Curriculum.findByPk(curriculumId, options);
+  if (!curriculum) return { curriculum: null, status: 404 };
+  if (!(await canManageProgram(req.user, curriculum.programId))) {
+    return { curriculum: null, status: 403 };
+  }
+  return { curriculum, status: 200 };
+};
+
+const respondScopedNotFound = (res, status, resourceName) => {
+  if (status === 403) {
+    return res.status(403).json({ success: false, message: 'Forbidden' });
+  }
+  return res.status(404).json({ success: false, message: `${resourceName} not found` });
+};
 
 const ALLOWED_ROW_TYPES = new Set([
   'metadata',
@@ -332,7 +392,7 @@ const summarizeRows = (rows) =>
     { totalRows: 0, byType: {} },
   );
 
-const resolveCourseByCodeMap = async ({ rows, transaction }) => {
+const resolveCourseByCodeMap = async ({ rows, programId, transaction }) => {
   const courseCodes = [
     ...new Set(
       rows
@@ -343,7 +403,7 @@ const resolveCourseByCodeMap = async ({ rows, transaction }) => {
   ];
 
   const existingCourses = await Course.findAll({
-    where: { code: { [Op.in]: courseCodes } },
+    where: { code: { [Op.in]: courseCodes }, programId },
     transaction,
   });
 
@@ -361,6 +421,7 @@ const resolveCourseByCodeMap = async ({ rows, transaction }) => {
       {
         code: row.courseCode,
         name: row.courseName,
+        programId,
         units: row.units,
         lectureHours: row.lectureHours ?? null,
         laboratoryHours: row.laboratoryHours ?? null,
@@ -382,12 +443,21 @@ const resolveCourseByCodeMap = async ({ rows, transaction }) => {
 exports.createCurriculum = async (req, res, next) => {
   try {
     const { name, description } = req.body;
+    const programId = await resolveManageProgramId(
+      req.user,
+      req.body.programId || req.query.programId,
+    );
+    if (!programId) {
+      return res.status(403).json({ success: false, message: 'Program access denied' });
+    }
+
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: 'Curriculum name is required' });
     }
     const curriculum = await Curriculum.create({
       name: name.trim(),
       description: description || null,
+      programId,
       isActive: false,
       createdById: req.user.id,
     });
@@ -411,8 +481,12 @@ exports.getCurriculums = async (req, res, next) => {
     );
     const isStudent = req.user?.role === 'student';
     const compact = isStudent || String(req.query.compact || 'false').toLowerCase() === 'true';
+    const programScope = await buildStaffProgramScope(req);
+    if (!programScope.allowed) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
 
-    const where = search
+    const searchWhere = search
       ? {
           [Op.or]: [
             { name: { [Op.iLike]: `%${search}%` } },
@@ -420,13 +494,17 @@ exports.getCurriculums = async (req, res, next) => {
           ],
         }
       : {};
+    const where = mergeWhere(programScope.where, searchWhere);
 
     const { rows, count } = await Curriculum.findAndCountAll({
       where,
-      attributes: compact ? ['id', 'name', 'description', 'isActive'] : undefined,
+      attributes: compact ? ['id', 'name', 'description', 'programId', 'isActive'] : undefined,
       include: compact
         ? []
-        : [{ model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] }],
+        : [
+            { model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] },
+            { model: Program, attributes: ['id', 'code', 'name'] },
+          ],
       order: [
         [sortBy, sortOrder],
         ['id', 'DESC'],
@@ -454,8 +532,14 @@ exports.getCurriculums = async (req, res, next) => {
 // @access admin, adviser, student
 exports.getCurriculumsMap = async (req, res, next) => {
   try {
+    const programScope = await buildStaffProgramScope(req);
+    if (!programScope.allowed) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
     const curriculums = await Curriculum.findAll({
-      attributes: ['id', 'name', 'description', 'isActive'],
+      where: programScope.where,
+      attributes: ['id', 'name', 'description', 'programId', 'isActive'],
       include: [
         {
           model: CurriculumCourse,
@@ -480,6 +564,7 @@ exports.getCurriculumsMap = async (req, res, next) => {
       id: curriculum.id,
       name: curriculum.name,
       description: curriculum.description,
+      programId: curriculum.programId,
       isActive: curriculum.isActive,
       courses: (curriculum.CurriculumCourses || []).map((entry) => ({
         curriculumCourseId: entry.id,
@@ -509,12 +594,13 @@ exports.getCurriculumById = async (req, res, next) => {
     const compact = isStudent || String(req.query.compact || 'false').toLowerCase() === 'true';
     const curriculum = await Curriculum.findByPk(req.params.id, {
       attributes: compact
-        ? ['id', 'name', 'description', 'isActive', 'createdAt', 'updatedAt']
+        ? ['id', 'name', 'description', 'programId', 'isActive', 'createdAt', 'updatedAt']
         : undefined,
       include: compact
         ? [{ model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] }]
         : [
             { model: User, as: 'CreatedBy', attributes: ['id', 'firstName', 'lastName'] },
+            { model: Program, attributes: ['id', 'code', 'name'] },
             {
               model: CurriculumCourse,
               include: [{ model: Course }],
@@ -547,6 +633,9 @@ exports.getCurriculumById = async (req, res, next) => {
     if (!curriculum) {
       return res.status(404).json({ success: false, message: 'Curriculum not found' });
     }
+    if (!(await ensureCanReadProgram(req, curriculum.programId))) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
     res.set('Cache-Control', compact ? 'private, max-age=120' : 'private, max-age=30');
     return res.status(200).json({ success: true, data: curriculum });
   } catch (err) {
@@ -559,13 +648,21 @@ exports.getCurriculumById = async (req, res, next) => {
 // @access admin
 exports.updateCurriculum = async (req, res, next) => {
   try {
-    const curriculum = await Curriculum.findByPk(req.params.id);
+    const { curriculum, status } = await findCurriculumForManage(req, req.params.id);
     if (!curriculum) {
-      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+      return respondScopedNotFound(res, status, 'Curriculum');
     }
     const { name, description } = req.body;
     if (name !== undefined && !name.trim()) {
       return res.status(400).json({ success: false, message: 'Curriculum name cannot be empty' });
+    }
+    if (
+      req.body.programId !== undefined &&
+      normalizeProgramId(req.body.programId) !== curriculum.programId
+    ) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Curriculum program cannot be changed' });
     }
     await curriculum.update({
       ...(name !== undefined && { name: name.trim() }),
@@ -583,14 +680,19 @@ exports.updateCurriculum = async (req, res, next) => {
 exports.setActiveCurriculum = async (req, res, next) => {
   const transaction = await sequelize.transaction();
   try {
-    const curriculum = await Curriculum.findByPk(req.params.id, { transaction });
+    const { curriculum, status } = await findCurriculumForManage(req, req.params.id, {
+      transaction,
+    });
     if (!curriculum) {
       await transaction.rollback();
-      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+      return respondScopedNotFound(res, status, 'Curriculum');
     }
     // Both updates are wrapped in a transaction so a partial failure cannot
     // leave all curricula deactivated (Step 3.4)
-    await Curriculum.update({ isActive: false }, { where: {}, transaction });
+    await Curriculum.update(
+      { isActive: false },
+      { where: { programId: curriculum.programId }, transaction },
+    );
     await curriculum.update({ isActive: true }, { transaction });
     await transaction.commit();
     return res.status(200).json({ success: true, data: curriculum });
@@ -608,6 +710,14 @@ exports.setActiveCurriculum = async (req, res, next) => {
 exports.createCourse = async (req, res, next) => {
   try {
     const { code, name, units, lectureHours, laboratoryHours, maxStudentsPerSection } = req.body;
+    const programId = await resolveManageProgramId(
+      req.user,
+      req.body.programId || req.query.programId,
+    );
+    if (!programId) {
+      return res.status(403).json({ success: false, message: 'Program access denied' });
+    }
+
     if (!code || !name || units === undefined) {
       return res
         .status(400)
@@ -643,7 +753,9 @@ exports.createCourse = async (req, res, next) => {
           .json({ success: false, message: 'maxStudentsPerSection must be a positive integer' });
       }
     }
-    const existing = await Course.findOne({ where: { code: code.trim().toUpperCase() } });
+    const existing = await Course.findOne({
+      where: { code: code.trim().toUpperCase(), programId },
+    });
     if (existing) {
       return res
         .status(409)
@@ -652,6 +764,7 @@ exports.createCourse = async (req, res, next) => {
     const course = await Course.create({
       code: code.trim().toUpperCase(),
       name: name.trim(),
+      programId,
       units: Number(units),
       lectureHours: lectureHours !== undefined && lectureHours !== '' ? Number(lectureHours) : null,
       laboratoryHours:
@@ -679,8 +792,12 @@ exports.getCourses = async (req, res, next) => {
         allowedSortBy: ['code', 'name', 'units', 'createdAt'],
       },
     );
+    const programScope = await buildStaffProgramScope(req);
+    if (!programScope.allowed) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
 
-    const where = search
+    const searchWhere = search
       ? {
           [Op.or]: [
             { code: { [Op.iLike]: `%${search}%` } },
@@ -688,10 +805,12 @@ exports.getCourses = async (req, res, next) => {
           ],
         }
       : {};
+    const where = mergeWhere(programScope.where, searchWhere);
 
     const { rows, count } = await Course.findAndCountAll({
       where,
       include: [
+        { model: Program, attributes: ['id', 'code', 'name'] },
         {
           model: CurriculumCourse,
           attributes: ['id', 'curriculumId'],
@@ -753,6 +872,15 @@ exports.updateCourse = async (req, res, next) => {
     if (!course) {
       return res.status(404).json({ success: false, message: 'Course not found' });
     }
+    if (!(await canManageProgram(req.user, course.programId))) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    if (
+      req.body.programId !== undefined &&
+      normalizeProgramId(req.body.programId) !== course.programId
+    ) {
+      return res.status(400).json({ success: false, message: 'Course program cannot be changed' });
+    }
     const { code, name, units } = req.body;
     if (units !== undefined) {
       if (!Number.isInteger(Number(units)) || Number(units) < 1 || Number(units) > 9) {
@@ -763,7 +891,11 @@ exports.updateCourse = async (req, res, next) => {
     }
     if (code !== undefined) {
       const existing = await Course.findOne({
-        where: { code: code.trim().toUpperCase(), id: { [Op.ne]: course.id } },
+        where: {
+          code: code.trim().toUpperCase(),
+          programId: course.programId,
+          id: { [Op.ne]: course.id },
+        },
       });
       if (existing) {
         return res
@@ -805,6 +937,9 @@ exports.deleteCourse = async (req, res, next) => {
     if (!course) {
       return res.status(404).json({ success: false, message: 'Course not found' });
     }
+    if (!(await canManageProgram(req.user, course.programId))) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
     const [ccCount, prereqCount, coreqCount, etcCount, spcCount] = await Promise.all([
       CurriculumCourse.count({ where: { courseId: course.id } }),
       Prerequisite.count({
@@ -837,9 +972,9 @@ exports.deleteCourse = async (req, res, next) => {
 // @access admin
 exports.addCourseToCurriculum = async (req, res, next) => {
   try {
-    const curriculum = await Curriculum.findByPk(req.params.id);
+    const { curriculum, status } = await findCurriculumForManage(req, req.params.id);
     if (!curriculum) {
-      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+      return respondScopedNotFound(res, status, 'Curriculum');
     }
     const { courseId, yearLevel, semester, isElective, minYearStandingRequired } = req.body;
     if (!courseId || !yearLevel || !semester) {
@@ -859,6 +994,12 @@ exports.addCourseToCurriculum = async (req, res, next) => {
     const course = await Course.findByPk(courseId);
     if (!course) {
       return res.status(404).json({ success: false, message: 'Course not found' });
+    }
+    if (normalizeProgramId(course.programId) !== normalizeProgramId(curriculum.programId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Course must belong to the same program as the curriculum',
+      });
     }
     const existing = await CurriculumCourse.findOne({
       where: { curriculumId: req.params.id, courseId },
@@ -888,6 +1029,10 @@ exports.addCourseToCurriculum = async (req, res, next) => {
 // @access admin
 exports.removeCourseFromCurriculum = async (req, res, next) => {
   try {
+    const { curriculum, status } = await findCurriculumForManage(req, req.params.id);
+    if (!curriculum) {
+      return respondScopedNotFound(res, status, 'Curriculum');
+    }
     const cc = await CurriculumCourse.findByPk(req.params.ccId);
     if (!cc || String(cc.curriculumId) !== String(req.params.id)) {
       return res.status(404).json({ success: false, message: 'Curriculum course entry not found' });
@@ -904,9 +1049,9 @@ exports.removeCourseFromCurriculum = async (req, res, next) => {
 // @access admin, adviser, student
 exports.getCurriculumCourses = async (req, res, next) => {
   try {
-    const curriculum = await Curriculum.findByPk(req.params.id);
+    const { curriculum, status } = await findCurriculumForRead(req, req.params.id);
     if (!curriculum) {
-      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+      return respondScopedNotFound(res, status, 'Curriculum');
     }
     const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
       req.query,
@@ -961,9 +1106,9 @@ exports.getCurriculumCourses = async (req, res, next) => {
 // @access admin
 exports.addPrerequisite = async (req, res, next) => {
   try {
-    const curriculum = await Curriculum.findByPk(req.params.id);
+    const { curriculum, status } = await findCurriculumForManage(req, req.params.id);
     if (!curriculum) {
-      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+      return respondScopedNotFound(res, status, 'Curriculum');
     }
     const { courseId, prerequisiteCourseId } = req.body;
     if (!courseId || !prerequisiteCourseId) {
@@ -975,6 +1120,21 @@ exports.addPrerequisite = async (req, res, next) => {
       return res
         .status(400)
         .json({ success: false, message: 'A course cannot be its own prerequisite' });
+    }
+    const courses = await Course.findAll({
+      where: { id: { [Op.in]: [courseId, prerequisiteCourseId] } },
+    });
+    if (
+      courses.length !== 2 ||
+      courses.some(
+        (course) =>
+          normalizeProgramId(course.programId) !== normalizeProgramId(curriculum.programId),
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Both courses must belong to the curriculum program',
+      });
     }
     const existing = await Prerequisite.findOne({
       where: { curriculumId: req.params.id, courseId, prerequisiteCourseId },
@@ -1006,6 +1166,10 @@ exports.addPrerequisite = async (req, res, next) => {
 // @access admin
 exports.removePrerequisite = async (req, res, next) => {
   try {
+    const { curriculum, status } = await findCurriculumForManage(req, req.params.id);
+    if (!curriculum) {
+      return respondScopedNotFound(res, status, 'Curriculum');
+    }
     const prereq = await Prerequisite.findByPk(req.params.prereqId);
     if (!prereq || String(prereq.curriculumId) !== String(req.params.id)) {
       return res.status(404).json({ success: false, message: 'Prerequisite not found' });
@@ -1022,9 +1186,9 @@ exports.removePrerequisite = async (req, res, next) => {
 // @access admin, adviser, student
 exports.getPrerequisites = async (req, res, next) => {
   try {
-    const curriculum = await Curriculum.findByPk(req.params.id);
+    const { curriculum, status } = await findCurriculumForRead(req, req.params.id);
     if (!curriculum) {
-      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+      return respondScopedNotFound(res, status, 'Curriculum');
     }
     const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
       req.query,
@@ -1083,9 +1247,9 @@ exports.getPrerequisites = async (req, res, next) => {
 // @access admin
 exports.addCoRequisite = async (req, res, next) => {
   try {
-    const curriculum = await Curriculum.findByPk(req.params.id);
+    const { curriculum, status } = await findCurriculumForManage(req, req.params.id);
     if (!curriculum) {
-      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+      return respondScopedNotFound(res, status, 'Curriculum');
     }
     const { courseId, coRequisiteCourseId } = req.body;
     if (!courseId || !coRequisiteCourseId) {
@@ -1097,6 +1261,21 @@ exports.addCoRequisite = async (req, res, next) => {
       return res
         .status(400)
         .json({ success: false, message: 'A course cannot be its own co-requisite' });
+    }
+    const courses = await Course.findAll({
+      where: { id: { [Op.in]: [courseId, coRequisiteCourseId] } },
+    });
+    if (
+      courses.length !== 2 ||
+      courses.some(
+        (course) =>
+          normalizeProgramId(course.programId) !== normalizeProgramId(curriculum.programId),
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Both courses must belong to the curriculum program',
+      });
     }
     const existing = await CoRequisite.findOne({
       where: { curriculumId: req.params.id, courseId, coRequisiteCourseId },
@@ -1128,6 +1307,10 @@ exports.addCoRequisite = async (req, res, next) => {
 // @access admin
 exports.removeCoRequisite = async (req, res, next) => {
   try {
+    const { curriculum, status } = await findCurriculumForManage(req, req.params.id);
+    if (!curriculum) {
+      return respondScopedNotFound(res, status, 'Curriculum');
+    }
     const coreq = await CoRequisite.findByPk(req.params.coreqId);
     if (!coreq || String(coreq.curriculumId) !== String(req.params.id)) {
       return res.status(404).json({ success: false, message: 'Co-requisite not found' });
@@ -1144,9 +1327,9 @@ exports.removeCoRequisite = async (req, res, next) => {
 // @access admin, adviser, student
 exports.getCoRequisites = async (req, res, next) => {
   try {
-    const curriculum = await Curriculum.findByPk(req.params.id);
+    const { curriculum, status } = await findCurriculumForRead(req, req.params.id);
     if (!curriculum) {
-      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+      return respondScopedNotFound(res, status, 'Curriculum');
     }
     const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
       req.query,
@@ -1216,19 +1399,57 @@ exports.addEquivalency = async (req, res, next) => {
         .status(400)
         .json({ success: false, message: 'A course cannot be equivalent to itself' });
     }
-    const existing = await CourseEquivalency.findOne({ where: { courseId, equivalentCourseId } });
+    const [course, equivalentCourse] = await Promise.all([
+      Course.findByPk(courseId),
+      Course.findByPk(equivalentCourseId),
+    ]);
+    if (!course || !equivalentCourse) {
+      return res.status(404).json({ success: false, message: 'Course not found' });
+    }
+
+    const requestedOwnerProgramId = normalizeProgramId(req.body.ownerProgramId);
+    const ownerProgramId = isSuperadmin(req.user)
+      ? requestedOwnerProgramId
+      : requestedOwnerProgramId || normalizeProgramId(course.programId);
+
+    if (ownerProgramId && !(await canManageProgram(req.user, ownerProgramId))) {
+      return res.status(403).json({ success: false, message: 'Program access denied' });
+    }
+    if (!ownerProgramId && !isSuperadmin(req.user)) {
+      return res
+        .status(403)
+        .json({ success: false, message: 'Program Chair equivalencies require an owner program' });
+    }
+
+    const existing = await CourseEquivalency.findOne({
+      where: {
+        courseId,
+        equivalentCourseId,
+        ownerProgramId: ownerProgramId || null,
+      },
+    });
     if (existing) {
       return res.status(409).json({ success: false, message: 'This equivalency already exists' });
     }
     const equiv = await CourseEquivalency.create({
       courseId,
       equivalentCourseId,
+      ownerProgramId: ownerProgramId || null,
       notes: notes || null,
     });
     const result = await CourseEquivalency.findByPk(equiv.id, {
       include: [
-        { model: Course, as: 'Course' },
-        { model: Course, as: 'EquivalentCourse' },
+        {
+          model: Course,
+          as: 'Course',
+          include: [{ model: Program, attributes: ['id', 'code', 'name'] }],
+        },
+        {
+          model: Course,
+          as: 'EquivalentCourse',
+          include: [{ model: Program, attributes: ['id', 'code', 'name'] }],
+        },
+        { model: Program, as: 'OwnerProgram', attributes: ['id', 'code', 'name'] },
       ],
     });
     return res.status(201).json({ success: true, data: result });
@@ -1245,6 +1466,11 @@ exports.removeEquivalency = async (req, res, next) => {
     const equiv = await CourseEquivalency.findByPk(req.params.id);
     if (!equiv) {
       return res.status(404).json({ success: false, message: 'Equivalency not found' });
+    }
+    if (!isSuperadmin(req.user)) {
+      if (!equiv.ownerProgramId || !(await canManageProgram(req.user, equiv.ownerProgramId))) {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
+      }
     }
     await equiv.destroy();
     return res.status(204).send();
@@ -1266,7 +1492,12 @@ exports.getEquivalencies = async (req, res, next) => {
       },
     );
 
-    const where = search
+    const programScope = await buildStaffProgramScope(req, req.query.programId);
+    if (!programScope.allowed) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    const searchWhere = search
       ? {
           [Op.or]: [
             { '$Course.code$': { [Op.iLike]: `%${search}%` } },
@@ -1277,12 +1508,36 @@ exports.getEquivalencies = async (req, res, next) => {
           ],
         }
       : {};
+    const ownerWhere =
+      isSuperadmin(req.user) && !normalizeProgramId(req.query.programId)
+        ? {}
+        : {
+            [Op.or]: [
+              { ownerProgramId: null },
+              {
+                ownerProgramId:
+                  programScope.programIds === null
+                    ? normalizeProgramId(req.query.programId)
+                    : { [Op.in]: programScope.programIds },
+              },
+            ],
+          };
+    const where = mergeWhere(searchWhere, ownerWhere);
 
     const { rows, count } = await CourseEquivalency.findAndCountAll({
       where,
       include: [
-        { model: Course, as: 'Course' },
-        { model: Course, as: 'EquivalentCourse' },
+        {
+          model: Course,
+          as: 'Course',
+          include: [{ model: Program, attributes: ['id', 'code', 'name'] }],
+        },
+        {
+          model: Course,
+          as: 'EquivalentCourse',
+          include: [{ model: Program, attributes: ['id', 'code', 'name'] }],
+        },
+        { model: Program, as: 'OwnerProgram', attributes: ['id', 'code', 'name'] },
       ],
       order: [
         [sortBy, sortOrder],
@@ -1313,9 +1568,9 @@ exports.getEquivalencies = async (req, res, next) => {
 // @access admin
 exports.createElectiveTrack = async (req, res, next) => {
   try {
-    const curriculum = await Curriculum.findByPk(req.params.id);
+    const { curriculum, status } = await findCurriculumForManage(req, req.params.id);
     if (!curriculum) {
-      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+      return respondScopedNotFound(res, status, 'Curriculum');
     }
     const { name, description } = req.body;
     if (!name || !name.trim()) {
@@ -1337,9 +1592,9 @@ exports.createElectiveTrack = async (req, res, next) => {
 // @access admin, adviser, student
 exports.getElectiveTracks = async (req, res, next) => {
   try {
-    const curriculum = await Curriculum.findByPk(req.params.id);
+    const { curriculum, status } = await findCurriculumForRead(req, req.params.id);
     if (!curriculum) {
-      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+      return respondScopedNotFound(res, status, 'Curriculum');
     }
     const { page, pageSize, search, sortBy, sortOrder, offset, limit } = parsePaginationParams(
       req.query,
@@ -1400,6 +1655,10 @@ exports.updateElectiveTrack = async (req, res, next) => {
     if (!track) {
       return res.status(404).json({ success: false, message: 'Elective track not found' });
     }
+    const { curriculum, status } = await findCurriculumForManage(req, track.curriculumId);
+    if (!curriculum) {
+      return respondScopedNotFound(res, status, 'Curriculum');
+    }
     const { name, description } = req.body;
     if (name !== undefined && !name.trim()) {
       return res.status(400).json({ success: false, message: 'Track name cannot be empty' });
@@ -1423,6 +1682,10 @@ exports.deleteElectiveTrack = async (req, res, next) => {
     if (!track) {
       return res.status(404).json({ success: false, message: 'Elective track not found' });
     }
+    const { curriculum, status } = await findCurriculumForManage(req, track.curriculumId);
+    if (!curriculum) {
+      return respondScopedNotFound(res, status, 'Curriculum');
+    }
     await track.destroy();
     return res.status(204).send();
   } catch (err) {
@@ -1439,6 +1702,10 @@ exports.addCourseToTrack = async (req, res, next) => {
     if (!track) {
       return res.status(404).json({ success: false, message: 'Elective track not found' });
     }
+    const { curriculum, status } = await findCurriculumForManage(req, track.curriculumId);
+    if (!curriculum) {
+      return respondScopedNotFound(res, status, 'Curriculum');
+    }
     const { courseId, yearLevel, semester } = req.body;
     if (!courseId) {
       return res.status(400).json({ success: false, message: 'courseId is required' });
@@ -1446,6 +1713,12 @@ exports.addCourseToTrack = async (req, res, next) => {
     const course = await Course.findByPk(courseId);
     if (!course) {
       return res.status(404).json({ success: false, message: 'Course not found' });
+    }
+    if (normalizeProgramId(course.programId) !== normalizeProgramId(curriculum.programId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Course must belong to the same program as the elective track',
+      });
     }
     const existing = await ElectiveTrackCourse.findOne({
       where: { electiveTrackId: req.params.id, courseId },
@@ -1478,6 +1751,14 @@ exports.updateTrackCourse = async (req, res, next) => {
       return res
         .status(404)
         .json({ success: false, message: 'Elective track course entry not found' });
+    }
+    const track = await ElectiveTrack.findByPk(req.params.id);
+    if (!track) {
+      return res.status(404).json({ success: false, message: 'Elective track not found' });
+    }
+    const { curriculum, status } = await findCurriculumForManage(req, track.curriculumId);
+    if (!curriculum) {
+      return respondScopedNotFound(res, status, 'Curriculum');
     }
 
     const rawYearLevel = req.body?.yearLevel;
@@ -1531,6 +1812,14 @@ exports.removeCourseFromTrack = async (req, res, next) => {
         .status(404)
         .json({ success: false, message: 'Elective track course entry not found' });
     }
+    const track = await ElectiveTrack.findByPk(req.params.id);
+    if (!track) {
+      return res.status(404).json({ success: false, message: 'Elective track not found' });
+    }
+    const { curriculum, status } = await findCurriculumForManage(req, track.curriculumId);
+    if (!curriculum) {
+      return respondScopedNotFound(res, status, 'Curriculum');
+    }
     await etc.destroy();
     return res.status(204).send();
   } catch (err) {
@@ -1546,9 +1835,9 @@ exports.removeCourseFromTrack = async (req, res, next) => {
 exports.exportCurriculumCsv = async (req, res, next) => {
   try {
     const curriculumId = Number(req.params.id);
-    const curriculum = await Curriculum.findByPk(curriculumId);
+    const { curriculum, status } = await findCurriculumForManage(req, curriculumId);
     if (!curriculum) {
-      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+      return respondScopedNotFound(res, status, 'Curriculum');
     }
 
     const [structureRows, prereqRows, coreqRows, trackRows, equivalencies] = await Promise.all([
@@ -1773,9 +2062,9 @@ const parseImportRowsFromRequest = (req, curriculumId) => {
 exports.previewCurriculumImportCsv = async (req, res, next) => {
   try {
     const curriculumId = Number(req.params.id);
-    const curriculum = await Curriculum.findByPk(curriculumId);
+    const { curriculum, status } = await findCurriculumForManage(req, curriculumId);
     if (!curriculum) {
-      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+      return respondScopedNotFound(res, status, 'Curriculum');
     }
 
     const { errors, normalizedRows } = parseImportRowsFromRequest(req, curriculumId);
@@ -1805,10 +2094,12 @@ exports.applyCurriculumImportCsv = async (req, res, next) => {
 
   try {
     const curriculumId = Number(req.params.id);
-    const curriculum = await Curriculum.findByPk(curriculumId, { transaction: tx });
+    const { curriculum, status } = await findCurriculumForManage(req, curriculumId, {
+      transaction: tx,
+    });
     if (!curriculum) {
       await tx.rollback();
-      return res.status(404).json({ success: false, message: 'Curriculum not found' });
+      return respondScopedNotFound(res, status, 'Curriculum');
     }
 
     const { errors, normalizedRows } = parseImportRowsFromRequest(req, curriculumId);
@@ -1826,7 +2117,11 @@ exports.applyCurriculumImportCsv = async (req, res, next) => {
       });
     }
 
-    const courseByCode = await resolveCourseByCodeMap({ rows: normalizedRows, transaction: tx });
+    const courseByCode = await resolveCourseByCodeMap({
+      rows: normalizedRows,
+      programId: curriculum.programId,
+      transaction: tx,
+    });
 
     const unresolvedCourseErrors = [];
     normalizedRows.forEach((row) => {

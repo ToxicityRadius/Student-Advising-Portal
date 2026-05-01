@@ -34,7 +34,7 @@ const CurriculumDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);

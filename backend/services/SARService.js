@@ -20,9 +20,11 @@ const {
   ElectiveTrack,
   ElectiveTrackCourse,
   User,
+  Program,
 } = require('../models');
 const { computeSarAnalytics } = require('../utils/sarAnalytics');
 const { sortStudyPlanCourses } = require('../utils/studyPlan');
+const { buildProgramWhere, canReadProgram, isProgramChair } = require('../utils/programAccess');
 
 const TIP_EMAIL_PATTERN = /@tip\.edu\.ph$/i;
 
@@ -55,7 +57,7 @@ const PERSON_ATTRIBUTES = [
   'profile_updated_at',
 ];
 
-const CURRICULUM_ATTRIBUTES = ['id', 'name', 'description', 'isActive'];
+const CURRICULUM_ATTRIBUTES = ['id', 'name', 'description', 'programId', 'isActive'];
 const ELECTIVE_TRACK_ATTRIBUTES = ['id', 'name', 'description'];
 
 // ---------------------------------------------------------------------------
@@ -126,12 +128,36 @@ const serializeStudyPlanVersion = (version) => {
 // Includes builders
 // ---------------------------------------------------------------------------
 
-const buildSarIncludes = () => [
-  { model: Curriculum, attributes: CURRICULUM_ATTRIBUTES },
-  { model: ElectiveTrack, attributes: ELECTIVE_TRACK_ATTRIBUTES },
-  { model: User, as: 'Student', attributes: PERSON_ATTRIBUTES },
-  { model: User, as: 'CreatedByAdviser', attributes: PERSON_ATTRIBUTES },
-];
+const buildSarIncludes = (options = {}) => {
+  const { includeStudyPlan = false, needsRevalidation = false } = options;
+  const includes = [
+    { model: Program, attributes: ['id', 'code', 'name'] },
+    { model: Curriculum, attributes: CURRICULUM_ATTRIBUTES },
+    { model: ElectiveTrack, attributes: ELECTIVE_TRACK_ATTRIBUTES },
+    { model: User, as: 'Student', attributes: PERSON_ATTRIBUTES },
+    { model: User, as: 'CreatedByAdviser', attributes: PERSON_ATTRIBUTES },
+  ];
+
+  if (includeStudyPlan || needsRevalidation) {
+    includes.push({
+      model: StudyPlan,
+      attributes: ['id', 'studentAcademicRecordId'],
+      required: needsRevalidation,
+      include: needsRevalidation
+        ? [
+            {
+              model: StudyPlanVersion,
+              attributes: ['id', 'status', 'needsRevalidation'],
+              required: true,
+              where: { needsRevalidation: true },
+            },
+          ]
+        : [],
+    });
+  }
+
+  return includes;
+};
 
 // ---------------------------------------------------------------------------
 // Data-access methods
@@ -275,15 +301,91 @@ const fetchStudyPlanVersionsForStudyPlan = async (studyPlanId) => {
 /**
  * Fetches a paginated list of SARs, applying ownership scoping if requestor is a student.
  */
-const listSARs = async ({ user, paginationParams }) => {
+const normalizePositiveInt = (value) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const listSARs = async ({
+  user,
+  paginationParams,
+  programId,
+  scope = 'all',
+  curriculumId,
+  yearLevel,
+  linkStatus,
+  needsRevalidation,
+  hasStudyPlan,
+  electiveTrackStatus,
+}) => {
   const { page, pageSize, search, sortBy, sortOrder, offset, limit } = paginationParams;
 
-  const baseWhere =
+  let baseWhere =
     user.role === 'student'
       ? buildStudentOwnershipWhere(user)
-      : user.role === 'adviser'
+      : user.role === 'adviser' && !programId
         ? buildAdviserOwnershipWhere(user)
         : {};
+
+  if (
+    user.role === 'superadmin' ||
+    isProgramChair(user) ||
+    (user.role === 'adviser' && programId)
+  ) {
+    const programScope = await buildProgramWhere(user, programId);
+    baseWhere = programScope.allowed ? programScope.where : { id: null };
+  }
+
+  const queueWhere = {};
+  const normalizedScope = String(scope || 'all')
+    .trim()
+    .toLowerCase();
+  if (normalizedScope === 'assigned' && user?.id) {
+    queueWhere['$Student.adviserId$'] = user.id;
+  } else if (normalizedScope === 'created' && user?.id) {
+    queueWhere.createdByAdviserId = user.id;
+  }
+
+  const normalizedCurriculumId = normalizePositiveInt(curriculumId);
+  if (normalizedCurriculumId) {
+    queueWhere.curriculumId = normalizedCurriculumId;
+  }
+
+  const normalizedYearLevel = normalizePositiveInt(yearLevel);
+  if (normalizedYearLevel) {
+    queueWhere.yearLevel = normalizedYearLevel;
+  }
+
+  const normalizedLinkStatus = String(linkStatus || '')
+    .trim()
+    .toLowerCase();
+  if (normalizedLinkStatus === 'linked') {
+    queueWhere.userId = { [Op.not]: null };
+  } else if (normalizedLinkStatus === 'unlinked') {
+    queueWhere.userId = null;
+  }
+
+  const normalizedHasStudyPlan = String(hasStudyPlan || '')
+    .trim()
+    .toLowerCase();
+  const shouldIncludeStudyPlan =
+    normalizedHasStudyPlan === 'true' ||
+    normalizedHasStudyPlan === 'false' ||
+    String(needsRevalidation || '').toLowerCase() === 'true';
+  if (normalizedHasStudyPlan === 'true') {
+    queueWhere['$StudyPlan.id$'] = { [Op.not]: null };
+  } else if (normalizedHasStudyPlan === 'false') {
+    queueWhere['$StudyPlan.id$'] = null;
+  }
+
+  const normalizedElectiveTrackStatus = String(electiveTrackStatus || '')
+    .trim()
+    .toLowerCase();
+  if (normalizedElectiveTrackStatus === 'assigned') {
+    queueWhere.electiveTrackId = { [Op.not]: null };
+  } else if (normalizedElectiveTrackStatus === 'missing') {
+    queueWhere.electiveTrackId = null;
+  }
   const searchWhere = search
     ? {
         [Op.or]: [
@@ -294,11 +396,18 @@ const listSARs = async ({ user, paginationParams }) => {
       }
     : null;
 
-  const where = searchWhere ? { [Op.and]: [baseWhere, searchWhere] } : baseWhere;
+  const directWhere =
+    baseWhere[Op.or] || baseWhere[Op.and]
+      ? { [Op.and]: [baseWhere, queueWhere].filter((part) => Object.keys(part).length > 0) }
+      : { ...baseWhere, ...queueWhere };
+  const where = searchWhere ? { [Op.and]: [directWhere, searchWhere] } : directWhere;
 
   const { rows, count } = await StudentAcademicRecord.findAndCountAll({
     where,
-    include: buildSarIncludes(),
+    include: buildSarIncludes({
+      includeStudyPlan: shouldIncludeStudyPlan,
+      needsRevalidation: String(needsRevalidation || '').toLowerCase() === 'true',
+    }),
     distinct: true,
     order: [
       [sortBy, sortOrder],
@@ -307,6 +416,7 @@ const listSARs = async ({ user, paginationParams }) => {
     ],
     offset,
     limit,
+    subQuery: false,
   });
 
   return { items: rows.map(serializeSar), count, page, pageSize };
@@ -325,6 +435,12 @@ const getSARDetail = async (sarId, requestUser) => {
   });
 
   if (!sar) return null;
+
+  if (isProgramChair(requestUser) && !(await canReadProgram(requestUser, sar.programId))) {
+    const err = new Error('Forbidden');
+    err.statusCode = 403;
+    throw err;
+  }
 
   if (requestUser.role === 'student' && !isSarOwnedByUser(sar, requestUser)) {
     const err = new Error('Forbidden');
@@ -362,7 +478,7 @@ const getSARDetail = async (sarId, requestUser) => {
       include: [{ model: Course, as: 'PrerequisiteCourse', attributes: ['id', 'code', 'name'] }],
     }),
     AcademicTerm.findOne({
-      where: { isCurrent: true },
+      where: { programId: sarData.programId, isCurrent: true },
       attributes: ['id', 'schoolYear', 'semester'],
     }),
     sarData.electiveTrackId
@@ -501,6 +617,7 @@ const buildSARFieldUpdates = async (body, currentSar) => {
       return { updates: null, error: { status: 404, message: 'Assigned curriculum not found' } };
     }
     updates.curriculumId = curriculum.id;
+    updates.programId = curriculum.programId;
   }
 
   return { updates, error: null };

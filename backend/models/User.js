@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../database/db');
+const { ALL_ROLES } = require('../constants');
 
 const coalesceNameValue = (...values) => {
   for (const value of values) {
@@ -58,7 +59,7 @@ const User = sequelize.define(
       type: DataTypes.STRING(50),
       defaultValue: 'student',
       validate: {
-        isIn: [['admin', 'adviser', 'student']],
+        isIn: [ALL_ROLES],
       },
     },
     isActive: {

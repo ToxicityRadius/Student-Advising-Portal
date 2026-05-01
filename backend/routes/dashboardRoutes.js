@@ -4,6 +4,11 @@ const { getDashboardSummary } = require('../controllers/dashboardController');
 
 const router = express.Router();
 
-router.get('/summary', protect, requireRole('admin', 'adviser', 'student'), getDashboardSummary);
+router.get(
+  '/summary',
+  protect,
+  requireRole('superadmin', 'admin', 'adviser', 'student'),
+  getDashboardSummary,
+);
 
 module.exports = router;

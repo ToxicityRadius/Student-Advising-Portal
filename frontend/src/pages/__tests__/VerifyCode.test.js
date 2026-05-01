@@ -98,7 +98,9 @@ describe('VerifyCode Page', () => {
           userId: 42,
           code: '123456',
         },
-        { headers: {} },
+        {
+          headers: {},
+        },
       );
     });
 
@@ -152,7 +154,13 @@ describe('VerifyCode Page', () => {
     await user.click(screen.getByText('Resend Code'));
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/auth/resend-code', { userId: 42 }, { headers: {} });
+      expect(api.post).toHaveBeenCalledWith(
+        '/auth/resend-code',
+        { userId: 42 },
+        {
+          headers: {},
+        },
+      );
     });
   });
 

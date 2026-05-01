@@ -3,6 +3,7 @@ import {
   Alert,
   Badge,
   Button,
+  ButtonGroup,
   Card,
   Form,
   Image,
@@ -10,7 +11,7 @@ import {
   Spinner,
   Table,
 } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import CreateSARModal from '../../components/adviser/CreateSARModal';
 import BulkSARImportModal from '../../components/adviser/BulkSARImportModal';
 import PaginationControls from '../../components/PaginationControls';
@@ -21,6 +22,7 @@ import AdviserLayout from '../../components/adviser/AdviserLayout';
 import { getErrorMessage } from '../../utils/errorHelpers';
 
 const StudentList = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [alert, setAlert] = useState({ variant: '', message: '' });
@@ -29,10 +31,23 @@ const StudentList = () => {
 
   const [sars, setSars] = useState([]);
   const [curriculums, setCurriculums] = useState([]);
+  const [programs, setPrograms] = useState([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
   const [sortBy, setSortBy] = useState('studentName');
   const [sortOrder, setSortOrder] = useState('asc');
+  const [scope, setScope] = useState(searchParams.get('scope') || 'all');
+  const [programId, setProgramId] = useState(searchParams.get('programId') || '');
+  const [curriculumId, setCurriculumId] = useState(searchParams.get('curriculumId') || '');
+  const [yearLevel, setYearLevel] = useState(searchParams.get('yearLevel') || '');
+  const [linkStatus, setLinkStatus] = useState(searchParams.get('linkStatus') || '');
+  const [needsRevalidation, setNeedsRevalidation] = useState(
+    searchParams.get('needsRevalidation') || '',
+  );
+  const [hasStudyPlan, setHasStudyPlan] = useState(searchParams.get('hasStudyPlan') || '');
+  const [electiveTrackStatus, setElectiveTrackStatus] = useState(
+    searchParams.get('electiveTrackStatus') || '',
+  );
   const [meta, setMeta] = useState({ page: 1, pageSize: 12, totalItems: 0, totalPages: 1 });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
@@ -43,7 +58,7 @@ const StudentList = () => {
     setAlert({ variant: '', message: '' });
 
     try {
-      const [sarResponse, curriculumData] = await Promise.all([
+      const [sarResponse, curriculumData, programResponse] = await Promise.all([
         api.get('/sars', {
           params: {
             page,
@@ -51,14 +66,30 @@ const StudentList = () => {
             search: deferredSearch.trim(),
             sortBy,
             sortOrder,
+            scope,
+            ...(programId ? { programId } : {}),
+            ...(curriculumId ? { curriculumId } : {}),
+            ...(yearLevel ? { yearLevel } : {}),
+            ...(linkStatus ? { linkStatus } : {}),
+            ...(needsRevalidation ? { needsRevalidation } : {}),
+            ...(hasStudyPlan ? { hasStudyPlan } : {}),
+            ...(electiveTrackStatus ? { electiveTrackStatus } : {}),
           },
         }),
-        fetchCurriculumsCached({ page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' }),
+        fetchCurriculumsCached({
+          page: 1,
+          pageSize: 200,
+          sortBy: 'name',
+          sortOrder: 'asc',
+          ...(programId ? { programId } : {}),
+        }),
+        api.get('/programs'),
       ]);
 
       setSars(sarResponse.data?.items || sarResponse.data?.data || []);
       setMeta(sarResponse.data?.meta || { page: 1, pageSize, totalItems: 0, totalPages: 1 });
       setCurriculums(curriculumData?.items || curriculumData?.data || []);
+      setPrograms(programResponse.data?.data || []);
     } catch (error) {
       setAlert({
         variant: 'danger',
@@ -67,7 +98,21 @@ const StudentList = () => {
     } finally {
       setLoading(false);
     }
-  }, [deferredSearch, page, pageSize, sortBy, sortOrder]);
+  }, [
+    curriculumId,
+    deferredSearch,
+    electiveTrackStatus,
+    hasStudyPlan,
+    linkStatus,
+    needsRevalidation,
+    page,
+    pageSize,
+    programId,
+    scope,
+    sortBy,
+    sortOrder,
+    yearLevel,
+  ]);
 
   useEffect(() => {
     loadData();
@@ -75,9 +120,74 @@ const StudentList = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [deferredSearch]);
+  }, [
+    curriculumId,
+    deferredSearch,
+    electiveTrackStatus,
+    hasStudyPlan,
+    linkStatus,
+    needsRevalidation,
+    programId,
+    scope,
+    yearLevel,
+  ]);
+
+  useEffect(() => {
+    const nextParams = {};
+    if (scope && scope !== 'all') nextParams.scope = scope;
+    if (programId) nextParams.programId = programId;
+    if (curriculumId) nextParams.curriculumId = curriculumId;
+    if (yearLevel) nextParams.yearLevel = yearLevel;
+    if (linkStatus) nextParams.linkStatus = linkStatus;
+    if (needsRevalidation) nextParams.needsRevalidation = needsRevalidation;
+    if (hasStudyPlan) nextParams.hasStudyPlan = hasStudyPlan;
+    if (electiveTrackStatus) nextParams.electiveTrackStatus = electiveTrackStatus;
+    setSearchParams(nextParams, { replace: true });
+  }, [
+    curriculumId,
+    electiveTrackStatus,
+    hasStudyPlan,
+    linkStatus,
+    needsRevalidation,
+    programId,
+    scope,
+    setSearchParams,
+    yearLevel,
+  ]);
+
+  const clearQueueFilters = () => {
+    setScope('all');
+    setLinkStatus('');
+    setNeedsRevalidation('');
+    setHasStudyPlan('');
+    setElectiveTrackStatus('');
+  };
+
+  const applyQuickFilter = (filter) => {
+    clearQueueFilters();
+    if (filter === 'assigned') setScope('assigned');
+    if (filter === 'created') setScope('created');
+    if (filter === 'unlinked') setLinkStatus('unlinked');
+    if (filter === 'missing-plan') setHasStudyPlan('false');
+    if (filter === 'needs-review') setNeedsRevalidation('true');
+    if (filter === 'missing-elective-track') setElectiveTrackStatus('missing');
+  };
 
   const activeCurriculum = curriculums.find((curriculum) => curriculum.isActive) || null;
+  const activeQuickFilter =
+    scope === 'assigned'
+      ? 'assigned'
+      : scope === 'created'
+        ? 'created'
+        : linkStatus === 'unlinked'
+          ? 'unlinked'
+          : hasStudyPlan === 'false'
+            ? 'missing-plan'
+            : needsRevalidation === 'true'
+              ? 'needs-review'
+              : electiveTrackStatus === 'missing'
+                ? 'missing-elective-track'
+                : 'all';
 
   const handleCreateSar = async (payload) => {
     setSubmitting(true);
@@ -162,7 +272,101 @@ const StudentList = () => {
               onChange={(event) => setSearch(event.target.value)}
             />
           </InputGroup>
+          <div className="d-flex flex-wrap gap-2 mt-3">
+            <ButtonGroup aria-label="SAR quick filters">
+              <Button
+                variant={activeQuickFilter === 'all' ? 'primary' : 'outline-primary'}
+                onClick={clearQueueFilters}
+              >
+                All
+              </Button>
+              <Button
+                variant={activeQuickFilter === 'assigned' ? 'primary' : 'outline-primary'}
+                onClick={() => applyQuickFilter('assigned')}
+              >
+                Assigned to Me
+              </Button>
+              <Button
+                variant={activeQuickFilter === 'created' ? 'primary' : 'outline-primary'}
+                onClick={() => applyQuickFilter('created')}
+              >
+                Created by Me
+              </Button>
+              <Button
+                variant={activeQuickFilter === 'unlinked' ? 'primary' : 'outline-primary'}
+                onClick={() => applyQuickFilter('unlinked')}
+              >
+                Unlinked
+              </Button>
+            </ButtonGroup>
+            <ButtonGroup aria-label="SAR review filters">
+              <Button
+                variant={activeQuickFilter === 'missing-plan' ? 'primary' : 'outline-primary'}
+                onClick={() => applyQuickFilter('missing-plan')}
+              >
+                Missing Plan
+              </Button>
+              <Button
+                variant={activeQuickFilter === 'needs-review' ? 'primary' : 'outline-primary'}
+                onClick={() => applyQuickFilter('needs-review')}
+              >
+                Needs Review
+              </Button>
+              <Button
+                variant={
+                  activeQuickFilter === 'missing-elective-track' ? 'primary' : 'outline-primary'
+                }
+                onClick={() => applyQuickFilter('missing-elective-track')}
+              >
+                Missing Elective Track
+              </Button>
+            </ButtonGroup>
+          </div>
           <div className="d-flex flex-column flex-md-row gap-2 mt-3">
+            <Form.Select
+              value={programId}
+              onChange={(event) => {
+                setProgramId(event.target.value);
+                setCurriculumId('');
+              }}
+              style={{ maxWidth: 230 }}
+              aria-label="Filter by program"
+            >
+              <option value="">All Programs</option>
+              {programs.map((program) => (
+                <option key={program.id} value={program.id}>
+                  {program.code} - {program.name}
+                </option>
+              ))}
+            </Form.Select>
+            <Form.Select
+              value={curriculumId}
+              onChange={(event) => setCurriculumId(event.target.value)}
+              style={{ maxWidth: 240 }}
+              aria-label="Filter by curriculum"
+            >
+              <option value="">All Curriculums</option>
+              {curriculums.map((curriculum) => (
+                <option key={curriculum.id} value={curriculum.id}>
+                  {curriculum.name}
+                </option>
+              ))}
+            </Form.Select>
+            <Form.Select
+              value={yearLevel}
+              onChange={(event) => setYearLevel(event.target.value)}
+              style={{ maxWidth: 160 }}
+              aria-label="Filter by year level"
+            >
+              <option value="">All Years</option>
+              <option value="1">Year 1</option>
+              <option value="2">Year 2</option>
+              <option value="3">Year 3</option>
+              <option value="4">Year 4</option>
+              <option value="5">Year 5</option>
+            </Form.Select>
+          </div>
+          <div className="d-flex flex-column flex-md-row gap-2 mt-2">
             <Form.Select
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value)}
@@ -181,6 +385,45 @@ const StudentList = () => {
             >
               <option value="asc">Ascending</option>
               <option value="desc">Descending</option>
+            </Form.Select>
+            <Form.Select
+              value={linkStatus}
+              onChange={(event) => setLinkStatus(event.target.value)}
+              style={{ maxWidth: 170 }}
+              aria-label="Filter by link status"
+            >
+              <option value="">Any Link</option>
+              <option value="linked">Linked</option>
+              <option value="unlinked">Unlinked</option>
+            </Form.Select>
+            <Form.Select
+              value={hasStudyPlan}
+              onChange={(event) => setHasStudyPlan(event.target.value)}
+              style={{ maxWidth: 170 }}
+              aria-label="Filter by study plan"
+            >
+              <option value="">Any Plan</option>
+              <option value="true">Has Plan</option>
+              <option value="false">Missing Plan</option>
+            </Form.Select>
+            <Form.Select
+              value={needsRevalidation}
+              onChange={(event) => setNeedsRevalidation(event.target.value)}
+              style={{ maxWidth: 190 }}
+              aria-label="Filter by revalidation"
+            >
+              <option value="">Any Review State</option>
+              <option value="true">Needs Review</option>
+            </Form.Select>
+            <Form.Select
+              value={electiveTrackStatus}
+              onChange={(event) => setElectiveTrackStatus(event.target.value)}
+              style={{ maxWidth: 210 }}
+              aria-label="Filter by elective track"
+            >
+              <option value="">Any Elective Track</option>
+              <option value="assigned">Track Assigned</option>
+              <option value="missing">Missing Track</option>
             </Form.Select>
           </div>
           <div className="text-muted small mt-2">
@@ -217,7 +460,10 @@ const StudentList = () => {
                     <th scope="col" style={{ width: '10%' }}>
                       Year Level
                     </th>
-                    <th scope="col" style={{ width: '16%' }}>
+                    <th scope="col" style={{ width: '10%' }}>
+                      Program
+                    </th>
+                    <th scope="col" style={{ width: '14%' }}>
                       Curriculum
                     </th>
                     <th scope="col" className="text-end" style={{ width: '16%' }}>
@@ -268,6 +514,7 @@ const StudentList = () => {
                         </Badge>
                       </td>
                       <td>Year {sar.yearLevel}</td>
+                      <td>{sar.Program?.code || 'N/A'}</td>
                       <td>{sar.Curriculum?.name || 'Unassigned'}</td>
                       <td className="text-end">
                         <Button
@@ -284,7 +531,7 @@ const StudentList = () => {
 
                   {sars.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="text-center text-muted py-4">
+                      <td colSpan={8} className="text-center text-muted py-4">
                         No student academic records found.
                       </td>
                     </tr>
