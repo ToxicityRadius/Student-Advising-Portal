@@ -9,6 +9,7 @@ const { sanitizeUserWithProfile } = require('../utils/sanitize');
 const UserService = require('../services/UserService');
 const { canManageProgram, isSuperadmin } = require('../utils/programAccess');
 const ActivityLogService = require('../services/ActivityLogService');
+const { assertSingleActiveSuperadmin } = require('../utils/superadminBootstrap');
 
 // Allowed enum values for validated fields
 const ALLOWED_SEX = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
@@ -333,6 +334,19 @@ exports.updateUser = async (req, res, next) => {
         .json({ success: false, message: 'Only Super Admin can change user roles' });
     }
 
+    try {
+      await assertSingleActiveSuperadmin(User, {
+        targetUserId: user.id,
+        nextRole: role === undefined ? user.role : role,
+        nextIsActive: isActive === undefined ? user.isActive : isActive,
+      });
+    } catch (error) {
+      return res.status(error.statusCode || 409).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
     const updatePayload = {
       firstName,
       lastName,
@@ -429,6 +443,19 @@ exports.toggleUserStatus = async (req, res, next) => {
 
     if (!(await canManageTargetUser(req.user, user))) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    try {
+      await assertSingleActiveSuperadmin(User, {
+        targetUserId: user.id,
+        nextRole: user.role,
+        nextIsActive: !user.isActive,
+      });
+    } catch (error) {
+      return res.status(error.statusCode || 409).json({
+        success: false,
+        message: error.message,
+      });
     }
 
     await User.update(

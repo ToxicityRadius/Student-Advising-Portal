@@ -35,6 +35,7 @@ const {
   ElectiveTrackCourse,
 } = require('../models');
 const { DEFAULT_PROGRAM } = require('../constants');
+const { buildSuperadminSeedUser } = require('../utils/superadminBootstrap');
 
 const importReadyDir = path.resolve(__dirname, '..', '..', 'data', 'curriculum_import_ready');
 
@@ -149,6 +150,13 @@ const readImportCsv = (fileName) => {
 
 (async () => {
   try {
+    const now = Date.now();
+    const superadminUser = await buildSuperadminSeedUser({
+      env: process.env,
+      now,
+      hashPassword: bcrypt.hash,
+    });
+
     await sequelize.authenticate();
     console.log('[seed] connected to database');
 
@@ -167,7 +175,6 @@ const readImportCsv = (fileName) => {
 
     // ── 2. Default users ─────────────────────────────────────────────────────
     const hash = await bcrypt.hash('Password123!', 10);
-    const now = Date.now();
     const bscpeProgram = await Program.create({
       ...DEFAULT_PROGRAM,
       createdAt: now,
@@ -175,21 +182,7 @@ const readImportCsv = (fileName) => {
     });
 
     const defaultUsers = [
-      ...(process.env.SUPERADMIN_EMAIL
-        ? [
-            {
-              firstName: 'Developer',
-              lastName: 'Superadmin',
-              email: process.env.SUPERADMIN_EMAIL.toLowerCase(),
-              password: await bcrypt.hash(process.env.SUPERADMIN_PASSWORD || 'Password123!', 10),
-              role: 'superadmin',
-              isActive: true,
-              isVerified: true,
-              createdAt: now,
-              updatedAt: now,
-            },
-          ]
-        : []),
+      superadminUser,
       {
         firstName: 'Program',
         lastName: 'Chair',

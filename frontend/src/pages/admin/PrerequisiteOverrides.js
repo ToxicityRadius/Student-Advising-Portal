@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Badge, Button, Card, Form, Spinner, Table } from 'react-bootstrap';
 import AdminLayout from '../../components/admin/AdminLayout';
 import PaginationControls from '../../components/PaginationControls';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { getErrorMessage } from '../../utils/errorHelpers';
+import { isSuperadmin } from '../../utils/roles';
 import useDebouncedValue from '../../utils/useDebouncedValue';
 
 const statusVariant = {
@@ -34,6 +36,7 @@ const formatDate = (value) => {
 };
 
 const PrerequisiteOverrides = () => {
+  const { user } = useAuth();
   const [requests, setRequests] = useState([]);
   const [programs, setPrograms] = useState([]);
   const [statusFilter, setStatusFilter] = useState('pending');
@@ -49,6 +52,7 @@ const PrerequisiteOverrides = () => {
   const [loading, setLoading] = useState(true);
   const [submittingId, setSubmittingId] = useState(null);
   const [alert, setAlert] = useState({ variant: '', message: '' });
+  const superadmin = isSuperadmin(user);
 
   const requestCount = useMemo(
     () => meta.totalItems || requests.length,
@@ -73,9 +77,15 @@ const PrerequisiteOverrides = () => {
         api.get('/prerequisite-overrides', { params }),
         api.get('/programs'),
       ]);
+      const nextPrograms = programResponse.data?.data || [];
+      setPrograms(nextPrograms);
+      if (!superadmin && !programId && nextPrograms.length > 0) {
+        setProgramId(String(nextPrograms[0].id));
+        return;
+      }
+
       setRequests(response.data?.data || response.data?.items || []);
       setMeta(response.data?.meta || { page: 1, pageSize, totalItems: 0, totalPages: 1 });
-      setPrograms(programResponse.data?.data || []);
     } catch (error) {
       setAlert({
         variant: 'danger',
@@ -84,7 +94,7 @@ const PrerequisiteOverrides = () => {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, page, pageSize, programId, sortBy, sortOrder, statusFilter]);
+  }, [debouncedSearch, page, pageSize, programId, sortBy, sortOrder, statusFilter, superadmin]);
 
   useEffect(() => {
     loadRequests();
@@ -155,7 +165,7 @@ const PrerequisiteOverrides = () => {
                 onChange={(e) => setProgramId(e.target.value)}
                 style={{ width: 180 }}
               >
-                <option value="">All Programs</option>
+                {superadmin && <option value="">All Programs</option>}
                 {programs.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.code}

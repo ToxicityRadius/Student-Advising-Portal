@@ -13,6 +13,7 @@ const { shouldBypassAdminFirstLoginEnforcement } = require('../utils/featureFlag
 const { sanitizeUser } = require('../utils/sanitize');
 const logger = require('../utils/logger');
 const { FACULTY_EMAIL_WHITELIST, FACULTY_ROLES } = require('../constants');
+const { canManageProgram } = require('../utils/programAccess');
 
 // In-memory attempt tracker for verification code brute-force protection.
 // Keys are String(userId); values are { count, resetAt }.
@@ -1572,6 +1573,22 @@ exports.transferOwnership = async (req, res, next) => {
       where: { userId: requester.id },
       attributes: ['programId'],
     });
+    const requesterProgramIds = requesterAssignments.map((assignment) => assignment.programId);
+    const targetAssignments = await UserProgramAssignment.findAll({
+      where: { userId: targetUser.id },
+      attributes: ['programId'],
+    });
+    const targetProgramIds = new Set(targetAssignments.map((assignment) => assignment.programId));
+    const overlappingProgramId = requesterProgramIds.find((programId) =>
+      targetProgramIds.has(programId),
+    );
+
+    if (!overlappingProgramId || !(await canManageProgram(requester, overlappingProgramId))) {
+      return res.status(403).json({
+        success: false,
+        message: 'Target adviser is outside your assigned program scope',
+      });
+    }
 
     await User.update({ role: 'admin', updatedAt: Date.now() }, { where: { id: targetUser.id } });
     await User.update({ role: 'adviser', updatedAt: Date.now() }, { where: { id: requester.id } });

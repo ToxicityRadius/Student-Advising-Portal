@@ -40,12 +40,7 @@ const getAccessibleProgramIds = async (user) => {
   if (isSuperadmin(user)) return null;
   if (!hasProgramAssignments(user)) return [];
 
-  const assignedIds = await getAssignedProgramIds(user.id);
-  if (assignedIds.length > 0) return assignedIds;
-
-  // Legacy fallback keeps pre-migration dev accounts usable until assignments exist.
-  const defaultProgramId = await getDefaultProgramId();
-  return defaultProgramId ? [defaultProgramId] : [];
+  return getAssignedProgramIds(user.id);
 };
 
 const canReadProgram = async (user, programId) => {

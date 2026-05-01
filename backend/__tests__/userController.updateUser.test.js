@@ -2,6 +2,7 @@ jest.mock('../models', () => ({
   User: {
     update: jest.fn(),
     findByPk: jest.fn(),
+    findOne: jest.fn(),
   },
   AcademicTerm: {
     findOne: jest.fn(),
@@ -65,6 +66,7 @@ describe('userController.updateUser', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    User.findOne.mockResolvedValue(null);
   });
 
   test('keeps camelCase and snake_case name aliases synchronized on Super Admin updates', async () => {
@@ -116,5 +118,32 @@ describe('userController.updateUser', () => {
       }),
     );
     expect(next).not.toHaveBeenCalled();
+  });
+
+  test('blocks creating a second active Super Admin through user updates', async () => {
+    User.findByPk.mockResolvedValueOnce({ id: 3, role: 'adviser', isActive: true });
+    User.findOne.mockResolvedValueOnce({ id: 1, email: 'owner@tip.edu.ph' });
+
+    const req = {
+      user: { id: 1, role: 'superadmin' },
+      params: { id: '3' },
+      body: {
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        email: 'ada@example.com',
+        role: 'superadmin',
+        isActive: true,
+      },
+    };
+    const res = buildRes();
+
+    await updateUser(req, res, next);
+
+    expect(User.update).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Only one active Super Admin account is allowed',
+    });
   });
 });

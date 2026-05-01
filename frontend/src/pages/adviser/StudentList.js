@@ -15,13 +15,16 @@ import { Link, useSearchParams } from 'react-router-dom';
 import CreateSARModal from '../../components/adviser/CreateSARModal';
 import BulkSARImportModal from '../../components/adviser/BulkSARImportModal';
 import PaginationControls from '../../components/PaginationControls';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { fetchCurriculumsCached } from '../../utils/curriculumsCache';
 import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
 import { getErrorMessage } from '../../utils/errorHelpers';
+import { isSuperadmin } from '../../utils/roles';
 
 const StudentList = () => {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -52,6 +55,7 @@ const StudentList = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [bulkImporting, setBulkImporting] = useState(false);
+  const superadmin = isSuperadmin(user);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -86,10 +90,16 @@ const StudentList = () => {
         api.get('/programs'),
       ]);
 
+      const nextPrograms = programResponse.data?.data || [];
+      setPrograms(nextPrograms);
+      if (!superadmin && !programId && nextPrograms.length > 0) {
+        setProgramId(String(nextPrograms[0].id));
+        return;
+      }
+
       setSars(sarResponse.data?.items || sarResponse.data?.data || []);
       setMeta(sarResponse.data?.meta || { page: 1, pageSize, totalItems: 0, totalPages: 1 });
       setCurriculums(curriculumData?.items || curriculumData?.data || []);
-      setPrograms(programResponse.data?.data || []);
     } catch (error) {
       setAlert({
         variant: 'danger',
@@ -111,6 +121,7 @@ const StudentList = () => {
     scope,
     sortBy,
     sortOrder,
+    superadmin,
     yearLevel,
   ]);
 
@@ -332,7 +343,7 @@ const StudentList = () => {
               style={{ maxWidth: 230 }}
               aria-label="Filter by program"
             >
-              <option value="">All Programs</option>
+              {superadmin && <option value="">All Programs</option>}
               {programs.map((program) => (
                 <option key={program.id} value={program.id}>
                   {program.code} - {program.name}

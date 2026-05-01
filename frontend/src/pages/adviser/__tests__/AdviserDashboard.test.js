@@ -13,6 +13,10 @@ jest.mock('../../../utils/api', () => ({
   },
 }));
 
+jest.mock('../../../context/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 7, role: 'adviser' } }),
+}));
+
 jest.mock('../../../components/adviser/AdviserLayout', () => {
   return function MockAdviserLayout({ children, activePage }) {
     return <div data-active-page={activePage}>{children}</div>;
@@ -61,7 +65,7 @@ describe('AdviserDashboard', () => {
     });
   });
 
-  test('renders global adviser metrics, quick actions, recent SARs, and activity', async () => {
+  test('renders program-scoped adviser metrics, quick actions, recent SARs, and activity', async () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AdviserDashboard />
@@ -69,7 +73,7 @@ describe('AdviserDashboard', () => {
     );
 
     expect(await screen.findByText('Adviser Dashboard')).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'All Programs' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'All Programs' })).not.toBeInTheDocument();
     expect(screen.getByText('Total SARs')).toBeInTheDocument();
     expect(screen.getByText('40')).toBeInTheDocument();
     expect(screen.getAllByText('Assigned to Me').length).toBeGreaterThan(0);
@@ -79,7 +83,11 @@ describe('AdviserDashboard', () => {
     );
     expect(screen.getByText('Ada Student by Grace Adviser')).toBeInTheDocument();
 
-    expect(api.get).toHaveBeenCalledWith('/dashboard/summary', { params: {} });
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('/dashboard/summary', {
+        params: { programId: '8' },
+      });
+    });
   });
 
   test('reloads adviser summary with a selected program filter', async () => {

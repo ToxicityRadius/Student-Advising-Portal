@@ -57,4 +57,11 @@ describe('programAccess', () => {
     await expect(getAccessibleProgramIds({ id: 4, role: 'adviser' })).resolves.toEqual([30]);
     await expect(canManageProgram({ id: 4, role: 'adviser' }, 30)).resolves.toBe(false);
   });
+
+  test('unassigned staff have no implicit default-program access', async () => {
+    UserProgramAssignment.findAll.mockResolvedValue([]);
+
+    await expect(getAccessibleProgramIds({ id: 5, role: ROLE_PROGRAM_CHAIR })).resolves.toEqual([]);
+    expect(Program.findOne).not.toHaveBeenCalled();
+  });
 });

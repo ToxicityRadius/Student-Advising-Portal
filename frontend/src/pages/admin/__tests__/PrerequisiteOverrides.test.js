@@ -13,6 +13,10 @@ jest.mock('../../../utils/api', () => ({
   },
 }));
 
+jest.mock('../../../context/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 3, role: 'admin' } }),
+}));
+
 jest.mock('../../../components/admin/AdminLayout', () => {
   return function MockAdminLayout({ children }) {
     return <div data-testid="admin-layout">{children}</div>;
@@ -63,7 +67,7 @@ describe('PrerequisiteOverrides admin queue', () => {
     render(<PrerequisiteOverrides />);
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/search students/i)).toBeInTheDocument();
-      expect(screen.getByRole('option', { name: /all programs/i })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: /all programs/i })).not.toBeInTheDocument();
       expect(screen.getByRole('option', { name: /newest/i })).toBeInTheDocument();
     });
   });

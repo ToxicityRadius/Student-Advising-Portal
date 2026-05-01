@@ -3,8 +3,10 @@ import { Alert, Badge, Button, Card, Col, Form, Row, Spinner, Table } from 'reac
 import { Link } from 'react-router-dom';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
 import ActivityTimeline from '../../components/faculty/ActivityTimeline';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { getErrorMessage } from '../../utils/errorHelpers';
+import { isSuperadmin } from '../../utils/roles';
 
 const MetricCard = ({ label, value, detail, variant = 'warning' }) => (
   <Card className={`h-100 border-start border-${variant} border-5 shadow-sm`}>
@@ -17,18 +19,25 @@ const MetricCard = ({ label, value, detail, variant = 'warning' }) => (
 );
 
 const AdviserDashboard = () => {
+  const { user } = useAuth();
   const [programs, setPrograms] = useState([]);
   const [programId, setProgramId] = useState('');
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [alert, setAlert] = useState({ variant: '', message: '' });
+  const superadmin = isSuperadmin(user);
 
   useEffect(() => {
     let cancelled = false;
     api
       .get('/programs')
       .then((response) => {
-        if (!cancelled) setPrograms(response.data?.data || []);
+        if (cancelled) return;
+        const nextPrograms = response.data?.data || [];
+        setPrograms(nextPrograms);
+        if (!superadmin && !programId && nextPrograms.length > 0) {
+          setProgramId(String(nextPrograms[0].id));
+        }
       })
       .catch(() => {
         if (!cancelled) setPrograms([]);
@@ -36,7 +45,7 @@ const AdviserDashboard = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [programId, superadmin]);
 
   const loadSummary = useCallback(async () => {
     setLoading(true);
@@ -66,7 +75,7 @@ const AdviserDashboard = () => {
         <div>
           <h2 className="mb-1">Adviser Dashboard</h2>
           <p className="text-muted mb-0">
-            Global SAR visibility with workload, review, override, and program filters.
+            Program-scoped SAR visibility with workload, review, override, and program filters.
           </p>
         </div>
         <div className="d-flex flex-column flex-sm-row gap-2">
@@ -76,7 +85,7 @@ const AdviserDashboard = () => {
             style={{ minWidth: 230 }}
             aria-label="Adviser dashboard program filter"
           >
-            <option value="">All Programs</option>
+            {superadmin && <option value="">All Programs</option>}
             {programs.map((program) => (
               <option key={program.id} value={program.id}>
                 {program.code} - {program.name}
@@ -102,7 +111,7 @@ const AdviserDashboard = () => {
               <MetricCard
                 label="Total SARs"
                 value={summary?.totalSARs}
-                detail={programId ? 'Filtered program records' : 'Global readable records'}
+                detail={programId ? 'Filtered program records' : 'Assigned program records'}
               />
             </Col>
             <Col md={6} xl={3}>

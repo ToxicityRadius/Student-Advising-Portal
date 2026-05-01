@@ -19,6 +19,10 @@ jest.mock('../../../utils/curriculumsCache', () => ({
   fetchCurriculumsCached: jest.fn(),
 }));
 
+jest.mock('../../../context/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 7, role: 'adviser' } }),
+}));
+
 jest.mock('../../../components/adviser/AdviserLayout', () => {
   return function MockAdviserLayout({ children, activePage }) {
     return <div data-active-page={activePage}>{children}</div>;

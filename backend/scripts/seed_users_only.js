@@ -4,7 +4,7 @@
  * What this script does:
  *   1. Truncates every table in the public schema (except SequelizeMeta),
  *      resetting all identity sequences.
- *   2. Recreates only the three default user accounts.
+ *   2. Recreates the default program and default user accounts.
  *
  * Usage (from repo root):
  *   node backend/scripts/seed_users_only.js
@@ -16,10 +16,19 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '..', '.env') });
 
 const bcrypt = require('bcryptjs');
-const { sequelize, User } = require('../models');
+const { sequelize, User, Program, UserProgramAssignment } = require('../models');
+const { DEFAULT_PROGRAM } = require('../constants');
+const { buildSuperadminSeedUser } = require('../utils/superadminBootstrap');
 
 (async () => {
   try {
+    const now = Date.now();
+    const superadminUser = await buildSuperadminSeedUser({
+      env: process.env,
+      now,
+      hashPassword: bcrypt.hash,
+    });
+
     await sequelize.authenticate();
     console.log('[seed:users-only] connected to database');
 
@@ -36,9 +45,14 @@ const { sequelize, User } = require('../models');
     }
 
     const hash = await bcrypt.hash('Password123!', 10);
-    const now = Date.now();
+    const bscpeProgram = await Program.create({
+      ...DEFAULT_PROGRAM,
+      createdAt: now,
+      updatedAt: now,
+    });
 
     await User.bulkCreate([
+      superadminUser,
       {
         firstName: 'Program',
         lastName: 'Chair',
@@ -76,6 +90,16 @@ const { sequelize, User } = require('../models');
         updatedAt: now,
       },
     ]);
+
+    const assignedStaff = await User.findAll({ where: { role: ['admin', 'adviser'] } });
+    await UserProgramAssignment.bulkCreate(
+      assignedStaff.map((user) => ({
+        userId: user.id,
+        programId: bscpeProgram.id,
+        createdAt: now,
+        updatedAt: now,
+      })),
+    );
 
     const users = await User.count();
 

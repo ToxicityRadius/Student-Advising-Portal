@@ -101,7 +101,11 @@ const UserManagement = () => {
       setUsers(usersResponse.data?.items || usersResponse.data?.users || []);
       setMeta(usersResponse.data?.meta || EMPTY_META);
       setAdvisers(advisersResponse.data?.items || advisersResponse.data?.users || []);
-      setPrograms(programsResponse.data?.data || []);
+      const nextPrograms = programsResponse.data?.data || [];
+      setPrograms(nextPrograms);
+      if (!superadmin && !programFilter && nextPrograms.length > 0) {
+        setProgramFilter(String(nextPrograms[0].id));
+      }
     } catch (error) {
       setAlert({
         variant: 'danger',
@@ -110,7 +114,16 @@ const UserManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [adviserFilter, debouncedSearch, page, pageSize, programFilter, roleFilter, statusFilter]);
+  }, [
+    adviserFilter,
+    debouncedSearch,
+    page,
+    pageSize,
+    programFilter,
+    roleFilter,
+    statusFilter,
+    superadmin,
+  ]);
 
   useEffect(() => {
     loadData();
@@ -286,7 +299,7 @@ const UserManagement = () => {
               style={{ maxWidth: 230 }}
               aria-label="Program filter"
             >
-              <option value="">All Programs</option>
+              {superadmin && <option value="">All Programs</option>}
               {programs.map((program) => (
                 <option key={program.id} value={program.id}>
                   {program.code} - {program.name}

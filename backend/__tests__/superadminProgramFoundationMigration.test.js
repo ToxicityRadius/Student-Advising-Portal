@@ -46,4 +46,16 @@ describe('superadmin program foundation migration', () => {
     expect(addCurriculumIndexPosition).toBeGreaterThanOrEqual(0);
     expect(addCurriculumColumnPosition).toBeLessThan(addCurriculumIndexPosition);
   });
+
+  test('adds a partial unique index for one active superadmin account', () => {
+    const source = fs.readFileSync(
+      path.join(__dirname, '..', 'migrations', '20260501000018-single-active-superadmin.js'),
+      'utf8',
+    );
+
+    expect(source).toContain("const INDEX_NAME = 'users_single_active_superadmin_unique'");
+    expect(source).toContain('unique: true');
+    expect(source).toContain("role: 'superadmin'");
+    expect(source).toContain('isActive: true');
+  });
 });
