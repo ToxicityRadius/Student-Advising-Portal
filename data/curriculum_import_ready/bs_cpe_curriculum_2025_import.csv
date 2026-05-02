@@ -43,7 +43,7 @@ exportVersion,rowType,curriculumId,curriculumName,courseCode,courseName,lectureH
 1,structure,,BS CPE Curriculum 2025,CPE 308,CpE Laws and Professional Practice,,,2,3,1,false,3,,,
 1,structure,,BS CPE Curriculum 2025,CPE 316,Introduction to HDL,,,1,3,1,false,,,,
 1,structure,,BS CPE Curriculum 2025,BOSH 101A,Basic Occupational Health and Safety,,,3,3,1,false,3,,,
-1,structure,,BS CPE Curriculum 2025,CPE 408B,Emerging Technologies 2 in CpE,,,1,3,1,false,,,,
+1,structure,,BS CPE Curriculum 2025,CPE 408B,Emerging Technologies 2 in CpE,,,1,3,2,false,,,,
 1,structure,,BS CPE Curriculum 2025,ECE 309A,Feedback and Control Systems,,,3,3,1,false,,,,
 1,structure,,BS CPE Curriculum 2025,CPE 205A,Software Design 1,,,2,3,1,false,,,,
 1,structure,,BS CPE Curriculum 2025,CPE 306,Computer Networks 2,,,3,3,1,false,,,,

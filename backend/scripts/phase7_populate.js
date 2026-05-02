@@ -5,13 +5,21 @@ const {
   Curriculum,
   StudentAcademicRecord,
   AcademicTerm,
-  ForecastSnapshot
+  ForecastSnapshot,
 } = require('../models');
 
 (async () => {
   const now = Date.now();
-  const curriculum = await Curriculum.findOne({ where: { isActive: true } }) || await Curriculum.findOne();
+  const curriculum = await Curriculum.findOne({ where: { name: 'BS CPE Curriculum 2018' } });
+  if (!curriculum) {
+    console.log('No curriculum found. Please run the curriculum seed first.');
+    return;
+  }
   const admin = await User.findOne({ where: { email: 'adviser.cpe@tip.edu.ph' } });
+  if (!admin) {
+    console.log('No adviser found. Please run the user seed first.');
+    return;
+  }
 
   for (let index = 1; index <= 20; index += 1) {
     const email = `bulk.adviser${index}@tip.edu.ph`;
@@ -27,7 +35,7 @@ const {
         isActive: true,
         isVerified: true,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       });
     }
   }
@@ -40,13 +48,55 @@ const {
       await StudentAcademicRecord.create({
         userId: null,
         curriculumId: curriculum.id,
+        programId: curriculum.programId,
         studentName: `Pagination Student ${index}`,
         studentNumber,
         email: `pagination.student${index}@tip.edu.ph`,
         yearLevel: ((index - 1) % 4) + 1,
         createdByAdviserId: admin.id,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
+      });
+    }
+  }
+
+  const studentUser = await User.findOne({ where: { email: 'student@tip.edu.ph' } });
+  if (studentUser) {
+    await studentUser.update({
+      isActive: true,
+      isVerified: true,
+      adviserId: admin.id,
+      current_year_level: 1,
+      curriculum_id: curriculum.id,
+      updatedAt: now,
+    });
+
+    const existingLinkedSar = await StudentAcademicRecord.findOne({
+      where: { userId: studentUser.id },
+    });
+    if (!existingLinkedSar) {
+      await StudentAcademicRecord.create({
+        userId: studentUser.id,
+        curriculumId: curriculum.id,
+        programId: curriculum.programId,
+        studentName: 'Sample Student',
+        studentNumber: '1234567',
+        email: 'student@tip.edu.ph',
+        yearLevel: 1, // Set to 1 to avoid elective track requirement during testing
+        createdByAdviserId: admin.id,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } else {
+      await existingLinkedSar.update({
+        curriculumId: curriculum.id,
+        programId: curriculum.programId,
+        studentName: 'Sample Student',
+        studentNumber: '1234567',
+        email: 'student@tip.edu.ph',
+        yearLevel: 1,
+        createdByAdviserId: admin.id,
+        updatedAt: now,
       });
     }
   }
@@ -72,12 +122,16 @@ const {
         schoolYear: term.schoolYear,
         semester: term.semester,
         snapshotData: {
-          currentDemand: [{ courseId: 1, courseCode: 'CPE101', courseName: 'Intro', units: 3, studentCount: 12 }],
-          nextSemesterForecast: [{ courseId: 2, courseCode: 'CPE102', courseName: 'Math', units: 3, studentCount: 10 }],
-          generatedAt: now
+          currentDemand: [
+            { courseId: 1, courseCode: 'CPE101', courseName: 'Intro', units: 3, studentCount: 12 },
+          ],
+          nextSemesterForecast: [
+            { courseId: 2, courseCode: 'CPE102', courseName: 'Math', units: 3, studentCount: 10 },
+          ],
+          generatedAt: now,
         },
         triggeredByUserId: admin.id,
-        createdAt: now
+        createdAt: now,
       });
     }
   }

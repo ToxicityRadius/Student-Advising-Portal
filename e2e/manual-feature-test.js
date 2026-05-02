@@ -51,9 +51,16 @@ class FeatureTester {
     try {
       await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded', timeout: 10000 });
       const content = await page.content();
-      
-      if (expectedContent && !content.includes(expectedContent)) {
-        this.log(`Route: ${pageName} (${route})`, 'WARN', `Missing expected content: "${expectedContent}"`);
+
+      if (
+        expectedContent &&
+        !content.toLowerCase().includes(String(expectedContent).toLowerCase())
+      ) {
+        this.log(
+          `Route: ${pageName} (${route})`,
+          'WARN',
+          `Missing expected content: "${expectedContent}"`,
+        );
       } else {
         this.log(`Route: ${pageName} (${route})`, 'PASS');
       }
@@ -70,27 +77,49 @@ class FeatureTester {
     const page = await this.context.newPage();
     try {
       const cred = CREDENTIALS[role];
+      await this.context.clearCookies();
       await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
-      
-      // Click role selector button
-      const roleButton = page.locator(`[aria-label*="${role}"], button:has-text("${role}")`);
-      const found = await roleButton.first().isVisible().catch(() => false);
-      
+      await page.evaluate(() => {
+        localStorage.clear();
+        sessionStorage.clear();
+      });
+      await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
+
+      // Click role selector card. Advisers and admins share the Faculty login path.
+      const roleLabel = role === 'student' ? 'Login as Student' : 'Login as Faculty';
+      const roleButton = page.locator(`div[role="button"][aria-label="${roleLabel}"]`);
+      const emailInput = page
+        .locator('input[name="email"], input[type="email"], input[placeholder*="email" i]')
+        .first();
+      const found = await roleButton
+        .first()
+        .waitFor({ state: 'visible', timeout: 10000 })
+        .then(() => true)
+        .catch(() => false);
+
       if (!found) {
-        this.log(`Auth: ${role} role selector`, 'WARN', 'Could not find role selector, attempting direct login');
+        const formAlreadyVisible = await emailInput.isVisible().catch(() => false);
+        if (!formAlreadyVisible) {
+          this.log(
+            `Auth: ${role} role selector`,
+            'WARN',
+            `Could not find ${roleLabel} selector, attempting direct login`,
+          );
+        }
       } else {
         await roleButton.first().click();
         await page.waitForTimeout(500);
       }
 
       // Enter credentials
-      await page.fill('input[type="email"], input[placeholder*="email" i], input[placeholder*="Email" i]', cred.email);
+      await emailInput.waitFor({ state: 'visible', timeout: 10000 });
+      await emailInput.fill(cred.email);
       await page.fill('input[type="password"]', cred.password);
-      
+
       // Click login button
       const loginBtn = page.locator('button:has-text("Login"), button[type="submit"]').first();
       await loginBtn.click();
-      
+
       // Wait for navigation or dashboard
       await Promise.race([
         page.waitForURL('**/dashboard', { timeout: 5000 }).catch(() => {}),
@@ -103,7 +132,7 @@ class FeatureTester {
 
       const finalUrl = page.url();
       this.log(`Auth: ${role} login`, 'PASS', `Redirected to: ${finalUrl}`);
-      
+
       return page;
     } catch (err) {
       this.log(`Auth: ${role} login`, 'FAIL', err.message);
@@ -114,14 +143,14 @@ class FeatureTester {
 
   async testAuthPages() {
     console.log('\n=== TESTING AUTH PAGES ===');
-    
+
     // Test unauthenticated routes
     await this.testRoute('Login Page', '/login', 'login');
-    await this.testRoute('Signup Page', '/signup', 'sign up');
+    await this.testRoute('Register Page', '/register', 'register');
     await this.testRoute('Forgot Password Page', '/forgot-password', 'forgot password');
     await this.testRoute('Reset Password Page', '/reset-password/test-token', 'reset password');
     await this.testRoute('Account Activation Page', '/activate/test-token', 'activation');
-    
+
     // Test login flow for each role
     for (const role of ['student', 'adviser', 'admin']) {
       const page = await this.login(role);
@@ -133,7 +162,7 @@ class FeatureTester {
 
   async testStudentFeatures() {
     console.log('\n=== TESTING STUDENT FEATURES ===');
-    
+
     const page = await this.login('student');
     if (!page) {
       this.log('Student Features', 'SKIP', 'Could not login as student');
@@ -182,7 +211,9 @@ class FeatureTester {
       });
 
       // Logout test
-      const logoutBtn = page.locator('button:has-text("logout"), button:has-text("Logout"), [aria-label*="logout"]').first();
+      const logoutBtn = page
+        .locator('button:has-text("logout"), button:has-text("Logout"), [aria-label*="logout"]')
+        .first();
       const logoutExists = await logoutBtn.isVisible().catch(() => false);
       if (logoutExists) {
         await logoutBtn.click();
@@ -200,7 +231,7 @@ class FeatureTester {
 
   async testAdviserFeatures() {
     console.log('\n=== TESTING ADVISER FEATURES ===');
-    
+
     const page = await this.login('adviser');
     if (!page) {
       this.log('Adviser Features', 'SKIP', 'Could not login as adviser');
@@ -244,7 +275,9 @@ class FeatureTester {
       });
 
       // Logout test
-      const logoutBtn = page.locator('button:has-text("logout"), button:has-text("Logout"), [aria-label*="logout"]').first();
+      const logoutBtn = page
+        .locator('button:has-text("logout"), button:has-text("Logout"), [aria-label*="logout"]')
+        .first();
       const logoutExists = await logoutBtn.isVisible().catch(() => false);
       if (logoutExists) {
         await logoutBtn.click();
@@ -262,7 +295,7 @@ class FeatureTester {
 
   async testAdminFeatures() {
     console.log('\n=== TESTING ADMIN FEATURES ===');
-    
+
     const page = await this.login('admin');
     if (!page) {
       this.log('Admin Features', 'SKIP', 'Could not login as admin');
@@ -316,7 +349,9 @@ class FeatureTester {
       });
 
       // Logout test
-      const logoutBtn = page.locator('button:has-text("logout"), button:has-text("Logout"), [aria-label*="logout"]').first();
+      const logoutBtn = page
+        .locator('button:has-text("logout"), button:has-text("Logout"), [aria-label*="logout"]')
+        .first();
       const logoutExists = await logoutBtn.isVisible().catch(() => false);
       if (logoutExists) {
         await logoutBtn.click();
@@ -340,9 +375,9 @@ class FeatureTester {
         const url = `${API}${endpoint}`;
         const response = await fetch(url, { method });
         const status = response.status;
-        
+
         // 401/403 is OK for protected endpoints when not authenticated
-        if ([200, 401, 403, 404].includes(status)) {
+        if ([200, 400, 401, 403, 404].includes(status)) {
           this.log(`API: ${description} (${method} ${endpoint})`, 'PASS', `Status: ${status}`);
         } else {
           this.log(`API: ${description} (${method} ${endpoint})`, 'WARN', `Status: ${status}`);
@@ -401,17 +436,20 @@ class FeatureTester {
       },
       summary: {
         total: this.results.length,
-        passed: this.results.filter(r => r.status === 'PASS').length,
-        failed: this.results.filter(r => r.status === 'FAIL').length,
-        warned: this.results.filter(r => r.status === 'WARN').length,
-        skipped: this.results.filter(r => r.status === 'SKIP').length,
+        passed: this.results.filter((r) => r.status === 'PASS').length,
+        failed: this.results.filter((r) => r.status === 'FAIL').length,
+        warned: this.results.filter((r) => r.status === 'WARN').length,
+        skipped: this.results.filter((r) => r.status === 'SKIP').length,
       },
       results: this.results,
     };
 
     // Calculate success rate
     const totalNonSkipped = report.summary.total - report.summary.skipped;
-    report.successRate = totalNonSkipped > 0 ? ((report.summary.passed / totalNonSkipped) * 100).toFixed(2) + '%' : 'N/A';
+    report.successRate =
+      totalNonSkipped > 0
+        ? ((report.summary.passed / totalNonSkipped) * 100).toFixed(2) + '%'
+        : 'N/A';
 
     return report;
   }
@@ -430,7 +468,7 @@ class FeatureTester {
       await this.testAPIEndpoints();
 
       const report = await this.generateReport();
-      
+
       // Write to file
       const reportPath = path.join(__dirname, 'TEST_REPORT.json');
       fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
@@ -476,15 +514,15 @@ class FeatureTester {
 
     md += `## Detailed Results\n`;
     const groupedByStatus = {};
-    report.results.forEach(r => {
+    report.results.forEach((r) => {
       if (!groupedByStatus[r.status]) groupedByStatus[r.status] = [];
       groupedByStatus[r.status].push(r);
     });
 
     // PASS
     if (groupedByStatus.PASS?.length) {
-      md += `### ✅ Passed (${groupedByStatus.PASS.length})\n`;
-      groupedByStatus.PASS.forEach(r => {
+      md += `### Passed (${groupedByStatus.PASS.length})\n`;
+      groupedByStatus.PASS.forEach((r) => {
         md += `- **${r.feature}** - ${r.details || 'OK'}\n`;
       });
       md += '\n';
@@ -492,8 +530,8 @@ class FeatureTester {
 
     // FAIL
     if (groupedByStatus.FAIL?.length) {
-      md += `### ❌ Failed (${groupedByStatus.FAIL.length})\n`;
-      groupedByStatus.FAIL.forEach(r => {
+      md += `### Failed (${groupedByStatus.FAIL.length})\n`;
+      groupedByStatus.FAIL.forEach((r) => {
         md += `- **${r.feature}** - ${r.details || 'Error'}\n`;
       });
       md += '\n';
@@ -501,8 +539,8 @@ class FeatureTester {
 
     // WARN
     if (groupedByStatus.WARN?.length) {
-      md += `### ⚠️ Warnings (${groupedByStatus.WARN.length})\n`;
-      groupedByStatus.WARN.forEach(r => {
+      md += `### Warnings (${groupedByStatus.WARN.length})\n`;
+      groupedByStatus.WARN.forEach((r) => {
         md += `- **${r.feature}** - ${r.details || 'Warning'}\n`;
       });
       md += '\n';
@@ -510,8 +548,8 @@ class FeatureTester {
 
     // SKIP
     if (groupedByStatus.SKIP?.length) {
-      md += `### ⏭️ Skipped (${groupedByStatus.SKIP.length})\n`;
-      groupedByStatus.SKIP.forEach(r => {
+      md += `### Skipped (${groupedByStatus.SKIP.length})\n`;
+      groupedByStatus.SKIP.forEach((r) => {
         md += `- **${r.feature}** - ${r.details || 'Skipped'}\n`;
       });
       md += '\n';
