@@ -131,6 +131,11 @@ const EditSARModal = ({ show, onHide, onSubmit, sar, curriculums = [], submittin
       return;
     }
 
+    if (!/^\d{7}$/.test(studentNumber)) {
+      setError('Student number must be exactly 7 digits (e.g. 1234567).');
+      return;
+    }
+
     if (!form.curriculumId) {
       setError('Please select a curriculum.');
       return;
@@ -203,8 +208,12 @@ const EditSARModal = ({ show, onHide, onSubmit, sar, curriculums = [], submittin
               value={form.studentNumber}
               onChange={handleChange}
               placeholder="e.g. 1234567"
+              maxLength={7}
+              pattern="\d{7}"
+              title="Exactly 7 digits, no dashes or spaces"
               required
             />
+            <Form.Text muted>7 digits only — no dashes or spaces (e.g. 1234567).</Form.Text>
           </Form.Group>
 
           <Form.Group className="mb-3">

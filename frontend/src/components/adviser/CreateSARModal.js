@@ -6,7 +6,7 @@ const initialFormState = {
   studentNumber: '',
   email: '',
   yearLevel: '1',
-  curriculumId: ''
+  curriculumId: '',
 };
 
 const CreateSARModal = ({
@@ -16,7 +16,7 @@ const CreateSARModal = ({
   onLookupEmail,
   curriculums = [],
   defaultCurriculumId,
-  submitting = false
+  submitting = false,
 }) => {
   const [form, setForm] = useState(initialFormState);
   const [error, setError] = useState('');
@@ -25,7 +25,7 @@ const CreateSARModal = ({
     variant: '',
     message: '',
     autoFilledFields: [],
-    hasExistingSar: false
+    hasExistingSar: false,
   });
 
   const hasCurriculumOptions = curriculums.length > 0;
@@ -46,7 +46,7 @@ const CreateSARModal = ({
 
     setForm({
       ...initialFormState,
-      curriculumId: resolvedDefaultCurriculumId
+      curriculumId: resolvedDefaultCurriculumId,
     });
     setError('');
     setLookupState({
@@ -54,7 +54,7 @@ const CreateSARModal = ({
       variant: '',
       message: '',
       autoFilledFields: [],
-      hasExistingSar: false
+      hasExistingSar: false,
     });
   }, [resolvedDefaultCurriculumId, show]);
 
@@ -71,7 +71,7 @@ const CreateSARModal = ({
         variant: '',
         message: '',
         autoFilledFields: [],
-        hasExistingSar: false
+        hasExistingSar: false,
       }));
     }
     setForm((previous) => ({ ...previous, [name]: value }));
@@ -93,7 +93,7 @@ const CreateSARModal = ({
         variant: 'warning',
         message: 'Enter a valid T.I.P. email to search for a student profile.',
         autoFilledFields: [],
-        hasExistingSar: false
+        hasExistingSar: false,
       });
       return;
     }
@@ -103,7 +103,9 @@ const CreateSARModal = ({
     try {
       const result = await onLookupEmail(normalizedEmail);
       const autofill = result?.autofill || {};
-      const autoFilledFields = Array.isArray(result?.autoFilledFields) ? result.autoFilledFields : [];
+      const autoFilledFields = Array.isArray(result?.autoFilledFields)
+        ? result.autoFilledFields
+        : [];
 
       setForm((previous) => ({
         ...previous,
@@ -111,25 +113,30 @@ const CreateSARModal = ({
         studentName: autofill.studentName ?? previous.studentName,
         studentNumber: autofill.studentNumber ?? previous.studentNumber,
         yearLevel: autofill.yearLevel ? String(autofill.yearLevel) : previous.yearLevel,
-        curriculumId: autofill.curriculumId ? String(autofill.curriculumId) : previous.curriculumId
+        curriculumId: autofill.curriculumId ? String(autofill.curriculumId) : previous.curriculumId,
       }));
 
-      const variant = result?.foundStudentAccount ? (result?.hasExistingSar ? 'warning' : 'success') : 'secondary';
+      const variant = result?.foundStudentAccount
+        ? result?.hasExistingSar
+          ? 'warning'
+          : 'success'
+        : 'secondary';
 
       setLookupState({
         loading: false,
         variant,
         message: result?.message || 'Lookup complete.',
         autoFilledFields,
-        hasExistingSar: Boolean(result?.hasExistingSar)
+        hasExistingSar: Boolean(result?.hasExistingSar),
       });
     } catch (lookupError) {
       setLookupState({
         loading: false,
         variant: 'danger',
-        message: lookupError?.response?.data?.message || 'Unable to fetch student profile by email.',
+        message:
+          lookupError?.response?.data?.message || 'Unable to fetch student profile by email.',
         autoFilledFields: [],
-        hasExistingSar: false
+        hasExistingSar: false,
       });
     }
   };
@@ -144,6 +151,12 @@ const CreateSARModal = ({
       return;
     }
 
+    const studentNumber = form.studentNumber.trim();
+    if (!/^\d{7}$/.test(studentNumber)) {
+      setError('Student number must be exactly 7 digits (e.g. 1234567).');
+      return;
+    }
+
     if (!form.curriculumId) {
       setError('Please select a curriculum.');
       return;
@@ -155,11 +168,13 @@ const CreateSARModal = ({
         studentNumber: form.studentNumber.trim(),
         email: normalizedEmail,
         yearLevel: Number(form.yearLevel),
-        curriculumId: Number(form.curriculumId)
+        curriculumId: Number(form.curriculumId),
       });
       handleClose();
     } catch (submitError) {
-      setError(submitError?.response?.data?.message || 'Failed to create the student academic record.');
+      setError(
+        submitError?.response?.data?.message || 'Failed to create the student academic record.',
+      );
     }
   };
 
@@ -173,7 +188,8 @@ const CreateSARModal = ({
           {error && <Alert variant="danger">{error}</Alert>}
           {!hasCurriculumOptions && (
             <Alert variant="warning" className="mb-3">
-              No curricula are available yet. Create or activate a curriculum before creating a record.
+              No curricula are available yet. Create or activate a curriculum before creating a
+              record.
             </Alert>
           )}
 
@@ -222,7 +238,9 @@ const CreateSARModal = ({
               required
             />
             {lookupState.autoFilledFields.includes('studentName') && (
-              <Form.Text className="text-success">Auto-filled from student profile (editable).</Form.Text>
+              <Form.Text className="text-success">
+                Auto-filled from student profile (editable).
+              </Form.Text>
             )}
           </Form.Group>
 
@@ -233,10 +251,16 @@ const CreateSARModal = ({
               value={form.studentNumber}
               onChange={handleChange}
               placeholder="e.g. 1234567"
+              maxLength={7}
+              pattern="\d{7}"
+              title="Exactly 7 digits, no dashes or spaces"
               required
             />
+            <Form.Text muted>7 digits only — no dashes or spaces (e.g. 1234567).</Form.Text>
             {lookupState.autoFilledFields.includes('studentNumber') && (
-              <Form.Text className="text-success">Auto-filled from student profile (editable).</Form.Text>
+              <Form.Text className="text-success d-block">
+                Auto-filled from student profile (editable).
+              </Form.Text>
             )}
           </Form.Group>
 
@@ -265,16 +289,23 @@ const CreateSARModal = ({
               <option value="">Select curriculum</option>
               {curriculums.map((curriculum) => (
                 <option key={curriculum.id} value={curriculum.id}>
-                  {curriculum.name}{curriculum.isActive ? ' (Active)' : ''}
+                  {curriculum.name}
+                  {curriculum.isActive ? ' (Active)' : ''}
                 </option>
               ))}
             </Form.Select>
             {lookupState.autoFilledFields.includes('curriculumId') && (
-              <Form.Text className="text-success">Defaulted using student/active curriculum.</Form.Text>
+              <Form.Text className="text-success">
+                Defaulted using student/active curriculum.
+              </Form.Text>
             )}
-            {!lookupState.loading && lookupState.variant === 'secondary' && !lookupState.hasExistingSar && (
-              <Form.Text className="text-muted">No account match found — this record will be created as unlinked.</Form.Text>
-            )}
+            {!lookupState.loading &&
+              lookupState.variant === 'secondary' &&
+              !lookupState.hasExistingSar && (
+                <Form.Text className="text-muted">
+                  No account match found — this record will be created as unlinked.
+                </Form.Text>
+              )}
           </Form.Group>
         </Modal.Body>
         <Modal.Footer>

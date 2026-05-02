@@ -15,7 +15,7 @@ const {
 const { syncSarToProfile } = require('../utils/sarLinking');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
 const { buildElectiveTrackPlan } = require('../utils/studyPlan');
-const { canManageProgram } = require('../utils/programAccess');
+const { canReadProgram } = require('../utils/programAccess');
 
 const {
   uploadProfilePicture: uploadProfilePictureAsset,
@@ -210,6 +210,13 @@ exports.createSAR = async (req, res, next) => {
       });
     }
 
+    if (!/^\d{7}$/.test(studentNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student number must be exactly 7 digits with no spaces or special characters.',
+      });
+    }
+
     if (!tipEmailPattern.test(email)) {
       return res
         .status(400)
@@ -229,7 +236,7 @@ exports.createSAR = async (req, res, next) => {
         message: 'No curriculum was provided and there is no active curriculum to use as default',
       });
     }
-    if (!(await canManageProgram(req.user, curriculum.programId))) {
+    if (!(await canReadProgram(req.user, curriculum.programId))) {
       return res.status(403).json({ success: false, message: 'Program access denied' });
     }
 
@@ -361,6 +368,15 @@ exports.bulkCreateSARs = async (req, res, next) => {
         continue;
       }
 
+      if (!/^\d{7}$/.test(studentNumber)) {
+        errors.push({
+          line: lineNum,
+          studentNumber,
+          message: 'Student number must be exactly 7 digits with no special characters.',
+        });
+        continue;
+      }
+
       if (!tipEmailPattern.test(email)) {
         errors.push({
           line: lineNum,
@@ -414,7 +430,7 @@ exports.bulkCreateSARs = async (req, res, next) => {
         });
         continue;
       }
-      if (!(await canManageProgram(req.user, curriculum.programId))) {
+      if (!(await canReadProgram(req.user, curriculum.programId))) {
         errors.push({
           line: lineNum,
           studentNumber,

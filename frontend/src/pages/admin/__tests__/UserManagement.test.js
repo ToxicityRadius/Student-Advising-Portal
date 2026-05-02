@@ -156,18 +156,29 @@ describe('UserManagement', () => {
     useAuth.mockReturnValue({ user: { id: 2, role: 'admin' } });
 
     render(<UserManagement />);
-    await waitFor(() => {
-      expect(screen.getAllByText('Insufficient Permission')).toHaveLength(2);
-    });
+    // The non-superadmin path auto-sets programFilter after the first load, triggering a
+    // second loadData. Move ALL assertions inside waitFor so they run atomically at a point
+    // where the component is in a fully-stable, data-loaded state (no spinner present).
+    await waitFor(
+      () => {
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        expect(screen.getAllByText('Insufficient Permission')).toHaveLength(2);
 
-    const adaRow = screen.getByText('Ada Student').closest('tr');
-    expect(within(adaRow).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
-    expect(within(adaRow).queryByRole('button', { name: 'Deactivate' })).not.toBeInTheDocument();
-    expect(within(adaRow).queryByRole('button', { name: 'Activate' })).not.toBeInTheDocument();
-    expect(within(adaRow).getByLabelText('Assign adviser for Ada Student')).toBeInTheDocument();
+        const adaRow = screen.getByText('Ada Student').closest('tr');
+        expect(within(adaRow).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+        expect(
+          within(adaRow).queryByRole('button', { name: 'Deactivate' }),
+        ).not.toBeInTheDocument();
+        expect(within(adaRow).queryByRole('button', { name: 'Activate' })).not.toBeInTheDocument();
+        expect(within(adaRow).getByLabelText('Assign adviser for Ada Student')).toBeInTheDocument();
 
-    const chairRow = screen.getByText('Chair Person').closest('tr');
-    expect(within(chairRow).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
-    expect(within(chairRow).queryByRole('button', { name: 'Deactivate' })).not.toBeInTheDocument();
+        const chairRow = screen.getByText('Chair Person').closest('tr');
+        expect(within(chairRow).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+        expect(
+          within(chairRow).queryByRole('button', { name: 'Deactivate' }),
+        ).not.toBeInTheDocument();
+      },
+      { timeout: 3000 },
+    );
   });
 });
