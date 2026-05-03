@@ -99,8 +99,11 @@ describe('GradeEntry retake placement and override request', () => {
     renderGradeEntry();
 
     expect(screen.getByText('Retake Term')).toBeInTheDocument();
-    expect(screen.getByLabelText('CALC101 retake year')).toHaveValue('1');
-    expect(screen.getByLabelText('CALC101 retake semester')).toHaveValue('2');
+    const retakeTermSelect = screen.getByLabelText('CALC101 retake term');
+    expect(retakeTermSelect).toHaveValue('1:2');
+    expect(screen.queryByLabelText('CALC101 retake year')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('CALC101 retake semester')).not.toBeInTheDocument();
+    expect([...retakeTermSelect.options].map((option) => option.value)).not.toContain('1:1');
 
     await user.click(screen.getByLabelText('Request same-term override with CALC102'));
     await user.type(
@@ -178,8 +181,9 @@ describe('GradeEntry retake placement and override request', () => {
 
     renderGradeEntry();
 
-    expect(screen.getByLabelText('HIST201 retake year')).toHaveValue('2');
-    expect(screen.getByLabelText('HIST201 retake semester')).toHaveValue('2');
+    const retakeTermSelect = screen.getByLabelText('HIST201 retake term');
+    expect(retakeTermSelect).toHaveValue('2:2');
+    expect([...retakeTermSelect.options].map((option) => option.value)).not.toContain('2:1');
 
     await user.click(screen.getByRole('button', { name: /Regenerate Study Plan/i }));
 
@@ -331,5 +335,25 @@ describe('GradeEntry retake placement and override request', () => {
         prerequisiteOverrideRequests: [],
       });
     });
+  });
+
+  test('shows backend retake placement errors from stale or invalid browser state', async () => {
+    const user = userEvent.setup();
+    api.post.mockRejectedValueOnce({
+      response: {
+        data: {
+          code: 'INVALID_RETAKE_PLACEMENT',
+          message: 'MATH018 retake must be placed after Year 1 S1.',
+        },
+      },
+    });
+
+    renderGradeEntry();
+
+    await user.click(screen.getByRole('button', { name: /Regenerate Study Plan/i }));
+
+    expect(
+      await screen.findByText('MATH018 retake must be placed after Year 1 S1.'),
+    ).toBeInTheDocument();
   });
 });

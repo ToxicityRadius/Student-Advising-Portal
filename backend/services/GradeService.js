@@ -118,6 +118,22 @@ const makeCodedError = (message, statusCode, code) => {
   return error;
 };
 
+const requiresRetakePlacementStatus = (status) =>
+  isBlockingStatus(status) || String(status || '').toLowerCase() === 'dropped';
+
+const getRetakeClassification = (entry) => {
+  const parsedStatus = (() => {
+    try {
+      return parseGradeInput(entry?.grade).status;
+    } catch {
+      return 'pending';
+    }
+  })();
+
+  const storedStatus = String(entry?.status || '').toLowerCase();
+  return parsedStatus !== 'pending' ? parsedStatus : storedStatus;
+};
+
 const normalizeSlot = ({ yearLevel, semester }) => {
   const normalizedYearLevel = Number(yearLevel);
   const normalizedSemester = Number(semester);
@@ -152,11 +168,8 @@ const buildRetakePlacementMap = ({ activeEntries = [], retakePlacements = [] } =
   const retakePlacementByCourseId = new Map();
 
   activeEntries.forEach((entry) => {
-    const parsedStatus = parseGradeInput(entry.grade).status;
-    const storedStatus = String(entry.status || '').toLowerCase();
-    const classification = parsedStatus !== 'pending' ? parsedStatus : storedStatus;
-    const requiresRetakePlacement =
-      isBlockingStatus(classification) || classification === 'dropped';
+    const classification = getRetakeClassification(entry);
+    const requiresRetakePlacement = requiresRetakePlacementStatus(classification);
 
     if (!requiresRetakePlacement) {
       return;
@@ -187,6 +200,63 @@ const buildRetakePlacementMap = ({ activeEntries = [], retakePlacements = [] } =
   });
 
   return retakePlacementByCourseId;
+};
+
+const formatRetakeTerm = ({ yearLevel, semester }) => {
+  const semesterLabel = Number(semester) === 3 ? 'Summer' : `S${Number(semester) || 1}`;
+  return `Year ${Number(yearLevel) || 1} ${semesterLabel}`;
+};
+
+const findStrictRetakePlacementViolation = ({
+  originalEntries = [],
+  proposedCourses = [],
+} = {}) => {
+  const proposedByCourseId = new Map(
+    (Array.isArray(proposedCourses) ? proposedCourses : [])
+      .filter((course) => course?.courseId !== undefined && course?.courseId !== null)
+      .map((course) => [String(course.courseId), course]),
+  );
+
+  for (const entry of Array.isArray(originalEntries) ? originalEntries : []) {
+    const classification = getRetakeClassification(entry);
+    if (!requiresRetakePlacementStatus(classification)) {
+      continue;
+    }
+
+    const proposedCourse = proposedByCourseId.get(String(entry.courseId));
+    if (!proposedCourse) {
+      continue;
+    }
+
+    const originalSlotIndex = slotIndexFromYearSemester(entry.yearLevel, entry.semester);
+    const proposedSlotIndex = slotIndexFromYearSemester(
+      proposedCourse.yearLevel,
+      proposedCourse.semester,
+    );
+
+    if (proposedSlotIndex <= originalSlotIndex) {
+      const originalTerm = {
+        yearLevel: Number(entry.yearLevel),
+        semester: Number(entry.semester),
+      };
+      const proposedTerm = {
+        yearLevel: Number(proposedCourse.yearLevel),
+        semester: Number(proposedCourse.semester),
+      };
+      const courseCode = entry.Course?.code || proposedCourse.Course?.code || 'Course';
+
+      return {
+        code: 'INVALID_RETAKE_PLACEMENT',
+        message: `${courseCode} retake must be placed after ${formatRetakeTerm(originalTerm)}.`,
+        courseId: Number(entry.courseId),
+        studyPlanCourseId: entry.id !== undefined ? Number(entry.id) : undefined,
+        originalTerm,
+        proposedTerm,
+      };
+    }
+  }
+
+  return null;
 };
 
 const getEntryUnits = (entry) =>
@@ -392,8 +462,11 @@ module.exports = {
   buildVersionIncludes,
   serializeVersion,
   collectConnectedComponents,
+  requiresRetakePlacementStatus,
+  getRetakeClassification,
   buildStandardUnitsBySlot,
   buildRetakePlacementMap,
+  findStrictRetakePlacementViolation,
   getAllowedUnitsForSlot,
   buildMutualPrerequisitePairSet,
   buildPrerequisiteOverrideKey,

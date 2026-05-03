@@ -3,6 +3,7 @@ process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://user:pass@loc
 const {
   buildStandardUnitsBySlot,
   buildRetakePlacementMap,
+  findStrictRetakePlacementViolation,
   getAllowedUnitsForSlot,
   buildMutualPrerequisitePairSet,
   buildPrerequisiteOverrideMap,
@@ -72,6 +73,86 @@ describe('GradeService prerequisite override helpers', () => {
           ],
         }),
       ).toThrow('Retake placement must be after the failed or dropped course slot');
+    });
+  });
+
+  describe('findStrictRetakePlacementViolation', () => {
+    const originalEntries = [
+      {
+        id: 11,
+        courseId: 201,
+        yearLevel: 1,
+        semester: 1,
+        grade: '5.00',
+        status: 'failed',
+        Course: { code: 'MATH018' },
+      },
+      {
+        id: 12,
+        courseId: 202,
+        yearLevel: 2,
+        semester: 1,
+        grade: '6.00',
+        status: 'officially_dropped',
+        Course: { code: 'HIST201' },
+      },
+      {
+        id: 13,
+        courseId: 203,
+        yearLevel: 1,
+        semester: 1,
+        grade: '4.00',
+        status: 'incomplete',
+        Course: { code: 'ENG101' },
+      },
+    ];
+
+    test('returns null when failed and dropped courses move to later slots', () => {
+      expect(
+        findStrictRetakePlacementViolation({
+          originalEntries,
+          proposedCourses: [
+            { courseId: 201, yearLevel: 1, semester: 2 },
+            { courseId: 202, yearLevel: 2, semester: 2 },
+            { courseId: 203, yearLevel: 1, semester: 1 },
+          ],
+        }),
+      ).toBeNull();
+    });
+
+    test('reports the first failed or dropped course placed in the same slot', () => {
+      const violation = findStrictRetakePlacementViolation({
+        originalEntries,
+        proposedCourses: [
+          { courseId: 201, yearLevel: 1, semester: 1 },
+          { courseId: 202, yearLevel: 2, semester: 2 },
+        ],
+      });
+
+      expect(violation).toMatchObject({
+        code: 'INVALID_RETAKE_PLACEMENT',
+        courseId: 201,
+        originalTerm: { yearLevel: 1, semester: 1 },
+        proposedTerm: { yearLevel: 1, semester: 1 },
+      });
+      expect(violation.message).toContain('MATH018 retake must be placed after Year 1 S1');
+    });
+
+    test('reports dropped courses placed before their original slot', () => {
+      const violation = findStrictRetakePlacementViolation({
+        originalEntries,
+        proposedCourses: [
+          { courseId: 201, yearLevel: 1, semester: 2 },
+          { courseId: 202, yearLevel: 1, semester: 2 },
+        ],
+      });
+
+      expect(violation).toMatchObject({
+        code: 'INVALID_RETAKE_PLACEMENT',
+        courseId: 202,
+        originalTerm: { yearLevel: 2, semester: 1 },
+        proposedTerm: { yearLevel: 1, semester: 2 },
+      });
     });
   });
 

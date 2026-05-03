@@ -4,7 +4,7 @@
  * Generates a detailed test report with results
  */
 
-const { chromium } = require('playwright');
+const { chromium } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 

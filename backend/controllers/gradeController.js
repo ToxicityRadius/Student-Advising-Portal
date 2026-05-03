@@ -20,11 +20,7 @@ const {
   yearSemesterFromSlotIndex,
 } = require('../utils/studyPlan');
 
-const {
-  parseGradeInput,
-  parseGradePayload,
-  isBlockingStatus,
-} = require('../utils/gradeValidation');
+const { parseGradeInput, parseGradePayload } = require('../utils/gradeValidation');
 const {
   getCrossCurriculumAvailability,
   buildPrerequisiteCascade,
@@ -51,6 +47,8 @@ const getAllowedUnitsForSlot = GradeService.getAllowedUnitsForSlot;
 const buildMutualPrerequisitePairSet = GradeService.buildMutualPrerequisitePairSet;
 const buildPrerequisiteOverrideMap = GradeService.buildPrerequisiteOverrideMap;
 const isPrerequisitePlacementAllowed = GradeService.isPrerequisitePlacementAllowed;
+const getRetakeClassification = GradeService.getRetakeClassification;
+const requiresRetakePlacementStatus = GradeService.requiresRetakePlacementStatus;
 
 const buildOverridePairSummary = (studyPlanCourses = [], overrideRequests = []) => {
   const courseCodeById = new Map(
@@ -492,7 +490,7 @@ const orderComponentsByPrerequisites = (
   }
 
   return orderedIndexes.map((index) => {
-    const { originalIndex, ...component } = normalizedComponents[index];
+    const { originalIndex: _originalIndex, ...component } = normalizedComponents[index];
     return component;
   });
 };
@@ -1101,7 +1099,7 @@ exports.triggerRegeneration = async (req, res, next) => {
       }
 
       const parsed = parseGradeInput(entry.grade);
-      const classification = parsed.status;
+      const classification = getRetakeClassification(entry);
       const isElectiveExcluded =
         curriculumTrackCourseIds.has(courseId) &&
         sar.electiveTrackId &&
@@ -1286,7 +1284,7 @@ exports.triggerRegeneration = async (req, res, next) => {
       while (!placed && slotIndex < 120) {
         const usedUnits = usedUnitsBySlot.get(slotIndex) || 0;
         const allowedUnits = getAllowedUnitsForSlot({ slotIndex, standardUnitsBySlot });
-        if (usedUnits + component.totalUnits > allowedUnits && component.forcedSlotIndex === null) {
+        if (usedUnits + component.totalUnits > allowedUnits) {
           slotIndex += 1;
           continue;
         }
@@ -1319,9 +1317,6 @@ exports.triggerRegeneration = async (req, res, next) => {
         }
 
         if (!prerequisitesOk) {
-          if (component.forcedSlotIndex !== null) {
-            break;
-          }
           slotIndex += 1;
           continue;
         }
@@ -1353,9 +1348,6 @@ exports.triggerRegeneration = async (req, res, next) => {
         }
 
         if (!coReqOk) {
-          if (component.forcedSlotIndex !== null) {
-            break;
-          }
           slotIndex += 1;
           continue;
         }
@@ -1538,7 +1530,7 @@ exports.triggerRegeneration = async (req, res, next) => {
 
     // ── Build failedCourseAnalysis for the review UI ──
     const failedOrDroppedRequeue = requeueCourses.filter((item) =>
-      isBlockingStatus(item.failedStatus),
+      requiresRetakePlacementStatus(item.failedStatus),
     );
 
     let failedCourseAnalysis = null;

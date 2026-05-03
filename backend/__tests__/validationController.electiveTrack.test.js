@@ -20,9 +20,9 @@ jest.mock('../models', () => {
       update: jest.fn(),
     },
     StudyPlanCourse: { destroy: jest.fn(), bulkCreate: jest.fn() },
-    CurriculumCourse: {},
-    Prerequisite: {},
-    PrerequisiteOverrideRequest: {},
+    CurriculumCourse: { findAll: jest.fn() },
+    Prerequisite: { findAll: jest.fn() },
+    PrerequisiteOverrideRequest: { findAll: jest.fn() },
     ElectiveTrack: { findByPk: jest.fn() },
     ElectiveTrackCourse: { findAll: jest.fn() },
     Course: {},
@@ -34,6 +34,7 @@ jest.mock('../services/GradeService', () => ({
   buildPrerequisiteOverrideMap: jest.fn(() => new Map()),
   buildMutualPrerequisitePairSet: jest.fn(() => new Set()),
   isPrerequisitePlacementAllowed: jest.fn(() => ({ allowed: true })),
+  findStrictRetakePlacementViolation: jest.fn(() => null),
 }));
 
 jest.mock('../services/NotificationService', () => ({
@@ -41,7 +42,11 @@ jest.mock('../services/NotificationService', () => ({
 }));
 
 const models = require('../models');
-const { selectElectiveTrack } = require('../controllers/validationController');
+const GradeService = require('../services/GradeService');
+const {
+  selectElectiveTrack,
+  updateDraftVersionCourses,
+} = require('../controllers/validationController');
 
 const makeResponse = () => {
   const res = {};
@@ -104,5 +109,101 @@ describe('validationController.selectElectiveTrack', () => {
         }),
       }),
     );
+  });
+});
+
+describe('validationController.updateDraftVersionCourses strict retake placement', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    GradeService.findStrictRetakePlacementViolation.mockReturnValue(null);
+    GradeService.isPrerequisitePlacementAllowed.mockReturnValue({ allowed: true });
+    models.CurriculumCourse.findAll.mockResolvedValue([]);
+    models.Prerequisite.findAll.mockResolvedValue([]);
+    models.PrerequisiteOverrideRequest.findAll.mockResolvedValue([]);
+  });
+
+  test('rejects draft edits that place a failed retake in its original slot', async () => {
+    const sar = {
+      id: 42,
+      curriculumId: 10,
+      StudyPlan: { id: 99 },
+    };
+    const activeVersion = {
+      id: 7,
+      studyPlanId: 99,
+      status: 'active',
+      StudyPlanCourses: [
+        {
+          id: 101,
+          courseId: 1,
+          yearLevel: 1,
+          semester: 1,
+          grade: '5.00',
+          status: 'failed',
+          Course: { id: 1, code: 'MATH018', name: 'Calculus 1', units: 3 },
+        },
+      ],
+    };
+    const draftRow = {
+      id: 201,
+      courseId: 1,
+      yearLevel: 1,
+      semester: 2,
+      grade: null,
+      status: 'pending',
+      Course: { id: 1, code: 'MATH018', name: 'Calculus 1', units: 3 },
+      get: jest.fn(() => ({
+        id: 201,
+        courseId: 1,
+        yearLevel: 1,
+        semester: 2,
+        grade: null,
+        status: 'pending',
+        Course: { id: 1, code: 'MATH018', name: 'Calculus 1', units: 3 },
+      })),
+      update: jest.fn(),
+    };
+    const draftVersion = {
+      id: 8,
+      studyPlanId: 99,
+      status: 'draft',
+      StudyPlanCourses: [draftRow],
+      update: jest.fn(),
+    };
+    const violation = {
+      code: 'INVALID_RETAKE_PLACEMENT',
+      message: 'MATH018 retake must be placed after Year 1 S1.',
+    };
+
+    models.StudentAcademicRecord.findByPk.mockResolvedValue(sar);
+    models.StudyPlanVersion.findByPk.mockResolvedValue(draftVersion);
+    models.StudyPlanVersion.findOne.mockResolvedValue(activeVersion);
+    GradeService.findStrictRetakePlacementViolation.mockReturnValue(violation);
+
+    const req = {
+      params: { id: '42', versionId: '8' },
+      body: { courses: [{ studyPlanCourseId: 201, yearLevel: 1, semester: 1 }] },
+      user: { id: 9 },
+    };
+    const res = makeResponse();
+    const next = jest.fn();
+
+    await updateDraftVersionCourses(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(GradeService.findStrictRetakePlacementViolation).toHaveBeenCalledWith({
+      originalEntries: activeVersion.StudyPlanCourses,
+      proposedCourses: expect.arrayContaining([
+        expect.objectContaining({ courseId: 1, yearLevel: 1, semester: 1 }),
+      ]),
+    });
+    expect(models.__transaction.rollback).toHaveBeenCalled();
+    expect(draftRow.update).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      code: 'INVALID_RETAKE_PLACEMENT',
+      message: 'MATH018 retake must be placed after Year 1 S1.',
+    });
   });
 });

@@ -287,6 +287,119 @@ describe('gradeController regeneration placement', () => {
     );
   });
 
+  test('moves a manual retake later instead of overloading the requested term', async () => {
+    const failedCourse = makeCourse({ id: 111, code: 'MATH018', units: 3 });
+    const heavyPassedCourse = makeCourse({ id: 112, code: 'CPE105', units: 23 });
+
+    const sar = {
+      id: 46,
+      curriculumId: 77,
+      programId: 9,
+      userId: 55,
+      electiveTrackId: null,
+      StudyPlan: { id: 90 },
+    };
+
+    const activeVersion = {
+      id: 14,
+      studyPlanId: sar.StudyPlan.id,
+      status: 'active',
+      StudyPlanCourses: [
+        {
+          id: 401,
+          courseId: failedCourse.id,
+          Course: failedCourse,
+          yearLevel: 1,
+          semester: 1,
+          grade: '5.00',
+          status: 'failed',
+        },
+        {
+          id: 402,
+          courseId: heavyPassedCourse.id,
+          Course: heavyPassedCourse,
+          yearLevel: 1,
+          semester: 2,
+          grade: '1.50',
+          status: 'passed',
+        },
+      ],
+    };
+
+    StudentAcademicRecord.findByPk.mockResolvedValue(sar);
+    StudyPlanVersion.findOne
+      .mockResolvedValueOnce(activeVersion)
+      .mockResolvedValueOnce({ id: activeVersion.id, versionNumber: 1 });
+    StudyPlanVersion.create.mockResolvedValue({ id: 100, versionNumber: 2 });
+    StudyPlanVersion.findByPk.mockResolvedValue({
+      id: 100,
+      versionNumber: 2,
+      StudyPlanCourses: [],
+    });
+
+    CurriculumCourse.findAll.mockResolvedValue([
+      {
+        curriculumId: sar.curriculumId,
+        courseId: failedCourse.id,
+        Course: failedCourse,
+        Curriculum: {
+          id: sar.curriculumId,
+          name: 'Active CPE Curriculum',
+          isActive: true,
+        },
+        yearLevel: 1,
+        semester: 1,
+        isElective: false,
+      },
+      {
+        curriculumId: sar.curriculumId,
+        courseId: heavyPassedCourse.id,
+        Course: heavyPassedCourse,
+        Curriculum: {
+          id: sar.curriculumId,
+          name: 'Active CPE Curriculum',
+          isActive: true,
+        },
+        yearLevel: 1,
+        semester: 2,
+        isElective: false,
+      },
+    ]);
+
+    const req = {
+      params: { id: String(sar.id) },
+      body: {
+        retakePlacements: [{ studyPlanCourseId: 401, yearLevel: 1, semester: 2 }],
+      },
+      user: {
+        id: 7,
+        firstName: 'Ada',
+        lastName: 'Adviser',
+      },
+    };
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+    };
+    const next = jest.fn();
+
+    await triggerRegeneration(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+
+    const createdCourses = StudyPlanCourse.bulkCreate.mock.calls[0][0];
+    expect(createdCourses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          courseId: failedCourse.id,
+          yearLevel: 1,
+          semester: 3,
+        }),
+      ]),
+    );
+  });
+
   test('does not block regeneration on co-requisites that are not in the student plan', async () => {
     const failedCourse = makeCourse({ id: 101, code: 'MATH018', units: 3 });
     const pendingCourse = makeCourse({ id: 203, code: 'CPE203', units: 4 });

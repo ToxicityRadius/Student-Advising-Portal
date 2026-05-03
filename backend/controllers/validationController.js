@@ -58,6 +58,7 @@ const serializeVersion = (version) => {
 const buildPrerequisiteOverrideMap = GradeService.buildPrerequisiteOverrideMap;
 const buildMutualPrerequisitePairSet = GradeService.buildMutualPrerequisitePairSet;
 const isPrerequisitePlacementAllowed = GradeService.isPrerequisitePlacementAllowed;
+const findStrictRetakePlacementViolation = GradeService.findStrictRetakePlacementViolation;
 
 const findPrerequisitePlacementViolation = ({
   courses,
@@ -507,13 +508,37 @@ exports.validateVersion = async (req, res, next) => {
       });
     }
 
-    const [prerequisites, prerequisiteOverrides] = await Promise.all([
+    const [activeVersion, prerequisites, prerequisiteOverrides] = await Promise.all([
+      StudyPlanVersion.findOne({
+        where: { studyPlanId: sar.StudyPlan.id, status: 'active' },
+        include: [
+          {
+            model: StudyPlanCourse,
+            include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+          },
+        ],
+        transaction,
+      }),
       Prerequisite.findAll({ where: { curriculumId: sar.curriculumId }, transaction }),
       PrerequisiteOverrideRequest.findAll({
         where: { studyPlanVersionId: studyPlanVersion.id },
         transaction,
       }),
     ]);
+
+    const retakeViolation = findStrictRetakePlacementViolation({
+      originalEntries: activeVersion?.StudyPlanCourses || [],
+      proposedCourses: studyPlanVersion.StudyPlanCourses || [],
+    });
+
+    if (retakeViolation) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        code: retakeViolation.code,
+        message: retakeViolation.message,
+      });
+    }
 
     const prerequisiteViolation = findPrerequisitePlacementViolation({
       courses: studyPlanVersion.StudyPlanCourses || [],
@@ -690,29 +715,44 @@ exports.updateDraftVersionCourses = async (req, res, next) => {
         .json({ success: false, message: 'Study plan not found for this student' });
     }
 
-    const [draftVersion, curriculumCourseList, prerequisites, prerequisiteOverrides] =
-      await Promise.all([
-        StudyPlanVersion.findByPk(req.params.versionId, {
-          include: [
-            {
-              model: StudyPlanCourse,
-              include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
-            },
-          ],
-          transaction,
-        }),
-        CurriculumCourse.findAll({
-          where: { curriculumId: sar.curriculumId },
-          attributes: ['courseId', 'minYearStandingRequired'],
-          include: [{ model: Course, attributes: ['id', 'code', 'name'] }],
-          transaction,
-        }),
-        Prerequisite.findAll({ where: { curriculumId: sar.curriculumId }, transaction }),
-        PrerequisiteOverrideRequest.findAll({
-          where: { studyPlanVersionId: req.params.versionId },
-          transaction,
-        }),
-      ]);
+    const [
+      draftVersion,
+      activeVersion,
+      curriculumCourseList,
+      prerequisites,
+      prerequisiteOverrides,
+    ] = await Promise.all([
+      StudyPlanVersion.findByPk(req.params.versionId, {
+        include: [
+          {
+            model: StudyPlanCourse,
+            include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+          },
+        ],
+        transaction,
+      }),
+      StudyPlanVersion.findOne({
+        where: { studyPlanId: sar.StudyPlan.id, status: 'active' },
+        include: [
+          {
+            model: StudyPlanCourse,
+            include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+          },
+        ],
+        transaction,
+      }),
+      CurriculumCourse.findAll({
+        where: { curriculumId: sar.curriculumId },
+        attributes: ['courseId', 'minYearStandingRequired'],
+        include: [{ model: Course, attributes: ['id', 'code', 'name'] }],
+        transaction,
+      }),
+      Prerequisite.findAll({ where: { curriculumId: sar.curriculumId }, transaction }),
+      PrerequisiteOverrideRequest.findAll({
+        where: { studyPlanVersionId: req.params.versionId },
+        transaction,
+      }),
+    ]);
 
     if (!draftVersion || String(draftVersion.studyPlanId) !== String(sar.StudyPlan.id)) {
       await transaction.rollback();
@@ -790,6 +830,20 @@ exports.updateDraftVersionCourses = async (req, res, next) => {
       proposedRow.yearLevel = yearLevel;
       proposedRow.semester = semester;
       updatesToApply.push({ row, yearLevel, semester });
+    }
+
+    const retakeViolation = findStrictRetakePlacementViolation({
+      originalEntries: activeVersion?.StudyPlanCourses || [],
+      proposedCourses,
+    });
+
+    if (retakeViolation) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        code: retakeViolation.code,
+        message: retakeViolation.message,
+      });
     }
 
     const prerequisiteViolation = findPrerequisitePlacementViolation({

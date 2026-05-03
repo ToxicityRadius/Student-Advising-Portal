@@ -103,6 +103,33 @@ const yearSemesterFromSlotIndex = (slotIndex) => ({
 const nextTermAfter = (yearLevel, semester) =>
   yearSemesterFromSlotIndex(slotIndexFromYearSemester(yearLevel, semester) + 1);
 
+const termValue = (yearLevel, semester) => `${Number(yearLevel)}:${Number(semester)}`;
+
+const parseTermValue = (value) => {
+  const [yearLevel, semester] = String(value || '')
+    .split(':')
+    .map(Number);
+  return { yearLevel, semester };
+};
+
+const semesterLabel = (semester) => (Number(semester) === 3 ? 'Summer' : `S${Number(semester)}`);
+
+const termLabel = ({ yearLevel, semester }) => `Y${yearLevel} - ${semesterLabel(semester)}`;
+
+const buildFutureRetakeTermOptions = ({ row, maxYearLevel }) => {
+  const startSlot = slotIndexFromYearSemester(row.yearLevel, row.semester) + 1;
+  const endSlot = slotIndexFromYearSemester(maxYearLevel, 3);
+
+  return Array.from({ length: Math.max(0, endSlot - startSlot + 1) }, (_, index) => {
+    const term = yearSemesterFromSlotIndex(startSlot + index);
+    return {
+      ...term,
+      value: termValue(term.yearLevel, term.semester),
+      label: termLabel(term),
+    };
+  });
+};
+
 const isRetakeStatus = (status) =>
   ['failed', 'dropped', 'officially_dropped', 'unofficially_dropped'].includes(status);
 
@@ -681,33 +708,41 @@ const GradeEntry = () => {
                         <td>
                           {isRetakeStatus(derivedStatus) ? (
                             <div className="d-flex flex-column gap-2">
-                              <div className="d-flex gap-2">
-                                <Form.Select
-                                  size="sm"
-                                  aria-label={`${row.code} retake year`}
-                                  value={row.retakeYearLevel}
-                                  onChange={(event) =>
-                                    updateRow(row.id, { retakeYearLevel: event.target.value })
-                                  }
-                                >
-                                  {yearLevelOptions.map((yearLevel) => (
-                                    <option key={yearLevel} value={yearLevel}>
-                                      Y{yearLevel}
-                                    </option>
-                                  ))}
-                                </Form.Select>
-                                <Form.Select
-                                  size="sm"
-                                  aria-label={`${row.code} retake semester`}
-                                  value={row.retakeSemester}
-                                  onChange={(event) =>
-                                    updateRow(row.id, { retakeSemester: event.target.value })
-                                  }
-                                >
-                                  <option value={1}>S1</option>
-                                  <option value={2}>S2</option>
-                                  <option value={3}>Summer</option>
-                                </Form.Select>
+                              <div>
+                                {(() => {
+                                  const maxYearLevel =
+                                    yearLevelOptions[yearLevelOptions.length - 1] ||
+                                    Number(row.yearLevel || 1) + 2;
+                                  const retakeTermOptions = buildFutureRetakeTermOptions({
+                                    row,
+                                    maxYearLevel,
+                                  });
+                                  const selectedTermValue = termValue(
+                                    row.retakeYearLevel,
+                                    row.retakeSemester,
+                                  );
+
+                                  return (
+                                    <Form.Select
+                                      size="sm"
+                                      aria-label={`${row.code} retake term`}
+                                      value={selectedTermValue}
+                                      onChange={(event) => {
+                                        const nextTerm = parseTermValue(event.target.value);
+                                        updateRow(row.id, {
+                                          retakeYearLevel: nextTerm.yearLevel,
+                                          retakeSemester: nextTerm.semester,
+                                        });
+                                      }}
+                                    >
+                                      {retakeTermOptions.map((term) => (
+                                        <option key={term.value} value={term.value}>
+                                          {term.label}
+                                        </option>
+                                      ))}
+                                    </Form.Select>
+                                  );
+                                })()}
                               </div>
 
                               {dependentCourses.map((dependentCourse) => {
