@@ -24,7 +24,12 @@ const {
 } = require('../models');
 const { computeSarAnalytics } = require('../utils/sarAnalytics');
 const { sortStudyPlanCourses } = require('../utils/studyPlan');
-const { buildProgramWhere, canReadProgram, isProgramChair } = require('../utils/programAccess');
+const {
+  buildProgramWhere,
+  canReadProgram,
+  isProgramChair,
+  isSuperadmin,
+} = require('../utils/programAccess');
 
 const TIP_EMAIL_PATTERN = /@tip\.edu\.ph$/i;
 
@@ -563,6 +568,8 @@ const normalizeProfileField = (value) => {
   return normalized === '' ? null : normalized;
 };
 
+const normalizeProgramProfileValue = (value) => normalizeProfileField(value);
+
 /**
  * Validates and builds the SAR-level update object from request body.
  * Returns { updates, error } — if error is set, respond with status 400/409.
@@ -697,6 +704,49 @@ const buildSARProfileUpdates = (rawStudentProfile) => {
   return { profileUpdates, error: null };
 };
 
+const authorizeSARProfileProgramUpdate = async ({ profileUpdates, linkedStudent, user }) => {
+  if (!Object.prototype.hasOwnProperty.call(profileUpdates, 'program')) {
+    return { profileUpdates, error: null };
+  }
+
+  const requestedProgram = normalizeProgramProfileValue(profileUpdates.program);
+  const existingProgram = normalizeProgramProfileValue(linkedStudent?.program);
+  const sanitizedProfileUpdates = { ...profileUpdates };
+
+  if (requestedProgram === existingProgram) {
+    delete sanitizedProfileUpdates.program;
+    return { profileUpdates: sanitizedProfileUpdates, error: null };
+  }
+
+  if (!isSuperadmin(user)) {
+    return {
+      profileUpdates: null,
+      error: { status: 403, message: 'Only Super Admin can change the program' },
+    };
+  }
+
+  if (requestedProgram === null) {
+    sanitizedProfileUpdates.program = null;
+    return { profileUpdates: sanitizedProfileUpdates, error: null };
+  }
+
+  const program = await Program.findOne({
+    where: {
+      [Op.or]: [{ code: requestedProgram.toUpperCase() }, { name: requestedProgram }],
+    },
+  });
+
+  if (!program) {
+    return {
+      profileUpdates: null,
+      error: { status: 400, message: 'Selected program does not exist' },
+    };
+  }
+
+  sanitizedProfileUpdates.program = program.code;
+  return { profileUpdates: sanitizedProfileUpdates, error: null };
+};
+
 module.exports = {
   // Pure helpers (also exported for use in controllers that need them inline)
   normalizeEmail,
@@ -718,4 +768,5 @@ module.exports = {
   getSARDetail,
   buildSARFieldUpdates,
   buildSARProfileUpdates,
+  authorizeSARProfileProgramUpdate,
 };

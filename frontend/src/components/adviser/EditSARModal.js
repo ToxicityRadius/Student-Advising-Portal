@@ -1,11 +1,58 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Button, Form, Image, Modal } from 'react-bootstrap';
+import { Alert, Button, Col, Form, Image, Modal, Row } from 'react-bootstrap';
 import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
 
 const sexOptions = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
 const studentTypeOptions = ['regular', 'irregular', 'transferee', 'ladderized'];
 
-const EditSARModal = ({ show, onHide, onSubmit, sar, curriculums = [], submitting = false }) => {
+const getProgramOptionValue = (program) => String(program?.code || program?.name || '').trim();
+
+const getProgramOptionLabel = (program) => {
+  const code = String(program?.code || '').trim();
+  const name = String(program?.name || '').trim();
+
+  if (code && name && code !== name) {
+    return `${code} - ${name}`;
+  }
+
+  return code || name;
+};
+
+const inferNameParts = (studentName = '') => {
+  const tokens = studentName.trim().split(/\s+/).filter(Boolean);
+
+  if (tokens.length === 0) {
+    return { first_name: '', middle_name: '', last_name: '', suffix: '' };
+  }
+
+  if (tokens.length === 1) {
+    return { first_name: tokens[0], middle_name: '', last_name: '', suffix: '' };
+  }
+
+  return {
+    first_name: tokens[0],
+    middle_name: tokens.slice(1, -1).join(' '),
+    last_name: tokens[tokens.length - 1],
+    suffix: '',
+  };
+};
+
+const buildStudentNameFromParts = (form) =>
+  [form.first_name, form.middle_name, form.last_name, form.suffix]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join(' ');
+
+const EditSARModal = ({
+  show,
+  onHide,
+  onSubmit,
+  sar,
+  curriculums = [],
+  programs = [],
+  canChangeProgram = false,
+  submitting = false,
+}) => {
   const [form, setForm] = useState({
     studentName: '',
     studentNumber: '',
@@ -38,16 +85,17 @@ const EditSARModal = ({ show, onHide, onSubmit, sar, curriculums = [], submittin
     }
 
     const profile = sar.Student || {};
+    const inferredName = inferNameParts(sar.studentName);
 
     setForm({
       studentName: sar.studentName || '',
       studentNumber: sar.studentNumber || '',
       yearLevel: String(sar.yearLevel || '1'),
       curriculumId: sar.Curriculum?.id ? String(sar.Curriculum.id) : '',
-      first_name: profile.first_name || '',
-      middle_name: profile.middle_name || '',
-      last_name: profile.last_name || '',
-      suffix: profile.suffix || '',
+      first_name: profile.first_name || inferredName.first_name,
+      middle_name: profile.middle_name || inferredName.middle_name,
+      last_name: profile.last_name || inferredName.last_name,
+      suffix: profile.suffix || inferredName.suffix,
       preferred_name: profile.preferred_name || '',
       program: profile.program || '',
       student_type: profile.student_type || '',
@@ -118,11 +166,17 @@ const EditSARModal = ({ show, onHide, onSubmit, sar, curriculums = [], submittin
     event.preventDefault();
     setError('');
 
-    const studentName = form.studentName.trim();
+    const studentName = sar?.isLinkedToAccount
+      ? buildStudentNameFromParts(form)
+      : form.studentName.trim();
     const studentNumber = form.studentNumber.trim();
 
     if (!studentName) {
-      setError('Student name is required.');
+      setError(
+        sar?.isLinkedToAccount
+          ? 'First name or last name is required.'
+          : 'Student name is required.',
+      );
       return;
     }
 
@@ -156,7 +210,6 @@ const EditSARModal = ({ show, onHide, onSubmit, sar, curriculums = [], submittin
           last_name: form.last_name,
           suffix: form.suffix,
           preferred_name: form.preferred_name,
-          program: form.program,
           student_type: form.student_type,
           contact_number: form.contact_number,
           alternate_email: form.alternate_email,
@@ -167,6 +220,10 @@ const EditSARModal = ({ show, onHide, onSubmit, sar, curriculums = [], submittin
           emergency_contact_relationship: form.emergency_contact_relationship,
           emergency_contact_number: form.emergency_contact_number,
         };
+
+        if (canChangeProgram) {
+          payload.studentProfile.program = form.program;
+        }
 
         payload.profilePicture = form.profile_picture || null;
         payload.removeProfilePicture = form.remove_profile_picture;
@@ -181,242 +238,341 @@ const EditSARModal = ({ show, onHide, onSubmit, sar, curriculums = [], submittin
     }
   };
 
+  const displayStudentName = sar?.isLinkedToAccount
+    ? buildStudentNameFromParts(form) || form.studentName
+    : form.studentName;
+  const programOptions = programs
+    .map((program) => ({
+      value: getProgramOptionValue(program),
+      label: getProgramOptionLabel(program),
+    }))
+    .filter((program) => program.value && program.label);
+  const currentProgramIsListed = programOptions.some((program) => program.value === form.program);
+
   return (
-    <Modal show={show} onHide={handleClose} centered>
+    <Modal
+      show={show}
+      onHide={handleClose}
+      centered
+      scrollable
+      size="xl"
+      dialogClassName="edit-sar-modal"
+    >
       <Modal.Header closeButton>
         <Modal.Title>Edit Student Academic Record</Modal.Title>
       </Modal.Header>
       <Form onSubmit={handleSubmit}>
-        <Modal.Body>
+        <Modal.Body className="edit-sar-modal-body">
           {error && <Alert variant="danger">{error}</Alert>}
 
-          <Form.Group className="mb-3">
-            <Form.Label>Student Name</Form.Label>
-            <Form.Control
-              name="studentName"
-              value={form.studentName}
-              onChange={handleChange}
-              placeholder="Enter full name"
-              required
-            />
-          </Form.Group>
+          <section className="edit-sar-section">
+            <div className="edit-sar-section-header">
+              <h6>Record Details</h6>
+            </div>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Student Number</Form.Label>
-            <Form.Control
-              name="studentNumber"
-              value={form.studentNumber}
-              onChange={handleChange}
-              placeholder="e.g. 1234567"
-              maxLength={7}
-              pattern="\d{7}"
-              title="Exactly 7 digits, no dashes or spaces"
-              required
-            />
-            <Form.Text muted>7 digits only — no dashes or spaces (e.g. 1234567).</Form.Text>
-          </Form.Group>
+            <Row className="g-3">
+              {sar?.isLinkedToAccount ? (
+                <>
+                  <Col lg={6}>
+                    <Form.Group>
+                      <Form.Label>First Name</Form.Label>
+                      <Form.Control
+                        name="first_name"
+                        value={form.first_name}
+                        onChange={handleChange}
+                        required
+                      />
+                    </Form.Group>
+                  </Col>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Year Level</Form.Label>
-            <Form.Select name="yearLevel" value={form.yearLevel} onChange={handleChange} required>
-              <option value="1">Year 1</option>
-              <option value="2">Year 2</option>
-              <option value="3">Year 3</option>
-              <option value="4">Year 4</option>
-            </Form.Select>
-          </Form.Group>
+                  <Col lg={6}>
+                    <Form.Group>
+                      <Form.Label>Middle Name</Form.Label>
+                      <Form.Control
+                        name="middle_name"
+                        value={form.middle_name}
+                        onChange={handleChange}
+                      />
+                    </Form.Group>
+                  </Col>
 
-          <Form.Group>
-            <Form.Label>Curriculum</Form.Label>
-            <Form.Select
-              name="curriculumId"
-              value={form.curriculumId}
-              onChange={handleChange}
-              disabled={curriculums.length === 0}
-              required
-            >
-              <option value="">Select curriculum</option>
-              {curriculums.map((curriculum) => (
-                <option key={curriculum.id} value={curriculum.id}>
-                  {curriculum.name}
-                  {curriculum.isActive ? ' (Active)' : ''}
-                </option>
-              ))}
-            </Form.Select>
-          </Form.Group>
+                  <Col lg={6}>
+                    <Form.Group>
+                      <Form.Label>Last Name</Form.Label>
+                      <Form.Control
+                        name="last_name"
+                        value={form.last_name}
+                        onChange={handleChange}
+                        required
+                      />
+                    </Form.Group>
+                  </Col>
+
+                  <Col lg={6}>
+                    <Form.Group>
+                      <Form.Label>Suffix</Form.Label>
+                      <Form.Control name="suffix" value={form.suffix} onChange={handleChange} />
+                    </Form.Group>
+                  </Col>
+                </>
+              ) : (
+                <Col lg={6}>
+                  <Form.Group>
+                    <Form.Label>Student Name</Form.Label>
+                    <Form.Control
+                      name="studentName"
+                      value={form.studentName}
+                      onChange={handleChange}
+                      placeholder="Enter full name"
+                      required
+                    />
+                  </Form.Group>
+                </Col>
+              )}
+
+              <Col lg={6}>
+                <Form.Group>
+                  <Form.Label>Student Number</Form.Label>
+                  <Form.Control
+                    name="studentNumber"
+                    value={form.studentNumber}
+                    onChange={handleChange}
+                    placeholder="e.g. 1234567"
+                    maxLength={7}
+                    pattern="\d{7}"
+                    title="Exactly 7 digits, no dashes or spaces"
+                    required
+                  />
+                  <Form.Text muted>7 digits only - no dashes or spaces.</Form.Text>
+                </Form.Group>
+              </Col>
+
+              <Col lg={6}>
+                <Form.Group>
+                  <Form.Label>Year Level</Form.Label>
+                  <Form.Select
+                    name="yearLevel"
+                    value={form.yearLevel}
+                    onChange={handleChange}
+                    required
+                  >
+                    <option value="1">Year 1</option>
+                    <option value="2">Year 2</option>
+                    <option value="3">Year 3</option>
+                    <option value="4">Year 4</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+
+              <Col lg={6}>
+                <Form.Group>
+                  <Form.Label>Curriculum</Form.Label>
+                  <Form.Select
+                    name="curriculumId"
+                    value={form.curriculumId}
+                    onChange={handleChange}
+                    disabled={curriculums.length === 0}
+                    required
+                  >
+                    <option value="">Select curriculum</option>
+                    {curriculums.map((curriculum) => (
+                      <option key={curriculum.id} value={curriculum.id}>
+                        {curriculum.name}
+                        {curriculum.isActive ? ' (Active)' : ''}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+
+              {sar?.isLinkedToAccount && (
+                <>
+                  <Col lg={6}>
+                    <Form.Group controlId="edit-sar-program">
+                      <Form.Label>Program</Form.Label>
+                      <Form.Select
+                        name="program"
+                        value={form.program}
+                        onChange={handleChange}
+                        disabled={!canChangeProgram || programOptions.length === 0}
+                      >
+                        <option value="">Select program</option>
+                        {form.program && !currentProgramIsListed && (
+                          <option value={form.program}>{form.program}</option>
+                        )}
+                        {programOptions.map((program) => (
+                          <option key={program.value} value={program.value}>
+                            {program.label}
+                          </option>
+                        ))}
+                      </Form.Select>
+                      {canChangeProgram && programOptions.length === 0 && (
+                        <Form.Text muted>No programs are available.</Form.Text>
+                      )}
+                    </Form.Group>
+                  </Col>
+
+                  <Col lg={6}>
+                    <Form.Group>
+                      <Form.Label>Student Type</Form.Label>
+                      <Form.Select
+                        name="student_type"
+                        value={form.student_type}
+                        onChange={handleChange}
+                      >
+                        <option value="">Select Type</option>
+                        {studentTypeOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option.charAt(0).toUpperCase() + option.slice(1)}
+                          </option>
+                        ))}
+                      </Form.Select>
+                    </Form.Group>
+                  </Col>
+                </>
+              )}
+            </Row>
+          </section>
 
           {sar?.isLinkedToAccount ? (
             <>
-              <hr />
-              <h6 className="text-uppercase text-muted mb-2" style={{ letterSpacing: '0.08em' }}>
-                Profile & Identity
-              </h6>
+              <div className="edit-sar-section-divider" />
+              <h6 className="edit-sar-section-title">Profile & Contact</h6>
 
-              <Form.Group className="mb-3">
-                <Form.Label>First Name</Form.Label>
-                <Form.Control name="first_name" value={form.first_name} onChange={handleChange} />
-              </Form.Group>
-
-              <Form.Group className="mb-3">
-                <Form.Label>Profile Picture</Form.Label>
-                <div className="d-flex align-items-center gap-3 mb-2">
-                  {picturePreview ? (
-                    <Image
-                      src={picturePreview}
-                      roundedCircle
-                      width={56}
-                      height={56}
-                      style={{ objectFit: 'cover' }}
-                    />
-                  ) : (
-                    <div
-                      className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center"
-                      style={{
-                        width: 56,
-                        height: 56,
-                        minWidth: 56,
-                        minHeight: 56,
-                        flexShrink: 0,
-                        fontWeight: 700,
-                      }}
+              <div className="edit-sar-profile-grid">
+                <Form.Group className="mb-0 edit-sar-photo-field">
+                  <Form.Label>Profile Picture</Form.Label>
+                  <div className="d-flex align-items-center gap-3 mb-2">
+                    {picturePreview ? (
+                      <Image
+                        src={picturePreview}
+                        roundedCircle
+                        width={56}
+                        height={56}
+                        style={{ objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <div
+                        className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center"
+                        style={{
+                          width: 56,
+                          height: 56,
+                          minWidth: 56,
+                          minHeight: 56,
+                          flexShrink: 0,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {getInitials(displayStudentName)}
+                      </div>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline-secondary"
+                      size="sm"
+                      onClick={handleRemoveProfilePicture}
+                      disabled={!picturePreview && !sar?.Student?.profile_picture}
                     >
-                      {getInitials(form.studentName)}
-                    </div>
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline-secondary"
-                    size="sm"
-                    onClick={handleRemoveProfilePicture}
-                    disabled={!picturePreview && !sar?.Student?.profile_picture}
-                  >
-                    Remove Picture
-                  </Button>
-                </div>
-                <Form.Control
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleProfilePictureChange}
-                />
-                <Form.Text className="text-muted">
-                  JPEG, PNG, or WEBP. Max 2 MB. Recommended up to 2000x2000.
-                </Form.Text>
-              </Form.Group>
+                      Remove Picture
+                    </Button>
+                  </div>
+                  <Form.Control
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleProfilePictureChange}
+                  />
+                  <Form.Text className="text-muted">
+                    JPEG, PNG, or WEBP. Max 2 MB. Recommended up to 2000x2000.
+                  </Form.Text>
+                </Form.Group>
 
-              <Form.Group className="mb-3">
-                <Form.Label>Middle Name</Form.Label>
-                <Form.Control name="middle_name" value={form.middle_name} onChange={handleChange} />
-              </Form.Group>
+                <Form.Group className="mb-0">
+                  <Form.Label>Preferred Name</Form.Label>
+                  <Form.Control
+                    name="preferred_name"
+                    value={form.preferred_name}
+                    onChange={handleChange}
+                  />
+                </Form.Group>
 
-              <Form.Group className="mb-3">
-                <Form.Label>Last Name</Form.Label>
-                <Form.Control name="last_name" value={form.last_name} onChange={handleChange} />
-              </Form.Group>
+                <Form.Group className="mb-0">
+                  <Form.Label>Contact Number</Form.Label>
+                  <Form.Control
+                    name="contact_number"
+                    value={form.contact_number}
+                    onChange={handleChange}
+                  />
+                </Form.Group>
 
-              <Form.Group className="mb-3">
-                <Form.Label>Suffix</Form.Label>
-                <Form.Control name="suffix" value={form.suffix} onChange={handleChange} />
-              </Form.Group>
+                <Form.Group className="mb-0">
+                  <Form.Label>Alternate Email</Form.Label>
+                  <Form.Control
+                    type="email"
+                    name="alternate_email"
+                    value={form.alternate_email}
+                    onChange={handleChange}
+                  />
+                </Form.Group>
 
-              <Form.Group className="mb-3">
-                <Form.Label>Preferred Name</Form.Label>
-                <Form.Control
-                  name="preferred_name"
-                  value={form.preferred_name}
-                  onChange={handleChange}
-                />
-              </Form.Group>
+                <Form.Group className="mb-0">
+                  <Form.Label>Sex</Form.Label>
+                  <Form.Select name="sex" value={form.sex} onChange={handleChange}>
+                    <option value="">Select</option>
+                    {sexOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
 
-              <Form.Group className="mb-3">
-                <Form.Label>Program</Form.Label>
-                <Form.Control name="program" value={form.program} onChange={handleChange} />
-              </Form.Group>
+                <Form.Group className="mb-0">
+                  <Form.Label>Citizenship</Form.Label>
+                  <Form.Control
+                    name="citizenship"
+                    value={form.citizenship}
+                    onChange={handleChange}
+                  />
+                </Form.Group>
 
-              <Form.Group className="mb-3">
-                <Form.Label>Student Type</Form.Label>
-                <Form.Select name="student_type" value={form.student_type} onChange={handleChange}>
-                  <option value="">Select Type</option>
-                  {studentTypeOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option.charAt(0).toUpperCase() + option.slice(1)}
-                    </option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
+                <Form.Group className="mb-0">
+                  <Form.Label>Address</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    name="address"
+                    value={form.address}
+                    onChange={handleChange}
+                  />
+                </Form.Group>
 
-              <Form.Group className="mb-3">
-                <Form.Label>Contact Number</Form.Label>
-                <Form.Control
-                  name="contact_number"
-                  value={form.contact_number}
-                  onChange={handleChange}
-                />
-              </Form.Group>
+                <Form.Group className="mb-0">
+                  <Form.Label>Emergency Contact Name</Form.Label>
+                  <Form.Control
+                    name="emergency_contact_name"
+                    value={form.emergency_contact_name}
+                    onChange={handleChange}
+                  />
+                </Form.Group>
 
-              <Form.Group className="mb-3">
-                <Form.Label>Alternate Email</Form.Label>
-                <Form.Control
-                  type="email"
-                  name="alternate_email"
-                  value={form.alternate_email}
-                  onChange={handleChange}
-                />
-              </Form.Group>
+                <Form.Group className="mb-0">
+                  <Form.Label>Emergency Contact Relationship</Form.Label>
+                  <Form.Control
+                    name="emergency_contact_relationship"
+                    value={form.emergency_contact_relationship}
+                    onChange={handleChange}
+                  />
+                </Form.Group>
 
-              <Form.Group className="mb-3">
-                <Form.Label>Sex</Form.Label>
-                <Form.Select name="sex" value={form.sex} onChange={handleChange}>
-                  <option value="">Select</option>
-                  {sexOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
-
-              <Form.Group className="mb-3">
-                <Form.Label>Citizenship</Form.Label>
-                <Form.Control name="citizenship" value={form.citizenship} onChange={handleChange} />
-              </Form.Group>
-
-              <Form.Group className="mb-3">
-                <Form.Label>Address</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={2}
-                  name="address"
-                  value={form.address}
-                  onChange={handleChange}
-                />
-              </Form.Group>
-
-              <Form.Group className="mb-3">
-                <Form.Label>Emergency Contact Name</Form.Label>
-                <Form.Control
-                  name="emergency_contact_name"
-                  value={form.emergency_contact_name}
-                  onChange={handleChange}
-                />
-              </Form.Group>
-
-              <Form.Group className="mb-3">
-                <Form.Label>Emergency Contact Relationship</Form.Label>
-                <Form.Control
-                  name="emergency_contact_relationship"
-                  value={form.emergency_contact_relationship}
-                  onChange={handleChange}
-                />
-              </Form.Group>
-
-              <Form.Group>
-                <Form.Label>Emergency Contact Number</Form.Label>
-                <Form.Control
-                  name="emergency_contact_number"
-                  value={form.emergency_contact_number}
-                  onChange={handleChange}
-                />
-              </Form.Group>
+                <Form.Group className="mb-0">
+                  <Form.Label>Emergency Contact Number</Form.Label>
+                  <Form.Control
+                    name="emergency_contact_number"
+                    value={form.emergency_contact_number}
+                    onChange={handleChange}
+                  />
+                </Form.Group>
+              </div>
             </>
           ) : (
             <Alert variant="secondary" className="mt-3 mb-0">
@@ -425,8 +581,8 @@ const EditSARModal = ({ show, onHide, onSubmit, sar, curriculums = [], submittin
           )}
 
           {sar?.isLinkedToAccount && (
-            <p className="text-muted small mt-3 mb-0">
-              <strong>Note:</strong> Changing the student name or student number will automatically
+            <p className="edit-sar-note">
+              <strong>Note:</strong> Changing the name details or student number will automatically
               update the linked student profile.
             </p>
           )}

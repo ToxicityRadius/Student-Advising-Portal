@@ -2,6 +2,7 @@ const {
   sequelize,
   StudyPlanVersion,
   StudyPlanCourse,
+  Curriculum,
   CurriculumCourse,
   Prerequisite,
   CoRequisite,
@@ -9,7 +10,9 @@ const {
   ElectiveTrackCourse,
   Course,
   User,
+  CourseEquivalency,
   PrerequisiteOverrideRequest,
+  InactiveCurriculumRegenerationRequest,
 } = require('../models');
 const {
   buildElectiveTrackPlan,
@@ -67,6 +70,431 @@ const buildOverridePairSummary = (studyPlanCourses = [], overrideRequests = []) 
     .filter(Boolean);
 
   return pairs.join('; ');
+};
+
+const getTermLabel = ({ yearLevel, semester } = {}) => {
+  const semesterLabels = {
+    1: '1st Semester',
+    2: '2nd Semester',
+    3: 'Summer',
+  };
+  return `Year ${Number(yearLevel)} - ${semesterLabels[Number(semester)] || `Semester ${semester}`}`;
+};
+
+const buildTermDescriptor = (slotIndex) => {
+  if (!Number.isInteger(slotIndex) || slotIndex < 0) {
+    return null;
+  }
+
+  const term = yearSemesterFromSlotIndex(slotIndex);
+  return {
+    ...term,
+    slotIndex,
+    label: getTermLabel(term),
+  };
+};
+
+const getCurriculumTargetSlotIndex = ({
+  curriculumCourses = [],
+  selectedTrackPlan = [],
+  selectedTrackCourseIds = new Set(),
+  curriculumTrackCourseIds = new Set(),
+  hasSelectedTrack = false,
+} = {}) => {
+  const slots = [];
+
+  (Array.isArray(curriculumCourses) ? curriculumCourses : []).forEach((item) => {
+    const courseId = String(item?.courseId);
+    const isUnselectedTrackCourse =
+      hasSelectedTrack &&
+      curriculumTrackCourseIds.has(courseId) &&
+      !selectedTrackCourseIds.has(courseId);
+
+    if (isUnselectedTrackCourse) {
+      return;
+    }
+
+    const slotIndex = slotIndexFromYearSemester(item?.yearLevel, item?.semester);
+    if (Number.isInteger(slotIndex) && slotIndex >= 0) {
+      slots.push(slotIndex);
+    }
+  });
+
+  (Array.isArray(selectedTrackPlan) ? selectedTrackPlan : []).forEach((item) => {
+    if (Number.isInteger(item?.sortKey) && item.sortKey >= 0) {
+      slots.push(item.sortKey);
+    }
+  });
+
+  return slots.length > 0 ? Math.max(...slots) : null;
+};
+
+const normalizeCourseCode = (code) =>
+  String(code || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
+
+const buildCourseInfoMap = ({
+  curriculumCourses = [],
+  selectedTrackPlan = [],
+  activeEntries = [],
+} = {}) => {
+  const courseInfoMap = new Map();
+  const addCourse = ({ courseId, course, yearLevel, semester, units } = {}) => {
+    if (courseId === undefined || courseId === null) {
+      return;
+    }
+
+    const key = String(courseId);
+    if (courseInfoMap.has(key)) {
+      return;
+    }
+
+    courseInfoMap.set(key, {
+      courseId: Number(courseId),
+      code: course?.code || 'Unknown',
+      name: course?.name || 'Unknown',
+      units: Number(units ?? course?.units ?? 0),
+      yearLevel,
+      semester,
+    });
+  };
+
+  curriculumCourses.forEach((cc) => {
+    addCourse({
+      courseId: cc.courseId,
+      course: cc.Course,
+      yearLevel: cc.yearLevel,
+      semester: cc.semester,
+      units: cc.Course?.units,
+    });
+  });
+
+  selectedTrackPlan.forEach((item) => {
+    addCourse({
+      courseId: item.courseId,
+      course: item.source?.Course,
+      yearLevel: item.yearLevel,
+      semester: item.semester,
+      units: item.source?.Course?.units,
+    });
+  });
+
+  activeEntries.forEach((entry) => {
+    addCourse({
+      courseId: entry.courseId,
+      course: entry.Course,
+      yearLevel: entry.yearLevel,
+      semester: entry.semester,
+      units: entry.Course?.units,
+    });
+  });
+
+  return courseInfoMap;
+};
+
+const buildGraduationPacing = ({
+  scheduledRows = [],
+  targetSlotIndex = null,
+  courseInfoMap = new Map(),
+} = {}) => {
+  if (!Number.isInteger(targetSlotIndex) || targetSlotIndex < 0 || scheduledRows.length === 0) {
+    return null;
+  }
+
+  const plannedRows = scheduledRows
+    .map((row) => ({
+      ...row,
+      slotIndex: slotIndexFromYearSemester(row.yearLevel, row.semester),
+    }))
+    .filter((row) => Number.isInteger(row.slotIndex) && row.slotIndex >= 0);
+
+  if (plannedRows.length === 0) {
+    return null;
+  }
+
+  const latestPlannedSlotIndex = Math.max(...plannedRows.map((row) => row.slotIndex));
+  const termsDelayed = Math.max(0, latestPlannedSlotIndex - targetSlotIndex);
+  const delayedCourses = plannedRows
+    .filter((row) => row.slotIndex > targetSlotIndex)
+    .sort(
+      (left, right) =>
+        left.slotIndex - right.slotIndex || Number(left.courseId) - Number(right.courseId),
+    )
+    .map((row) => {
+      const info = courseInfoMap.get(String(row.courseId)) || {};
+      return {
+        courseId: Number(row.courseId),
+        code: info.code || 'Unknown',
+        name: info.name || 'Unknown',
+        plannedTerm: buildTermDescriptor(row.slotIndex),
+      };
+    });
+
+  const isOnTrack = termsDelayed === 0;
+
+  return {
+    targetTerm: buildTermDescriptor(targetSlotIndex),
+    latestPlannedTerm: buildTermDescriptor(latestPlannedSlotIndex),
+    termsDelayed,
+    isOnTrack,
+    delayedCourses,
+    message: isOnTrack
+      ? 'Generated plan stays within the curriculum target graduation term.'
+      : 'Generated plan is the closest valid placement under current rules but exceeds the curriculum target; a one-time catch-up exception or curriculum conversion may be needed and is not automatically applied.',
+  };
+};
+
+const buildCurriculumMigrationRecommendation = async ({
+  sar,
+  currentCurriculum,
+  remainingCourseIds = [],
+  courseInfoMap = new Map(),
+  transaction,
+} = {}) => {
+  if (!sar?.userId || currentCurriculum?.isActive !== false || remainingCourseIds.length === 0) {
+    return null;
+  }
+
+  const student = await User.findByPk(sar.userId, {
+    attributes: ['id', 'student_type'],
+    transaction,
+  });
+  const studentType = String(student?.student_type || student?.studentType || '').toLowerCase();
+  if (studentType !== 'irregular') {
+    return null;
+  }
+
+  const candidates = await Curriculum.findAll({
+    where: {
+      isActive: true,
+      programId: sar.programId,
+    },
+    include: [
+      {
+        model: CurriculumCourse,
+        include: [{ model: Course, attributes: ['id', 'code', 'name', 'units'] }],
+      },
+    ],
+    transaction,
+  });
+
+  const equivalencies = CourseEquivalency?.findAll
+    ? await CourseEquivalency.findAll({ transaction })
+    : [];
+  const equivalentPairKeys = new Set();
+  equivalencies.forEach((equivalency) => {
+    const ownerProgramId = equivalency.ownerProgramId;
+    if (
+      ownerProgramId !== undefined &&
+      ownerProgramId !== null &&
+      Number(ownerProgramId) !== Number(sar.programId)
+    ) {
+      return;
+    }
+
+    const left = String(equivalency.courseId);
+    const right = String(equivalency.equivalentCourseId);
+    equivalentPairKeys.add(`${left}|${right}`);
+    equivalentPairKeys.add(`${right}|${left}`);
+  });
+
+  const remaining = [...new Set(remainingCourseIds.map((id) => String(id)))].map((courseId) => ({
+    courseId,
+    code: normalizeCourseCode(courseInfoMap.get(courseId)?.code),
+  }));
+
+  const viableCandidates = (candidates || [])
+    .filter((candidate) => String(candidate.id) !== String(currentCurriculum.id))
+    .map((candidate) => {
+      const candidateCourses = candidate.CurriculumCourses || [];
+      const candidateCourseIds = new Set(candidateCourses.map((item) => String(item.courseId)));
+      const candidateCodes = new Map(
+        candidateCourses.map((item) => [normalizeCourseCode(item.Course?.code), item]),
+      );
+      const covered = [];
+
+      for (const remainingCourse of remaining) {
+        const directCodeMatch = remainingCourse.code
+          ? candidateCodes.get(remainingCourse.code)
+          : null;
+        const equivalentMatch = candidateCourses.find((item) =>
+          equivalentPairKeys.has(`${remainingCourse.courseId}|${String(item.courseId)}`),
+        );
+
+        if (candidateCourseIds.has(remainingCourse.courseId)) {
+          covered.push(
+            candidateCourses.find((item) => String(item.courseId) === remainingCourse.courseId),
+          );
+          continue;
+        }
+
+        if (directCodeMatch) {
+          covered.push(directCodeMatch);
+          continue;
+        }
+
+        if (equivalentMatch) {
+          covered.push(equivalentMatch);
+          continue;
+        }
+
+        return null;
+      }
+
+      const estimatedLatestSlotIndex =
+        covered.length > 0
+          ? Math.max(
+              ...covered.map((item) => slotIndexFromYearSemester(item?.yearLevel, item?.semester)),
+            )
+          : null;
+
+      return {
+        recommended: true,
+        curriculumId: Number(candidate.id),
+        curriculumName: candidate.name,
+        remainingCourseCount: remaining.length,
+        coveredCourseCount: covered.length,
+        estimatedLatestTerm: buildTermDescriptor(estimatedLatestSlotIndex),
+        reason:
+          'Student is irregular in an inactive curriculum; this active curriculum covers all remaining requirements and may help catch up to the graduating batch.',
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      const leftSlot = left.estimatedLatestTerm?.slotIndex ?? Number.MAX_SAFE_INTEGER;
+      const rightSlot = right.estimatedLatestTerm?.slotIndex ?? Number.MAX_SAFE_INTEGER;
+      return leftSlot - rightSlot || left.curriculumId - right.curriculumId;
+    });
+
+  return viableCandidates[0] || null;
+};
+
+const orderComponentsByPrerequisites = (
+  components = [],
+  prerequisiteMap = new Map(),
+  targetSlotIndex = null,
+) => {
+  const normalizedComponents = components.map((component, index) => ({
+    ...component,
+    originalIndex: index,
+  }));
+  const componentIndexByCourseId = new Map();
+
+  normalizedComponents.forEach((component, index) => {
+    component.courseIds.forEach((courseId) => {
+      componentIndexByCourseId.set(String(courseId), index);
+    });
+  });
+
+  const outgoingByIndex = new Map(normalizedComponents.map((_, index) => [index, new Set()]));
+  const indegreeByIndex = new Map(normalizedComponents.map((_, index) => [index, 0]));
+
+  normalizedComponents.forEach((component, dependentIndex) => {
+    component.courseIds.forEach((courseId) => {
+      const prereqIds = prerequisiteMap.get(String(courseId)) || new Set();
+      prereqIds.forEach((prereqId) => {
+        const prerequisiteIndex = componentIndexByCourseId.get(String(prereqId));
+        if (prerequisiteIndex === undefined || prerequisiteIndex === dependentIndex) {
+          return;
+        }
+
+        const outgoing = outgoingByIndex.get(prerequisiteIndex);
+        if (!outgoing.has(dependentIndex)) {
+          outgoing.add(dependentIndex);
+          indegreeByIndex.set(dependentIndex, (indegreeByIndex.get(dependentIndex) || 0) + 1);
+        }
+      });
+    });
+  });
+
+  const downstreamMemo = new Map();
+  const getDownstreamMetrics = (index, seen = new Set()) => {
+    if (downstreamMemo.has(index)) {
+      return downstreamMemo.get(index);
+    }
+
+    if (seen.has(index)) {
+      return { longestChain: 0, downstreamCount: 0 };
+    }
+
+    const nextSeen = new Set(seen);
+    nextSeen.add(index);
+    const outgoing = [...(outgoingByIndex.get(index) || [])];
+    if (outgoing.length === 0) {
+      const metrics = { longestChain: 0, downstreamCount: 0 };
+      downstreamMemo.set(index, metrics);
+      return metrics;
+    }
+
+    let longestChain = 0;
+    let downstreamCount = 0;
+    outgoing.forEach((nextIndex) => {
+      const child = getDownstreamMetrics(nextIndex, nextSeen);
+      longestChain = Math.max(longestChain, 1 + child.longestChain);
+      downstreamCount += 1 + child.downstreamCount;
+    });
+
+    const metrics = { longestChain, downstreamCount };
+    downstreamMemo.set(index, metrics);
+    return metrics;
+  };
+
+  const compareComponents = (leftIndex, rightIndex) => {
+    const left = normalizedComponents[leftIndex];
+    const right = normalizedComponents[rightIndex];
+    const leftMetrics = getDownstreamMetrics(leftIndex);
+    const rightMetrics = getDownstreamMetrics(rightIndex);
+    const leftSafeStart = Number.isInteger(targetSlotIndex)
+      ? targetSlotIndex - leftMetrics.longestChain
+      : Number.MAX_SAFE_INTEGER;
+    const rightSafeStart = Number.isInteger(targetSlotIndex)
+      ? targetSlotIndex - rightMetrics.longestChain
+      : Number.MAX_SAFE_INTEGER;
+
+    return (
+      leftSafeStart - rightSafeStart ||
+      left.originalSortKey - right.originalSortKey ||
+      rightMetrics.longestChain - leftMetrics.longestChain ||
+      rightMetrics.downstreamCount - leftMetrics.downstreamCount ||
+      left.originalIndex - right.originalIndex
+    );
+  };
+
+  const ready = normalizedComponents
+    .map((_, index) => index)
+    .filter((index) => (indegreeByIndex.get(index) || 0) === 0)
+    .sort(compareComponents);
+  const orderedIndexes = [];
+
+  while (ready.length > 0) {
+    const currentIndex = ready.shift();
+    orderedIndexes.push(currentIndex);
+
+    [...(outgoingByIndex.get(currentIndex) || [])].sort(compareComponents).forEach((nextIndex) => {
+      const nextIndegree = (indegreeByIndex.get(nextIndex) || 0) - 1;
+      indegreeByIndex.set(nextIndex, nextIndegree);
+      if (nextIndegree === 0) {
+        ready.push(nextIndex);
+        ready.sort(compareComponents);
+      }
+    });
+  }
+
+  if (orderedIndexes.length < normalizedComponents.length) {
+    const orderedSet = new Set(orderedIndexes);
+    normalizedComponents.forEach((_, index) => {
+      if (!orderedSet.has(index)) {
+        orderedIndexes.push(index);
+      }
+    });
+  }
+
+  return orderedIndexes.map((index) => {
+    const { originalIndex, ...component } = normalizedComponents[index];
+    return component;
+  });
 };
 
 const makeRegenerationErrorResponse = async (res, transaction, error) => {
@@ -402,11 +830,47 @@ exports.triggerRegeneration = async (req, res, next) => {
         .json({ success: false, message: 'Cannot regenerate from an archived or locked version' });
     }
 
+    const curriculum = sar.curriculumId
+      ? await Curriculum.findByPk(sar.curriculumId, {
+          attributes: ['id', 'name', 'isActive', 'programId'],
+          transaction,
+        })
+      : null;
+
+    if (curriculum && curriculum.isActive === false) {
+      const approvedInactiveCurriculumRequest = await InactiveCurriculumRegenerationRequest.findOne(
+        {
+          where: {
+            studentAcademicRecordId: sar.id,
+            studyPlanVersionId: activeVersion.id,
+            curriculumId: sar.curriculumId,
+            status: 'approved',
+          },
+          order: [['decidedAt', 'DESC']],
+          transaction,
+        },
+      );
+
+      if (!approvedInactiveCurriculumRequest) {
+        await transaction.rollback();
+        return res.status(403).json({
+          success: false,
+          code: 'INACTIVE_CURRICULUM_APPROVAL_REQUIRED',
+          message:
+            'Program Chair approval is required before regenerating a study plan from an inactive curriculum.',
+          data: {
+            curriculumId: curriculum.id,
+            curriculumName: curriculum.name,
+          },
+        });
+      }
+    }
+
     const retakePlacements = Array.isArray(req.body?.retakePlacements)
       ? req.body.retakePlacements
       : [];
     const semesterOverrides = Array.isArray(req.body?.semesterOverrides)
-      ? req.body.semesterOverrides
+      ? [...req.body.semesterOverrides]
       : [];
     const semesterOverridePlacements = semesterOverrides.map((override) => ({
       courseId: override?.courseId,
@@ -480,6 +944,13 @@ exports.triggerRegeneration = async (req, res, next) => {
       curriculumTrackCourseIds,
       hasSelectedTrack: Boolean(sar.electiveTrackId),
     });
+    const graduationTargetSlotIndex = getCurriculumTargetSlotIndex({
+      curriculumCourses,
+      selectedTrackPlan,
+      selectedTrackCourseIds,
+      curriculumTrackCourseIds,
+      hasSelectedTrack: Boolean(sar.electiveTrackId),
+    });
 
     selectedTrackPlan.forEach((item) => {
       const courseId = String(item.courseId);
@@ -494,6 +965,11 @@ exports.triggerRegeneration = async (req, res, next) => {
           sortKey: item.sortKey,
         });
       }
+    });
+    const courseInfoMap = buildCourseInfoMap({
+      curriculumCourses,
+      selectedTrackPlan,
+      activeEntries: activeVersion.StudyPlanCourses || [],
     });
 
     const prerequisiteMap = new Map();
@@ -581,9 +1057,35 @@ exports.triggerRegeneration = async (req, res, next) => {
         reason,
         status: 'pending',
       });
+
+      // Force the generator to start looking at the requested override term for the dependent course.
+      // Otherwise, it starts from its normal curriculum year/sem and fails the same-term override check.
+      semesterOverrides.push({
+        courseId: String(dependentCourseId),
+        yearLevel,
+        semester,
+      });
     }
 
     const prerequisiteOverrideMap = buildPrerequisiteOverrideMap(pendingOverrideRequests);
+    const manualPlacementByCourseId = new Map();
+    semesterOverrides.forEach((override) => {
+      if (override?.courseId === undefined || override?.courseId === null) {
+        return;
+      }
+
+      const yearLevel = Number(override.yearLevel);
+      const semester = Number(override.semester);
+      if (!Number.isInteger(yearLevel) || ![1, 2, 3].includes(semester)) {
+        return;
+      }
+
+      manualPlacementByCourseId.set(String(override.courseId), {
+        yearLevel,
+        semester,
+        slotIndex: slotIndexFromYearSemester(yearLevel, semester),
+      });
+    });
 
     const resolvedCourses = [];
     const requeueCourses = [];
@@ -672,6 +1174,11 @@ exports.triggerRegeneration = async (req, res, next) => {
       });
     }
 
+    const plannedCourseIds = new Set([
+      ...resolvedCourses.map((entry) => String(entry.courseId)),
+      ...requeueCourses.map((entry) => String(entry.courseId)),
+    ]);
+
     const placementByCourseId = new Map();
     const usedUnitsBySlot = new Map();
     const scheduledRows = [];
@@ -710,6 +1217,14 @@ exports.triggerRegeneration = async (req, res, next) => {
         adjacency.get(rightId).add(leftId);
       }
     });
+    pendingOverrideRequests.forEach((override) => {
+      const prerequisiteId = String(override.prerequisiteCourseId);
+      const dependentId = String(override.dependentCourseId);
+      if (adjacency.has(prerequisiteId) && adjacency.has(dependentId)) {
+        adjacency.get(prerequisiteId).add(dependentId);
+        adjacency.get(dependentId).add(prerequisiteId);
+      }
+    });
 
     const components = collectConnectedComponents(
       requeueIds,
@@ -718,33 +1233,41 @@ exports.triggerRegeneration = async (req, res, next) => {
 
     const requeueMetaById = new Map(requeueCourses.map((item) => [item.courseId, item]));
 
-    const sortedComponents = components
-      .map((component) => {
-        const forcedSlots = [
-          ...new Set(
-            component
-              .map((id) => requeueMetaById.get(id)?.forcedPlacement?.slotIndex)
-              .filter((slot) => Number.isInteger(slot)),
-          ),
-        ];
-        return {
-          courseIds: component,
-          originalSortKey:
-            forcedSlots[0] ??
-            Math.min(
-              ...component.map(
-                (id) => requeueMetaById.get(id)?.originalSortKey || Number.MAX_SAFE_INTEGER,
-              ),
+    const sortedComponents = orderComponentsByPrerequisites(
+      components
+        .map((component) => {
+          const forcedSlots = [
+            ...new Set(
+              component
+                .map(
+                  (id) =>
+                    requeueMetaById.get(id)?.forcedPlacement?.slotIndex ??
+                    manualPlacementByCourseId.get(id)?.slotIndex,
+                )
+                .filter((slot) => Number.isInteger(slot)),
             ),
-          forcedSlotIndex: forcedSlots.length === 1 ? forcedSlots[0] : null,
-          hasConflictingForcedSlots: forcedSlots.length > 1,
-          totalUnits: component.reduce(
-            (sum, id) => sum + Number(requeueMetaById.get(id)?.units || 0),
-            0,
-          ),
-        };
-      })
-      .sort((left, right) => left.originalSortKey - right.originalSortKey);
+          ];
+          return {
+            courseIds: component,
+            originalSortKey:
+              forcedSlots[0] ??
+              Math.min(
+                ...component.map(
+                  (id) => requeueMetaById.get(id)?.originalSortKey ?? Number.MAX_SAFE_INTEGER,
+                ),
+              ),
+            forcedSlotIndex: forcedSlots.length === 1 ? forcedSlots[0] : null,
+            hasConflictingForcedSlots: forcedSlots.length > 1,
+            totalUnits: component.reduce(
+              (sum, id) => sum + Number(requeueMetaById.get(id)?.units || 0),
+              0,
+            ),
+          };
+        })
+        .sort((left, right) => left.originalSortKey - right.originalSortKey),
+      prerequisiteMap,
+      graduationTargetSlotIndex,
+    );
 
     for (const component of sortedComponents) {
       if (component.hasConflictingForcedSlots) {
@@ -756,29 +1279,14 @@ exports.triggerRegeneration = async (req, res, next) => {
         });
       }
 
-      let slotIndex = Math.max(0, component.originalSortKey);
-
-      // Apply semester overrides if provided
-      for (const courseId of component.courseIds) {
-        const override = semesterOverrides.find((o) => String(o.courseId) === courseId);
-        if (override) {
-          slotIndex = slotIndexFromYearSemester(
-            Number(override.yearLevel),
-            Number(override.semester),
-          );
-          break;
-        }
-      }
+      let slotIndex = Math.max(0, component.forcedSlotIndex ?? component.originalSortKey);
 
       let placed = false;
 
       while (!placed && slotIndex < 120) {
         const usedUnits = usedUnitsBySlot.get(slotIndex) || 0;
         const allowedUnits = getAllowedUnitsForSlot({ slotIndex, standardUnitsBySlot });
-        if (usedUnits + component.totalUnits > allowedUnits) {
-          if (component.forcedSlotIndex !== null) {
-            break;
-          }
+        if (usedUnits + component.totalUnits > allowedUnits && component.forcedSlotIndex === null) {
           slotIndex += 1;
           continue;
         }
@@ -825,6 +1333,10 @@ exports.triggerRegeneration = async (req, res, next) => {
           for (const coReqId of coReqIds) {
             const isInCurrentComponent = component.courseIds.includes(coReqId);
             if (isInCurrentComponent) {
+              continue;
+            }
+
+            if (!plannedCourseIds.has(String(coReqId))) {
               continue;
             }
 
@@ -878,6 +1390,20 @@ exports.triggerRegeneration = async (req, res, next) => {
         });
       }
     }
+
+    const graduationPacing = buildGraduationPacing({
+      scheduledRows,
+      targetSlotIndex: graduationTargetSlotIndex,
+      courseInfoMap,
+    });
+
+    const curriculumMigrationRecommendation = await buildCurriculumMigrationRecommendation({
+      sar,
+      currentCurriculum: curriculum,
+      remainingCourseIds: requeueCourses.map((item) => item.courseId),
+      courseInfoMap,
+      transaction,
+    });
 
     for (const override of pendingOverrideRequests) {
       const prerequisiteRow = scheduledRows.find(
@@ -1022,24 +1548,6 @@ exports.triggerRegeneration = async (req, res, next) => {
       // Cross-curriculum availability
       const availability = await getCrossCurriculumAvailability(failedCourseIds.map(Number));
 
-      // Build course info map for cascade display
-      const courseInfoMap = new Map();
-      curriculumCourses.forEach((cc) => {
-        courseInfoMap.set(String(cc.courseId), {
-          code: cc.Course?.code || 'Unknown',
-          name: cc.Course?.name || 'Unknown',
-        });
-      });
-      selectedTrackPlan.forEach((item) => {
-        const cid = String(item.courseId);
-        if (!courseInfoMap.has(cid) && item.source?.Course) {
-          courseInfoMap.set(cid, {
-            code: item.source.Course.code || 'Unknown',
-            name: item.source.Course.name || 'Unknown',
-          });
-        }
-      });
-
       // Prerequisite cascade
       const cascadeMap = buildPrerequisiteCascade(failedCourseIds, prerequisiteMap, courseInfoMap);
 
@@ -1057,10 +1565,13 @@ exports.triggerRegeneration = async (req, res, next) => {
             status: item.failedStatus,
             placedAt,
             blockedCourses: cascadeMap.get(item.courseId) || [],
-            availability: (availability.get(item.courseId) || []).map((a) => ({
+            availability: (availability.get(String(item.courseId)) || []).map((a) => ({
               curriculumName: a.curriculumName,
               yearLevel: a.yearLevel,
               semester: a.semester,
+              curriculumIsActive: a.curriculumIsActive,
+              isAvailable: a.isAvailable,
+              unavailableReason: a.unavailableReason,
             })),
           };
         }),
@@ -1071,6 +1582,8 @@ exports.triggerRegeneration = async (req, res, next) => {
       success: true,
       data: serializeVersion(createdVersion),
       failedCourseAnalysis,
+      graduationPacing,
+      curriculumMigrationRecommendation,
     });
   } catch (error) {
     await transaction.rollback();

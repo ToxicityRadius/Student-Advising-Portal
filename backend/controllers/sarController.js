@@ -556,7 +556,7 @@ exports.updateSAR = async (req, res, next) => {
     }
 
     // Build student profile updates from studentProfile body field
-    const { profileUpdates, error: profileError } = SARService.buildSARProfileUpdates(
+    let { profileUpdates, error: profileError } = SARService.buildSARProfileUpdates(
       req.body.studentProfile,
     );
     if (profileError) {
@@ -596,6 +596,20 @@ exports.updateSAR = async (req, res, next) => {
           .status(404)
           .json({ success: false, message: 'Linked student account not found' });
       }
+
+      const { profileUpdates: authorizedProfileUpdates, error: programPermissionError } =
+        await SARService.authorizeSARProfileProgramUpdate({
+          profileUpdates,
+          linkedStudent,
+          user: req.user,
+        });
+      if (programPermissionError) {
+        return res.status(programPermissionError.status).json({
+          success: false,
+          message: programPermissionError.message,
+        });
+      }
+      profileUpdates = authorizedProfileUpdates;
 
       if (req.file) {
         const imageValidationError = validateUploadedImageFile(req.file);

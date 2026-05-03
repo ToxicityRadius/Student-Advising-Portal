@@ -2,13 +2,14 @@ const { CurriculumCourse, Curriculum, Course } = require('../models');
 const { Op } = require('sequelize');
 
 /**
- * Returns a map of courseId → array of availability records across ALL curriculums.
- * Each record contains { curriculumId, curriculumName, yearLevel, semester }.
+ * Returns a map of courseId -> availability records across all curriculums.
+ * Active curriculums are treated as recurring future batches. Inactive
+ * curriculums remain visible for context but are unavailable for planning.
  *
- * @param {number[]} courseIds – IDs of failed/dropped courses to check
- * @param {object}  [options]
- * @param {object}  [options.transaction] – Sequelize transaction
- * @returns {Promise<Map<string, Array<{curriculumId: number, curriculumName: string, yearLevel: number, semester: number}>>>}
+ * @param {number[]} courseIds - IDs of failed/dropped courses to check
+ * @param {object} [options]
+ * @param {object} [options.transaction] - Sequelize transaction
+ * @returns {Promise<Map<string, Array<{curriculumId: number, curriculumName: string, yearLevel: number, semester: number, curriculumIsActive: boolean, isAvailable: boolean, unavailableReason: string|null}>>>}
  */
 async function getCrossCurriculumAvailability(courseIds, options = {}) {
   if (!courseIds || courseIds.length === 0) {
@@ -19,7 +20,7 @@ async function getCrossCurriculumAvailability(courseIds, options = {}) {
   const rows = await CurriculumCourse.findAll({
     where: { courseId: { [Op.in]: numericIds } },
     include: [
-      { model: Curriculum, attributes: ['id', 'name'] },
+      { model: Curriculum, attributes: ['id', 'name', 'isActive'] },
       { model: Course, attributes: ['id', 'code', 'name'] },
     ],
     ...(options.transaction ? { transaction: options.transaction } : {}),
@@ -32,19 +33,29 @@ async function getCrossCurriculumAvailability(courseIds, options = {}) {
     if (!availabilityMap.has(key)) {
       availabilityMap.set(key, []);
     }
+
+    const curriculumIsActive = row.Curriculum?.isActive === true;
     availabilityMap.get(key).push({
       curriculumId: row.Curriculum?.id,
       curriculumName: row.Curriculum?.name || 'Unknown',
       yearLevel: row.yearLevel,
       semester: row.semester,
+      curriculumIsActive,
+      isAvailable: curriculumIsActive,
+      unavailableReason: curriculumIsActive
+        ? null
+        : 'Inactive curriculum; no new batch is assumed.',
     });
   }
 
-  // Deduplicate by semester number (what matters is which semesters the course
-  // appears in, regardless of year level across different curriculums).
-  // Keep all entries but sort for easier consumption.
   for (const [key, entries] of availabilityMap) {
-    entries.sort((a, b) => a.semester - b.semester || a.yearLevel - b.yearLevel);
+    entries.sort(
+      (a, b) =>
+        Number(b.isAvailable) - Number(a.isAvailable) ||
+        a.semester - b.semester ||
+        a.yearLevel - b.yearLevel ||
+        a.curriculumName.localeCompare(b.curriculumName),
+    );
   }
 
   return availabilityMap;
@@ -54,13 +65,12 @@ async function getCrossCurriculumAvailability(courseIds, options = {}) {
  * Builds a full prerequisite cascade tree starting from each failed course.
  * Returns for each root: all transitively blocked courses with depth.
  *
- * @param {string[]}          failedCourseIds   – course IDs that have blocking status
- * @param {Map<string,Set>}   prerequisiteMap   – courseId → Set of prerequisiteCourseIds
- * @param {Map<string,object>} courseInfoMap     – courseId → { code, name } for display
+ * @param {string[]} failedCourseIds - course IDs that have blocking status
+ * @param {Map<string,Set>} prerequisiteMap - courseId -> Set of prerequisiteCourseIds
+ * @param {Map<string,object>} courseInfoMap - courseId -> { code, name } for display
  * @returns {Map<string, Array<{courseId: string, code: string, name: string, depth: number}>>}
  */
 function buildPrerequisiteCascade(failedCourseIds, prerequisiteMap, courseInfoMap) {
-  // Build reverse map: prerequisiteCourseId → Set of courses that depend on it
   const dependentsMap = new Map();
   for (const [courseId, prereqIds] of prerequisiteMap) {
     for (const prereqId of prereqIds) {
@@ -71,7 +81,6 @@ function buildPrerequisiteCascade(failedCourseIds, prerequisiteMap, courseInfoMa
     }
   }
 
-  const failedSet = new Set(failedCourseIds.map(String));
   const cascadeMap = new Map();
 
   for (const rootId of failedCourseIds) {

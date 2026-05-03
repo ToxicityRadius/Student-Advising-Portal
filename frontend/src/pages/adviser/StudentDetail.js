@@ -18,6 +18,7 @@ const StudentDetail = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [alert, setAlert] = useState({ variant: '', message: '' });
   const [curriculums, setCurriculums] = useState([]);
+  const [programs, setPrograms] = useState([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const { sar, versions, loading, error: sarFetchError, reload } = useSarData(sarId);
@@ -45,6 +46,27 @@ const StudentDetail = () => {
     fetchCurriculumsCached({ page: 1, pageSize: 200, sortBy: 'name', sortOrder: 'asc' })
       .then((res) => setCurriculums(res?.items || res?.data || []))
       .catch(() => setCurriculums([]));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    api
+      .get('/programs')
+      .then((response) => {
+        if (!cancelled) {
+          setPrograms(response.data?.data || []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPrograms([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleEditSAR = async (payload) => {
@@ -188,6 +210,8 @@ const StudentDetail = () => {
         onSubmit={handleEditSAR}
         sar={sar}
         curriculums={curriculums}
+        programs={programs}
+        canChangeProgram={user?.role === 'superadmin'}
         submitting={editSubmitting}
       />
     </AdviserLayout>

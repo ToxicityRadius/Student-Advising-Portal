@@ -35,11 +35,11 @@ async function getDefaultProgramId(sequelize, transaction) {
   const now = Date.now();
   await sequelize.query(
     `
-      INSERT INTO programs ("code", "name", "departmentName", "emailSuffix", "isActive", "createdAt", "updatedAt")
-      VALUES (:code, :name, :departmentName, :emailSuffix, :isActive, :now, :now)
+      INSERT INTO programs ("code", "name", "collegeName", "emailSuffix", "isActive", "createdAt", "updatedAt")
+      VALUES (:code, :name, :collegeName, :emailSuffix, :isActive, :now, :now)
       ON CONFLICT ("code") DO UPDATE SET
         "name" = EXCLUDED."name",
-        "departmentName" = EXCLUDED."departmentName",
+        "collegeName" = EXCLUDED."collegeName",
         "emailSuffix" = EXCLUDED."emailSuffix",
         "isActive" = EXCLUDED."isActive",
         "updatedAt" = EXCLUDED."updatedAt";
@@ -142,7 +142,7 @@ module.exports = {
               type: Sequelize.STRING,
               allowNull: false,
             },
-            departmentName: {
+            collegeName: {
               type: Sequelize.STRING,
               allowNull: true,
             },

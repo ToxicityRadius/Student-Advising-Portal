@@ -773,7 +773,7 @@ exports.updateCurriculum = async (req, res, next) => {
   }
 };
 
-// @desc   Set a curriculum as the active one (deactivates all others)
+// @desc   Activate a curriculum without deactivating other active curriculums
 // @route  PATCH /api/curriculums/:id/activate
 // @access admin
 exports.setActiveCurriculum = async (req, res, next) => {
@@ -786,15 +786,13 @@ exports.setActiveCurriculum = async (req, res, next) => {
       await transaction.rollback();
       return respondScopedNotFound(res, status, 'Curriculum');
     }
-    // Both updates are wrapped in a transaction so a partial failure cannot
-    // leave all curricula deactivated (Step 3.4)
-    await Curriculum.update(
-      { isActive: false },
-      { where: { programId: curriculum.programId }, transaction },
-    );
     await curriculum.update({ isActive: true }, { transaction });
     await transaction.commit();
-    return res.status(200).json({ success: true, data: curriculum });
+    return res.status(200).json({
+      success: true,
+      data: curriculum,
+      message: 'Curriculum activated. Other active curriculums were left active.',
+    });
   } catch (err) {
     await transaction.rollback();
     next(err);

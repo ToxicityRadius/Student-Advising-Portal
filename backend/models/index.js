@@ -18,6 +18,7 @@ const StudyPlanCourse = require('./StudyPlanCourse');
 const ForecastSnapshot = require('./ForecastSnapshot');
 const Notification = require('./Notification');
 const PrerequisiteOverrideRequest = require('./PrerequisiteOverrideRequest');
+const InactiveCurriculumRegenerationRequest = require('./InactiveCurriculumRegenerationRequest');
 const ActivityLog = require('./ActivityLog');
 
 // Program ownership / access
@@ -33,6 +34,11 @@ Program.hasMany(ForecastSnapshot, { foreignKey: 'programId', onDelete: 'RESTRICT
 ForecastSnapshot.belongsTo(Program, { foreignKey: 'programId' });
 Program.hasMany(PrerequisiteOverrideRequest, { foreignKey: 'programId', onDelete: 'SET NULL' });
 PrerequisiteOverrideRequest.belongsTo(Program, { foreignKey: 'programId' });
+Program.hasMany(InactiveCurriculumRegenerationRequest, {
+  foreignKey: 'programId',
+  onDelete: 'SET NULL',
+});
+InactiveCurriculumRegenerationRequest.belongsTo(Program, { foreignKey: 'programId' });
 Program.hasMany(ActivityLog, { foreignKey: 'programId', onDelete: 'SET NULL' });
 ActivityLog.belongsTo(Program, { foreignKey: 'programId' });
 Program.hasMany(CourseEquivalency, {
@@ -210,6 +216,42 @@ PrerequisiteOverrideRequest.belongsTo(User, {
   onDelete: 'SET NULL',
 });
 
+// Inactive-curriculum regeneration approvals
+StudentAcademicRecord.hasMany(InactiveCurriculumRegenerationRequest, {
+  foreignKey: 'studentAcademicRecordId',
+  onDelete: 'CASCADE',
+});
+InactiveCurriculumRegenerationRequest.belongsTo(StudentAcademicRecord, {
+  foreignKey: 'studentAcademicRecordId',
+  onDelete: 'CASCADE',
+});
+StudyPlanVersion.hasMany(InactiveCurriculumRegenerationRequest, {
+  foreignKey: 'studyPlanVersionId',
+  onDelete: 'CASCADE',
+});
+InactiveCurriculumRegenerationRequest.belongsTo(StudyPlanVersion, {
+  foreignKey: 'studyPlanVersionId',
+  onDelete: 'CASCADE',
+});
+Curriculum.hasMany(InactiveCurriculumRegenerationRequest, {
+  foreignKey: 'curriculumId',
+  onDelete: 'RESTRICT',
+});
+InactiveCurriculumRegenerationRequest.belongsTo(Curriculum, {
+  foreignKey: 'curriculumId',
+  onDelete: 'RESTRICT',
+});
+InactiveCurriculumRegenerationRequest.belongsTo(User, {
+  as: 'RequestedByAdviser',
+  foreignKey: 'requestedByAdviserId',
+  onDelete: 'RESTRICT',
+});
+InactiveCurriculumRegenerationRequest.belongsTo(User, {
+  as: 'DecidedByAdmin',
+  foreignKey: 'decidedByAdminId',
+  onDelete: 'SET NULL',
+});
+
 // ForecastSnapshot associations
 ForecastSnapshot.belongsTo(AcademicTerm, { foreignKey: 'academicTermId', onDelete: 'CASCADE' });
 ForecastSnapshot.belongsTo(User, {
@@ -251,5 +293,6 @@ module.exports = {
   ForecastSnapshot,
   Notification,
   PrerequisiteOverrideRequest,
+  InactiveCurriculumRegenerationRequest,
   ActivityLog,
 };

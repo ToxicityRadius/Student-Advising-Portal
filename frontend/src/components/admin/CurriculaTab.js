@@ -12,7 +12,7 @@ const CurriculaTab = ({
   setCurriculumForm,
   createCurriculum,
   activateCurriculum,
-  activeCurriculumId,
+  activeCurriculumIds,
   submitting,
   /* CSV import/export */
   selectedCurriculumIdForCsv,
@@ -224,39 +224,43 @@ const CurriculaTab = ({
           </tr>
         </thead>
         <tbody>
-          {curricula.map((item) => (
-            <tr key={item.id}>
-              <td>{item.name}</td>
-              <td>{item.description || '-'}</td>
-              <td>
-                {item.isActive ? (
-                  <Badge bg="success">Active</Badge>
-                ) : (
-                  <Badge bg="secondary">Inactive</Badge>
-                )}
-              </td>
-              <td className="text-end">
-                <Button
-                  size="sm"
-                  variant="outline-primary"
-                  className="me-2"
-                  onClick={() => navigate(`/admin/curriculum/${item.id}`)}
-                >
-                  Open
-                </Button>
-                {isAdmin && (
+          {curricula.map((item) => {
+            const itemIsActive = item.isActive || activeCurriculumIds?.has?.(item.id);
+
+            return (
+              <tr key={item.id}>
+                <td>{item.name}</td>
+                <td>{item.description || '-'}</td>
+                <td>
+                  {itemIsActive ? (
+                    <Badge bg="success">Active</Badge>
+                  ) : (
+                    <Badge bg="secondary">Inactive</Badge>
+                  )}
+                </td>
+                <td className="text-end">
                   <Button
                     size="sm"
-                    variant={item.id === activeCurriculumId ? 'success' : 'outline-success'}
-                    disabled={submitting || item.id === activeCurriculumId}
-                    onClick={() => activateCurriculum(item.id)}
+                    variant="outline-primary"
+                    className="me-2"
+                    onClick={() => navigate(`/admin/curriculum/${item.id}`)}
                   >
-                    Set Active
+                    Open
                   </Button>
-                )}
-              </td>
-            </tr>
-          ))}
+                  {isAdmin && (
+                    <Button
+                      size="sm"
+                      variant={itemIsActive ? 'success' : 'outline-success'}
+                      disabled={submitting || itemIsActive}
+                      onClick={() => activateCurriculum(item.id)}
+                    >
+                      {itemIsActive ? 'Active' : 'Activate'}
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
           {curricula.length === 0 && (
             <tr>
               <td colSpan={4} className="text-center text-muted py-4">

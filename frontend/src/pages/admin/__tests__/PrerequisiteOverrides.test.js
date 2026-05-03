@@ -53,11 +53,29 @@ const makePaginatedResponse = (items = [makeOverrideItem()]) => ({
   },
 });
 
+const makeInactiveRequestItem = (overrides = {}) => ({
+  id: 14,
+  status: 'pending',
+  reason: 'Inactive curriculum regeneration needs chair approval.',
+  sar: { studentName: 'Ada Student', studentNumber: '2025-0001' },
+  program: { code: 'BSCPE' },
+  curriculum: { name: 'BS CPE Curriculum 2018' },
+  studyPlanVersion: { versionNumber: 1, status: 'active' },
+  requestedByAdviser: { firstName: 'Grace', lastName: 'Adviser' },
+  decidedByAdmin: null,
+  decidedAt: null,
+  decisionNotes: null,
+  ...overrides,
+});
+
 describe('PrerequisiteOverrides admin queue', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     api.get.mockImplementation((url) => {
       if (url === '/programs') return Promise.resolve({ data: { data: [] } });
+      if (url === '/inactive-curriculum-regeneration-requests') {
+        return Promise.resolve(makePaginatedResponse([]));
+      }
       return Promise.resolve(makePaginatedResponse());
     });
     api.patch.mockResolvedValue({ data: { data: { id: 9, status: 'approved' } } });
@@ -134,6 +152,40 @@ describe('PrerequisiteOverrides admin queue', () => {
         status: 'approved',
         decisionNotes: '',
       });
+    });
+  });
+
+  test('reviews and approves inactive curriculum regeneration requests', async () => {
+    const user = userEvent.setup();
+    api.get.mockImplementation((url) => {
+      if (url === '/programs') return Promise.resolve({ data: { data: [] } });
+      if (url === '/inactive-curriculum-regeneration-requests') {
+        return Promise.resolve(makePaginatedResponse([makeInactiveRequestItem()]));
+      }
+      return Promise.resolve(makePaginatedResponse());
+    });
+
+    render(<PrerequisiteOverrides />);
+
+    await user.click(await screen.findByRole('tab', { name: /Inactive Curriculum/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('BS CPE Curriculum 2018')).toBeInTheDocument();
+      expect(
+        screen.getByText(/inactive curriculum regeneration needs chair approval/i),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /Approve/i }));
+
+    await waitFor(() => {
+      expect(api.patch).toHaveBeenCalledWith(
+        '/inactive-curriculum-regeneration-requests/14/decision',
+        {
+          status: 'approved',
+          decisionNotes: '',
+        },
+      );
     });
   });
 });

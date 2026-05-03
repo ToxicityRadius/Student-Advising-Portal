@@ -13,8 +13,10 @@ const normalizeProgramPayload = (body) => ({
     .trim()
     .toUpperCase(),
   name: String(body.name || '').trim(),
-  departmentName:
-    body.departmentName === undefined ? null : String(body.departmentName || '').trim() || null,
+  collegeName:
+    body.collegeName === undefined && body.departmentName === undefined
+      ? null
+      : String(body.collegeName ?? body.departmentName ?? '').trim() || null,
   emailSuffix:
     body.emailSuffix === undefined
       ? null
@@ -32,7 +34,7 @@ const validateProgramPayload = (payload) => {
     errors.emailSuffix = 'Email suffix must end with @tip.edu.ph';
   }
   if (payload.emailSuffix && !payload.emailSuffix.startsWith('.')) {
-    errors.emailSuffix = 'Email suffix must start with a department dot suffix';
+    errors.emailSuffix = 'Email suffix must start with a college dot suffix';
   }
   return errors;
 };

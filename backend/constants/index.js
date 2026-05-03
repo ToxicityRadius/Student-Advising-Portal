@@ -32,7 +32,7 @@ const DEFAULT_PROGRAM_CODE = 'BSCPE';
 const DEFAULT_PROGRAM = Object.freeze({
   code: DEFAULT_PROGRAM_CODE,
   name: 'Bachelor of Science in Computer Engineering',
-  departmentName: 'Computer Engineering',
+  collegeName: 'College of Engineering and Architecture',
   emailSuffix: '.cpe@tip.edu.ph',
   isActive: true,
 });

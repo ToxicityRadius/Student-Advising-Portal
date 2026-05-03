@@ -58,6 +58,12 @@ const RegenerationReview = () => {
   const [failedCourseAnalysis, setFailedCourseAnalysis] = useState(
     location.state?.failedCourseAnalysis || null,
   );
+  const [graduationPacing, setGraduationPacing] = useState(
+    location.state?.graduationPacing || null,
+  );
+  const [curriculumMigrationRecommendation, setCurriculumMigrationRecommendation] = useState(
+    location.state?.curriculumMigrationRecommendation || null,
+  );
   const [semesterOverrides, setSemesterOverrides] = useState({});
   const [regenerating, setRegenerating] = useState(false);
   const [regenAlert, setRegenAlert] = useState({ variant: '', message: '' });
@@ -162,6 +168,8 @@ const RegenerationReview = () => {
 
       const newVersion = response.data?.data;
       const newAnalysis = response.data?.failedCourseAnalysis || null;
+      const newGraduationPacing = response.data?.graduationPacing || null;
+      const newMigrationRecommendation = response.data?.curriculumMigrationRecommendation || null;
 
       if (!newVersion?.id) {
         throw new Error('Regeneration did not return a new version');
@@ -170,6 +178,8 @@ const RegenerationReview = () => {
       // Refresh in-place
       setRegeneratedVersion(newVersion);
       setFailedCourseAnalysis(newAnalysis);
+      setGraduationPacing(newGraduationPacing);
+      setCurriculumMigrationRecommendation(newMigrationRecommendation);
       setSemesterOverrides({});
       setRegenAlert({
         variant: 'success',
@@ -183,6 +193,8 @@ const RegenerationReview = () => {
           previousVersion,
           regeneratedVersion: newVersion,
           failedCourseAnalysis: newAnalysis,
+          graduationPacing: newGraduationPacing,
+          curriculumMigrationRecommendation: newMigrationRecommendation,
         },
       });
     } catch (err) {
@@ -195,11 +207,13 @@ const RegenerationReview = () => {
     }
   };
 
-  // Derive unique semesters from availability for the picker
   const getUniqueSemesters = (availability) => {
     const seen = new Set();
     const result = [];
     for (const a of availability || []) {
+      if (a.isAvailable === false) {
+        continue;
+      }
       const key = `${a.semester}`;
       if (!seen.has(key)) {
         seen.add(key);
@@ -254,6 +268,61 @@ const RegenerationReview = () => {
           </Card>
 
           {/* ══════ Failed Course Analysis Panel ══════ */}
+          {graduationPacing && (
+            <Alert
+              variant={graduationPacing.isOnTrack ? 'success' : 'warning'}
+              className="shadow-sm mb-4"
+            >
+              <div className="d-flex flex-column flex-lg-row justify-content-between gap-2">
+                <div>
+                  <div className="fw-semibold">
+                    Graduation pacing: {graduationPacing.isOnTrack ? 'On track' : 'Delayed'}
+                  </div>
+                  <div className="small">
+                    Target: {graduationPacing.targetTerm?.label || 'Not set'} | Latest planned:{' '}
+                    {graduationPacing.latestPlannedTerm?.label || 'Not set'}
+                  </div>
+                  {graduationPacing.message && (
+                    <div className="small mt-1">{graduationPacing.message}</div>
+                  )}
+                  {!graduationPacing.isOnTrack && graduationPacing.delayedCourses?.length > 0 && (
+                    <div className="small mt-2">
+                      Delayed courses:{' '}
+                      {graduationPacing.delayedCourses
+                        .map((course) => course.code || course.name)
+                        .join(', ')}
+                    </div>
+                  )}
+                </div>
+                {!graduationPacing.isOnTrack && (
+                  <Badge bg="warning" text="dark" className="align-self-start">
+                    {graduationPacing.termsDelayed} term
+                    {graduationPacing.termsDelayed === 1 ? '' : 's'} delayed
+                  </Badge>
+                )}
+              </div>
+            </Alert>
+          )}
+
+          {curriculumMigrationRecommendation && (
+            <Alert variant="info" className="shadow-sm mb-4">
+              <div className="fw-semibold">Curriculum conversion recommendation</div>
+              <div className="small">
+                Registrar and Program Chair may convert this irregular student to{' '}
+                <span className="fw-semibold">
+                  {curriculumMigrationRecommendation.curriculumName}
+                </span>{' '}
+                because it covers all remaining requirements.
+              </div>
+              {curriculumMigrationRecommendation.estimatedLatestTerm?.label && (
+                <div className="small mt-1">
+                  Estimated latest remaining requirement:{' '}
+                  {curriculumMigrationRecommendation.estimatedLatestTerm.label}
+                </div>
+              )}
+            </Alert>
+          )}
+
           {failedCourseAnalysis?.failedCourses?.length > 0 && (
             <Card className="shadow-sm mb-4 border-danger border-2">
               <Card.Body>
@@ -267,137 +336,176 @@ const RegenerationReview = () => {
                   regenerate.
                 </p>
 
-                {failedCourseAnalysis.failedCourses.map((fc) => (
-                  <Card key={fc.courseId} className="mb-3 bg-light border-0">
-                    <Card.Body>
-                      <div className="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-3">
-                        <div>
-                          <div className="fw-bold fs-6">{fc.code}</div>
-                          <div>{fc.name}</div>
-                          <div className="mt-1">
-                            <Badge bg={statusVariant[fc.status] || 'danger'} className="me-2">
-                              {statusLabel[fc.status] || fc.status}
-                            </Badge>
-                            <span className="text-muted small">Grade: {fc.grade}</span>
-                          </div>
-                          {fc.placedAt && (
-                            <div className="small text-muted mt-1">
-                              Currently placed at: Year {fc.placedAt.yearLevel} •{' '}
-                              {semesterLabels[fc.placedAt.semester] ||
-                                `Sem ${fc.placedAt.semester}`}
+                {failedCourseAnalysis.failedCourses.map((fc) => {
+                  const availableSemesters = getUniqueSemesters(fc.availability);
+
+                  return (
+                    <Card key={fc.courseId} className="mb-3 bg-light border-0">
+                      <Card.Body>
+                        <div className="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-3">
+                          <div>
+                            <div className="fw-bold fs-6">{fc.code}</div>
+                            <div>{fc.name}</div>
+                            <div className="mt-1">
+                              <Badge bg={statusVariant[fc.status] || 'danger'} className="me-2">
+                                {statusLabel[fc.status] || fc.status}
+                              </Badge>
+                              <span className="text-muted small">Grade: {fc.grade}</span>
                             </div>
-                          )}
-                        </div>
-                        <div className="text-lg-end">
-                          <div className="small fw-semibold mb-1">Override Semester</div>
-                          <div className="d-flex gap-2 align-items-center justify-content-lg-end">
-                            <Form.Select
-                              size="sm"
-                              style={{ maxWidth: 140 }}
-                              value={semesterOverrides[fc.courseId]?.yearLevel || ''}
-                              onChange={(e) => {
-                                const yr = e.target.value;
-                                const existing = semesterOverrides[fc.courseId];
-                                if (yr) {
-                                  handleOverrideChange(fc.courseId, yr, existing?.semester || 1);
-                                } else {
-                                  handleOverrideChange(fc.courseId, null, null);
-                                }
-                              }}
-                            >
-                              <option value="">Default</option>
-                              {[1, 2, 3, 4, 5].map((yr) => (
-                                <option key={yr} value={yr}>
-                                  Year {yr}
-                                </option>
-                              ))}
-                            </Form.Select>
-                            <Form.Select
-                              size="sm"
-                              style={{ maxWidth: 160 }}
-                              value={semesterOverrides[fc.courseId]?.semester || ''}
-                              disabled={!semesterOverrides[fc.courseId]?.yearLevel}
-                              onChange={(e) => {
-                                const sem = e.target.value;
-                                const yr = semesterOverrides[fc.courseId]?.yearLevel || 1;
-                                if (sem) {
-                                  handleOverrideChange(fc.courseId, yr, sem);
-                                }
-                              }}
-                            >
-                              <option value={1}>1st Semester</option>
-                              <option value={2}>2nd Semester</option>
-                              <option value={3}>Summer</option>
-                            </Form.Select>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Prerequisite Cascade */}
-                      {fc.blockedCourses?.length > 0 && (
-                        <div className="mb-3">
-                          <div className="small fw-semibold text-danger mb-1">
-                            Blocked Courses ({fc.blockedCourses.length})
-                          </div>
-                          <div className="ps-3 border-start border-danger border-2">
-                            {fc.blockedCourses.map((bc) => (
-                              <div
-                                key={bc.courseId}
-                                className="small py-1"
-                                style={{ paddingLeft: (bc.depth - 1) * 16 }}
-                              >
-                                <span className="text-danger me-1">{'→'.repeat(bc.depth)}</span>
-                                <span className="fw-semibold">{bc.code}</span>
-                                <span className="text-muted ms-1">— {bc.name}</span>
-                                <Badge
-                                  bg="light"
-                                  text="dark"
-                                  className="ms-2"
-                                  style={{ fontSize: '0.65rem' }}
-                                >
-                                  depth {bc.depth}
-                                </Badge>
+                            {fc.placedAt && (
+                              <div className="small text-muted mt-1">
+                                Currently placed at: Year {fc.placedAt.yearLevel} •{' '}
+                                {semesterLabels[fc.placedAt.semester] ||
+                                  `Sem ${fc.placedAt.semester}`}
                               </div>
-                            ))}
+                            )}
+                          </div>
+                          <div className="text-lg-end">
+                            <div className="small fw-semibold mb-1">Override Semester</div>
+                            <div className="d-flex gap-2 align-items-center justify-content-lg-end">
+                              <Form.Select
+                                size="sm"
+                                style={{ maxWidth: 140 }}
+                                value={semesterOverrides[fc.courseId]?.yearLevel || ''}
+                                onChange={(e) => {
+                                  const yr = e.target.value;
+                                  const existing = semesterOverrides[fc.courseId];
+                                  if (yr) {
+                                    handleOverrideChange(fc.courseId, yr, existing?.semester || 1);
+                                  } else {
+                                    handleOverrideChange(fc.courseId, null, null);
+                                  }
+                                }}
+                              >
+                                <option value="">Default</option>
+                                {[1, 2, 3, 4, 5].map((yr) => (
+                                  <option key={yr} value={yr}>
+                                    Year {yr}
+                                  </option>
+                                ))}
+                              </Form.Select>
+                              <Form.Select
+                                size="sm"
+                                style={{ maxWidth: 160 }}
+                                value={semesterOverrides[fc.courseId]?.semester || ''}
+                                disabled={!semesterOverrides[fc.courseId]?.yearLevel}
+                                onChange={(e) => {
+                                  const sem = e.target.value;
+                                  const yr = semesterOverrides[fc.courseId]?.yearLevel || 1;
+                                  if (sem) {
+                                    handleOverrideChange(fc.courseId, yr, sem);
+                                  }
+                                }}
+                              >
+                                <option value={1}>1st Semester</option>
+                                <option value={2}>2nd Semester</option>
+                                <option value={3}>Summer</option>
+                              </Form.Select>
+                            </div>
                           </div>
                         </div>
-                      )}
 
-                      {/* Cross-Curriculum Availability */}
-                      {fc.availability?.length > 0 && (
-                        <div>
-                          <div className="small fw-semibold text-primary mb-1">
-                            Cross-Curriculum Availability
-                          </div>
-                          <Table size="sm" bordered className="mb-0" style={{ fontSize: '0.8rem' }}>
-                            <thead>
-                              <tr className="table-light">
-                                <th>Curriculum</th>
-                                <th>Year Level</th>
-                                <th>Semester</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {fc.availability.map((a, idx) => (
-                                <tr key={idx}>
-                                  <td>{a.curriculumName}</td>
-                                  <td>Year {a.yearLevel}</td>
-                                  <td>{semesterLabels[a.semester] || `Sem ${a.semester}`}</td>
-                                </tr>
+                        {/* Prerequisite Cascade */}
+                        {fc.blockedCourses?.length > 0 && (
+                          <div className="mb-3">
+                            <div className="small fw-semibold text-danger mb-1">
+                              Blocked Courses ({fc.blockedCourses.length})
+                            </div>
+                            <div className="ps-3 border-start border-danger border-2">
+                              {fc.blockedCourses.map((bc) => (
+                                <div
+                                  key={bc.courseId}
+                                  className="small py-1"
+                                  style={{ paddingLeft: (bc.depth - 1) * 16 }}
+                                >
+                                  <span
+                                    className="text-danger me-2 d-inline-flex justify-content-center"
+                                    style={{ width: 16 }}
+                                  >
+                                    {'\u2192'}
+                                  </span>
+                                  <span className="fw-semibold">{bc.code}</span>
+                                  <span className="text-muted ms-1">— {bc.name}</span>
+                                  <Badge
+                                    bg="light"
+                                    text="dark"
+                                    className="ms-2"
+                                    style={{ fontSize: '0.65rem' }}
+                                  >
+                                    depth {bc.depth}
+                                  </Badge>
+                                </div>
                               ))}
-                            </tbody>
-                          </Table>
-                          <div className="text-muted mt-1" style={{ fontSize: '0.72rem' }}>
-                            Available in semester(s):{' '}
-                            {getUniqueSemesters(fc.availability)
-                              .map((s) => semesterLabels[s.semester])
-                              .join(', ')}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </Card.Body>
-                  </Card>
-                ))}
+                        )}
+
+                        {/* Cross-Curriculum Availability */}
+                        {fc.availability?.length > 0 && (
+                          <div>
+                            <div className="small fw-semibold text-primary mb-1">
+                              Cross-Curriculum Availability
+                            </div>
+                            <Table
+                              size="sm"
+                              bordered
+                              className="mb-0"
+                              style={{ fontSize: '0.8rem' }}
+                            >
+                              <thead>
+                                <tr className="table-light">
+                                  <th>Curriculum</th>
+                                  <th>Year Level</th>
+                                  <th>Semester</th>
+                                  <th>Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {fc.availability.map((a, idx) => (
+                                  <tr
+                                    key={idx}
+                                    className={a.isAvailable === false ? 'table-light' : undefined}
+                                  >
+                                    <td>{a.curriculumName}</td>
+                                    <td>Year {a.yearLevel}</td>
+                                    <td>{semesterLabels[a.semester] || `Sem ${a.semester}`}</td>
+                                    <td>
+                                      {a.isAvailable === false ? (
+                                        <>
+                                          <Badge bg="secondary" className="me-2">
+                                            Unavailable
+                                          </Badge>
+                                          <span className="text-muted small">
+                                            {a.unavailableReason ||
+                                              'Unavailable for retake planning.'}
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <Badge bg="success">Available</Badge>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </Table>
+                            <div className="text-muted mt-1" style={{ fontSize: '0.72rem' }}>
+                              {availableSemesters.length > 0 ? (
+                                <>
+                                  Available in semester(s):{' '}
+                                  {availableSemesters
+                                    .map((s) => semesterLabels[s.semester])
+                                    .join(', ')}
+                                </>
+                              ) : (
+                                'No available future offering found.'
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </Card.Body>
+                    </Card>
+                  );
+                })}
 
                 {hasOverrides && (
                   <div className="d-flex gap-2 mt-3">

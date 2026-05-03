@@ -10,6 +10,7 @@ import useSarData from '../../../hooks/useSarData';
 jest.mock('../../../utils/api', () => ({
   __esModule: true,
   default: {
+    get: jest.fn(),
     put: jest.fn(),
     post: jest.fn(),
   },
@@ -53,6 +54,11 @@ const makeSarData = (version = activeVersion) => ({
   sar: {
     id: 42,
     studentName: 'Ada Student',
+    Curriculum: {
+      id: 77,
+      name: 'BS CPE Curriculum 2025',
+      isActive: true,
+    },
     analytics: {
       prerequisiteChecking: {
         subjects: [
@@ -84,6 +90,7 @@ describe('GradeEntry retake placement and override request', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useSarData.mockReturnValue(makeSarData());
+    api.get.mockResolvedValue({ data: { items: [], meta: { totalItems: 0 } } });
     api.post.mockResolvedValue({ data: { data: { id: 8 } } });
   });
 
@@ -190,6 +197,11 @@ describe('GradeEntry retake placement and override request', () => {
       sar: {
         id: 42,
         studentName: 'Ada Student',
+        Curriculum: {
+          id: 77,
+          name: 'BS CPE Curriculum 2025',
+          isActive: true,
+        },
         analytics: {
           prerequisiteChecking: {
             subjects: [],
@@ -225,6 +237,97 @@ describe('GradeEntry retake placement and override request', () => {
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/sars/42/study-plan/regenerate', {
         retakePlacements: [],
+        prerequisiteOverrideRequests: [],
+      });
+    });
+  });
+
+  test('requests Program Chair approval instead of regenerating an inactive curriculum SAR', async () => {
+    const user = userEvent.setup();
+    useSarData.mockReturnValue({
+      ...makeSarData(),
+      sar: {
+        ...makeSarData().sar,
+        Curriculum: {
+          id: 2018,
+          name: 'BS CPE Curriculum 2018',
+          isActive: false,
+        },
+      },
+    });
+    api.post.mockResolvedValueOnce({ data: { data: { id: 99, status: 'pending' } } });
+
+    renderGradeEntry();
+
+    expect(screen.getByText(/inactive curriculum/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Regenerate Study Plan/i })).toBeDisabled();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Request Program Chair Approval/i })).toBeEnabled();
+    });
+    await user.click(screen.getByRole('button', { name: /Request Program Chair Approval/i }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/sars/42/study-plan/inactive-curriculum-regeneration-request',
+        {
+          reason:
+            'Student is assigned to inactive BS CPE Curriculum 2018 and needs Program Chair approval before regeneration.',
+        },
+      );
+    });
+  });
+
+  test('enables regeneration when Program Chair approval is recorded for the inactive curriculum', async () => {
+    const user = userEvent.setup();
+    useSarData.mockReturnValue({
+      ...makeSarData(),
+      sar: {
+        ...makeSarData().sar,
+        Curriculum: {
+          id: 2018,
+          name: 'BS CPE Curriculum 2018',
+          isActive: false,
+        },
+      },
+    });
+    api.get.mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            id: 99,
+            status: 'approved',
+            studentAcademicRecordId: 42,
+            studyPlanVersionId: activeVersion.id,
+            curriculumId: 2018,
+          },
+        ],
+      },
+    });
+
+    renderGradeEntry();
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('/inactive-curriculum-regeneration-requests', {
+        params: {
+          studentAcademicRecordId: '42',
+          studyPlanVersionId: activeVersion.id,
+          pageSize: 5,
+          sortBy: 'createdAt',
+          sortOrder: 'desc',
+        },
+      });
+    });
+
+    expect(await screen.findByText(/Program Chair approval is recorded/i)).toBeInTheDocument();
+    const regenerateButton = screen.getByRole('button', { name: /Regenerate Study Plan/i });
+    expect(regenerateButton).not.toBeDisabled();
+
+    await user.click(regenerateButton);
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/sars/42/study-plan/regenerate', {
+        retakePlacements: [{ studyPlanCourseId: 101, yearLevel: 1, semester: 2 }],
         prerequisiteOverrideRequests: [],
       });
     });

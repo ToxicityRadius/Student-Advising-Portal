@@ -54,10 +54,10 @@ CPEC 302,Cognate/Elective Course 3,2,3,3,See Track,3,2,core
 CPE 314,Computer Networks 3,2,3,3,CPE 306,3,2,core
 GEC 008,Ethics,3,0,3,,3,2,core
 CPE 318,Computer System Performance Evaluation,0,3,1,CPE 023,3,2,core
-CPE 410,Introduction to Intellectual Property,0,3,1,3rd Year Standing,4,summer,core
-CPE 408,Emerging Technologies in CpE,2,3,3,3rd Year Standing,4,summer,core
-CPE 409,Seminars and Field Trips,0,3,1,3rd Year Standing,4,summer,core
-CPE 308,CpE Laws and Professional Practice,2,0,2,3rd Year Standing,4,summer,core
+CPE 410,Introduction to Intellectual Property,0,3,1,3rd Year Standing,3,summer,core
+CPE 408,Emerging Technologies in CpE,2,3,3,3rd Year Standing,3,summer,core
+CPE 409,Seminars and Field Trips,0,3,1,3rd Year Standing,3,summer,core
+CPE 308,CpE Laws and Professional Practice,2,0,2,3rd Year Standing,3,summer,core
 CPE 400,Embedded Systems,3,3,4,CPE 310,4,1,core
 CPE 405,Microprocessors,3,3,4,CPE 310,4,1,core
 CPE 406,CpE Design 1,2,3,3,CPE 309,4,1,core

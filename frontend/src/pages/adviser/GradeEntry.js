@@ -6,6 +6,7 @@ import useSarData from '../../hooks/useSarData';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
 import BulkGradeImportModal from '../../components/adviser/BulkGradeImportModal';
 import { getErrorMessage } from '../../utils/errorHelpers';
+import { useNotificationContext } from '../../context/NotificationContext';
 
 const statusVariant = {
   pending: 'secondary',
@@ -113,13 +114,35 @@ const GradeEntry = () => {
 
   const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [requestingInactiveApproval, setRequestingInactiveApproval] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [bulkImporting, setBulkImporting] = useState(false);
   const [alert, setAlert] = useState({ variant: '', message: '' });
   const [activeVersion, setActiveVersion] = useState(null);
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [inactiveApproval, setInactiveApproval] = useState({
+    loading: false,
+    status: 'none',
+    request: null,
+  });
   const { sar, versions, loading, error: sarFetchError, reload } = useSarData(sarId);
+  const { notifications } = useNotificationContext();
+  const assignedCurriculum = sar?.Curriculum || sar?.curriculum || null;
+  const curriculumIsInactive = assignedCurriculum?.isActive === false;
+  const inactiveApprovalNotificationSignal = useMemo(
+    () =>
+      (notifications || [])
+        .filter((notification) =>
+          String(notification?.category || '').startsWith('inactive_curriculum_regeneration_'),
+        )
+        .map((notification) => `${notification.id || ''}:${notification.category || ''}`)
+        .join('|'),
+    [notifications],
+  );
+  const inactiveApprovalStatus = inactiveApproval.status || 'none';
+  const inactiveRegenerationApproved =
+    !curriculumIsInactive || inactiveApprovalStatus === 'approved';
 
   useEffect(() => {
     if (loading) return;
@@ -162,6 +185,55 @@ const GradeEntry = () => {
       }),
     );
   }, [loading, versions, sarFetchError]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadInactiveApproval = async () => {
+      if (!curriculumIsInactive || !activeVersion?.id || !sarId) {
+        setInactiveApproval({ loading: false, status: 'none', request: null });
+        return;
+      }
+
+      setInactiveApproval((current) => ({ ...current, loading: true }));
+
+      try {
+        const response = await api.get('/inactive-curriculum-regeneration-requests', {
+          params: {
+            studentAcademicRecordId: sarId,
+            studyPlanVersionId: activeVersion.id,
+            pageSize: 5,
+            sortBy: 'createdAt',
+            sortOrder: 'desc',
+          },
+        });
+        const requests = response.data?.data || response.data?.items || [];
+        const matchedRequest =
+          requests.find((request) => request.status === 'approved') ||
+          requests.find((request) => request.status === 'pending') ||
+          requests[0] ||
+          null;
+
+        if (!cancelled) {
+          setInactiveApproval({
+            loading: false,
+            status: matchedRequest?.status || 'none',
+            request: matchedRequest,
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setInactiveApproval({ loading: false, status: 'error', request: null });
+        }
+      }
+    };
+
+    loadInactiveApproval();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeVersion?.id, curriculumIsInactive, inactiveApprovalNotificationSignal, sarId]);
 
   const dependentCoursesByPrereqId = useMemo(() => {
     const map = new Map();
@@ -348,6 +420,9 @@ const GradeEntry = () => {
           previousVersion: activeVersion,
           regeneratedVersion: newVersion,
           failedCourseAnalysis: response.data?.failedCourseAnalysis || null,
+          graduationPacing: response.data?.graduationPacing || null,
+          curriculumMigrationRecommendation:
+            response.data?.curriculumMigrationRecommendation || null,
         },
       });
     } catch (error) {
@@ -357,6 +432,41 @@ const GradeEntry = () => {
       });
     } finally {
       setRegenerating(false);
+    }
+  };
+
+  const handleRequestInactiveApproval = async () => {
+    if (!assignedCurriculum) {
+      return;
+    }
+
+    setRequestingInactiveApproval(true);
+    setAlert({ variant: '', message: '' });
+
+    try {
+      const response = await api.post(
+        `/sars/${sarId}/study-plan/inactive-curriculum-regeneration-request`,
+        {
+          reason: `Student is assigned to inactive ${assignedCurriculum.name || 'curriculum'} and needs Program Chair approval before regeneration.`,
+        },
+      );
+      const request = response.data?.data || null;
+      setInactiveApproval({
+        loading: false,
+        status: request?.status || 'pending',
+        request,
+      });
+      setAlert({
+        variant: 'success',
+        message: 'Program Chair approval request submitted.',
+      });
+    } catch (error) {
+      setAlert({
+        variant: 'danger',
+        message: getErrorMessage(error, 'Failed to request Program Chair approval.'),
+      });
+    } finally {
+      setRequestingInactiveApproval(false);
     }
   };
 
@@ -429,6 +539,65 @@ const GradeEntry = () => {
               </div>
             </Card.Body>
           </Card>
+
+          {curriculumIsInactive && (
+            <Alert
+              variant={inactiveApprovalStatus === 'approved' ? 'success' : 'warning'}
+              className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3"
+            >
+              <div>
+                <div className="fw-semibold">
+                  {inactiveApprovalStatus === 'approved'
+                    ? 'Inactive curriculum approval recorded'
+                    : 'Inactive curriculum'}
+                </div>
+                {inactiveApprovalStatus === 'approved' ? (
+                  <div>
+                    Program Chair approval is recorded for{' '}
+                    {assignedCurriculum.name || 'this inactive curriculum'} and this active study
+                    plan version. Regeneration is available.
+                  </div>
+                ) : inactiveApprovalStatus === 'pending' ? (
+                  <div>
+                    This SAR uses {assignedCurriculum.name || 'an inactive curriculum'}. A Program
+                    Chair approval request is pending before regeneration can continue.
+                  </div>
+                ) : inactiveApprovalStatus === 'rejected' ? (
+                  <div>
+                    This SAR uses {assignedCurriculum.name || 'an inactive curriculum'}. The latest
+                    Program Chair approval request was rejected.
+                  </div>
+                ) : (
+                  <div>
+                    This SAR uses {assignedCurriculum.name || 'an inactive curriculum'}. Program
+                    Chair approval is required before regenerating the study plan.
+                  </div>
+                )}
+              </div>
+              {inactiveApprovalStatus === 'approved' ? (
+                <Badge bg="success">Approved</Badge>
+              ) : (
+                <Button
+                  variant="outline-dark"
+                  size="sm"
+                  onClick={handleRequestInactiveApproval}
+                  disabled={
+                    requestingInactiveApproval ||
+                    inactiveApproval.loading ||
+                    inactiveApprovalStatus === 'pending'
+                  }
+                >
+                  {requestingInactiveApproval
+                    ? 'Requesting...'
+                    : inactiveApproval.loading
+                      ? 'Checking...'
+                      : inactiveApprovalStatus === 'pending'
+                        ? 'Approval Pending'
+                        : 'Request Program Chair Approval'}
+                </Button>
+              )}
+            </Alert>
+          )}
 
           <Card className="shadow-sm mb-4">
             <Card.Body>
@@ -626,7 +795,7 @@ const GradeEntry = () => {
               <Button
                 variant="warning"
                 onClick={handleRegenerate}
-                disabled={regenerating || saving}
+                disabled={regenerating || saving || !inactiveRegenerationApproved}
               >
                 {regenerating ? 'Regenerating...' : 'Regenerate Study Plan'}
               </Button>

@@ -1,6 +1,9 @@
 jest.mock('../models', () => ({
-  sequelize: {},
-  Curriculum: {},
+  sequelize: { transaction: jest.fn() },
+  Curriculum: {
+    findByPk: jest.fn(),
+    update: jest.fn(),
+  },
   Course: {},
   CurriculumCourse: {},
   Prerequisite: {},
@@ -10,11 +13,13 @@ jest.mock('../models', () => ({
   ElectiveTrackCourse: {},
   StudyPlanCourse: {},
   User: {},
-  Program: {},
+  Program: { findOne: jest.fn() },
+  UserProgramAssignment: { findAll: jest.fn() },
   ActivityLog: { create: jest.fn() },
 }));
 
-const { __testables } = require('../controllers/curriculumController');
+const { __testables, setActiveCurriculum } = require('../controllers/curriculumController');
+const { sequelize, Curriculum } = require('../models');
 
 const headers = [
   'exportVersion',
@@ -141,5 +146,45 @@ describe('curriculum import validation', () => {
         expect.stringContaining('relatedCourseCode CPE 999 is not available'),
       ]),
     );
+  });
+});
+
+describe('curriculum activation', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('activating one curriculum does not deactivate other active curriculums', async () => {
+    const transaction = {
+      commit: jest.fn().mockResolvedValue(),
+      rollback: jest.fn().mockResolvedValue(),
+    };
+    const curriculum = {
+      id: 9,
+      programId: 3,
+      update: jest.fn().mockResolvedValue(),
+    };
+    sequelize.transaction.mockResolvedValue(transaction);
+    Curriculum.findByPk.mockResolvedValue(curriculum);
+
+    const req = {
+      params: { id: String(curriculum.id) },
+      user: { id: 1, role: 'superadmin' },
+    };
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+    };
+    const next = jest.fn();
+
+    await setActiveCurriculum(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(Curriculum.update).not.toHaveBeenCalledWith(
+      { isActive: false },
+      expect.objectContaining({ where: { programId: curriculum.programId } }),
+    );
+    expect(curriculum.update).toHaveBeenCalledWith({ isActive: true }, { transaction });
+    expect(res.status).toHaveBeenCalledWith(200);
   });
 });

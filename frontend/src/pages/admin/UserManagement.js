@@ -212,18 +212,19 @@ const UserManagement = () => {
     }
   };
 
-  const saveProgramAssignments = async (targetUser, selectedOptions) => {
-    const programIds = Array.from(selectedOptions).map((option) => Number(option.value));
+  const saveSingleProgramAssignment = async (targetUser, programId) => {
     setSubmittingId(targetUser.id);
     setAlert({ variant: '', message: '' });
     try {
-      await api.put(`/programs/users/${targetUser.id}/assignments`, { programIds });
+      await api.put(`/programs/users/${targetUser.id}/assignments`, {
+        programIds: programId ? [Number(programId)] : [],
+      });
       await loadData();
-      setAlert({ variant: 'success', message: 'Program assignments updated.' });
+      setAlert({ variant: 'success', message: 'Program assignment updated.' });
     } catch (error) {
       setAlert({
         variant: 'danger',
-        message: getErrorMessage(error, 'Failed to update program assignments.'),
+        message: getErrorMessage(error, 'Failed to update program assignment.'),
       });
     } finally {
       setSubmittingId(null);
@@ -357,18 +358,18 @@ const UserManagement = () => {
                         <td>
                           {superadmin && isStaff ? (
                             <Form.Select
-                              multiple
                               size="sm"
-                              value={Array.from(assignedProgramIds)}
+                              value={Array.from(assignedProgramIds)[0] || ''}
                               onChange={(event) =>
-                                saveProgramAssignments(targetUser, event.target.selectedOptions)
+                                saveSingleProgramAssignment(targetUser, event.target.value)
                               }
                               disabled={submittingId === targetUser.id}
                               aria-label={`Program assignments for ${userName(targetUser)}`}
                             >
+                              <option value="">Unassigned</option>
                               {programs.map((program) => (
                                 <option key={program.id} value={program.id}>
-                                  {program.code}
+                                  {program.code} - {program.name}
                                 </option>
                               ))}
                             </Form.Select>

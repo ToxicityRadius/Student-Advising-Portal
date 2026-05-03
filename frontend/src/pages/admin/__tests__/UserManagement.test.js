@@ -128,7 +128,7 @@ describe('UserManagement', () => {
     });
   });
 
-  test('toggles status, assigns advisers, and lets Super Admin update staff program assignments', async () => {
+  test('toggles status, assigns advisers, and lets Super Admin update staff program assignment', async () => {
     const user = userEvent.setup();
     render(<UserManagement />);
     await screen.findByText('Ada Student');
@@ -147,7 +147,7 @@ describe('UserManagement', () => {
     await user.selectOptions(screen.getByLabelText('Program assignments for Chair Person'), '9');
     await waitFor(() => {
       expect(api.put).toHaveBeenCalledWith('/programs/users/11/assignments', {
-        programIds: [8, 9],
+        programIds: [9],
       });
     });
   });

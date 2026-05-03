@@ -26,7 +26,7 @@ const Program = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    departmentName: {
+    collegeName: {
       type: DataTypes.STRING,
       allowNull: true,
     },

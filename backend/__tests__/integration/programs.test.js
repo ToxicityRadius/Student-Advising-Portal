@@ -22,14 +22,14 @@ beforeAll(async () => {
     Program.create({
       code: 'BSCPE',
       name: 'Bachelor of Science in Computer Engineering',
-      departmentName: 'Computer Engineering',
+      collegeName: 'College of Engineering and Architecture',
       emailSuffix: '.cpe@tip.edu.ph',
       isActive: true,
     }),
     Program.create({
       code: 'BSCS',
       name: 'Bachelor of Science in Computer Science',
-      departmentName: 'Computer Science',
+      collegeName: 'College of Computer Studies',
       emailSuffix: '.cs@tip.edu.ph',
       isActive: true,
     }),
@@ -101,7 +101,7 @@ describe('POST /api/programs', () => {
       .send({
         code: 'BSIT',
         name: 'Bachelor of Science in Information Technology',
-        departmentName: 'Information Technology',
+        collegeName: 'College of Computer Studies',
         emailSuffix: '.it@tip.edu.ph',
       });
 

@@ -105,16 +105,19 @@ const CurriculumManagement = () => {
     onConfirm: null,
   });
 
-  const activeCurriculumId = useMemo(() => {
+  const activeCurriculumIds = useMemo(() => {
+    return new Set(curricula.filter((item) => item.isActive).map((item) => item.id));
+  }, [curricula]);
+  const firstActiveCurriculumId = useMemo(() => {
     const active = curricula.find((item) => item.isActive);
     return active ? active.id : null;
   }, [curricula]);
 
   useEffect(() => {
-    if (!selectedCurriculumIdForCsv && activeCurriculumId) {
-      setSelectedCurriculumIdForCsv(String(activeCurriculumId));
+    if (!selectedCurriculumIdForCsv && firstActiveCurriculumId) {
+      setSelectedCurriculumIdForCsv(String(firstActiveCurriculumId));
     }
-  }, [activeCurriculumId, selectedCurriculumIdForCsv]);
+  }, [firstActiveCurriculumId, selectedCurriculumIdForCsv]);
 
   const showFeedback = (variant, message) => setAlert({ variant, message });
   const clearFeedback = () => setAlert({ variant: '', message: '' });
@@ -261,10 +264,12 @@ const CurriculumManagement = () => {
 
     try {
       await api.patch(`/curriculums/${id}/activate`);
-      setCurricula((prev) => prev.map((item) => ({ ...item, isActive: item.id === id })));
+      setCurricula((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, isActive: true } : item)),
+      );
       setSelectedCurriculumIdForCsv(String(id));
       await loadAll();
-      showFeedback('success', 'Active curriculum updated.');
+      showFeedback('success', 'Curriculum activated. Other active curriculums remain active.');
     } catch (error) {
       showFeedback('danger', getErrorMessage(error, 'Failed to activate curriculum.'));
     } finally {
@@ -569,7 +574,7 @@ const CurriculumManagement = () => {
             setCurriculumForm={setCurriculumForm}
             createCurriculum={createCurriculum}
             activateCurriculum={activateCurriculum}
-            activeCurriculumId={activeCurriculumId}
+            activeCurriculumIds={activeCurriculumIds}
             submitting={submitting}
             selectedCurriculumIdForCsv={selectedCurriculumIdForCsv}
             setSelectedCurriculumIdForCsv={setSelectedCurriculumIdForCsv}

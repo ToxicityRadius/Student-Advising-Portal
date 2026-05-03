@@ -6,7 +6,7 @@ import api from '../../utils/api';
 const emptyForm = {
   code: '',
   name: '',
-  departmentName: '',
+  collegeName: '',
   emailSuffix: '',
   isActive: true,
 };
@@ -54,7 +54,7 @@ const ProgramManagement = () => {
     setForm({
       code: program.code || '',
       name: program.name || '',
-      departmentName: program.departmentName || '',
+      collegeName: program.collegeName || '',
       emailSuffix: program.emailSuffix || '',
       isActive: Boolean(program.isActive),
     });
@@ -134,14 +134,14 @@ const ProgramManagement = () => {
                     />
                   </Form.Group>
 
-                  <Form.Group className="mb-3" controlId="department-name">
-                    <Form.Label>Department</Form.Label>
+                  <Form.Group className="mb-3" controlId="college-name">
+                    <Form.Label>College</Form.Label>
                     <Form.Control
-                      value={form.departmentName}
+                      value={form.collegeName}
                       onChange={(event) =>
-                        setForm((current) => ({ ...current, departmentName: event.target.value }))
+                        setForm((current) => ({ ...current, collegeName: event.target.value }))
                       }
-                      placeholder="Computer Engineering"
+                      placeholder="College of Engineering and Architecture"
                     />
                   </Form.Group>
 
@@ -189,7 +189,7 @@ const ProgramManagement = () => {
                       <tr>
                         <th>Code</th>
                         <th>Program</th>
-                        <th>Department</th>
+                        <th>College</th>
                         <th>Status</th>
                         <th>Assigned Staff</th>
                         <th className="text-end">Actions</th>
@@ -200,7 +200,7 @@ const ProgramManagement = () => {
                         <tr key={program.id}>
                           <td className="fw-semibold">{program.code}</td>
                           <td>{program.name}</td>
-                          <td>{program.departmentName || 'N/A'}</td>
+                          <td>{program.collegeName || 'N/A'}</td>
                           <td>
                             <Badge bg={program.isActive ? 'success' : 'secondary'}>
                               {program.isActive ? 'Active' : 'Inactive'}

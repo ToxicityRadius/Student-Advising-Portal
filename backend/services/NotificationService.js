@@ -53,6 +53,24 @@ const NOTIFICATION_TEMPLATES = {
     body: (meta) =>
       `Concurrent enrollment was rejected for ${meta.prerequisiteCode || 'the prerequisite'} and ${meta.dependentCode || 'the dependent course'}.`,
   },
+  inactive_curriculum_regeneration_requested: {
+    type: 'warning',
+    title: 'Inactive curriculum regeneration request',
+    body: (meta) =>
+      `${meta.adviserName || 'An adviser'} requested approval to regenerate ${meta.studentName || 'a student'} from inactive ${meta.curriculumName || 'curriculum'}.`,
+  },
+  inactive_curriculum_regeneration_approved: {
+    type: 'success',
+    title: 'Inactive curriculum regeneration approved',
+    body: (meta) =>
+      `Regeneration was approved for ${meta.studentName || 'the student'} using ${meta.curriculumName || 'the inactive curriculum'}.`,
+  },
+  inactive_curriculum_regeneration_rejected: {
+    type: 'warning',
+    title: 'Inactive curriculum regeneration rejected',
+    body: (meta) =>
+      `Regeneration was rejected for ${meta.studentName || 'the student'} using ${meta.curriculumName || 'the inactive curriculum'}.`,
+  },
 };
 
 /**
