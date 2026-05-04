@@ -421,6 +421,28 @@ const spec = {
         responses: { 200: { description: 'Imported' }, 400: { description: 'Validation errors' } },
       },
     },
+    '/sars/{id}/study-plan/active-version/grades/pdf-preview': {
+      post: {
+        tags: ['Grades'],
+        summary: 'Preview grade import from an official checklist PDF',
+        parameters: [{ $ref: '#/components/parameters/SarId' }],
+        responses: {
+          200: { description: 'Parsed PDF preview' },
+          400: { description: 'Invalid PDF or student mismatch' },
+        },
+      },
+    },
+    '/sars/{id}/study-plan/active-version/grades/pdf-import': {
+      post: {
+        tags: ['Grades'],
+        summary: 'Import matched grades from an official checklist PDF',
+        parameters: [{ $ref: '#/components/parameters/SarId' }],
+        responses: {
+          200: { description: 'Imported' },
+          400: { description: 'Invalid PDF, duplicate rows, or student mismatch' },
+        },
+      },
+    },
     '/sars/{id}/study-plan/regenerate': {
       post: {
         tags: ['Grades'],

@@ -5,6 +5,7 @@ import api from '../../utils/api';
 import useSarData from '../../hooks/useSarData';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
 import BulkGradeImportModal from '../../components/adviser/BulkGradeImportModal';
+import PdfGradeImportModal from '../../components/adviser/PdfGradeImportModal';
 import { getErrorMessage } from '../../utils/errorHelpers';
 import { useNotificationContext } from '../../context/NotificationContext';
 
@@ -144,6 +145,11 @@ const GradeEntry = () => {
   const [requestingInactiveApproval, setRequestingInactiveApproval] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [bulkImporting, setBulkImporting] = useState(false);
+  const [showPdfImport, setShowPdfImport] = useState(false);
+  const [pdfPreview, setPdfPreview] = useState(null);
+  const [pdfImportError, setPdfImportError] = useState('');
+  const [pdfPreviewing, setPdfPreviewing] = useState(false);
+  const [pdfImporting, setPdfImporting] = useState(false);
   const [alert, setAlert] = useState({ variant: '', message: '' });
   const [activeVersion, setActiveVersion] = useState(null);
   const [rows, setRows] = useState([]);
@@ -518,6 +524,70 @@ const GradeEntry = () => {
     }
   };
 
+  const buildPdfFormData = (file) => {
+    const formData = new FormData();
+    formData.append('checklist_pdf', file);
+    return formData;
+  };
+
+  const handlePdfPreview = async (file) => {
+    if (!file) {
+      setPdfImportError('Select a PDF checklist file first.');
+      return;
+    }
+
+    setPdfPreviewing(true);
+    setPdfImportError('');
+    setPdfPreview(null);
+    try {
+      const response = await api.post(
+        `/sars/${sarId}/study-plan/active-version/grades/pdf-preview`,
+        buildPdfFormData(file),
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      setPdfPreview(response.data?.data || null);
+    } catch (error) {
+      setPdfImportError(getErrorMessage(error, 'PDF checklist preview failed.'));
+    } finally {
+      setPdfPreviewing(false);
+    }
+  };
+
+  const handlePdfImport = async (file) => {
+    if (!file) {
+      setPdfImportError('Select a PDF checklist file first.');
+      return;
+    }
+
+    setPdfImporting(true);
+    setPdfImportError('');
+    try {
+      const response = await api.post(
+        `/sars/${sarId}/study-plan/active-version/grades/pdf-import`,
+        buildPdfFormData(file),
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      const result = response.data || {};
+      setAlert({
+        variant: 'success',
+        message: `Imported ${result.imported ?? 0} grades from the PDF checklist.`,
+      });
+      setShowPdfImport(false);
+      setPdfPreview(null);
+      await reload();
+    } catch (error) {
+      setPdfImportError(getErrorMessage(error, 'PDF checklist import failed.'));
+    } finally {
+      setPdfImporting(false);
+    }
+  };
+
+  const closePdfImport = () => {
+    setShowPdfImport(false);
+    setPdfPreview(null);
+    setPdfImportError('');
+  };
+
   return (
     <AdviserLayout activePage="students" pageTitle="Grade Entry">
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
@@ -826,6 +896,13 @@ const GradeEntry = () => {
             >
               Import CSV
             </Button>
+            <Button
+              variant="outline-primary"
+              onClick={() => setShowPdfImport(true)}
+              disabled={saving || regenerating}
+            >
+              Import PDF Checklist
+            </Button>
             {canRegenerate ? (
               <Button
                 variant="warning"
@@ -851,6 +928,20 @@ const GradeEntry = () => {
             onImport={handleBulkImportComplete}
             sarId={sarId}
             importing={bulkImporting}
+          />
+          <PdfGradeImportModal
+            show={showPdfImport}
+            onHide={closePdfImport}
+            onPreview={handlePdfPreview}
+            onImport={handlePdfImport}
+            onClearPreview={() => {
+              setPdfPreview(null);
+              setPdfImportError('');
+            }}
+            preview={pdfPreview}
+            error={pdfImportError}
+            previewing={pdfPreviewing}
+            importing={pdfImporting}
           />
         </>
       )}

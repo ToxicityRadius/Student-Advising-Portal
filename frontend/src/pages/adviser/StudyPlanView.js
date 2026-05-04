@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Card, Form, Spinner, Table } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Spinner } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import useSarData from '../../hooks/useSarData';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
+import StudyPlanChecklist from '../../components/sar/StudyPlanChecklist';
 import { getErrorMessage } from '../../utils/errorHelpers';
 
 const slotLabels = {
@@ -19,26 +20,6 @@ const slotLabels = {
   '4-1': 'Year 4 • 1st Semester',
   '4-2': 'Year 4 • 2nd Semester',
   '4-3': 'Year 4 • Summer',
-};
-
-const statusVariant = {
-  pending: 'secondary',
-  passed: 'success',
-  failed: 'danger',
-  dropped: 'warning',
-  incomplete: 'dark',
-  officially_dropped: 'danger',
-  unofficially_dropped: 'danger',
-};
-
-const statusLabel = {
-  pending: 'Pending',
-  passed: 'Passed',
-  failed: 'Failed',
-  dropped: 'Dropped',
-  incomplete: 'Incomplete',
-  officially_dropped: 'Off. Dropped',
-  unofficially_dropped: 'Unoff. Dropped',
 };
 
 const buildEditableRows = (planVersion) =>
@@ -229,100 +210,13 @@ const StudyPlanView = () => {
 
           <Card className="shadow-sm">
             <Card.Body>
-              <Table responsive className="table-fixed-cols">
-                <thead>
-                  <tr>
-                    <th style={{ width: '22%' }}>Semester Slot</th>
-                    <th>Courses</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupedCourses.map((group) => (
-                    <tr key={group.key}>
-                      <td className="fw-semibold align-middle">{group.label}</td>
-                      <td>
-                        <div className="d-flex flex-column gap-3">
-                          {group.courses.map((courseEntry) => (
-                            <Card key={courseEntry.id} className="border-0 bg-light">
-                              <Card.Body className="py-3">
-                                <div className="d-flex flex-column flex-lg-row justify-content-between gap-3">
-                                  <div>
-                                    <div className="fw-semibold">
-                                      {courseEntry.Course?.code || 'No code'}
-                                    </div>
-                                    <div>{courseEntry.Course?.name || 'Unnamed course'}</div>
-                                    <div className="text-muted small">
-                                      {courseEntry.Course?.units || 0} units
-                                    </div>
-                                    {editable && (
-                                      <div className="d-flex flex-wrap gap-2 mt-3">
-                                        <Form.Select
-                                          size="sm"
-                                          style={{ maxWidth: 140 }}
-                                          value={courseEntry.yearLevel}
-                                          onChange={(event) =>
-                                            updateDraftCourse(
-                                              courseEntry.id,
-                                              'yearLevel',
-                                              event.target.value,
-                                            )
-                                          }
-                                        >
-                                          {availableYearLevels.map((yearLevel) => (
-                                            <option key={yearLevel} value={yearLevel}>
-                                              Year {yearLevel}
-                                            </option>
-                                          ))}
-                                        </Form.Select>
-                                        <Form.Select
-                                          size="sm"
-                                          style={{ maxWidth: 170 }}
-                                          value={courseEntry.semester}
-                                          onChange={(event) =>
-                                            updateDraftCourse(
-                                              courseEntry.id,
-                                              'semester',
-                                              event.target.value,
-                                            )
-                                          }
-                                        >
-                                          <option value={1}>1st Semester</option>
-                                          <option value={2}>2nd Semester</option>
-                                          <option value={3}>Summer</option>
-                                        </Form.Select>
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="text-lg-end">
-                                    <div className="small text-muted">Grade</div>
-                                    <div className="fw-semibold">
-                                      {courseEntry.grade || 'Pending'}
-                                    </div>
-                                    <Badge
-                                      bg={statusVariant[courseEntry.status] || 'secondary'}
-                                      className="text-uppercase mt-2"
-                                    >
-                                      {statusLabel[courseEntry.status] || courseEntry.status}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              </Card.Body>
-                            </Card>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-
-                  {groupedCourses.length === 0 && (
-                    <tr>
-                      <td colSpan={2} className="text-center text-muted py-4">
-                        No courses were scheduled in this study plan version.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </Table>
+              <StudyPlanChecklist
+                groups={groupedCourses}
+                editable={editable}
+                availableYearLevels={availableYearLevels}
+                onTermChange={updateDraftCourse}
+                emptyMessage="No courses were scheduled in this study plan version."
+              />
             </Card.Body>
           </Card>
 

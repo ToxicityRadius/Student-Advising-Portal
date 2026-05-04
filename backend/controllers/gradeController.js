@@ -25,6 +25,11 @@ const {
   getCrossCurriculumAvailability,
   buildPrerequisiteCascade,
 } = require('../utils/courseAvailability');
+const {
+  extractChecklistFromPdf,
+  normalizeIdentityName,
+  normalizeCourseCode: normalizePdfCourseCode,
+} = require('../utils/pdfChecklistParser');
 const GradeService = require('../services/GradeService');
 const NotificationService = require('../services/NotificationService');
 const ActivityLogService = require('../services/ActivityLogService');
@@ -132,6 +137,228 @@ const normalizeCourseCode = (code) =>
     .trim()
     .replace(/\s+/g, ' ')
     .toUpperCase();
+
+const compactCourseCode = (code) => normalizeCourseCode(code).replace(/\s+/g, '');
+
+const makeHttpError = (message, statusCode = 400, code = undefined, details = undefined) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  error.code = code;
+  error.details = details;
+  return error;
+};
+
+const sendGradeImportError = async (res, transaction, error) => {
+  try {
+    await transaction.rollback();
+  } catch {
+    // The request is already failing; keep the original error response stable.
+  }
+
+  const isKnownClientError = Boolean(error.statusCode && error.statusCode < 500);
+  return res.status(error.statusCode || 500).json({
+    success: false,
+    code: error.code,
+    message: isKnownClientError
+      ? error.message
+      : 'PDF checklist processing failed. Please try again.',
+    details: error.details,
+  });
+};
+
+const buildStudyPlanCourseLookup = (courseRows = []) => {
+  const byCode = new Map();
+
+  for (const row of courseRows) {
+    const code = normalizeCourseCode(row.Course?.code);
+    if (!code) continue;
+    byCode.set(code, row);
+    byCode.set(compactCourseCode(code), row);
+  }
+
+  return byCode;
+};
+
+const resolveStudyPlanCourseByCode = (byCode, courseCode) =>
+  byCode.get(normalizeCourseCode(courseCode)) || byCode.get(compactCourseCode(courseCode));
+
+const summarizeStudyPlanVersion = (serialized) =>
+  serialized.StudyPlanCourses.reduce(
+    (acc, entry) => {
+      acc[entry.status] = (acc[entry.status] || 0) + 1;
+      return acc;
+    },
+    {
+      pending: 0,
+      passed: 0,
+      failed: 0,
+      dropped: 0,
+      incomplete: 0,
+      officially_dropped: 0,
+      unofficially_dropped: 0,
+    },
+  );
+
+const normalizeLastName = (value) => normalizeIdentityName(value).replace(/\s+/g, ' ').trim();
+
+const extractSurnameFirstLastName = (name) => {
+  const text = String(name || '').trim();
+  const surname = text.includes(',') ? text.split(',')[0] : text.split(/\s+/)[0];
+  return normalizeLastName(surname);
+};
+
+const extractTrailingLastName = (name) => {
+  const text = String(name || '').trim();
+  if (text.includes(',')) {
+    return normalizeLastName(text.split(',')[0]);
+  }
+  const tokens = normalizeIdentityName(text).split(' ').filter(Boolean);
+  return tokens[tokens.length - 1] || '';
+};
+
+const assertPdfIdentityMatchesSar = (sar, identity = {}) => {
+  const pdfStudentNumber = String(identity.studentNumber || '').trim();
+  const sarStudentNumber = String(sar.studentNumber || '').trim();
+  if (!pdfStudentNumber || pdfStudentNumber !== sarStudentNumber) {
+    throw makeHttpError(
+      'The PDF student number does not match this student record.',
+      400,
+      'PDF_STUDENT_MISMATCH',
+      {
+        expectedStudentNumber: sarStudentNumber,
+        pdfStudentNumber,
+      },
+    );
+  }
+
+  const pdfName = String(identity.studentName || '').trim();
+  const pdfLastName = extractSurnameFirstLastName(pdfName);
+  const candidateLastNames = [
+    sar.Student?.lastName,
+    sar.Student?.last_name,
+    extractTrailingLastName(sar.studentName),
+  ]
+    .map(normalizeLastName)
+    .filter(Boolean);
+
+  if (!pdfLastName || !candidateLastNames.includes(pdfLastName)) {
+    throw makeHttpError(
+      'The PDF student last name does not match this student record.',
+      400,
+      'PDF_STUDENT_MISMATCH',
+      {
+        expectedLastNames: candidateLastNames,
+        pdfStudentName: pdfName,
+        pdfLastName,
+      },
+    );
+  }
+};
+
+const buildPdfGradeImportPlan = ({ parsedChecklist, courseRows }) => {
+  const byCode = buildStudyPlanCourseLookup(courseRows);
+  const matchedRows = [];
+  const unmatchedRows = [];
+  const invalidRows = [];
+  const updates = [];
+  const warnings = [...(parsedChecklist.warnings || [])];
+
+  parsedChecklist.rows.forEach((row, index) => {
+    const courseCode = normalizePdfCourseCode(row.courseCode);
+    const planRow = resolveStudyPlanCourseByCode(byCode, courseCode);
+
+    if (!planRow) {
+      unmatchedRows.push({ line: index + 1, courseCode, grade: row.grade });
+      return;
+    }
+
+    try {
+      const parsed = parseGradePayload({ grade: row.grade });
+      const match = {
+        line: index + 1,
+        studyPlanCourseId: planRow.id,
+        courseCode: planRow.Course?.code || courseCode,
+        courseName: planRow.Course?.name || '',
+        grade: parsed.grade,
+        status: parsed.status,
+      };
+      matchedRows.push(match);
+      updates.push({ planRow, parsed });
+    } catch (error) {
+      invalidRows.push({ line: index + 1, courseCode, grade: row.grade, message: error.message });
+    }
+  });
+
+  if (unmatchedRows.length > 0) {
+    warnings.push(
+      `${unmatchedRows.length} course code(s) were not found in the active study plan.`,
+    );
+  }
+  if ((parsedChecklist.duplicateRows || []).length > 0) {
+    warnings.push('Duplicate graded course rows were found. Review the PDF before importing.');
+  }
+
+  return {
+    identity: parsedChecklist.identity,
+    curriculumTitle: parsedChecklist.curriculumTitle,
+    matchedRows,
+    unmatchedRows,
+    invalidRows,
+    duplicateRows: parsedChecklist.duplicateRows || [],
+    warnings,
+    canImport: matchedRows.length > 0 && (parsedChecklist.duplicateRows || []).length === 0,
+    updates,
+  };
+};
+
+const sanitizePdfImportPlan = (plan) => ({
+  identity: plan.identity,
+  curriculumTitle: plan.curriculumTitle,
+  matchedRows: plan.matchedRows,
+  unmatchedRows: plan.unmatchedRows,
+  invalidRows: plan.invalidRows,
+  duplicateRows: plan.duplicateRows,
+  warnings: plan.warnings,
+  canImport: plan.canImport,
+});
+
+const loadActiveGradeImportContext = async (sarId, transaction, missingVersionMessage) => {
+  const sar = await getSarWithStudyPlan(sarId, transaction);
+  if (!sar) {
+    throw makeHttpError('Student academic record not found', 404);
+  }
+
+  if (!sar.StudyPlan) {
+    throw makeHttpError('No study plan exists for this student academic record', 400);
+  }
+
+  const activeVersion = await getActiveVersion(sar.StudyPlan.id, transaction);
+  if (!activeVersion) {
+    throw makeHttpError(missingVersionMessage, 404);
+  }
+
+  if (activeVersion.status === 'archived') {
+    throw makeHttpError('Cannot enter grades for an archived or locked version', 400);
+  }
+
+  const courseRows = await StudyPlanCourse.findAll({
+    where: { studyPlanVersionId: activeVersion.id },
+    include: [{ model: Course, attributes: ['id', 'code', 'name'] }],
+    transaction,
+  });
+
+  return { sar, activeVersion, courseRows };
+};
+
+const analyzePdfChecklistImport = async ({ sar, file, courseRows }) => {
+  if (!file?.buffer) {
+    throw makeHttpError('A PDF checklist file is required.', 400, 'PDF_FILE_REQUIRED');
+  }
+
+  const parsedChecklist = await extractChecklistFromPdf(file.buffer);
+  assertPdfIdentityMatchesSar(sar, parsedChecklist.identity);
+  return buildPdfGradeImportPlan({ parsedChecklist, courseRows });
+};
 
 const buildCourseInfoMap = ({
   curriculumCourses = [],
@@ -789,6 +1016,111 @@ exports.bulkImportGrades = async (req, res, next) => {
   } catch (error) {
     await transaction.rollback();
     next(error);
+  }
+};
+
+// @desc   Preview grades extracted from an official checklist PDF
+// @route  POST /api/sars/:id/study-plan/active-version/grades/pdf-preview
+// @access adviser, admin
+exports.previewPdfChecklistGrades = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const context = await loadActiveGradeImportContext(
+      req.params.id,
+      transaction,
+      'No active study plan version found for PDF grade import',
+    );
+    const plan = await analyzePdfChecklistImport({
+      sar: context.sar,
+      file: req.file,
+      courseRows: context.courseRows,
+    });
+
+    await transaction.rollback();
+    return res.status(200).json({ success: true, data: sanitizePdfImportPlan(plan) });
+  } catch (error) {
+    return sendGradeImportError(res, transaction, error);
+  }
+};
+
+// @desc   Import grades extracted from an official checklist PDF
+// @route  POST /api/sars/:id/study-plan/active-version/grades/pdf-import
+// @access adviser, admin
+exports.importPdfChecklistGrades = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const context = await loadActiveGradeImportContext(
+      req.params.id,
+      transaction,
+      'No active study plan version found for PDF grade import',
+    );
+    const plan = await analyzePdfChecklistImport({
+      sar: context.sar,
+      file: req.file,
+      courseRows: context.courseRows,
+    });
+
+    if (plan.duplicateRows.length > 0) {
+      throw makeHttpError(
+        'Duplicate graded course rows were found in the PDF.',
+        400,
+        'PDF_DUPLICATE_COURSE_GRADES',
+        {
+          duplicateRows: plan.duplicateRows,
+        },
+      );
+    }
+
+    if (plan.updates.length === 0) {
+      throw makeHttpError(
+        'No matched grade rows were found for this active study plan.',
+        400,
+        'PDF_NO_MATCHED_GRADES',
+        {
+          unmatchedRows: plan.unmatchedRows,
+          invalidRows: plan.invalidRows,
+        },
+      );
+    }
+
+    for (const { planRow, parsed } of plan.updates) {
+      await planRow.update(
+        { grade: parsed.grade, status: parsed.status, updatedAt: Date.now() },
+        { transaction },
+      );
+    }
+
+    await transaction.commit();
+
+    if (context.sar.userId) {
+      NotificationService.notify({
+        recipientId: context.sar.userId,
+        actorId: req.user.id,
+        category: 'grades_entered',
+        resourceType: 'study_plan_version',
+        resourceId: context.activeVersion.id,
+        meta: { gradeCount: plan.updates.length, pdfImport: true },
+      });
+    }
+
+    const refreshedVersion = await StudyPlanVersion.findByPk(context.activeVersion.id, {
+      include: includeRelationsForVersion,
+    });
+    const serialized = serializeVersion(refreshedVersion);
+
+    return res.status(200).json({
+      success: true,
+      data: serialized,
+      summary: summarizeStudyPlanVersion(serialized),
+      importPreview: sanitizePdfImportPlan(plan),
+      imported: plan.updates.length,
+      failed: plan.unmatchedRows.length + plan.invalidRows.length + plan.duplicateRows.length,
+      errors: [...plan.unmatchedRows, ...plan.invalidRows, ...plan.duplicateRows],
+    });
+  } catch (error) {
+    return sendGradeImportError(res, transaction, error);
   }
 };
 

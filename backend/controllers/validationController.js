@@ -15,7 +15,7 @@ const {
 } = require('../models');
 const {
   buildElectiveTrackPlan,
-  isElectiveTrackSelectionRequired,
+  isElectiveTrackSelectionRequiredForSar,
   slotIndexFromYearSemester,
 } = require('../utils/studyPlan');
 const { standingLabel } = require('../utils/standingValidation');
@@ -466,10 +466,13 @@ exports.validateVersion = async (req, res, next) => {
         .json({ success: false, message: 'Only draft study plan versions can be validated' });
     }
 
-    const currentTerm = await AcademicTerm.findOne({ where: { isCurrent: true }, transaction });
-    const electiveTrackRequired = isElectiveTrackSelectionRequired({
-      yearLevel: sar.yearLevel,
-      currentSemester: currentTerm?.semester,
+    const [currentTerm, curriculumCourses] = await Promise.all([
+      AcademicTerm.findOne({ where: { isCurrent: true }, transaction }),
+      CurriculumCourse.findAll({ where: { curriculumId: sar.curriculumId }, transaction }),
+    ]);
+    const electiveTrackRequired = isElectiveTrackSelectionRequiredForSar({
+      studyPlanCourses: studyPlanVersion.StudyPlanCourses || [],
+      curriculumCourses,
     });
 
     if (electiveTrackRequired && !sar.electiveTrackId) {

@@ -10,7 +10,7 @@ jest.mock('../models', () => {
       transaction: jest.fn(async () => transaction),
     },
     __transaction: transaction,
-    AcademicTerm: {},
+    AcademicTerm: { findOne: jest.fn() },
     StudentAcademicRecord: { findByPk: jest.fn() },
     StudyPlan: {},
     StudyPlanVersion: {
@@ -44,6 +44,7 @@ jest.mock('../services/NotificationService', () => ({
 const models = require('../models');
 const GradeService = require('../services/GradeService');
 const {
+  validateVersion,
   selectElectiveTrack,
   updateDraftVersionCourses,
 } = require('../controllers/validationController');
@@ -109,6 +110,115 @@ describe('validationController.selectElectiveTrack', () => {
         }),
       }),
     );
+  });
+});
+
+describe('validationController.validateVersion elective track readiness', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    GradeService.findStrictRetakePlacementViolation.mockReturnValue(null);
+    GradeService.isPrerequisitePlacementAllowed.mockReturnValue({ allowed: true });
+    models.AcademicTerm.findOne.mockResolvedValue({ id: 1, semester: 2 });
+    models.Prerequisite.findAll.mockResolvedValue([]);
+    models.PrerequisiteOverrideRequest.findAll.mockResolvedValue([]);
+    models.StudyPlanVersion.update.mockResolvedValue([1]);
+  });
+
+  const makeSar = () => ({
+    id: 42,
+    curriculumId: 10,
+    electiveTrackId: null,
+    StudyPlan: { id: 99 },
+  });
+
+  const makeDraftVersion = (courses) => ({
+    id: 8,
+    studyPlanId: 99,
+    status: 'draft',
+    StudyPlanCourses: courses,
+    update: jest.fn(),
+    get: jest.fn(() => ({
+      id: 8,
+      studyPlanId: 99,
+      status: 'active',
+      StudyPlanCourses: courses,
+    })),
+  });
+
+  const setupValidation = ({ curriculumCourses, studyPlanCourses }) => {
+    const sar = makeSar();
+    const draftVersion = makeDraftVersion(studyPlanCourses);
+
+    models.StudentAcademicRecord.findByPk.mockResolvedValue(sar);
+    models.StudyPlanVersion.findByPk.mockResolvedValue(draftVersion);
+    models.CurriculumCourse.findAll.mockResolvedValue(curriculumCourses);
+    models.StudyPlanVersion.findOne.mockResolvedValue({ StudyPlanCourses: [] });
+    models.ElectiveTrackCourse.findAll.mockResolvedValue([]);
+
+    return { draftVersion };
+  };
+
+  test('does not block validation when year 2 semester 2 courses are still pending', async () => {
+    const { draftVersion } = setupValidation({
+      curriculumCourses: [
+        { courseId: 1, yearLevel: 1, semester: 1, isElective: false },
+        { courseId: 2, yearLevel: 2, semester: 2, isElective: false },
+      ],
+      studyPlanCourses: [
+        { courseId: 1, yearLevel: 1, semester: 1, status: 'passed' },
+        { courseId: 2, yearLevel: 2, semester: 2, status: 'pending' },
+      ],
+    });
+
+    const req = {
+      params: { id: '42', versionId: '8' },
+      user: { id: 9 },
+    };
+    const res = makeResponse();
+    const next = jest.fn();
+
+    await validateVersion(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(draftVersion.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'active' }),
+      expect.objectContaining({ transaction: models.__transaction }),
+    );
+    expect(models.__transaction.commit).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test('blocks validation when checkpoint courses are finished and no track is selected', async () => {
+    setupValidation({
+      curriculumCourses: [
+        { courseId: 1, yearLevel: 1, semester: 1, isElective: false },
+        { courseId: 2, yearLevel: 2, semester: 2, isElective: false },
+        { courseId: 3, yearLevel: 2, semester: 2, isElective: true },
+      ],
+      studyPlanCourses: [
+        { courseId: 1, yearLevel: 1, semester: 1, status: 'passed' },
+        { courseId: 2, yearLevel: 2, semester: 2, status: 'failed' },
+        { courseId: 3, yearLevel: 2, semester: 2, status: 'pending' },
+      ],
+    });
+
+    const req = {
+      params: { id: '42', versionId: '8' },
+      user: { id: 9 },
+    };
+    const res = makeResponse();
+    const next = jest.fn();
+
+    await validateVersion(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(models.__transaction.rollback).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      code: 'ELECTIVE_TRACK_REQUIRED',
+      message: 'Elective track selection is required before validating this study plan.',
+    });
   });
 });
 

@@ -35,6 +35,49 @@ const isElectiveTrackSelectionRequired = ({ yearLevel, currentSemester }) => {
   return parsedYearLevel === 2 && parsedSemester >= 2;
 };
 
+const ELECTIVE_TRACK_CHECKPOINT_SLOT = slotIndexFromYearSemester(2, 2);
+const ELECTIVE_TRACK_TERMINAL_STATUSES = new Set([
+  'passed',
+  'failed',
+  'dropped',
+  'incomplete',
+  'officially_dropped',
+  'unofficially_dropped',
+]);
+
+const isElectiveTrackSelectionRequiredForSar = ({
+  studyPlanCourses = [],
+  curriculumCourses = [],
+} = {}) => {
+  const studyPlanStatusByCourseId = new Map(
+    (studyPlanCourses || []).map((entry) => [String(entry.courseId), String(entry.status || '')]),
+  );
+
+  const checkpointCourseIds = (curriculumCourses || [])
+    .filter((entry) => {
+      if (entry?.isElective) {
+        return false;
+      }
+
+      const yearLevel = toNumber(entry?.yearLevel);
+      const semester = toNumber(entry?.semester);
+      if (yearLevel <= 0 || semester <= 0) {
+        return false;
+      }
+
+      return slotIndexFromYearSemester(yearLevel, semester) <= ELECTIVE_TRACK_CHECKPOINT_SLOT;
+    })
+    .map((entry) => String(entry.courseId));
+
+  if (checkpointCourseIds.length === 0) {
+    return false;
+  }
+
+  return checkpointCourseIds.every((courseId) =>
+    ELECTIVE_TRACK_TERMINAL_STATUSES.has(studyPlanStatusByCourseId.get(courseId)),
+  );
+};
+
 const hasExplicitTrackSlot = (entry) =>
   Number.isInteger(toNumber(entry?.yearLevel)) &&
   Number.isInteger(toNumber(entry?.semester)) &&
@@ -135,6 +178,7 @@ const buildElectiveTrackPlan = (trackCourses = []) => {
 module.exports = {
   buildElectiveTrackPlan,
   isElectiveTrackSelectionRequired,
+  isElectiveTrackSelectionRequiredForSar,
   nextRegularSlotIndex,
   normalizeRegularSlotIndex,
   slotIndexFromYearSemester,

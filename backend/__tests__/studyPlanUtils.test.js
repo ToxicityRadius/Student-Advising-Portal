@@ -4,8 +4,9 @@ const {
   normalizeRegularSlotIndex,
   nextRegularSlotIndex,
   isElectiveTrackSelectionRequired,
+  isElectiveTrackSelectionRequiredForSar,
   sortElectiveTrackCourses,
-  buildElectiveTrackPlan
+  buildElectiveTrackPlan,
 } = require('../utils/studyPlan');
 
 describe('Study Plan Utilities', () => {
@@ -128,6 +129,70 @@ describe('Study Plan Utilities', () => {
     });
   });
 
+  describe('isElectiveTrackSelectionRequiredForSar', () => {
+    const curriculumCourses = [
+      { courseId: 1, yearLevel: 1, semester: 1, isElective: false },
+      { courseId: 2, yearLevel: 2, semester: 1, isElective: false },
+      { courseId: 3, yearLevel: 2, semester: 2, isElective: false },
+      { courseId: 4, yearLevel: 2, semester: 2, isElective: true },
+      { courseId: 5, yearLevel: 2, semester: 3, isElective: false },
+      { courseId: 6, yearLevel: 3, semester: 1, isElective: false },
+    ];
+
+    test('does not require track while a non-elective through year 2 semester 2 is pending', () => {
+      expect(
+        isElectiveTrackSelectionRequiredForSar({
+          curriculumCourses,
+          studyPlanCourses: [
+            { courseId: 1, status: 'passed' },
+            { courseId: 2, status: 'passed' },
+            { courseId: 3, status: 'pending' },
+          ],
+        }),
+      ).toBe(false);
+    });
+
+    test('requires track after all non-electives through year 2 semester 2 have terminal statuses', () => {
+      expect(
+        isElectiveTrackSelectionRequiredForSar({
+          curriculumCourses,
+          studyPlanCourses: [
+            { courseId: 1, status: 'passed' },
+            { courseId: 2, status: 'failed' },
+            { courseId: 3, status: 'incomplete' },
+          ],
+        }),
+      ).toBe(true);
+    });
+
+    test('ignores elective placeholders and year 2 summer when checking readiness', () => {
+      expect(
+        isElectiveTrackSelectionRequiredForSar({
+          curriculumCourses,
+          studyPlanCourses: [
+            { courseId: 1, status: 'passed' },
+            { courseId: 2, status: 'passed' },
+            { courseId: 3, status: 'passed' },
+            { courseId: 4, status: 'pending' },
+            { courseId: 5, status: 'pending' },
+          ],
+        }),
+      ).toBe(true);
+    });
+
+    test('does not require track when a checkpoint course is missing from the study plan', () => {
+      expect(
+        isElectiveTrackSelectionRequiredForSar({
+          curriculumCourses,
+          studyPlanCourses: [
+            { courseId: 1, status: 'passed' },
+            { courseId: 2, status: 'passed' },
+          ],
+        }),
+      ).toBe(false);
+    });
+  });
+
   // ---- sortElectiveTrackCourses ----
 
   describe('sortElectiveTrackCourses', () => {
@@ -138,7 +203,7 @@ describe('Study Plan Utilities', () => {
         { id: 3, yearLevel: 2, semester: 1, Course: { code: 'C' } },
       ];
       const sorted = sortElectiveTrackCourses(courses);
-      expect(sorted.map(c => c.id)).toEqual([3, 2, 1]);
+      expect(sorted.map((c) => c.id)).toEqual([3, 2, 1]);
     });
 
     test('sorts by code for same slot', () => {
@@ -147,7 +212,7 @@ describe('Study Plan Utilities', () => {
         { id: 2, yearLevel: 3, semester: 1, Course: { code: 'CPE 311' } },
       ];
       const sorted = sortElectiveTrackCourses(courses);
-      expect(sorted.map(c => c.id)).toEqual([2, 1]);
+      expect(sorted.map((c) => c.id)).toEqual([2, 1]);
     });
 
     test('returns empty for empty input', () => {
@@ -185,7 +250,9 @@ describe('Study Plan Utilities', () => {
 
     test('throws for missing placements', () => {
       const courses = [{ id: 1, courseId: 100, Course: { code: 'CPE 311' } }];
-      expect(() => buildElectiveTrackPlan(courses)).toThrow('Elective track course placements are required');
+      expect(() => buildElectiveTrackPlan(courses)).toThrow(
+        'Elective track course placements are required',
+      );
     });
 
     test('throws for conflicting slots', () => {
@@ -193,7 +260,9 @@ describe('Study Plan Utilities', () => {
         { id: 1, courseId: 100, yearLevel: 3, semester: 1, Course: { code: 'CPE 311' } },
         { id: 2, courseId: 101, yearLevel: 3, semester: 1, Course: { code: 'CPE 312' } },
       ];
-      expect(() => buildElectiveTrackPlan(courses)).toThrow('Elective track courses must have unique placements');
+      expect(() => buildElectiveTrackPlan(courses)).toThrow(
+        'Elective track courses must have unique placements',
+      );
     });
   });
 });

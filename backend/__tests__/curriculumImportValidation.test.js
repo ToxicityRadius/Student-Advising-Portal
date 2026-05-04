@@ -4,13 +4,17 @@ jest.mock('../models', () => ({
     findByPk: jest.fn(),
     update: jest.fn(),
   },
-  Course: {},
+  Course: {
+    findAndCountAll: jest.fn(),
+  },
   CurriculumCourse: {},
   Prerequisite: {},
   CoRequisite: {},
   CourseEquivalency: {},
   ElectiveTrack: {},
-  ElectiveTrackCourse: {},
+  ElectiveTrackCourse: {
+    findAll: jest.fn(),
+  },
   StudyPlanCourse: {},
   User: {},
   Program: { findOne: jest.fn() },
@@ -18,8 +22,18 @@ jest.mock('../models', () => ({
   ActivityLog: { create: jest.fn() },
 }));
 
-const { __testables, setActiveCurriculum } = require('../controllers/curriculumController');
-const { sequelize, Curriculum } = require('../models');
+const {
+  __testables,
+  setActiveCurriculum,
+  getCourses,
+} = require('../controllers/curriculumController');
+const {
+  sequelize,
+  Curriculum,
+  Course,
+  ElectiveTrackCourse,
+  UserProgramAssignment,
+} = require('../models');
 
 const headers = [
   'exportVersion',
@@ -185,6 +199,63 @@ describe('curriculum activation', () => {
       expect.objectContaining({ where: { programId: curriculum.programId } }),
     );
     expect(curriculum.update).toHaveBeenCalledWith({ isActive: true }, { transaction });
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+});
+
+describe('course listing scope', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    Course.findAndCountAll.mockResolvedValue({ rows: [], count: 0 });
+    ElectiveTrackCourse.findAll.mockResolvedValue([]);
+    UserProgramAssignment.findAll.mockResolvedValue([{ programId: 10 }]);
+  });
+
+  const makeResponse = () => ({
+    status: jest.fn().mockReturnThis(),
+    json: jest.fn().mockReturnThis(),
+  });
+
+  test('program chair can request all courses for equivalency lookup', async () => {
+    const req = {
+      query: { scope: 'all', page: '1', pageSize: '500' },
+      user: { id: 7, role: 'admin' },
+    };
+    const res = makeResponse();
+    const next = jest.fn();
+
+    await getCourses(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(UserProgramAssignment.findAll).not.toHaveBeenCalled();
+    expect(Course.findAndCountAll).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {},
+      }),
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test('regular course listing remains scoped to assigned program', async () => {
+    const req = {
+      query: { page: '1', pageSize: '12' },
+      user: { id: 7, role: 'admin' },
+    };
+    const res = makeResponse();
+    const next = jest.fn();
+
+    await getCourses(req, res, next);
+
+    expect(UserProgramAssignment.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 7 },
+      }),
+    );
+    expect(Course.findAndCountAll).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ programId: expect.any(Object) }),
+      }),
+    );
     expect(res.status).toHaveBeenCalledWith(200);
   });
 });

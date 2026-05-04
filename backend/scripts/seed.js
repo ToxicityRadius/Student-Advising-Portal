@@ -39,6 +39,39 @@ const { buildSuperadminSeedUser } = require('../utils/superadminBootstrap');
 
 const importReadyDir = path.resolve(__dirname, '..', '..', 'data', 'curriculum_import_ready');
 
+const SEEDED_PROGRAMS = [
+  {
+    ...DEFAULT_PROGRAM,
+    imports: [
+      { file: 'bs_cpe_curriculum_2018_import.csv', isActive: false },
+      { file: 'bs_cpe_curriculum_2023_import.csv', isActive: false },
+      { file: 'bs_cpe_curriculum_2025_import.csv', isActive: true },
+    ],
+  },
+  {
+    code: 'BSARCH',
+    name: 'Bachelor of Science in Architecture',
+    collegeName: 'College of Engineering and Architecture',
+    emailSuffix: '.arch@tip.edu.ph',
+    isActive: true,
+    imports: [
+      { file: 'bs_arch_curriculum_2018_import.csv', isActive: false },
+      { file: 'bs_arch_curriculum_2023_import.csv', isActive: true },
+    ],
+  },
+  {
+    code: 'BSEE',
+    name: 'Bachelor of Science in Electrical Engineering',
+    collegeName: 'College of Engineering and Architecture',
+    emailSuffix: '.ee@tip.edu.ph',
+    isActive: true,
+    imports: [
+      { file: 'bs_ee_curriculum_2018_import.csv', isActive: false },
+      { file: 'bs_ee_curriculum_2023_import.csv', isActive: true },
+    ],
+  },
+];
+
 // ─── CSV helpers ────────────────────────────────────────────────────────────
 
 const parseCsvText = (text) => {
@@ -136,6 +169,8 @@ const readImportCsv = (fileName) => {
     curriculumName: pick(rawRow, 'curriculumName'),
     courseCode: pick(rawRow, 'courseCode').toUpperCase(),
     courseName: pick(rawRow, 'courseName'),
+    lectureHours: toIntOrNull(pick(rawRow, 'lectureHours')),
+    laboratoryHours: toIntOrNull(pick(rawRow, 'laboratoryHours')),
     units: toIntOrNull(pick(rawRow, 'units')),
     yearLevel: toIntOrNull(pick(rawRow, 'yearLevel')),
     semester: toIntOrNull(pick(rawRow, 'semester')),
@@ -175,11 +210,20 @@ const readImportCsv = (fileName) => {
 
     // ── 2. Default users ─────────────────────────────────────────────────────
     const hash = await bcrypt.hash('Password123!', 10);
-    const bscpeProgram = await Program.create({
-      ...DEFAULT_PROGRAM,
-      createdAt: now,
-      updatedAt: now,
-    });
+    const programsByCode = new Map();
+    for (const programDefinition of SEEDED_PROGRAMS) {
+      const program = await Program.create({
+        code: programDefinition.code,
+        name: programDefinition.name,
+        collegeName: programDefinition.collegeName,
+        emailSuffix: programDefinition.emailSuffix,
+        isActive: programDefinition.isActive,
+        createdAt: now,
+        updatedAt: now,
+      });
+      programsByCode.set(program.code.toUpperCase(), program);
+    }
+    const bscpeProgram = programsByCode.get(DEFAULT_PROGRAM.code);
 
     const defaultUsers = [
       superadminUser,
@@ -240,11 +284,12 @@ const readImportCsv = (fileName) => {
     console.log('[seed] default program and users created');
 
     // ── 3. Curriculum import from import-ready CSVs ─────────────────────────
-    const importFiles = [
-      { file: 'bs_cpe_curriculum_2018_import.csv', isActive: false },
-      { file: 'bs_cpe_curriculum_2023_import.csv', isActive: false },
-      { file: 'bs_cpe_curriculum_2025_import.csv', isActive: true },
-    ];
+    const importFiles = SEEDED_PROGRAMS.flatMap((program) =>
+      program.imports.map((item) => ({
+        ...item,
+        programCode: program.code,
+      })),
+    );
 
     console.log('[seed] loading import-ready csv files...');
 
@@ -260,11 +305,16 @@ const readImportCsv = (fileName) => {
       });
       const createdById = admin?.id || null;
 
-      // Shared course map: course code → Course DB id (courses are global)
-      const courseIdByCode = new Map();
+      // Course map: program + course code → Course DB id.
+      const courseIdByProgramAndCode = new Map();
 
-      for (const { file, isActive } of importFiles) {
-        console.log(`[seed] importing ${file}...`);
+      for (const { file, isActive, programCode } of importFiles) {
+        const program = programsByCode.get(String(programCode).toUpperCase());
+        if (!program) {
+          throw new Error(`Missing seeded program for ${programCode}`);
+        }
+
+        console.log(`[seed] importing ${file} for ${program.code}...`);
         const rows = readImportCsv(file);
 
         const metaRow = rows.find((r) => r.rowType === 'metadata');
@@ -275,7 +325,7 @@ const readImportCsv = (fileName) => {
           {
             name: curriculumName,
             description: null,
-            programId: bscpeProgram.id,
+            programId: program.id,
             isActive,
             createdById,
             createdAt: now,
@@ -296,16 +346,17 @@ const readImportCsv = (fileName) => {
         const allCodes = [
           ...new Set(rows.flatMap((r) => [r.courseCode, r.relatedCourseCode]).filter(Boolean)),
         ];
+        const courseKey = (code) => `${program.id}:${String(code || '').toUpperCase()}`;
 
         // Find codes already in DB (from a prior curriculum file)
-        const needLookup = allCodes.filter((c) => !courseIdByCode.has(c));
+        const needLookup = allCodes.filter((c) => !courseIdByProgramAndCode.has(courseKey(c)));
 
         if (needLookup.length > 0) {
           const existing = await Course.findAll({
-            where: { code: needLookup, programId: bscpeProgram.id },
+            where: { code: needLookup, programId: program.id },
             transaction,
           });
-          for (const c of existing) courseIdByCode.set(c.code.toUpperCase(), c.id);
+          for (const c of existing) courseIdByProgramAndCode.set(courseKey(c.code), c.id);
         }
 
         // Create any courses that are still missing (structure + elective_track_course rows only)
@@ -314,29 +365,31 @@ const readImportCsv = (fileName) => {
           if (
             !createTypes.has(row.rowType) ||
             !row.courseCode ||
-            courseIdByCode.has(row.courseCode)
+            courseIdByProgramAndCode.has(courseKey(row.courseCode))
           )
             continue;
           const created = await Course.create(
             {
               code: row.courseCode,
               name: row.courseName,
-              programId: bscpeProgram.id,
+              programId: program.id,
               units: row.units || 0,
+              lectureHours: row.lectureHours,
+              laboratoryHours: row.laboratoryHours,
             },
             { transaction },
           );
-          courseIdByCode.set(created.code.toUpperCase(), created.id);
+          courseIdByProgramAndCode.set(courseKey(created.code), created.id);
         }
 
         // CurriculumCourse (structure rows)
         if (structureRows.length > 0) {
           await CurriculumCourse.bulkCreate(
             structureRows
-              .filter((r) => courseIdByCode.has(r.courseCode))
+              .filter((r) => courseIdByProgramAndCode.has(courseKey(r.courseCode)))
               .map((r) => ({
                 curriculumId,
-                courseId: courseIdByCode.get(r.courseCode),
+                courseId: courseIdByProgramAndCode.get(courseKey(r.courseCode)),
                 yearLevel: r.yearLevel,
                 semester: r.semester,
                 isElective: r.isElective,
@@ -350,12 +403,14 @@ const readImportCsv = (fileName) => {
           await Prerequisite.bulkCreate(
             prereqRows
               .filter(
-                (r) => courseIdByCode.has(r.courseCode) && courseIdByCode.has(r.relatedCourseCode),
+                (r) =>
+                  courseIdByProgramAndCode.has(courseKey(r.courseCode)) &&
+                  courseIdByProgramAndCode.has(courseKey(r.relatedCourseCode)),
               )
               .map((r) => ({
                 curriculumId,
-                courseId: courseIdByCode.get(r.courseCode),
-                prerequisiteCourseId: courseIdByCode.get(r.relatedCourseCode),
+                courseId: courseIdByProgramAndCode.get(courseKey(r.courseCode)),
+                prerequisiteCourseId: courseIdByProgramAndCode.get(courseKey(r.relatedCourseCode)),
               })),
             { transaction },
           );
@@ -366,12 +421,14 @@ const readImportCsv = (fileName) => {
           await CoRequisite.bulkCreate(
             coreqRows
               .filter(
-                (r) => courseIdByCode.has(r.courseCode) && courseIdByCode.has(r.relatedCourseCode),
+                (r) =>
+                  courseIdByProgramAndCode.has(courseKey(r.courseCode)) &&
+                  courseIdByProgramAndCode.has(courseKey(r.relatedCourseCode)),
               )
               .map((r) => ({
                 curriculumId,
-                courseId: courseIdByCode.get(r.courseCode),
-                coRequisiteCourseId: courseIdByCode.get(r.relatedCourseCode),
+                courseId: courseIdByProgramAndCode.get(courseKey(r.courseCode)),
+                coRequisiteCourseId: courseIdByProgramAndCode.get(courseKey(r.relatedCourseCode)),
               })),
             { transaction },
           );
@@ -402,10 +459,14 @@ const readImportCsv = (fileName) => {
         if (trackCourseRows.length > 0) {
           await ElectiveTrackCourse.bulkCreate(
             trackCourseRows
-              .filter((r) => trackByName.has(r.trackName) && courseIdByCode.has(r.courseCode))
+              .filter(
+                (r) =>
+                  trackByName.has(r.trackName) &&
+                  courseIdByProgramAndCode.has(courseKey(r.courseCode)),
+              )
               .map((r) => ({
                 electiveTrackId: trackByName.get(r.trackName),
-                courseId: courseIdByCode.get(r.courseCode),
+                courseId: courseIdByProgramAndCode.get(courseKey(r.courseCode)),
                 yearLevel: r.yearLevel,
                 semester: r.semester,
               })),
@@ -425,7 +486,7 @@ const readImportCsv = (fileName) => {
     }
 
     const activeCurriculum = await Curriculum.findOne({
-      where: { isActive: true },
+      where: { isActive: true, programId: bscpeProgram.id },
       order: [['id', 'ASC']],
     });
 

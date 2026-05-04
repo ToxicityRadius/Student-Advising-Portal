@@ -19,8 +19,13 @@ import {
 import { Link } from 'react-router-dom';
 import ActivityTimeline from '../faculty/ActivityTimeline';
 import ElectiveTrackSelector from '../adviser/ElectiveTrackSelector';
+import StudyPlanChecklist from './StudyPlanChecklist';
 import { buildProfileImageUrl, getInitials } from '../../utils/profileImage';
 import { formatGwa } from '../../utils/gradeHelpers';
+import {
+  isElectiveTrackSelectionRequiredForPlan,
+  mergeStudyPlanCoursesForReadiness,
+} from '../../utils/electiveTrackReadiness';
 import api from '../../utils/api';
 
 const semesterLabels = { 1: '1st Semester', 2: '2nd Semester', 3: 'Summer' };
@@ -226,44 +231,13 @@ const SARLayout = ({
 
   const hasStudyPlan = Boolean(sar?.StudyPlan?.id || versions.length > 0);
   const electiveTrackRequired = useMemo(() => {
-    const currentYearLevel = Number(sar?.yearLevel || analytics?.tags?.yearLevel || 0);
-    const currentSemester = Number(analytics?.tags?.semester || 0);
+    const readinessCourses = mergeStudyPlanCoursesForReadiness(
+      activeVersion?.StudyPlanCourses || [],
+      analytics?.curriculumChecklistOverview?.items || [],
+    );
 
-    if (currentYearLevel > 2) {
-      return true;
-    }
-
-    return currentYearLevel === 2 && currentSemester >= 2;
-  }, [analytics?.tags?.semester, analytics?.tags?.yearLevel, sar?.yearLevel]);
-
-  const groupedCourses = useMemo(() => {
-    const courses = Array.isArray(activeVersion?.StudyPlanCourses)
-      ? [...activeVersion.StudyPlanCourses]
-      : [];
-    courses.sort((a, b) => {
-      const yearDiff = Number(a.yearLevel) - Number(b.yearLevel);
-      if (yearDiff !== 0) return yearDiff;
-      const semDiff = Number(a.semester) - Number(b.semester);
-      if (semDiff !== 0) return semDiff;
-      return String(a.Course?.code || '').localeCompare(String(b.Course?.code || ''));
-    });
-    return courses.reduce((acc, course) => {
-      const key = `${course.yearLevel}-${course.semester}`;
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(course);
-      return acc;
-    }, {});
-  }, [activeVersion]);
-
-  const sortedPlanKeys = useMemo(
-    () =>
-      Object.keys(groupedCourses).sort((a, b) => {
-        const [ay, as_] = a.split('-').map(Number);
-        const [by, bs] = b.split('-').map(Number);
-        return ay !== by ? ay - by : as_ - bs;
-      }),
-    [groupedCourses],
-  );
+    return isElectiveTrackSelectionRequiredForPlan(readinessCourses);
+  }, [activeVersion?.StudyPlanCourses, analytics?.curriculumChecklistOverview?.items]);
 
   if (!sar) {
     return (
@@ -893,7 +867,7 @@ const SARLayout = ({
                     return ay !== by ? ay - by : as_ - bs;
                   });
                   return (
-                    <Accordion alwaysOpen>
+                    <Accordion alwaysOpen className="sar-term-checklist">
                       {sortedKeys.map((key) => {
                         const [yearLevel, semester] = key.split('-').map(Number);
                         const groupItems = groups[key];
@@ -1102,14 +1076,16 @@ const SARLayout = ({
               </div>
             )}
 
-            {canManagePlan && electiveTrackRequired && sar?.curriculumId && (
-              <ElectiveTrackSelector
-                sarId={sarId}
-                curriculumId={sar.curriculumId}
-                selectedTrackId={sar.electiveTrackId}
-                onTrackSelected={() => onRefresh?.()}
-              />
-            )}
+            {canManagePlan &&
+              (electiveTrackRequired || sar?.electiveTrackId) &&
+              sar?.curriculumId && (
+                <ElectiveTrackSelector
+                  sarId={sarId}
+                  curriculumId={sar.curriculumId}
+                  selectedTrackId={sar.electiveTrackId}
+                  onTrackSelected={() => onRefresh?.()}
+                />
+              )}
 
             {/* Study plan versions table (adviser/admin only) */}
             {canManagePlan && versions.length > 0 && (
@@ -1202,52 +1178,11 @@ const SARLayout = ({
                       ? 'A study plan exists, but no version has been marked active yet.'
                       : 'No study plan has been generated yet.'}
                   </p>
-                ) : sortedPlanKeys.length === 0 ? (
-                  <p className="text-muted mb-0">The active study plan has no scheduled courses.</p>
                 ) : (
-                  sortedPlanKeys.map((key) => {
-                    const [yearLevel, semester] = key.split('-').map(Number);
-                    const courses = groupedCourses[key] || [];
-                    return (
-                      <div key={key} className="mb-4">
-                        <h6 className="mb-2 text-muted">
-                          Year {yearLevel} — {semesterLabels[semester] || `Semester ${semester}`}
-                        </h6>
-                        <Table responsive hover size="sm" className="border table-fixed-cols">
-                          <thead className="table-light">
-                            <tr>
-                              <th className="col-code">Course Code</th>
-                              <th className="col-name">Course Name</th>
-                              <th className="col-units text-center">Units</th>
-                              <th className="col-grade text-center">Grade</th>
-                              <th className="col-status text-center">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {courses.map((course) => (
-                              <tr key={course.id}>
-                                <td className="text-nowrap fw-medium">
-                                  {course.Course?.code || 'N/A'}
-                                </td>
-                                <td>{course.Course?.name || 'N/A'}</td>
-                                <td className="text-center">{course.Course?.units ?? '—'}</td>
-                                <td className="text-center">{course.grade || '—'}</td>
-                                <td className="text-center">
-                                  <Badge
-                                    bg={statusVariant(course.status)}
-                                    text={course.status === 'not yet taken' ? 'dark' : undefined}
-                                    className="text-uppercase"
-                                  >
-                                    {course.status || 'pending'}
-                                  </Badge>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </Table>
-                      </div>
-                    );
-                  })
+                  <StudyPlanChecklist
+                    courses={activeVersion.StudyPlanCourses || []}
+                    emptyMessage="The active study plan has no scheduled courses."
+                  />
                 )}
               </Card.Body>
             </Card>

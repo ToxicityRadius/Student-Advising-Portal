@@ -246,6 +246,61 @@ describe('GradeEntry retake placement and override request', () => {
     });
   });
 
+  test('previews PDF checklist before importing matched grades', async () => {
+    const user = userEvent.setup();
+    const reload = jest.fn();
+    useSarData.mockReturnValue({ ...makeSarData(), reload });
+    api.post
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            identity: { studentName: 'Ada Student', studentNumber: '1234567' },
+            curriculumTitle: '2023 CURRICULUM FOR BACHELOR OF SCIENCE IN COMPUTER ENGINEERING',
+            matchedRows: [{ courseCode: 'CALC101', grade: '2.00', courseName: 'Calculus 1' }],
+            unmatchedRows: [{ courseCode: 'UNKNOWN 001', grade: '1.50' }],
+            invalidRows: [],
+            duplicateRows: [],
+            warnings: ['1 course code was not found in the active study plan.'],
+            canImport: true,
+          },
+        },
+      })
+      .mockResolvedValueOnce({ data: { imported: 1, failed: 1 } });
+
+    renderGradeEntry();
+
+    await user.click(screen.getByRole('button', { name: /Import PDF Checklist/i }));
+    await user.upload(
+      screen.getByLabelText(/PDF checklist file/i),
+      new File(['pdf'], 'checklist.pdf', { type: 'application/pdf' }),
+    );
+    await user.click(screen.getByRole('button', { name: /Preview PDF/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Ada Student').length).toBeGreaterThan(1);
+    });
+    expect(screen.getAllByText('CALC101').length).toBeGreaterThan(1);
+    expect(screen.getByText('UNKNOWN 001')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Import Matched Grades/i }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenNthCalledWith(
+        1,
+        '/sars/42/study-plan/active-version/grades/pdf-preview',
+        expect.any(FormData),
+        expect.objectContaining({ headers: { 'Content-Type': 'multipart/form-data' } }),
+      );
+      expect(api.post).toHaveBeenNthCalledWith(
+        2,
+        '/sars/42/study-plan/active-version/grades/pdf-import',
+        expect.any(FormData),
+        expect.objectContaining({ headers: { 'Content-Type': 'multipart/form-data' } }),
+      );
+      expect(reload).toHaveBeenCalled();
+    });
+  });
+
   test('requests Program Chair approval instead of regenerating an inactive curriculum SAR', async () => {
     const user = userEvent.setup();
     useSarData.mockReturnValue({

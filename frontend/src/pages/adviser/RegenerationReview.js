@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import useSarData from '../../hooks/useSarData';
 import api from '../../utils/api';
 import AdviserLayout from '../../components/adviser/AdviserLayout';
+import StudyPlanChecklist from '../../components/sar/StudyPlanChecklist';
 import { getErrorMessage } from '../../utils/errorHelpers';
 
 const slotLabels = {
@@ -115,6 +116,7 @@ const RegenerationReview = () => {
         ...courseEntry,
         moved: Boolean(previousSlot && previousSlot !== key),
         previousSlot,
+        previousSlotLabel: slotLabels[previousSlot] || previousSlot,
       });
     });
 
@@ -532,73 +534,11 @@ const RegenerationReview = () => {
           {/* ══════ Regenerated Plan Table ══════ */}
           <Card className="shadow-sm mb-4">
             <Card.Body>
-              <Table responsive className="table-fixed-cols">
-                <thead>
-                  <tr>
-                    <th style={{ width: '22%' }}>Semester Slot</th>
-                    <th>Courses</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupedCourses.map((group) => (
-                    <tr key={group.key}>
-                      <td className="fw-semibold align-middle">{group.label}</td>
-                      <td>
-                        <div className="d-flex flex-column gap-3">
-                          {group.courses.map((courseEntry) => (
-                            <Card
-                              key={courseEntry.id}
-                              className={
-                                courseEntry.moved
-                                  ? 'border-warning bg-warning bg-opacity-10'
-                                  : 'border-0 bg-light'
-                              }
-                            >
-                              <Card.Body className="py-3">
-                                <div className="d-flex flex-column flex-lg-row justify-content-between gap-3">
-                                  <div>
-                                    <div className="fw-semibold">
-                                      {courseEntry.Course?.code || 'No code'}
-                                    </div>
-                                    <div>{courseEntry.Course?.name || 'Unnamed course'}</div>
-                                    <div className="text-muted small">
-                                      {courseEntry.Course?.units || 0} units
-                                    </div>
-                                  </div>
-                                  <div className="text-lg-end">
-                                    {courseEntry.status && courseEntry.status !== 'pending' && (
-                                      <Badge
-                                        bg={statusVariant[courseEntry.status] || 'secondary'}
-                                        className="text-uppercase me-2"
-                                      >
-                                        {statusLabel[courseEntry.status] || courseEntry.status}
-                                      </Badge>
-                                    )}
-                                    {courseEntry.moved ? (
-                                      <>
-                                        <Badge bg="warning" text="dark">
-                                          Rescheduled
-                                        </Badge>
-                                        <div className="small text-muted mt-1">
-                                          Was in{' '}
-                                          {slotLabels[courseEntry.previousSlot] ||
-                                            `Y${courseEntry.previousSlot}`}
-                                        </div>
-                                      </>
-                                    ) : (
-                                      <Badge bg="secondary">Unchanged Slot</Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              </Card.Body>
-                            </Card>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
+              <StudyPlanChecklist
+                groups={groupedCourses}
+                emptyMessage="No courses were scheduled in this draft version."
+                showMovementStatus
+              />
             </Card.Body>
           </Card>
 

@@ -191,7 +191,7 @@ const CurriculumManagement = () => {
           },
         }),
         api.get('/courses', {
-          params: { ...programParams, page: 1, pageSize: 500, sortBy: 'code', sortOrder: 'asc' },
+          params: { scope: 'all', page: 1, pageSize: 500, sortBy: 'code', sortOrder: 'asc' },
         }),
       ]);
 

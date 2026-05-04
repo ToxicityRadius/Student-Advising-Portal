@@ -61,6 +61,10 @@ const mergeWhere = (...parts) => {
 const isStudentUser = (user) => user?.role === 'student';
 
 const buildStaffProgramScope = async (req, requestedProgramId = req.query?.programId) => {
+  if (req.query?.scope === 'all' && (isSuperadmin(req.user) || req.user?.role === 'admin')) {
+    return { allowed: true, where: {}, programIds: null };
+  }
+
   if (isStudentUser(req.user)) {
     const programId = normalizeProgramId(requestedProgramId);
     return {
