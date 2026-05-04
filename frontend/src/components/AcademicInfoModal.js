@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import api from '../utils/api';
 
-const PROGRAM_OPTIONS = ['BSCpE', 'BSCS', 'BSIT', 'BSCE', 'BSEE', 'BSME'];
 const STUDENT_TYPE_OPTIONS = [
   { value: 'regular', label: 'Regular' },
   { value: 'irregular', label: 'Irregular' },
@@ -26,38 +25,50 @@ const AcademicInfoModal = ({ onComplete }) => {
     sex: '',
   });
   const [curricula, setCurricula] = useState([]);
+  const [programs, setPrograms] = useState([]);
   const [loadingCurricula, setLoadingCurricula] = useState(true);
+  const [loadingPrograms, setLoadingPrograms] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const getCurricula = api?.get;
-    if (typeof getCurricula !== 'function') {
-      setCurricula([]);
-      setError('Failed to load curricula. Please refresh and try again.');
-      setLoadingCurricula(false);
-      return;
-    }
-
-    const curriculaRequest = getCurricula('/users/curriculum-options');
-    if (!curriculaRequest || typeof curriculaRequest.then !== 'function') {
-      setCurricula([]);
-      setError('Failed to load curricula. Please refresh and try again.');
-      setLoadingCurricula(false);
-      return;
-    }
-
-    curriculaRequest
-      .then((response) => {
-        const items = response.data?.items || response.data?.data?.items || [];
-        setCurricula(items);
-      })
-      .catch(() => {
+    const fetchData = async () => {
+      if (typeof api?.get !== 'function') {
         setCurricula([]);
-      })
-      .finally(() => {
+        setPrograms([]);
+        setError('Failed to load required data. Please refresh and try again.');
         setLoadingCurricula(false);
-      });
+        setLoadingPrograms(false);
+        return;
+      }
+
+      try {
+        const [currRes, progRes] = await Promise.all([
+          api.get('/users/curriculum-options').catch(() => null),
+          api.get('/programs/options').catch(() => null),
+        ]);
+
+        if (currRes?.data) {
+          setCurricula(currRes.data.items || currRes.data.data?.items || []);
+        } else {
+          setCurricula([]);
+        }
+
+        if (progRes?.data) {
+          setPrograms(progRes.data.data || []);
+        } else {
+          setPrograms([]);
+        }
+      } catch (err) {
+        setCurricula([]);
+        setPrograms([]);
+      } finally {
+        setLoadingCurricula(false);
+        setLoadingPrograms(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
   const handleChange = (e) => {
@@ -149,21 +160,25 @@ const AcademicInfoModal = ({ onComplete }) => {
 
           <Form.Group className="mb-3">
             <Form.Label className="fw-bold">Program</Form.Label>
-            <Form.Select
-              name="program"
-              value={formData.program}
-              onChange={(e) => {
-                setFormData((prev) => ({ ...prev, program: e.target.value, curriculum_id: '' }));
-              }}
-              required
-            >
-              <option value="">Select program...</option>
-              {PROGRAM_OPTIONS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </Form.Select>
+            {loadingPrograms ? (
+              <div className="text-muted small">Loading programs...</div>
+            ) : (
+              <Form.Select
+                name="program"
+                value={formData.program}
+                onChange={(e) => {
+                  setFormData((prev) => ({ ...prev, program: e.target.value, curriculum_id: '' }));
+                }}
+                required
+              >
+                <option value="">Select program...</option>
+                {programs.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {p.name} ({p.code})
+                  </option>
+                ))}
+              </Form.Select>
+            )}
           </Form.Group>
 
           <Form.Group className="mb-3">

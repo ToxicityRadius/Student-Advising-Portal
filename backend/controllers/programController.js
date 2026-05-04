@@ -57,6 +57,19 @@ exports.ensureDefaultProgram = async () => {
   return program;
 };
 
+exports.listActiveProgramsOptions = async (req, res, next) => {
+  try {
+    const programs = await Program.findAll({
+      where: { isActive: true },
+      attributes: ['id', 'code', 'name', 'collegeName'],
+      order: [['name', 'ASC']],
+    });
+    return res.status(200).json({ success: true, data: programs });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.listPrograms = async (req, res, next) => {
   try {
     const accessibleIds = await getAccessibleProgramIds(req.user);

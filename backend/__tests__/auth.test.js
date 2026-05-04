@@ -34,7 +34,10 @@ jest.mock('../models', () => {
     sequelize: actualSequelize,
     User,
     Curriculum: { findAll: jest.fn().mockResolvedValue([]) },
-    Program: { findOne: jest.fn().mockResolvedValue({ id: 1 }) },
+    Program: {
+      findOne: jest.fn().mockResolvedValue({ id: 1 }),
+      findAll: jest.fn().mockResolvedValue([]),
+    },
     UserProgramAssignment: { findAll: jest.fn().mockResolvedValue([{ programId: 1 }]) },
     StudentAcademicRecord: {
       findAll: jest.fn().mockResolvedValue([]),

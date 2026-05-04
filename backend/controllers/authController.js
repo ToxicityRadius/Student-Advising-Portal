@@ -1,4 +1,4 @@
-const { User, UserProgramAssignment } = require('../models');
+const { User, UserProgramAssignment, Program } = require('../models');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
@@ -235,6 +235,22 @@ async function clearVerificationSessionFromDb(req) {
 }
 exports.clearVerificationSessionFromDb = clearVerificationSessionFromDb;
 
+async function getValidProgramEmailSuffixes() {
+  try {
+    const { Program } = require('../models');
+    const activePrograms = await Program.findAll({
+      where: { isActive: true },
+      attributes: ['emailSuffix'],
+    });
+    const validSuffixes = [...new Set(activePrograms.map((p) => p.emailSuffix).filter(Boolean))];
+    if (validSuffixes.length === 0) validSuffixes.push('.cpe@tip.edu.ph'); // Fallback to avoid lockouts
+    return validSuffixes;
+  } catch (err) {
+    console.error('ERROR IN getValidProgramEmailSuffixes:', err);
+    throw err;
+  }
+}
+
 // Helper: generate a cryptographically secure 6-digit verification code
 function generateVerificationCode() {
   return crypto.randomInt(100000, 1000000).toString();
@@ -306,18 +322,17 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    if (
-      isFaculty &&
-      !emailLower.endsWith('.cpe@tip.edu.ph') &&
-      !FACULTY_EMAIL_WHITELIST.includes(emailLower)
-    ) {
+    const validSuffixes = await getValidProgramEmailSuffixes();
+    const hasValidFacultySuffix = validSuffixes.some((suffix) => emailLower.endsWith(suffix));
+
+    if (isFaculty && !hasValidFacultySuffix && !FACULTY_EMAIL_WHITELIST.includes(emailLower)) {
       return res.status(400).json({
         success: false,
-        message: 'Faculty email must end with .cpe@tip.edu.ph',
+        message: 'Faculty email must use a valid department suffix (e.g., .cpe@tip.edu.ph).',
       });
     }
 
-    if (!isFaculty && emailLower.endsWith('.cpe@tip.edu.ph')) {
+    if (!isFaculty && hasValidFacultySuffix) {
       return res.status(400).json({
         success: false,
         message: 'Student registration does not allow faculty department email addresses.',
@@ -691,18 +706,21 @@ exports.login = async (req, res, next) => {
 
     const emailLower = email.toLowerCase();
 
+    const validSuffixes = await getValidProgramEmailSuffixes();
+    const hasValidFacultySuffix = validSuffixes.some((suffix) => emailLower.endsWith(suffix));
+
     // Enforce email format matches selected role
     if (
       selectedRole === 'faculty' &&
-      !emailLower.endsWith('.cpe@tip.edu.ph') &&
+      !hasValidFacultySuffix &&
       !FACULTY_EMAIL_WHITELIST.includes(emailLower)
     ) {
       return res.status(403).json({
         success: false,
-        message: 'Faculty/Admin login requires a department email (e.g. lastname.cpe@tip.edu.ph).',
+        message: 'Faculty/Admin login requires a valid department email suffix.',
       });
     }
-    if (selectedRole === 'student' && emailLower.endsWith('.cpe@tip.edu.ph')) {
+    if (selectedRole === 'student' && hasValidFacultySuffix) {
       return res.status(403).json({
         success: false,
         message: 'Please use the Faculty login for department email addresses.',
@@ -1378,11 +1396,17 @@ exports.initiateEmailChange = async (req, res, next) => {
         .json({ success: false, message: 'Only @tip.edu.ph email addresses are allowed' });
     }
 
+    const validSuffixes = await getValidProgramEmailSuffixes();
+    const hasValidFacultySuffix = validSuffixes.some((suffix) => newEmailLower.endsWith(suffix));
+
     // Program Chair must use department email
-    if (user.role === 'admin' && !newEmailLower.endsWith('.cpe@tip.edu.ph')) {
+    if (user.role === 'admin' && !hasValidFacultySuffix) {
       return res
         .status(400)
-        .json({ success: false, message: 'Program Chair email must end with .cpe@tip.edu.ph' });
+        .json({
+          success: false,
+          message: 'Program Chair email must use a valid department suffix.',
+        });
     }
 
     // Must differ from current email
