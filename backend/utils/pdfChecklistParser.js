@@ -154,7 +154,6 @@ const extractChecklistFromPdf = async (buffer) => {
 };
 
 module.exports = {
-  PDF_TEXT_UNREADABLE,
   extractChecklistFromPdf,
   parseChecklistText,
   normalizeCourseCode,
