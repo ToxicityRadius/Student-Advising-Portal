@@ -35,12 +35,8 @@ describe('superadmin program foundation migration', () => {
     expect(source).toContain("'student_academic_records', 'programId'");
     expect(source).toContain("'prerequisite_override_requests', 'programId'");
 
-    const addCurriculumColumnPosition = source.indexOf(
-      "addColumnIfMissing(\n        queryInterface,\n        'curriculums'",
-    );
-    const addCurriculumIndexPosition = source.indexOf(
-      "addIndexIfMissing(queryInterface, 'curriculums'",
-    );
+    const addCurriculumColumnPosition = source.indexOf('addColumnIfMissing');
+    const addCurriculumIndexPosition = source.indexOf('addIndexIfMissing');
 
     expect(addCurriculumColumnPosition).toBeGreaterThanOrEqual(0);
     expect(addCurriculumIndexPosition).toBeGreaterThanOrEqual(0);

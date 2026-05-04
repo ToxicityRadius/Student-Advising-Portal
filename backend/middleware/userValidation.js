@@ -7,7 +7,6 @@ const { ALL_ROLES } = require('../constants');
 
 const ALLOWED_ROLES = ALL_ROLES;
 
-const ALLOWED_PROGRAMS = ['BSCpE', 'BSCS', 'BSIT', 'BSCE', 'BSEE', 'BSME'];
 const ALLOWED_STUDENT_TYPES = ['regular', 'irregular', 'transferee', 'ladderized'];
 const ALLOWED_SEX = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
 
@@ -19,10 +18,7 @@ exports.completeOnboardingValidation = [
     .isInt({ min: 1, max: 4 })
     .withMessage('current_year_level must be 1, 2, 3, or 4')
     .toInt(),
-  body('program')
-    .optional()
-    .isIn(ALLOWED_PROGRAMS)
-    .withMessage(`program must be one of: ${ALLOWED_PROGRAMS.join(', ')}`),
+  body('program').optional().trim().notEmpty().withMessage('program cannot be empty if provided'),
   body('curriculum_id')
     .optional()
     .isInt({ min: 1 })
