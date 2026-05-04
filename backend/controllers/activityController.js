@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 const { ActivityLog, Program, StudentAcademicRecord, User } = require('../models');
 const { parsePaginationParams, buildPaginatedPayload } = require('../utils/pagination');
+const { buildNonSuperadminActivityWhere } = require('../utils/activityVisibility');
 const {
   buildProgramWhere,
   canReadProgram,
@@ -45,6 +46,7 @@ exports.listActivity = async (req, res, next) => {
 
     const whereParts = [filters];
     const isSarScopedTimeline = resourceType === 'sar' && resourceId;
+    const actorVisibilityWhere = buildNonSuperadminActivityWhere(req.user);
 
     if (isSarScopedTimeline) {
       const sar = await StudentAcademicRecord.findByPk(resourceId, {
@@ -77,6 +79,10 @@ exports.listActivity = async (req, res, next) => {
           programId: programIds.length > 0 ? { [Op.in]: programIds } : { [Op.is]: null },
         });
       }
+    }
+
+    if (actorVisibilityWhere) {
+      whereParts.push(actorVisibilityWhere);
     }
 
     if (search) {

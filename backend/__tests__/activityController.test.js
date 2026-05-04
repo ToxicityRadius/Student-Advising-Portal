@@ -73,7 +73,16 @@ describe('activityController listActivity', () => {
     expect(ActivityLog.findAndCountAll).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          [Op.and]: [{ resourceType: 'sar', resourceId: '42' }, { programId: 8 }],
+          [Op.and]: [
+            { resourceType: 'sar', resourceId: '42' },
+            { programId: 8 },
+            {
+              [Op.or]: [
+                { actorId: { [Op.is]: null } },
+                { '$Actor.role$': { [Op.ne]: 'superadmin' } },
+              ],
+            },
+          ],
         },
         offset: 0,
         limit: 50,
@@ -158,6 +167,12 @@ describe('activityController listActivity', () => {
           [Op.and]: [
             { resourceType: 'term', actorId: 5, action: 'term.activated' },
             { programId: { [Op.in]: [8] } },
+            {
+              [Op.or]: [
+                { actorId: { [Op.is]: null } },
+                { '$Actor.role$': { [Op.ne]: 'superadmin' } },
+              ],
+            },
             {
               [Op.or]: [
                 { action: { [Op.iLike]: '%term%' } },

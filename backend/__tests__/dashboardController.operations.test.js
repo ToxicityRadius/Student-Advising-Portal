@@ -1,3 +1,5 @@
+const { Op } = require('sequelize');
+
 jest.mock('../models', () => ({
   AcademicTerm: {
     findOne: jest.fn(),
@@ -110,6 +112,22 @@ describe('dashboardController operations summary', () => {
     expect(next).not.toHaveBeenCalled();
     expect(buildProgramWhere).toHaveBeenCalledWith(req.user, 8, { allowStudent: true });
     expect(Course.count).toHaveBeenCalledWith({ where: { programId: 8 } });
+    expect(ActivityLog.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          [Op.and]: [
+            { programId: 8 },
+            {
+              [Op.or]: [
+                { actorId: { [Op.is]: null } },
+                { '$Actor.role$': { [Op.ne]: 'superadmin' } },
+              ],
+            },
+          ],
+        },
+        limit: 8,
+      }),
+    );
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: true,

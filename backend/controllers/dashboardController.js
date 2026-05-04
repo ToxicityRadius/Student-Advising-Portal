@@ -20,11 +20,21 @@ const {
 } = require('../models');
 const { computeSarAnalytics } = require('../utils/sarAnalytics');
 const { buildProgramWhere, isSuperadmin, normalizeProgramId } = require('../utils/programAccess');
+const { buildNonSuperadminActivityWhere } = require('../utils/activityVisibility');
 
 const semesterLabel = {
   1: '1st Semester',
   2: '2nd Semester',
   3: 'Summer',
+};
+
+const hasWhereClauses = (where = {}) => Reflect.ownKeys(where).length > 0;
+
+const combineWhereClauses = (...clauses) => {
+  const filtered = clauses.filter((clause) => clause && hasWhereClauses(clause));
+  if (filtered.length === 0) return {};
+  if (filtered.length === 1) return filtered[0];
+  return { [Op.and]: filtered };
 };
 
 const getTermSummary = async (programWhere = {}) => {
@@ -355,10 +365,11 @@ const buildAdviserSummary = async (user, programWhere = {}) => {
       where: { ...programWhere, requestedByAdviserId: user.id, status: 'pending' },
     }),
     ActivityLog.findAll({
-      where: {
-        ...programWhere,
-        [Op.or]: [{ actorId: user.id }, { targetUserId: user.id }],
-      },
+      where: combineWhereClauses(
+        programWhere,
+        { [Op.or]: [{ actorId: user.id }, { targetUserId: user.id }] },
+        buildNonSuperadminActivityWhere(user),
+      ),
       include: [
         { model: User, as: 'Actor', attributes: ['id', 'firstName', 'lastName', 'email', 'role'] },
         { model: Program, attributes: ['id', 'code', 'name'] },
@@ -500,10 +511,12 @@ const buildAdminSummary = async (user, programScope, requestedProgramId = null) 
       limit: 3,
     }),
     ActivityLog.findAll({
-      where:
+      where: combineWhereClauses(
         isSuperadmin(user) && !requestedProgramId
           ? {}
           : { programId: programWhere.programId || { [Op.in]: programScope.programIds || [] } },
+        buildNonSuperadminActivityWhere(user),
+      ),
       include: [
         { model: User, as: 'Actor', attributes: ['id', 'firstName', 'lastName', 'email', 'role'] },
         { model: Program, attributes: ['id', 'code', 'name'] },
