@@ -13,7 +13,7 @@
 | **Backend** | Node.js + Express + Sequelize | 20 / 4.18 / 6.37 |
 | **Database** | PostgreSQL | 16 |
 | **Testing** | Jest + Playwright | 30.3 / 1.58 |
-| **Deployment** | Cloudflare Pages + Oracle Cloud | Latest |
+| **Deployment** | Cloudflare Pages + Render | Latest |
 
 ---
 
@@ -236,17 +236,17 @@
 | Component | Hosting | Technology |
 |---|---|---|
 | **Frontend** | Cloudflare Pages | Static hosting + global CDN |
-| **Backend API** | Oracle Cloud (Always Free) | Node.js on ARM VM (A1.Flex) |
-| **Database** | Oracle Cloud (Always Free) | PostgreSQL 16 on VM |
+| **Backend API** | Render Web Service | Node.js service from `backend/` |
+| **Database** | Managed PostgreSQL | PostgreSQL 16 via hosted provider |
 | **File Storage** | Supabase Storage | S3-compatible object storage |
 | **DNS & CDN** | Cloudflare | Global DNS + content delivery |
 
 **Infrastructure Specs (Production):**
-- Backend: Oracle A1.Flex VM (2 OCPUs, 12 GB RAM)
-- Database: PostgreSQL 16 on same VM
-- Storage: 200 GB block volume (Oracle)
-- Bandwidth: 10 TB/month outbound (Oracle)
-- Reverse Proxy: Nginx + Let's Encrypt SSL
+- Frontend: Cloudflare Pages static build with SPA fallback in `frontend/public/_redirects`
+- Backend: Render web service using `npm start`, service root `backend`, and `/api/health` health checks
+- Database: PostgreSQL 16 reachable through `DATABASE_URL`
+- Storage: Supabase Storage profile picture bucket
+- Cross-origin auth: `CLIENT_URL` set to the exact Pages URL, with secure cross-site cookies for separate domains
 
 ### CI/CD Pipeline (Recommended)
 
@@ -268,15 +268,15 @@
 - **Configuration:** TLS, port 587, app-specific password
 
 ### File & Data Storage
-- **Supabase Storage** — Profile picture uploads (S3-compatible)
-- **Supabase PostgreSQL** (original) — Can migrate to self-hosted in Oracle VM
+- **Supabase Storage** - Profile picture uploads (S3-compatible)
+- **PostgreSQL** - Hosted relational database configured through `DATABASE_URL`
 
 ### Process Management (Production)
-- **PM2** — Node.js process manager for auto-restart & monitoring
-- **Nginx** — Reverse proxy, SSL termination, load balancing
+- **Render Runtime** - Process supervision, deploy logs, health checks, and restarts
+- **Cloudflare Pages** - Frontend build, CDN hosting, previews, and route fallback
 
 ### Security & Compliance
-- **SSL/TLS** — Let's Encrypt certificates via Certbot
+- **SSL/TLS** — Managed HTTPS through Cloudflare Pages and Render
 - **HTTPS** — All traffic encrypted
 - **CORS** — Configurable cross-origin policy
 - **Rate Limiting** — Protection against brute force & DoS
@@ -292,17 +292,24 @@
 NODE_ENV=production
 PORT=5000
 CLIENT_URL=https://student-advising-portal.pages.dev
-ACTIVATION_URL_BASE=https://api.yourdomain.com/api/auth/activate
 
 # Database
-DATABASE_URL=postgresql://user:password@localhost:5432/student_advising
-DB_SSL=false
+DATABASE_URL=postgresql://user:password@host:5432/student_advising
 
 # JWT
 JWT_SECRET=<64-char-hex-string>
 JWT_REFRESH_SECRET=<64-char-hex-string>
 JWT_EXPIRE=7d
 JWT_REFRESH_EXPIRE=30d
+
+# Cross-site auth cookies for separate Pages + Render domains
+AUTH_COOKIE_SAME_SITE=none
+AUTH_COOKIE_SECURE=true
+AUTH_COOKIE_DOMAIN=
+
+# Bootstrap Super Admin
+SUPERADMIN_EMAIL=superadmin@example.com
+SUPERADMIN_PASSWORD=<strong-password>
 
 # Email (SMTP)
 EMAIL_HOST=smtp.gmail.com
@@ -447,7 +454,7 @@ User
 
 ### Backend
 - Single-threaded Node.js runtime
-- PM2 cluster mode ready (can spawn multiple workers)
+- Render service sizing and autoscaling ready when the deployment plan supports it
 - Connection pooling via pg driver
 - Query optimization via Sequelize lazy loading
 
@@ -482,26 +489,23 @@ User
 
 ## Deployment Checklist
 
-- [ ] Oracle Cloud account created & home region selected
-- [ ] A1.Flex VM provisioned (2 OCPU, 12 GB RAM)
-- [ ] Node.js 20.x installed on VM
-- [ ] PostgreSQL 16 installed locally on VM
-- [ ] Nginx installed & configured as reverse proxy
-- [ ] SSL certificate obtained (Let's Encrypt via Certbot)
-- [ ] Backend `.env` configured with production secrets
+- [ ] Render web service created with service root `backend`
+- [ ] Render start command set to `npm start`
+- [ ] Render health check path set to `/api/health`
+- [ ] Backend environment variables configured with production secrets
 - [ ] Database migrations run (`npm run db:migrate`)
-- [ ] Backend started with PM2 (`pm2 start server.js`)
+- [ ] `https://<render-service>/api/health` returns healthy status
 - [ ] Cloudflare account created & GitHub connected
 - [ ] Frontend deployed to Cloudflare Pages
 - [ ] Frontend environment variables set
 - [ ] Google OAuth credentials updated
-- [ ] DNS records configured (Cloudflare)
-- [ ] CORS configured for frontend domain
+- [ ] CORS and `CLIENT_URL` configured for the exact Pages domain
+- [ ] Cross-site cookie settings verified for separate frontend/backend domains
 - [ ] Email service (Gmail App Password) configured
 - [ ] Supabase profile picture bucket configured
-- [ ] Database backup cron job created
+- [ ] Database backup schedule configured with the managed database provider
 - [ ] Monitoring & logging enabled
-- [ ] Domain SSL certificate auto-renewal verified
+- [ ] Deployed E2E smoke test passes with `E2E_BASE_URL` and `E2E_API_URL`
 
 ---
 
@@ -522,13 +526,13 @@ User
 
 - **GitHub Repo:** [Student-Advising-Portal](https://github.com/YOUR_USERNAME/Student-Advising-Portal)
 - **Live Frontend:** https://student-advising-portal.pages.dev (when deployed)
-- **Backend API:** https://api.yourdomain.com/api (when deployed)
+- **Backend API:** https://your-render-service.onrender.com/api (when deployed)
 - **API Docs:** https://api.yourdomain.com/api-docs (Swagger UI)
-- **Oracle Cloud Console:** https://cloud.oracle.com
 - **Cloudflare Dashboard:** https://dash.cloudflare.com
+- **Render Dashboard:** https://dashboard.render.com
 - **Google Cloud Console:** https://console.cloud.google.com
 
 ---
 
-**Last Updated:** April 12, 2026  
+**Last Updated:** May 5, 2026
 **Maintainer:** Student Advising Portal Team

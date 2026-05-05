@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 
 jest.mock('../../utils/api', () => ({
   __esModule: true,
@@ -42,6 +42,11 @@ import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { useNotificationContext } from '../../context/NotificationContext';
 
+const LocationProbe = () => {
+  const location = useLocation();
+  return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
+};
+
 const renderNotifications = () =>
   render(
     <MemoryRouter
@@ -49,6 +54,7 @@ const renderNotifications = () =>
       initialEntries={['/notifications']}
     >
       <Notifications />
+      <LocationProbe />
     </MemoryRouter>,
   );
 
@@ -127,5 +133,92 @@ describe('Notifications page consistency', () => {
     });
 
     expect(screen.queryByText('Invalid Date')).not.toBeInTheDocument();
+  });
+
+  test('marks a notification as read and navigates to its target path when clicked', async () => {
+    const user = userEvent.setup();
+    const markAsRead = jest.fn().mockResolvedValue();
+    useNotificationContext.mockReturnValue({
+      markAsRead,
+      markAllAsRead: jest.fn().mockResolvedValue(),
+      refresh: jest.fn(),
+    });
+    api.get
+      .mockResolvedValueOnce({
+        data: {
+          data: [
+            {
+              id: 88,
+              title: 'Grades updated',
+              body: 'Grades are ready.',
+              type: 'info',
+              isRead: false,
+              targetPath: '/grades',
+              createdAt: Date.now(),
+            },
+          ],
+          totalPages: 1,
+          totalItems: 1,
+        },
+      })
+      .mockResolvedValue({
+        data: {
+          data: [],
+          totalPages: 1,
+          totalItems: 0,
+        },
+      });
+
+    renderNotifications();
+
+    await user.click(await screen.findByRole('button', { name: /Unread: Grades updated/i }));
+
+    expect(markAsRead).toHaveBeenCalledWith(88);
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/grades');
+    });
+  });
+
+  test('keyboard activation navigates to notifications fallback when target path is missing', async () => {
+    const user = userEvent.setup();
+    const markAsRead = jest.fn().mockResolvedValue();
+    useNotificationContext.mockReturnValue({
+      markAsRead,
+      markAllAsRead: jest.fn().mockResolvedValue(),
+      refresh: jest.fn(),
+    });
+    api.get
+      .mockResolvedValueOnce({
+        data: {
+          data: [
+            {
+              id: 99,
+              title: 'General notice',
+              body: 'No target path.',
+              type: 'info',
+              isRead: false,
+              createdAt: Date.now(),
+            },
+          ],
+          totalPages: 1,
+          totalItems: 1,
+        },
+      })
+      .mockResolvedValue({
+        data: {
+          data: [],
+          totalPages: 1,
+          totalItems: 0,
+        },
+      });
+
+    renderNotifications();
+
+    const card = await screen.findByRole('button', { name: /Unread: General notice/i });
+    card.focus();
+    await user.keyboard('{Space}');
+
+    expect(markAsRead).toHaveBeenCalledWith(99);
+    expect(screen.getByTestId('location')).toHaveTextContent('/notifications');
   });
 });

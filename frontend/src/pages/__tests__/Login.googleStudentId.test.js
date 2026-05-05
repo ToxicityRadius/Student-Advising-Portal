@@ -152,10 +152,20 @@ describe('Login Page - Google student ID completion', () => {
       },
     });
 
-    api.get.mockResolvedValueOnce({
-      data: {
-        items: [{ id: 1, name: 'BS CPE Curriculum 2025' }],
-      },
+    api.get.mockImplementation((url) => {
+      if (url === '/programs/options') {
+        return Promise.resolve({
+          data: {
+            data: [{ id: 1, code: 'BSCpE', name: 'Bachelor of Science in Computer Engineering' }],
+          },
+        });
+      }
+
+      return Promise.resolve({
+        data: {
+          items: [{ id: 1, name: 'BS CPE Curriculum 2025' }],
+        },
+      });
     });
 
     api.post.mockResolvedValueOnce({

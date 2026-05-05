@@ -325,6 +325,8 @@ exports.decideInactiveCurriculumRegenerationRequest = async (req, res, next) => 
         meta: {
           studentName: updated.StudentAcademicRecord?.studentName,
           curriculumName: updated.Curriculum?.name,
+          sarId: updated.studentAcademicRecordId,
+          versionId: updated.studyPlanVersionId,
         },
       });
     }

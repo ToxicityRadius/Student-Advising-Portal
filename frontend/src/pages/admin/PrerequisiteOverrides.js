@@ -35,13 +35,25 @@ const formatDate = (value) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toLocaleDateString();
 };
 
+const getInitialApprovalQueue = () => {
+  if (typeof window === 'undefined') return 'prerequisite';
+  const params = new URLSearchParams(window.location.search);
+  return params.get('queue') === 'inactive' ? 'inactive' : 'prerequisite';
+};
+
+const getInitialStatusFilter = () => {
+  if (typeof window === 'undefined') return 'pending';
+  const status = new URLSearchParams(window.location.search).get('status');
+  return ['pending', 'approved', 'rejected', 'all'].includes(status) ? status : 'pending';
+};
+
 const PrerequisiteOverrides = () => {
   const { user } = useAuth();
-  const [activeQueue, setActiveQueue] = useState('prerequisite');
+  const [activeQueue, setActiveQueue] = useState(getInitialApprovalQueue);
   const [requests, setRequests] = useState([]);
   const [inactiveRequests, setInactiveRequests] = useState([]);
   const [programs, setPrograms] = useState([]);
-  const [statusFilter, setStatusFilter] = useState('pending');
+  const [statusFilter, setStatusFilter] = useState(getInitialStatusFilter);
   const [programId, setProgramId] = useState('');
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, 350);

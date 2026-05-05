@@ -1,10 +1,19 @@
 import axios from 'axios';
 
-const isProduction = process.env.NODE_ENV === 'production';
-const API_URL =
-  process.env.REACT_APP_API_URL || (isProduction ? '/api' : 'http://localhost:5000/api');
+const getDefaultApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    const { hostname } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return `http://${hostname}:${5000}/api`;
+    }
+  }
 
-if (!process.env.REACT_APP_API_URL && isProduction) {
+  return '/api';
+};
+
+const API_URL = process.env.REACT_APP_API_URL || getDefaultApiUrl();
+
+if (!process.env.REACT_APP_API_URL && API_URL === '/api') {
   console.warn('WARNING: REACT_APP_API_URL is not set. Falling back to relative /api base URL.');
 }
 

@@ -18,13 +18,23 @@ describe('AcademicInfoModal', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    api.get.mockResolvedValue({
-      data: {
-        items: [
-          { id: 1, name: 'BS CPE Curriculum 2025' },
-          { id: 2, name: 'BS CS Curriculum 2025' },
-        ],
-      },
+    api.get.mockImplementation((url) => {
+      if (url === '/programs/options') {
+        return Promise.resolve({
+          data: {
+            data: [{ id: 1, code: 'BSCpE', name: 'Bachelor of Science in Computer Engineering' }],
+          },
+        });
+      }
+
+      return Promise.resolve({
+        data: {
+          items: [
+            { id: 1, name: 'BS CPE Curriculum 2025' },
+            { id: 2, name: 'BS CS Curriculum 2025' },
+          ],
+        },
+      });
     });
 
     api.post.mockResolvedValue({

@@ -5,6 +5,7 @@ import { useNotificationContext } from '../../context/NotificationContext';
 import LogoutConfirmModal from '../LogoutConfirmModal';
 import SideNavItem from './SideNavItem';
 import { buildProfileImageUrl } from '../../utils/profileImage';
+import { getNotificationTargetPath } from '../../utils/notificationTargets';
 
 import logo from '../../assets/images/STUDENT ADVISING LOGO 1.png';
 import bellIconImg from '../../assets/images/Bell White Gradient.png';
@@ -105,6 +106,14 @@ const SidebarLayout = ({
   const handleLogout = async () => {
     await logout();
     navigate('/login');
+  };
+
+  const handleNotificationActivate = async (notification, isRead) => {
+    if (!isRead && typeof notification?.id === 'number') {
+      await markAsRead(notification.id);
+    }
+    setNotifOpen(false);
+    navigate(getNotificationTargetPath(notification));
   };
 
   const firstName = user?.firstName || user?.first_name || '';
@@ -556,8 +565,18 @@ const SidebarLayout = ({
                       return (
                         <div
                           key={n.id}
-                          onClick={() => {
-                            if (!isRead && typeof n.id === 'number') markAsRead(n.id);
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => handleNotificationActivate(n, isRead)}
+                          onKeyDown={(event) => {
+                            if (
+                              event.key === 'Enter' ||
+                              event.key === ' ' ||
+                              event.key === 'Space'
+                            ) {
+                              event.preventDefault();
+                              handleNotificationActivate(n, isRead);
+                            }
                           }}
                           style={{
                             display: 'flex',
@@ -567,7 +586,7 @@ const SidebarLayout = ({
                             background: c.bg,
                             opacity: isRead ? 0.5 : 1,
                             transition: 'opacity 0.2s',
-                            cursor: isRead ? 'default' : 'pointer',
+                            cursor: 'pointer',
                           }}
                         >
                           <div style={{ width: 5, background: c.border, flexShrink: 0 }} />

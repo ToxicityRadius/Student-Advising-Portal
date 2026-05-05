@@ -71,6 +71,7 @@ const makeInactiveRequestItem = (overrides = {}) => ({
 describe('PrerequisiteOverrides admin queue', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    window.history.pushState({}, '', '/');
     api.get.mockImplementation((url) => {
       if (url === '/programs') return Promise.resolve({ data: { data: [] } });
       if (url === '/inactive-curriculum-regeneration-requests') {
@@ -187,5 +188,38 @@ describe('PrerequisiteOverrides admin queue', () => {
         },
       );
     });
+  });
+
+  test('opens inactive approval queue from notification query parameters', async () => {
+    window.history.pushState(
+      {},
+      '',
+      '/admin/prerequisite-overrides?queue=inactive&status=approved',
+    );
+    api.get.mockImplementation((url) => {
+      if (url === '/programs') return Promise.resolve({ data: { data: [] } });
+      if (url === '/inactive-curriculum-regeneration-requests') {
+        return Promise.resolve(
+          makePaginatedResponse([makeInactiveRequestItem({ status: 'approved' })]),
+        );
+      }
+      return Promise.resolve(makePaginatedResponse([]));
+    });
+
+    render(<PrerequisiteOverrides />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /Inactive Curriculum/i })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+      expect(screen.getByText('BS CPE Curriculum 2018')).toBeInTheDocument();
+    });
+    expect(api.get).toHaveBeenCalledWith(
+      '/inactive-curriculum-regeneration-requests',
+      expect.objectContaining({
+        params: expect.objectContaining({ status: 'approved' }),
+      }),
+    );
   });
 });

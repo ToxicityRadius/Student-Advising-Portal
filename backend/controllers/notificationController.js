@@ -28,6 +28,7 @@ exports.getNotifications = async (req, res, next) => {
       isRead: n.isRead,
       resourceType: n.resourceType,
       resourceId: n.resourceId,
+      targetPath: n.targetPath || null,
       actor: n.Actor
         ? {
             id: n.Actor.id,

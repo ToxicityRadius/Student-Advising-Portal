@@ -5,6 +5,8 @@ import api from '../utils/api';
 import AdminLayout from '../components/admin/AdminLayout';
 import AdviserLayout from '../components/adviser/AdviserLayout';
 import StudentLayout from '../components/student/StudentLayout';
+import { useNavigate } from 'react-router-dom';
+import { getNotificationTargetPath } from '../utils/notificationTargets';
 
 const YELLOW = '#FFC107';
 const PAGE_SIZE = 20;
@@ -101,19 +103,20 @@ const formatTime = (timestamp) => {
   });
 };
 
-const NotificationCard = ({ notification, onMarkRead }) => {
+const NotificationCard = ({ notification, onActivate }) => {
   const c = TYPE_COLORS[notification.type] || TYPE_COLORS.info;
   const isRead = notification.isRead;
 
   return (
     <div
-      onClick={() => {
-        if (!isRead) onMarkRead(notification.id);
-      }}
+      onClick={() => onActivate(notification)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' && !isRead) onMarkRead(notification.id);
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Space') {
+          e.preventDefault();
+          onActivate(notification);
+        }
       }}
       aria-label={`${isRead ? 'Read' : 'Unread'}: ${notification.title}`}
       style={{
@@ -124,7 +127,7 @@ const NotificationCard = ({ notification, onMarkRead }) => {
         background: c.bg,
         opacity: isRead ? 0.55 : 1,
         transition: 'opacity 0.2s, box-shadow 0.15s',
-        cursor: isRead ? 'default' : 'pointer',
+        cursor: 'pointer',
         boxShadow: isRead ? 'none' : '0 1px 4px rgba(0,0,0,0.06)',
       }}
     >
@@ -184,6 +187,7 @@ const NotificationCard = ({ notification, onMarkRead }) => {
 
 const NotificationsContent = () => {
   const { markAsRead, markAllAsRead, refresh: refreshContext } = useNotificationContext();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -216,10 +220,13 @@ const NotificationsContent = () => {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  const handleMarkRead = async (id) => {
-    if (typeof id !== 'number') return;
-    await markAsRead(id);
-    await fetchNotifications();
+  const handleNotificationActivate = async (notification) => {
+    if (typeof notification?.id === 'number' && !notification.isRead) {
+      await markAsRead(notification.id);
+      await fetchNotifications();
+    }
+
+    navigate(getNotificationTargetPath(notification));
   };
 
   const handleMarkAllRead = async () => {
@@ -332,7 +339,7 @@ const NotificationsContent = () => {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {notifications.map((n) => (
-            <NotificationCard key={n.id} notification={n} onMarkRead={handleMarkRead} />
+            <NotificationCard key={n.id} notification={n} onActivate={handleNotificationActivate} />
           ))}
         </div>
       )}

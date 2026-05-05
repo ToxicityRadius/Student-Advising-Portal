@@ -91,7 +91,45 @@ describe('NotificationService prerequisite override notifications', () => {
         body: expect.stringContaining('CALC101 and CALC102'),
         resourceType: 'study_plan_version',
         resourceId: 30,
+        targetPath: '/admin/prerequisite-overrides?status=pending',
         isRead: false,
+      }),
+    );
+  });
+
+  test('uses an explicit target path when provided', async () => {
+    await NotificationService.notify({
+      recipientId: 10,
+      actorId: 20,
+      category: 'grades_entered',
+      resourceType: 'study_plan_version',
+      resourceId: 30,
+      targetPath: '/adviser/students/42/grades',
+      meta: { gradeCount: 3 },
+    });
+
+    expect(Notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'grades_entered',
+        targetPath: '/adviser/students/42/grades',
+      }),
+    );
+  });
+
+  test('falls back to safe category target paths when no explicit target is provided', async () => {
+    await NotificationService.notify({
+      recipientId: 10,
+      actorId: 20,
+      category: 'study_plan_regenerated',
+      resourceType: 'study_plan_version',
+      resourceId: 30,
+      meta: { versionNumber: 2 },
+    });
+
+    expect(Notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'study_plan_regenerated',
+        targetPath: '/plan-of-study',
       }),
     );
   });
@@ -124,7 +162,12 @@ describe('NotificationService prerequisite override notifications', () => {
       category: 'prerequisite_override_approved',
       resourceType: 'prerequisite_override_request',
       resourceId: 40,
-      meta: { prerequisiteCode: 'CALC101', dependentCode: 'CALC102' },
+      meta: {
+        prerequisiteCode: 'CALC101',
+        dependentCode: 'CALC102',
+        sarId: 7,
+        versionId: 12,
+      },
     });
 
     await NotificationService.notify({
@@ -143,6 +186,7 @@ describe('NotificationService prerequisite override notifications', () => {
         category: 'prerequisite_override_approved',
         title: 'Prerequisite override approved',
         body: expect.stringContaining('CALC101 and CALC102'),
+        targetPath: '/adviser/students/7/plan/12/review',
       }),
     );
     expect(Notification.create).toHaveBeenNthCalledWith(

@@ -1,6 +1,94 @@
 const { Notification, User } = require('../models');
 const logger = require('../utils/logger');
 
+const FALLBACK_TARGET_BY_CATEGORY = {
+  study_plan_validated: '/plan-of-study',
+  study_plan_regenerated: '/plan-of-study',
+  grades_entered: '/grades',
+  sar_created: '/plan-of-study',
+  sar_updated: '/plan-of-study',
+  elective_track_selected: '/plan-of-study',
+  prerequisite_override_requested: '/admin/prerequisite-overrides?status=pending',
+  inactive_curriculum_regeneration_requested:
+    '/admin/prerequisite-overrides?queue=inactive&status=pending',
+  prerequisite_override_approved: '/notifications',
+  prerequisite_override_rejected: '/notifications',
+  inactive_curriculum_regeneration_approved: '/notifications',
+  inactive_curriculum_regeneration_rejected: '/notifications',
+};
+
+function normalizeTargetPath(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 512 || !trimmed.startsWith('/') || trimmed.startsWith('//')) {
+    return null;
+  }
+
+  return trimmed;
+}
+
+function buildNotificationTargetPath({
+  category,
+  resourceType,
+  resourceId,
+  meta = {},
+  targetPath,
+}) {
+  const explicitTarget = normalizeTargetPath(targetPath) || normalizeTargetPath(meta.targetPath);
+  if (explicitTarget) {
+    return explicitTarget;
+  }
+
+  const sarId = meta.sarId || meta.studentAcademicRecordId;
+  const versionId =
+    meta.versionId ||
+    meta.studyPlanVersionId ||
+    (resourceType === 'study_plan_version' ? resourceId : null);
+
+  if (category === 'grades_entered' && meta.staffView === true && sarId) {
+    return `/adviser/students/${encodeURIComponent(String(sarId))}/grades`;
+  }
+
+  if (
+    ['study_plan_validated', 'study_plan_regenerated'].includes(category) &&
+    meta.staffView === true &&
+    sarId &&
+    versionId
+  ) {
+    return `/adviser/students/${encodeURIComponent(String(sarId))}/plan/${encodeURIComponent(String(versionId))}/review`;
+  }
+
+  if (
+    [
+      'prerequisite_override_approved',
+      'prerequisite_override_rejected',
+      'inactive_curriculum_regeneration_approved',
+      'inactive_curriculum_regeneration_rejected',
+    ].includes(category) &&
+    sarId &&
+    versionId
+  ) {
+    return `/adviser/students/${encodeURIComponent(String(sarId))}/plan/${encodeURIComponent(String(versionId))}/review`;
+  }
+
+  if (category === 'inactive_curriculum_regeneration_requested') {
+    return FALLBACK_TARGET_BY_CATEGORY.inactive_curriculum_regeneration_requested;
+  }
+
+  if (category === 'prerequisite_override_requested') {
+    return FALLBACK_TARGET_BY_CATEGORY.prerequisite_override_requested;
+  }
+
+  if (resourceType === 'sar' && resourceId && meta.staffView === true) {
+    return `/adviser/students/${encodeURIComponent(String(resourceId))}`;
+  }
+
+  return FALLBACK_TARGET_BY_CATEGORY[category] || '/notifications';
+}
+
 const NOTIFICATION_TEMPLATES = {
   study_plan_validated: {
     type: 'success',
@@ -82,6 +170,7 @@ async function notify({
   category,
   resourceType,
   resourceId,
+  targetPath,
   meta = {},
   title,
   body,
@@ -102,6 +191,13 @@ async function notify({
       body: resolvedBody,
       resourceType: resourceType || null,
       resourceId: resourceId || null,
+      targetPath: buildNotificationTargetPath({
+        category,
+        resourceType,
+        resourceId,
+        meta,
+        targetPath,
+      }),
       isRead: false,
       createdAt: Date.now(),
     });
@@ -176,4 +272,5 @@ module.exports = {
   markAsRead,
   markAllAsRead,
   getUnreadCount,
+  buildNotificationTargetPath,
 };

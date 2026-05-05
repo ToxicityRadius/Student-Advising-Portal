@@ -65,4 +65,46 @@ describe('notificationController.getNotifications', () => {
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
   });
+
+  test('includes notification target paths in the response payload', async () => {
+    NotificationService.getNotifications.mockResolvedValueOnce({
+      items: [
+        {
+          id: 7,
+          type: 'warning',
+          category: 'prerequisite_override_requested',
+          title: 'Prerequisite override request',
+          body: 'Review the pending request.',
+          isRead: false,
+          resourceType: 'study_plan_version',
+          resourceId: 22,
+          targetPath: '/admin/prerequisite-overrides?status=pending',
+          Actor: null,
+          createdAt: 1710000000000,
+        },
+      ],
+      page: 1,
+      pageSize: 50,
+      totalItems: 1,
+    });
+    const req = {
+      user: { id: 50 },
+      query: {},
+    };
+    const res = createRes();
+    const next = jest.fn();
+
+    await getNotifications(req, res, next);
+
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            id: 7,
+            targetPath: '/admin/prerequisite-overrides?status=pending',
+          }),
+        ],
+      }),
+    );
+  });
 });

@@ -173,6 +173,8 @@ exports.decidePrerequisiteOverride = async (req, res, next) => {
         meta: {
           prerequisiteCode: updated.PrerequisiteCourse?.code,
           dependentCode: updated.DependentCourse?.code,
+          sarId: updated.studentAcademicRecordId,
+          versionId: updated.studyPlanVersionId,
         },
       });
     }

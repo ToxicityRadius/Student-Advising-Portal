@@ -1,7 +1,17 @@
 export const getApiBaseUrl = () => {
-  const url = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-  if (!process.env.REACT_APP_API_URL && process.env.NODE_ENV === 'production') {
-    console.warn('WARNING: REACT_APP_API_URL is not set. Profile images will use localhost fallback.');
+  let url = process.env.REACT_APP_API_URL || '/api';
+
+  if (!process.env.REACT_APP_API_URL && typeof window !== 'undefined') {
+    const { hostname } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      url = `http://${hostname}:${5000}/api`;
+    }
+  }
+
+  if (!process.env.REACT_APP_API_URL && url === '/api') {
+    console.warn(
+      'WARNING: REACT_APP_API_URL is not set. Profile images will use relative /api URLs.',
+    );
   }
   return url.replace(/\/api\/?$/, '');
 };
