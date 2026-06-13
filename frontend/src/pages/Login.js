@@ -16,8 +16,6 @@ import teacherIcon from '../assets/images/teacher yellow.png';
 import studentAdvisingLogo from '../assets/images/STUDENT ADVISING LOGO 1.png';
 import { EyeIcon, EyeSlashIcon } from '../components/EyeIcons';
 
-const FACULTY_EMAIL_WHITELIST = ['jennifer.enriquez@tip.edu.ph'];
-
 const Login = () => {
   const [formData, setFormData] = useState({
     email: '',
@@ -111,14 +109,6 @@ const Login = () => {
     setError('');
 
     const emailLower = formData.email.toLowerCase();
-    if (
-      selectedRole === 'faculty' &&
-      !emailLower.endsWith('.cpe@tip.edu.ph') &&
-      !FACULTY_EMAIL_WHITELIST.includes(emailLower)
-    ) {
-      setError('Faculty, Program Chair, or Super Admin login requires a department email.');
-      return;
-    }
     if (selectedRole === 'student' && emailLower.endsWith('.cpe@tip.edu.ph')) {
       setError('Please use the Faculty login for department email addresses.');
       return;
@@ -171,17 +161,6 @@ const Login = () => {
       // Check if email ends with @tip.edu.ph
       if (!emailLower.endsWith('@tip.edu.ph')) {
         setError('Only TIP email addresses (@tip.edu.ph) are allowed to sign in.');
-        setLoading(false);
-        return;
-      }
-
-      // Faculty, Program Chair, and Super Admin use department email addresses.
-      if (
-        selectedRole === 'faculty' &&
-        !emailLower.endsWith('.cpe@tip.edu.ph') &&
-        !FACULTY_EMAIL_WHITELIST.includes(emailLower)
-      ) {
-        setError('Faculty, Program Chair, or Super Admin login requires a department email.');
         setLoading(false);
         return;
       }

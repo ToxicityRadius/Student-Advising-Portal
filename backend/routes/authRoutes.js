@@ -121,6 +121,15 @@ const resendCodeLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const emailChangeLimiter = rateLimit({
+  windowMs: FIFTEEN_MINUTES_MS,
+  max: disableAuthRateLimiting ? Number.MAX_SAFE_INTEGER : isTestEnvironment ? 200 : 5,
+  keyGenerator: getRequestIpKey,
+  message: { success: false, message: 'Too many attempts, please try again after 15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 router.post('/register', authLimiter, validate(registerValidation), register);
 router.post('/login', authLimiter, validate(loginValidation), login);
 router.post(
@@ -165,15 +174,17 @@ router.patch(
 router.post(
   '/initiate-email-change',
   protect,
+  emailChangeLimiter,
   validate(initiateEmailChangeValidation),
   initiateEmailChange,
 );
 router.post(
   '/verify-email-change',
   protect,
+  emailChangeLimiter,
   validate(verifyEmailChangeValidation),
   verifyEmailChange,
 );
-router.post('/resend-email-change-code', protect, resendEmailChangeCode);
+router.post('/resend-email-change-code', protect, emailChangeLimiter, resendEmailChangeCode);
 
 module.exports = router;

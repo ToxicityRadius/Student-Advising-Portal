@@ -69,7 +69,7 @@ const AUTH_REFRESH_TOKEN_KEY = 'auth_refresh_token';
 
 export function getStoredToken() {
   try {
-    return window.localStorage.getItem(AUTH_TOKEN_KEY) || null;
+    return window.sessionStorage.getItem(AUTH_TOKEN_KEY) || null;
   } catch {
     return null;
   }
@@ -77,8 +77,8 @@ export function getStoredToken() {
 
 export function storeAuthTokens(token, refreshToken) {
   try {
-    if (token) window.localStorage.setItem(AUTH_TOKEN_KEY, token);
-    if (refreshToken) window.localStorage.setItem(AUTH_REFRESH_TOKEN_KEY, refreshToken);
+    if (token) window.sessionStorage.setItem(AUTH_TOKEN_KEY, token);
+    if (refreshToken) window.sessionStorage.setItem(AUTH_REFRESH_TOKEN_KEY, refreshToken);
   } catch {
     // Ignore storage failures in restricted contexts (e.g. private browsing).
   }
@@ -86,8 +86,8 @@ export function storeAuthTokens(token, refreshToken) {
 
 export function clearStoredTokens() {
   try {
-    window.localStorage.removeItem(AUTH_TOKEN_KEY);
-    window.localStorage.removeItem(AUTH_REFRESH_TOKEN_KEY);
+    window.sessionStorage.removeItem(AUTH_TOKEN_KEY);
+    window.sessionStorage.removeItem(AUTH_REFRESH_TOKEN_KEY);
   } catch {
     // Ignore storage failures.
   }
@@ -95,7 +95,7 @@ export function clearStoredTokens() {
 
 function getStoredRefreshToken() {
   try {
-    return window.localStorage.getItem(AUTH_REFRESH_TOKEN_KEY) || null;
+    return window.sessionStorage.getItem(AUTH_REFRESH_TOKEN_KEY) || null;
   } catch {
     return null;
   }

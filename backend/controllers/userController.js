@@ -642,13 +642,9 @@ exports.updateUserStudentId = async (req, res, next) => {
       console.error('[sarSync] updateUserStudentId sync error:', syncError.message);
     }
 
-    // Generate token
-    const token = generateToken(finalUser);
-
     res.status(200).json({
       success: true,
       message: 'Student Number updated successfully',
-      token,
       user: {
         id: finalUser.id,
         firstName: finalUser.firstName,
@@ -673,11 +669,13 @@ exports.updateProfile = async (req, res, next) => {
     const { id } = req.params;
 
     const requestingOwnProfile = req.user && req.user.id.toString() === id.toString();
-    if (!requestingOwnProfile && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'You are not authorized to update this profile',
-      });
+    if (!requestingOwnProfile) {
+      if (req.user.role !== 'admin' && !isSuperadmin(req.user)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not authorized to update this profile',
+        });
+      }
     }
 
     const user = await User.findByPk(id);
@@ -686,6 +684,23 @@ exports.updateProfile = async (req, res, next) => {
         success: false,
         message: 'User not found',
       });
+    }
+
+    // Prevent admins from updating superadmin profiles or users outside their program scope
+    if (!requestingOwnProfile && req.user.role === 'admin') {
+      if (isSuperadmin(user)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not authorized to update this profile',
+        });
+      }
+      const allowed = await canManageProgram(req.user, user.programId || null);
+      if (!allowed) {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not authorized to update this profile',
+        });
+      }
     }
 
     let currentTermKey = null;

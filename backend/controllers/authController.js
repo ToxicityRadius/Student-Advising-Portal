@@ -497,9 +497,20 @@ exports.activateAccount = async (req, res, next) => {
     const updatedUser = await User.findByPk(user.id);
 
     const acceptsHtml = (req.headers.accept || '').includes('text/html');
-    const mobileScheme = process.env.MOBILE_APP_SCHEME || 'studentadvising';
+    const escHtml = (s) =>
+      String(s).replace(
+        /[&<>"']/g,
+        (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+      );
+    const mobileScheme = /^[a-z][a-z0-9+\-.]*$/.test(process.env.MOBILE_APP_SCHEME || '')
+      ? process.env.MOBILE_APP_SCHEME
+      : 'studentadvising';
     const mobileDeepLink = `${mobileScheme}://login?activated=1`;
-    const webLoginUrl = `${(process.env.CLIENT_URL || 'http://localhost:3000').split(',')[0].trim().replace(/\/$/, '')}/login?activated=1`;
+    const rawWebBase = (process.env.CLIENT_URL || 'http://localhost:3000')
+      .split(',')[0]
+      .trim()
+      .replace(/\/$/, '');
+    const webLoginUrl = `${rawWebBase}/login?activated=1`;
 
     if (acceptsHtml) {
       return res.status(200).send(`
@@ -661,22 +672,22 @@ exports.activateAccount = async (req, res, next) => {
         <h1>Account Activated</h1>
         <p>Your account is now active. Open the mobile app and sign in to continue with your profile setup.</p>
         <div class="actions">
-          <a class="btn btn-primary" href="${mobileDeepLink}">Open Mobile App</a>
-          <a class="btn btn-secondary" href="${webLoginUrl}">Open Web Login</a>
+          <a class="btn btn-primary" href="${escHtml(mobileDeepLink)}">Open Mobile App</a>
+          <a class="btn btn-secondary" href="${escHtml(webLoginUrl)}">Open Web Login</a>
         </div>
         <div class="note">
           <strong>Having trouble?</strong>
           <p>Use the app button first. If your browser blocks it, open the app manually and sign in, or use the web login link below.</p>
           <div class="links">
-            <a class="link-row" href="${mobileDeepLink}">${mobileDeepLink}</a>
-            <a class="link-row" href="${webLoginUrl}">${webLoginUrl}</a>
+            <a class="link-row" href="${escHtml(mobileDeepLink)}">${escHtml(mobileDeepLink)}</a>
+            <a class="link-row" href="${escHtml(webLoginUrl)}">${escHtml(webLoginUrl)}</a>
           </div>
           <p class="hint">We will also try to open the mobile app automatically.</p>
         </div>
       </section>
     </main>
     <script>
-      setTimeout(function () { window.location.href = '${mobileDeepLink}'; }, 150);
+      setTimeout(function () { window.location.href = ${JSON.stringify(mobileDeepLink)}; }, 150);
     </script>
   </body>
 </html>
@@ -1401,12 +1412,10 @@ exports.initiateEmailChange = async (req, res, next) => {
 
     // Program Chair must use department email
     if (user.role === 'admin' && !hasValidFacultySuffix) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: 'Program Chair email must use a valid department suffix.',
-        });
+      return res.status(400).json({
+        success: false,
+        message: 'Program Chair email must use a valid department suffix.',
+      });
     }
 
     // Must differ from current email
@@ -1475,9 +1484,36 @@ exports.verifyEmailChange = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Verification code is required' });
     }
 
-    if (user.emailChangeCode !== code) {
+    // Attempt tracking to prevent brute-force on the 6-digit code
+    const attemptKey = `email-change:${user.id}`;
+    const attemptEntry = verifyAttempts.get(attemptKey) || {
+      count: 0,
+      resetAt: Date.now() + VERIFY_LOCKOUT_MS,
+    };
+    if (Date.now() < attemptEntry.resetAt && attemptEntry.count >= MAX_VERIFY_ATTEMPTS) {
+      return res
+        .status(429)
+        .json({
+          success: false,
+          message: 'Too many attempts. Please request a new verification code.',
+        });
+    }
+
+    const storedCode = String(user.emailChangeCode || '').trim();
+    const submittedCode = String(code || '').trim();
+    const codesMatch =
+      storedCode.length > 0 &&
+      storedCode.length === submittedCode.length &&
+      crypto.timingSafeEqual(Buffer.from(storedCode), Buffer.from(submittedCode));
+
+    if (!codesMatch) {
+      const newCount = (Date.now() < attemptEntry.resetAt ? attemptEntry.count : 0) + 1;
+      verifyAttempts.set(attemptKey, { count: newCount, resetAt: Date.now() + VERIFY_LOCKOUT_MS });
       return res.status(400).json({ success: false, message: 'Invalid verification code' });
     }
+
+    // Clear attempt tracker on success
+    verifyAttempts.delete(attemptKey);
 
     if (Date.now() > Number(user.emailChangeCodeExpires)) {
       return res.status(400).json({

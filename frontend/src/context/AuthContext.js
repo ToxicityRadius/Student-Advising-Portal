@@ -98,7 +98,11 @@ export const AuthProvider = ({ children }) => {
     return persistUser(response.data?.user || null);
   }, [persistUser]);
 
+  const hydratedRef = useRef(false);
   useEffect(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+
     const hydrate = async () => {
       const cached = localStorage.getItem('user');
       if (cached) {

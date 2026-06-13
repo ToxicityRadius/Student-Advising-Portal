@@ -109,7 +109,7 @@ function AppContent() {
             <Route
               path="/grades"
               element={
-                <PrivateRoute>
+                <PrivateRoute roles={['student']}>
                   <ViewGrades />
                 </PrivateRoute>
               }
@@ -117,7 +117,7 @@ function AppContent() {
             <Route
               path="/plan-of-study"
               element={
-                <PrivateRoute>
+                <PrivateRoute roles={['student']}>
                   <PlanOfStudy />
                 </PrivateRoute>
               }
@@ -125,7 +125,7 @@ function AppContent() {
             <Route
               path="/subjects"
               element={
-                <PrivateRoute>
+                <PrivateRoute roles={['student']}>
                   <AvailableSubjects />
                 </PrivateRoute>
               }

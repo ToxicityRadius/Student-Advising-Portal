@@ -27,8 +27,7 @@ const PrivateRoute = ({ children, adminOnly = false, roles = [] }) => {
     return <Navigate to="/dashboard" />;
   }
 
-  const superadminMatches =
-    user.role === ROLE_SUPERADMIN && roles.some((role) => role !== 'student');
+  const superadminMatches = user.role === ROLE_SUPERADMIN && roles.includes('admin');
   if (roles.length > 0 && !roles.includes(user.role) && !superadminMatches) {
     return <Navigate to="/dashboard" />;
   }
