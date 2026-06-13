@@ -64,25 +64,33 @@ It includes step-by-step guides for:
 
 ### Backend
 
-- Node.js and Express
-- PostgreSQL through `DATABASE_URL`
-- Sequelize ORM
-- JWT access and refresh token flow
-- bcryptjs password hashing
-- Nodemailer verification/reset email workflows
-- Multer file uploads
-- Google OAuth through `google-auth-library`
-- PDFKit SAR PDF generation
-- helmet, morgan, and nodemon
+- **Runtime:** Node.js
+- **Framework:** Express.js v4.18.2
+- **Database:** PostgreSQL v8.16.3 (pg driver)
+- **ORM:** Sequelize v6.37.7
+- **Authentication:** JWT (jsonwebtoken v9.0.2), Google OAuth via google-auth-library v10.5.0
+- **Security:** bcryptjs v2.4.3 password hashing, helmet v8.1.0, express-rate-limit v8.3.0, express-validator v7.3.1
+- **File Management:** Multer v2.1.0 for uploads, Supabase v2.99.1 for cloud storage
+- **Email:** Nodemailer v8.0.5 for transactional emails
+- **PDF Generation:** PDFKit v0.17.2, pdf-parse v1.1.1
+- **Logging:** Pino v10.3.1 with pino-pretty v11.2.2
+- **API Documentation:** Swagger UI Express v5.0.1
+- **Database Migrations:** Sequelize CLI v6.6.5, Umzug v3.8.2
+- **Development:** Nodemon v3.1.11
+- **Testing:** Jest v30.3.0, Supertest v7.2.2
 
 ### Frontend
 
-- React 18 and React Router v6
-- React Bootstrap and Bootstrap 5
-- Recharts
-- Axios shared API utility
-- Context API authentication state
-- `@react-oauth/google`
+- **Framework:** React v18.2.0
+- **Routing:** React Router DOM v6.20.1
+- **UI:** React Bootstrap v2.10.10, Bootstrap v5.3.8
+- **Data Visualization:** Recharts v3.8.0
+- **Authentication:** @react-oauth/google v0.13.4, jwt-decode v4.0.0
+- **HTTP Client:** Axios v1.16.0
+- **State Management:** Context API (built-in React)
+- **Build Tool:** Create React App (react-scripts v5.0.1)
+- **Component Selection:** react-select v5.10.2
+- **Testing:** @testing-library/react v16.3.2, @testing-library/jest-dom v6.9.1
 
 ## Documentation
 
@@ -96,21 +104,64 @@ It includes step-by-step guides for:
 
 ## Quick Start
 
-### Backend
+### Prerequisites
+
+- Node.js v18.x or higher
+- PostgreSQL v12 or higher (local or via Supabase)
+- npm v9 or higher
+- Git
+
+### Backend Setup
 
 ```bash
 cd backend
 npm install
-npm run dev
+cp .env.example .env          # Configure environment variables
+npm run dev                   # Start development server on http://localhost:5000
 ```
 
-### Frontend
+### Frontend Setup
 
 ```bash
 cd frontend
 npm install
-npm start
+REACT_APP_API_URL=http://localhost:5000/api npm start  # Start on http://localhost:3000
 ```
+
+Both servers must be running for the full application to work.
+
+### Environment Configuration
+
+Key environment variables (see `backend/.env.example` for complete list):
+
+| Variable | Required | Purpose | Example |
+|----------|----------|---------|---------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string | `postgresql://user:pass@localhost:5432/student_advising` |
+| `JWT_SECRET` | Yes | Secret key for JWT signing | Generate with `openssl rand -hex 32` |
+| `JWT_REFRESH_SECRET` | Yes | Secret key for refresh tokens | Generate with `openssl rand -hex 32` |
+| `SUPABASE_URL` | No | Supabase project URL for file storage | `https://project.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | No | Supabase service role key | From Supabase dashboard |
+| `GOOGLE_CLIENT_ID` | No | Google OAuth client ID | From Google Cloud Console |
+| `EMAIL_HOST` | No | SMTP server for transactional emails | `smtp.gmail.com` |
+| `EMAIL_USER` | No | SMTP credentials | Your email |
+| `EMAIL_PASSWORD` | No | SMTP credentials / app password | For Gmail, use app password |
+| `DISABLE_ADMIN_FIRST_LOGIN_ENFORCEMENT` | No | Skip password/email rotation on first login (dev only) | `true` or `false` |
+
+### Available Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `npm start` | Start frontend development server |
+| `npm run backend:dev` | Start backend development server |
+| `npm run frontend:start` | Start frontend |
+| `npm run frontend:build` | Build frontend for production |
+| `npm run lint:backend` | Lint backend code |
+| `npm run test:backend` | Run backend unit tests |
+| `npm run test:backend:integration` | Run integration tests |
+| `npm run test:frontend:ci` | Run frontend tests (CI mode) |
+| `npm run test:e2e` | Run end-to-end tests |
+| `npm run verify:predeploy` | Full verification gate (lint, build, tests, audit) |
+| `npm run verify:predeploy:e2e` | Full verification + E2E tests |
 
 ### Seed Database
 
@@ -209,6 +260,71 @@ Override targets when needed with:
 - `E2E_API_URL`
 - `REACT_APP_API_URL`
 
+## Development Workflow
+
+### Local Development
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd Student-Advising-Portal
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   cd backend && npm install && cd ..
+   cd frontend && npm install && cd ..
+   ```
+
+3. **Set up environment variables:**
+   ```bash
+   cp backend/.env.example backend/.env
+   # Edit backend/.env with your local PostgreSQL connection and secrets
+   ```
+
+4. **Initialize database:**
+   ```bash
+   npm run backend:db:migrate
+   npm run backend:seed
+   ```
+
+5. **Start both servers:**
+   - Terminal 1: `npm run backend:dev` (runs on http://localhost:5000)
+   - Terminal 2: `npm run frontend:start` (runs on http://localhost:3000)
+
+### Code Quality and Testing
+
+All changes should pass these checks before committing:
+
+```bash
+# Lint backend
+npm run lint:backend
+
+# Run backend tests
+npm run test:backend
+
+# Run frontend tests
+npm run test:frontend:ci
+
+# Full pre-deployment verification
+npm run verify:predeploy
+```
+
+### Database Management
+
+- **Create migration:** `npx sequelize-cli migration:generate --name migration-name`
+- **Run migrations:** `npm run backend:db:migrate`
+- **Undo last migration:** `npm run backend:db:migrate:undo`
+- **Reset database:** Drop and recreate; reseed with `npm run backend:seed`
+
+### Commit and Push Workflow
+
+1. Create a feature branch: `git checkout -b feat/feature-name`
+2. Make changes and run tests locally
+3. Commit with conventional format: `git commit -m "feat(scope): description"`
+4. Push to remote: `git push -u origin feat/feature-name`
+5. Create a Pull Request and wait for CI checks to pass
+
 ## Frontend Vulnerability Strategy
 
 The frontend currently uses `react-scripts` 5.x. `npm audit` may report transitive vulnerabilities that cannot be safely removed without a focused tooling migration.
@@ -218,3 +334,50 @@ Current policy:
 - Block release on backend high-severity production vulnerabilities.
 - Track frontend audit findings separately and review them each release.
 - Defer migration from CRA/react-scripts to Vite until release hardening, CI, permissions, and E2E smoke tests are green.
+
+## Deployment
+
+### Production Environment Variables
+
+Before deploying, ensure these are configured in your production environment:
+
+- `NODE_ENV=production`
+- `DATABASE_URL` pointing to production PostgreSQL
+- `JWT_SECRET` and `JWT_REFRESH_SECRET` (generate new strong values)
+- `SUPERADMIN_EMAIL` and `SUPERADMIN_PASSWORD` (for bootstrap)
+- All OAuth and email service credentials
+- `CLIENT_URL` set to production frontend domain
+- `REACT_APP_API_URL` pointing to production API
+
+### Deployment Checklist
+
+- [ ] All tests pass locally and in CI
+- [ ] Database migrations are prepared and tested
+- [ ] Frontend production build succeeds
+- [ ] Security audit passes (`npm run audit:backend:high`)
+- [ ] Environment variables are configured correctly
+- [ ] Backup of production database is available
+- [ ] Rollback plan is documented
+
+## Troubleshooting
+
+### Backend won't start
+- Check `DATABASE_URL` is correct and PostgreSQL is running
+- Verify all required environment variables are set
+- Check for port conflicts (default: 5000)
+- Review logs: `npm run backend:dev` shows detailed error messages
+
+### Frontend won't build
+- Clear node_modules and package-lock: `rm -rf node_modules package-lock.json && npm install`
+- Check Node.js version: `node --version` (should be v18+)
+- Clear React cache: `rm -rf build/ && npm run frontend:build`
+
+### Tests fail locally but pass in CI
+- Ensure database is in a clean state: `npm run backend:seed`
+- Check environment variables in `.env` match test expectations
+- Run tests with `--verbose` flag for detailed output
+- Isolate failing tests: `npm test -- --testNamePattern="test-name"`
+
+### Port already in use
+- Backend (5000): `lsof -i :5000` to find process, `kill -9 <pid>` to terminate
+- Frontend (3000): `lsof -i :3000` to find process, `kill -9 <pid>` to terminate
